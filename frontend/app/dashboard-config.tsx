@@ -5,8 +5,8 @@ import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 /**
  * V50.z81 — Personalizza Home: toggle + reorder (↑↓) dei widget dashboard.
@@ -87,7 +87,7 @@ export default function DashboardConfigScreen() {
     <SafeAreaView style={styles.root}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={12} testID="dashcfg-back">
-          <Ionicons name="chevron-back" size={24} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={24} color={HT.text} />
         </Pressable>
         <Text style={styles.title}>Personalizza Home</Text>
         <Pressable onPress={reset} hitSlop={8} testID="dashcfg-reset">
@@ -101,21 +101,21 @@ export default function DashboardConfigScreen() {
         </Text>
 
         {loading ? (
-          <ActivityIndicator style={{ marginTop: 24 }} color={theme.color.brandPrimary} />
+          <ActivityIndicator style={{ marginTop: 24 }} color={HT.brand} />
         ) : (
           items.map((w, i) => (
             <View key={w.id} style={[styles.card, !w.enabled && { opacity: 0.55 }]} testID={`dashcfg-item-${w.id}`}>
               <View style={styles.left}>
                 <View style={styles.orderBox}>
                   <Pressable disabled={i === 0} onPress={() => move(i, -1)} hitSlop={6} style={[styles.arrow, i === 0 && { opacity: 0.3 }]} testID={`dashcfg-up-${w.id}`}>
-                    <Ionicons name="chevron-up" size={16} color={theme.color.onSurface} />
+                    <Ionicons name="chevron-up" size={16} color={HT.text} />
                   </Pressable>
                   <Pressable disabled={i === items.length - 1} onPress={() => move(i, 1)} hitSlop={6} style={[styles.arrow, i === items.length - 1 && { opacity: 0.3 }]} testID={`dashcfg-down-${w.id}`}>
-                    <Ionicons name="chevron-down" size={16} color={theme.color.onSurface} />
+                    <Ionicons name="chevron-down" size={16} color={HT.text} />
                   </Pressable>
                 </View>
                 <View style={styles.iconBox}>
-                  <Ionicons name={ICONS[w.id] || "square"} size={18} color={theme.color.brandPrimary} />
+                  <Ionicons name={ICONS[w.id] || "square"} size={18} color={HT.brand} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.name} numberOfLines={1}>{w.label}</Text>
@@ -125,7 +125,7 @@ export default function DashboardConfigScreen() {
               <Switch
                 value={w.enabled}
                 onValueChange={() => toggle(i)}
-                trackColor={{ true: theme.color.brandPrimary, false: "#CBD5E1" }}
+                trackColor={{ true: HT.brand, false: "#CBD5E1" }}
                 thumbColor="#FFF"
                 testID={`dashcfg-toggle-${w.id}`}
               />
@@ -149,19 +149,19 @@ export default function DashboardConfigScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.color.border },
-  title: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface },
-  resetTxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 13 },
-  desc: { fontSize: 13, color: theme.color.muted, marginBottom: 14, lineHeight: 18 },
-  card: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, borderRadius: 12, padding: 12, marginBottom: 8 },
+  root: { flex: 1, backgroundColor: HT.card2 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: HT.border },
+  title: { fontSize: 16, fontWeight: "800", color: HT.text },
+  resetTxt: { color: HT.brand, fontWeight: "700", fontSize: 13 },
+  desc: { fontSize: 13, color: HT.muted, marginBottom: 14, lineHeight: 18 },
+  card: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, borderRadius: 12, padding: 12, marginBottom: 8 },
   left: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
   orderBox: { gap: 2 },
-  arrow: { padding: 2, borderRadius: 6, backgroundColor: "#F1F5F9" },
-  iconBox: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: theme.color.brandPrimary + "18" },
-  name: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface },
-  hint: { fontSize: 11, color: theme.color.muted, marginTop: 2 },
-  footer: { position: "absolute", left: 0, right: 0, padding: 16, backgroundColor: "#FFF", borderTopWidth: 1, borderTopColor: theme.color.border },
-  saveBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: theme.color.brandPrimary, paddingVertical: 14, borderRadius: 12 },
+  arrow: { padding: 2, borderRadius: 6, backgroundColor: HT.card2 },
+  iconBox: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: HT.brand + "18" },
+  name: { fontSize: 14, fontWeight: "800", color: HT.text },
+  hint: { fontSize: 11, color: HT.muted, marginTop: 2 },
+  footer: { position: "absolute", left: 0, right: 0, padding: 16, backgroundColor: HT.card, borderTopWidth: 1, borderTopColor: HT.border },
+  saveBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: HT.brand, paddingVertical: 14, borderRadius: 12 },
   saveTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
 });

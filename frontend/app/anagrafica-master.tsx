@@ -12,6 +12,7 @@ import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { IdentityDocsSection } from "@/src/IdentityDocsSection"; // V50.z267
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Cred = { cred_id: string; service: string; username?: string; url?: string; notes?: string; password_masked?: boolean };
 type Profile = {
@@ -103,7 +104,7 @@ export default function AnagraficaMasterScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.bg }}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={10}><Ionicons name="chevron-back" size={26} color={theme.color.onSurface} /></Pressable>
+        <Pressable onPress={() => router.back()} hitSlop={10}><Ionicons name="chevron-back" size={26} color={HT.text} /></Pressable>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Anagrafica Master</Text>
           <Text style={styles.sub}>Dati personali · Password vault cifrato</Text>
@@ -113,7 +114,7 @@ export default function AnagraficaMasterScreen() {
         {/* Dati anagrafici */}
         <View style={styles.card}>
           <Text style={styles.section}>Dati personali</Text>
-          <Text style={{ fontSize: 11.5, color: "#64748B", marginBottom: 8 }}>🔄 Sincronizzati con il wizard «Set Up and Go» e con AxonOS: ogni modifica qui si riflette ovunque.</Text>
+          <Text style={{ fontSize: 11.5, color: HT.muted, marginBottom: 8 }}>🔄 Sincronizzati con il wizard «Set Up and Go» e con AxonOS: ogni modifica qui si riflette ovunque.</Text>
           {([
             ["first_name", "Nome"], ["last_name", "Cognome"], ["birth_date", "Data di nascita (AAAA-MM-GG)"], ["tax_id", "Codice Fiscale"],
             ["phone", "Telefono"], ["primary_email", "Mail per risposte e file"],
@@ -127,7 +128,7 @@ export default function AnagraficaMasterScreen() {
                 onChangeText={(t) => setP((prev) => ({ ...prev, [k]: t }))}
                 style={[styles.input, k === "notes" && { minHeight: 60 }]}
                 placeholder={label}
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={HT.muted}
                 multiline={k === "notes"}
                 autoCapitalize={k === "iban" || k === "tax_id" || k === "vat_id" ? "characters" : "sentences"}
               />
@@ -185,10 +186,10 @@ export default function AnagraficaMasterScreen() {
           <View style={styles.modalCard}>
             <Text style={styles.section}>Nuova credenziale</Text>
             {([["service", "Servizio (es. Aruba, Google, INPS)*"], ["username", "Username / email"], ["password", "Password*"], ["url", "URL sito (opzionale)"], ["notes", "Note (opzionale)"]] as [keyof typeof nc, string][]).map(([k, l]) => (
-              <TextInput key={k} value={nc[k]} onChangeText={(t) => setNc((prev) => ({ ...prev, [k]: t }))} placeholder={l} placeholderTextColor="#94A3B8" style={styles.input} secureTextEntry={k === "password"} autoCapitalize="none" />
+              <TextInput key={k} value={nc[k]} onChangeText={(t) => setNc((prev) => ({ ...prev, [k]: t }))} placeholder={l} placeholderTextColor={HT.muted} style={styles.input} secureTextEntry={k === "password"} autoCapitalize="none" />
             ))}
             <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
-              <Pressable onPress={() => setAddOpen(false)} style={[styles.saveBtn, { flex: 1, backgroundColor: "#94A3B8" }]}><Text style={styles.saveTxt}>ANNULLA</Text></Pressable>
+              <Pressable onPress={() => setAddOpen(false)} style={[styles.saveBtn, { flex: 1, backgroundColor: '#94A3B8' }]}><Text style={styles.saveTxt}>ANNULLA</Text></Pressable>
               <Pressable onPress={addCred} style={[styles.saveBtn, { flex: 1 }]}><Text style={styles.saveTxt}>SALVA</Text></Pressable>
             </View>
           </View>
@@ -199,26 +200,26 @@ export default function AnagraficaMasterScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: "row", alignItems: "center", gap: 10, padding: 14, borderBottomWidth: 1, borderBottomColor: theme.color.border },
-  title: { fontSize: 18, fontWeight: "900", color: theme.color.onSurface },
-  sub: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
-  card: { backgroundColor: "#FFF", padding: 12, borderRadius: 14, borderWidth: 1, borderColor: "#D1FAE5" },
-  section: { fontSize: 14, fontWeight: "900", color: "#065F46", marginBottom: 10 },
-  label: { fontSize: 11, fontWeight: "700", color: theme.color.muted, marginBottom: 3 },
-  input: { backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, color: theme.color.onSurface, marginBottom: 8 },
-  saveBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: "#10B981", paddingVertical: 12, borderRadius: 10, marginTop: 8 },
+  header: { flexDirection: "row", alignItems: "center", gap: 10, padding: 14, borderBottomWidth: 1, borderBottomColor: HT.border },
+  title: { fontSize: 18, fontWeight: "900", color: HT.text },
+  sub: { fontSize: 12, color: HT.muted, marginTop: 2 },
+  card: { backgroundColor: HT.card, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: HT.successTint },
+  section: { fontSize: 14, fontWeight: "900", color: HT.success, marginBottom: 10 },
+  label: { fontSize: 11, fontWeight: "700", color: HT.muted, marginBottom: 3 },
+  input: { backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, color: HT.text, marginBottom: 8 },
+  saveBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: '#10B981', paddingVertical: 12, borderRadius: 10, marginTop: 8 },
   saveTxt: { color: "#FFF", fontWeight: "900", fontSize: 13, letterSpacing: 0.5 },
-  addBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#10B981", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  addBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: '#10B981', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   addTxt: { color: "#FFF", fontSize: 11, fontWeight: "900" },
-  hint: { fontSize: 11, color: theme.color.muted, marginBottom: 10, fontStyle: "italic" },
-  empty: { fontSize: 12, color: theme.color.muted, textAlign: "center", padding: 16 },
-  credCard: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 10, backgroundColor: "#F0FDF4", borderWidth: 1, borderColor: "#D1FAE5", marginBottom: 8 },
-  credService: { fontSize: 14, fontWeight: "800", color: "#065F46" },
-  credUser: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
+  hint: { fontSize: 11, color: HT.muted, marginBottom: 10, fontStyle: "italic" },
+  empty: { fontSize: 12, color: HT.muted, textAlign: "center", padding: 16 },
+  credCard: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 10, backgroundColor: HT.successTint, borderWidth: 1, borderColor: HT.successTint, marginBottom: 8 },
+  credService: { fontSize: 14, fontWeight: "800", color: HT.success },
+  credUser: { fontSize: 12, color: HT.muted, marginTop: 2 },
   credUrl: { fontSize: 11, color: "#0EA5E9", marginTop: 2 },
-  credPwd: { fontSize: 13, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace", color: "#065F46", marginTop: 4 },
-  credNotes: { fontSize: 11, color: theme.color.muted, fontStyle: "italic", marginTop: 3 },
-  iconBtn: { padding: 6, borderRadius: 6, backgroundColor: "#FFF" },
+  credPwd: { fontSize: 13, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace", color: HT.success, marginTop: 4 },
+  credNotes: { fontSize: 11, color: HT.muted, fontStyle: "italic", marginTop: 3 },
+  iconBtn: { padding: 6, borderRadius: 6, backgroundColor: HT.card },
   modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  modalCard: { backgroundColor: "#FFF", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16, paddingBottom: 30 },
+  modalCard: { backgroundColor: HT.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16, paddingBottom: 30 },
 });

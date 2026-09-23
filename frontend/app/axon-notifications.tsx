@@ -4,13 +4,13 @@ import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Switc
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
-import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { axnApi, AxnNotification, AxnPrefs, AxnKind, AXN_KIND_ICON, setAppBadge } from "@/src/axonNotifications";
 import { PushStatusCard } from "@/src/PushStatusCard"; // V50.z193 — Stato canale push + test a 2 minuti
 import { PushUrgencyCard } from "@/src/PushUrgencyCard"; // V50.z221 — priorità avvisi (CRITICAL/HIGH/NORMAL) + regole personalizzate
 import { ProactiveSettingsCard } from "@/src/ProactiveSettingsCard"; // V50.z196 — Blocco 9: impostazioni proattività
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const AXON = "#7C3AED";
 
@@ -93,14 +93,14 @@ export default function AxonNotificationsScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable testID="axn-back" onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/home" as any))} hitSlop={10}>
-          <Ionicons name="chevron-back" size={26} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={26} color={HT.text} />
         </Pressable>
         <View style={{ flex: 1, alignItems: "center" }}>
           <Text style={styles.title}>Notifiche AxonOS</Text>
           <Text style={styles.sub}>{unread > 0 ? `${unread} non lette` : "Tutto letto"}</Text>
         </View>
         <Pressable onPress={readAll} hitSlop={10} disabled={unread === 0} testID="axn-read-all" accessibilityLabel="Segna tutte come lette">
-          <Ionicons name="checkmark-done" size={24} color={unread > 0 ? AXON : theme.color.muted} />
+          <Ionicons name="checkmark-done" size={24} color={unread > 0 ? AXON : HT.muted} />
         </Pressable>
       </View>
 
@@ -117,14 +117,14 @@ export default function AxonNotificationsScreen() {
           </Pressable>
           {items.length === 0 && (
             <View style={styles.empty} testID="axn-empty">
-              <Ionicons name="notifications-off-outline" size={36} color={theme.color.muted} />
+              <Ionicons name="notifications-off-outline" size={36} color={HT.muted} />
               <Text style={styles.emptyTxt}>Nessuna notifica{onlyUnread ? " da leggere" : ""}. AxonOS ti avviserà qui (e sul telefono) per sessioni Gym obbligatorie, richiamate urgenti, crediti, report e messaggi importanti.</Text>
             </View>
           )}
           {items.map((n) => (
             <Pressable key={n.notif_id} onPress={() => open(n)} style={[styles.row, !n.read && styles.rowUnread]} testID={`axn-row-${n.notif_id}`}>
-              <View style={[styles.rowIcon, { backgroundColor: n.read ? theme.color.surfaceTertiary : "#EDE9FE" }]}>
-                <Ionicons name={(AXN_KIND_ICON[n.kind] || "sparkles") as any} size={18} color={n.read ? theme.color.muted : AXON} />
+              <View style={[styles.rowIcon, { backgroundColor: n.read ? HT.card2 : "#EDE9FE" }]}>
+                <Ionicons name={(AXN_KIND_ICON[n.kind] || "sparkles") as any} size={18} color={n.read ? HT.muted : AXON} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.rowTitle, !n.read && { fontWeight: "900" }]} numberOfLines={2}>{n.title}</Text>
@@ -132,7 +132,7 @@ export default function AxonNotificationsScreen() {
                 <Text style={styles.rowMeta}>{fmt(n.created_at)}{n.team_copy_of ? " · team" : ""}</Text>
               </View>
               <Pressable onPress={() => remove(n)} hitSlop={8} style={styles.del} testID={`axn-del-${n.notif_id}`} accessibilityLabel="Elimina">
-                <Ionicons name="trash-outline" size={18} color={theme.color.muted} />
+                <Ionicons name="trash-outline" size={18} color={HT.muted} />
               </Pressable>
             </Pressable>
           ))}
@@ -194,7 +194,7 @@ export default function AxonNotificationsScreen() {
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
               <View style={styles.detailIcon}><Ionicons name={(detail ? AXN_KIND_ICON[detail.kind] : "notifications") as any} size={20} color="#FFF" /></View>
               <Text style={styles.detailTitle} numberOfLines={3}>{detail?.title}</Text>
-              <Pressable onPress={() => setDetail(null)} hitSlop={10} testID="axn-detail-close"><Ionicons name="close" size={22} color={theme.color.onSurface} /></Pressable>
+              <Pressable onPress={() => setDetail(null)} hitSlop={10} testID="axn-detail-close"><Ionicons name="close" size={22} color={HT.text} /></Pressable>
             </View>
             <Text style={styles.detailMeta}>{detail ? new Date(detail.created_at).toLocaleString("it-IT") : ""}</Text>
             <ScrollView style={{ maxHeight: 360 }} contentContainerStyle={{ paddingVertical: 8 }}>
@@ -202,11 +202,11 @@ export default function AxonNotificationsScreen() {
             </ScrollView>
             <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
               {detailLink && (
-                <Pressable onPress={() => { const dl = detailLink; setDetail(null); setTimeout(() => router.push(dl as any), 120); }} style={[styles.detailBtn, { backgroundColor: theme.color.brandPrimary, flex: 1 }]} testID="axn-detail-open-link">
+                <Pressable onPress={() => { const dl = detailLink; setDetail(null); setTimeout(() => router.push(dl as any), 120); }} style={[styles.detailBtn, { backgroundColor: HT.brand, flex: 1 }]} testID="axn-detail-open-link">
                   <Ionicons name="open-outline" size={16} color="#FFF" /><Text style={styles.detailBtnTxt}>Apri la pagina collegata</Text>
                 </Pressable>
               )}
-              <Pressable onPress={() => { if (detail) { void remove(detail); } setDetail(null); }} style={[styles.detailBtn, { backgroundColor: "#DC2626" }]} testID="axn-detail-delete">
+              <Pressable onPress={() => { if (detail) { void remove(detail); } setDetail(null); }} style={[styles.detailBtn, { backgroundColor: '#DC2626' }]} testID="axn-detail-delete">
                 <Ionicons name="trash-outline" size={16} color="#FFF" /><Text style={styles.detailBtnTxt}>Elimina</Text>
               </Pressable>
             </View>
@@ -218,41 +218,41 @@ export default function AxonNotificationsScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
-  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.color.border, backgroundColor: theme.color.surfaceSecondary, gap: 8 },
-  title: { fontSize: 18, fontWeight: "800", color: theme.color.onSurface },
-  sub: { fontSize: 12, color: theme.color.muted },
-  tabs: { flexDirection: "row", margin: 14, marginBottom: 0, backgroundColor: theme.color.surfaceTertiary, borderRadius: 12, padding: 4 },
+  root: { flex: 1, backgroundColor: HT.card2 },
+  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: HT.border, backgroundColor: HT.card2, gap: 8 },
+  title: { fontSize: 18, fontWeight: "800", color: HT.text },
+  sub: { fontSize: 12, color: HT.muted },
+  tabs: { flexDirection: "row", margin: 14, marginBottom: 0, backgroundColor: HT.card2, borderRadius: 12, padding: 4 },
   tab: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center" },
-  tabOn: { backgroundColor: theme.color.surfaceSecondary },
-  tabTxt: { fontSize: 14, fontWeight: "700", color: theme.color.muted },
+  tabOn: { backgroundColor: HT.card2 },
+  tabTxt: { fontSize: 14, fontWeight: "700", color: HT.muted },
   tabTxtOn: { color: AXON },
   filter: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6, minHeight: 40 },
-  filterTxt: { fontSize: 13, fontWeight: "700", color: theme.color.onSurface },
+  filterTxt: { fontSize: 13, fontWeight: "700", color: HT.text },
   empty: { alignItems: "center", gap: 10, padding: 28 },
-  emptyTxt: { fontSize: 13, color: theme.color.muted, textAlign: "center", lineHeight: 19 },
-  row: { flexDirection: "row", gap: 10, alignItems: "flex-start", backgroundColor: theme.color.surfaceSecondary, borderRadius: 14, borderWidth: 1, borderColor: theme.color.border, padding: 12 },
-  rowUnread: { borderColor: "#C4B5FD", backgroundColor: "#FAF5FF" },
+  emptyTxt: { fontSize: 13, color: HT.muted, textAlign: "center", lineHeight: 19 },
+  row: { flexDirection: "row", gap: 10, alignItems: "flex-start", backgroundColor: HT.card2, borderRadius: 14, borderWidth: 1, borderColor: HT.border, padding: 12 },
+  rowUnread: { borderColor: '#C4B5FD', backgroundColor: '#FAF5FF' },
   detailBack: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }, // V50.z231
-  detailCard: { backgroundColor: theme.color.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 18, paddingBottom: 34, gap: 6 },
-  detailIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: "#7C3AED", alignItems: "center", justifyContent: "center" },
-  detailTitle: { flex: 1, fontSize: 16, fontWeight: "900", color: theme.color.onSurface },
-  detailMeta: { fontSize: 12, color: theme.color.muted, fontWeight: "700" },
-  detailBody: { fontSize: 15, lineHeight: 22, color: theme.color.onSurface },
+  detailCard: { backgroundColor: HT.card2, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 18, paddingBottom: 34, gap: 6 },
+  detailIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#7C3AED', alignItems: "center", justifyContent: "center" },
+  detailTitle: { flex: 1, fontSize: 16, fontWeight: "900", color: HT.text },
+  detailMeta: { fontSize: 12, color: HT.muted, fontWeight: "700" },
+  detailBody: { fontSize: 15, lineHeight: 22, color: HT.text },
   detailBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 46, borderRadius: 12, paddingHorizontal: 14 },
   detailBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 13.5 },
   rowIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  rowTitle: { fontSize: 14, fontWeight: "700", color: theme.color.onSurface },
-  rowBody: { fontSize: 13, color: theme.color.onSurface, marginTop: 2, lineHeight: 18 },
-  rowMeta: { fontSize: 11, color: theme.color.muted, marginTop: 4 },
+  rowTitle: { fontSize: 14, fontWeight: "700", color: HT.text },
+  rowBody: { fontSize: 13, color: HT.text, marginTop: 2, lineHeight: 18 },
+  rowMeta: { fontSize: 11, color: HT.muted, marginTop: 4 },
   del: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
-  card: { backgroundColor: theme.color.surfaceSecondary, borderRadius: 14, borderWidth: 1, borderColor: theme.color.border, padding: 14, gap: 8 },
-  cardHead: { fontSize: 13, fontWeight: "900", color: theme.color.muted, textTransform: "uppercase", letterSpacing: 0.5 },
+  card: { backgroundColor: HT.card2, borderRadius: 14, borderWidth: 1, borderColor: HT.border, padding: 14, gap: 8 },
+  cardHead: { fontSize: 13, fontWeight: "900", color: HT.muted, textTransform: "uppercase", letterSpacing: 0.5 },
   prefRow: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 44 },
-  prefTitle: { fontSize: 15, fontWeight: "800", color: theme.color.onSurface },
-  prefSub: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
-  input: { flex: 1, borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: theme.color.onSurface, backgroundColor: theme.color.surface },
-  btn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: theme.color.brandPrimary, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 11, minHeight: 44 },
+  prefTitle: { fontSize: 15, fontWeight: "800", color: HT.text },
+  prefSub: { fontSize: 12, color: HT.muted, marginTop: 2 },
+  input: { flex: 1, borderWidth: 1, borderColor: HT.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: HT.text, backgroundColor: HT.card2 },
+  btn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: HT.brand, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 11, minHeight: 44 },
   btnTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
-  note: { fontSize: 12, color: theme.color.muted, textAlign: "center", lineHeight: 17 },
+  note: { fontSize: 12, color: HT.muted, textAlign: "center", lineHeight: 17 },
 });

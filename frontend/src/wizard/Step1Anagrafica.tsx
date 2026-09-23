@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, TextInput, Pressable, Modal, ActivityIndicator, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const PURPLE = "#7C3AED";
 export type Anag = {
@@ -129,7 +130,7 @@ export function Step1Anagrafica({ bind }: { bind: StepBinder }) {
       <Text style={styles.section}>Email</Text>
       {a.emails.map((m, i) => (
         <Field key={i} label={i === 0 ? "Mail *" : `Mail ${i + 1}`} value={m} onChangeText={(v) => setEmail(i, v)} keyboardType="email-address" autoCapitalize="none" placeholder="nome@dominio.it" testID={`anag-email-${i}`}
-          right={a.primary_email && a.primary_email === m.trim().toLowerCase() ? <Text style={styles.primaryTag}>risposte & file</Text> : i > 0 ? <Pressable onPress={() => setA((s) => ({ ...s, emails: s.emails.filter((_, j) => j !== i) }))} hitSlop={8}><Ionicons name="close-circle" size={20} color="#94A3B8" /></Pressable> : null} />
+          right={a.primary_email && a.primary_email === m.trim().toLowerCase() ? <Text style={styles.primaryTag}>risposte & file</Text> : i > 0 ? <Pressable onPress={() => setA((s) => ({ ...s, emails: s.emails.filter((_, j) => j !== i) }))} hitSlop={8}><Ionicons name="close-circle" size={20} color={HT.muted} /></Pressable> : null} />
       ))}
       {errors.emails && <Text style={styles.err}>{errors.emails}</Text>}
       {a.emails.length < 3 && <Pressable onPress={() => setA((s) => ({ ...s, emails: [...s.emails, ""] }))} style={styles.addBtn} testID="anag-add-email"><Ionicons name="add" size={16} color={PURPLE} /><Text style={styles.addTxt}>Aggiungi un'altra mail</Text></Pressable>}
@@ -179,8 +180,8 @@ function Field({ label, value, onChangeText, error, right, testID, ...rest }: { 
   return (
     <View style={{ gap: 4 }}>
       <Text style={styles.label}>{label}</Text>
-      <View style={[styles.inputWrap, !!error && { borderColor: "#DC2626" }]}>
-        <TextInput value={value} onChangeText={onChangeText} style={styles.input} placeholderTextColor="#94A3B8" testID={testID} {...rest} />
+      <View style={[styles.inputWrap, !!error && { borderColor: '#DC2626' }]}>
+        <TextInput value={value} onChangeText={onChangeText} style={styles.input} placeholderTextColor={HT.muted} testID={testID} {...rest} />
         {right}
       </View>
       {error ? <Text style={styles.err}>{error}</Text> : null}
@@ -190,27 +191,27 @@ function Field({ label, value, onChangeText, error, right, testID, ...rest }: { 
 
 const styles = StyleSheet.create({
   section: { fontSize: 12, fontWeight: "800", color: "#7C3AED", textTransform: "uppercase", letterSpacing: 0.6, marginTop: 6 },
-  label: { fontSize: 12.5, fontWeight: "700", color: "#475569" },
-  inputWrap: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF", borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 12, paddingHorizontal: 12, minHeight: 48 },
-  input: { flex: 1, fontSize: 15, color: "#1B2B4B", paddingVertical: Platform.OS === "web" ? 10 : 8 },
+  label: { fontSize: 12.5, fontWeight: "700", color: HT.text2 },
+  inputWrap: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, borderRadius: 12, paddingHorizontal: 12, minHeight: 48 },
+  input: { flex: 1, fontSize: 15, color: HT.text, paddingVertical: Platform.OS === "web" ? 10 : 8 },
   err: { fontSize: 11.5, color: "#DC2626", fontWeight: "700" },
-  cfBox: { backgroundColor: "#F5F3FF", borderRadius: 14, padding: 12, gap: 6, borderWidth: 1, borderColor: "#DDD6FE" },
-  cfTitle: { fontSize: 12.5, fontWeight: "800", color: "#4C1D95" },
-  cfRow: { fontSize: 15, fontWeight: "700", color: "#1B2B4B" },
-  cfNote: { fontSize: 11.5, color: "#5B21B6", lineHeight: 15 },
+  cfBox: { backgroundColor: HT.violetTint, borderRadius: 14, padding: 12, gap: 6, borderWidth: 1, borderColor: HT.violet + '66' },
+  cfTitle: { fontSize: 12.5, fontWeight: "800", color: HT.violet },
+  cfRow: { fontSize: 15, fontWeight: "700", color: HT.text },
+  cfNote: { fontSize: 11.5, color: HT.violet, lineHeight: 15 },
   cfBtn: { backgroundColor: PURPLE, borderRadius: 999, paddingHorizontal: 16, minHeight: 40, justifyContent: "center" },
-  cfBtnAlt: { backgroundColor: "#FFF", borderWidth: 1, borderColor: PURPLE },
+  cfBtnAlt: { backgroundColor: HT.card, borderWidth: 1, borderColor: PURPLE },
   cfBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
-  primaryTag: { fontSize: 10.5, fontWeight: "800", color: "#059669", backgroundColor: "#ECFDF5", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
+  primaryTag: { fontSize: 10.5, fontWeight: "800", color: "#059669", backgroundColor: HT.successTint, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
   addBtn: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 40 },
   addTxt: { color: PURPLE, fontWeight: "800", fontSize: 13 },
-  sync: { fontSize: 11.5, color: "#64748B", lineHeight: 16, marginTop: 4 },
+  sync: { fontSize: 11.5, color: HT.muted, lineHeight: 16, marginTop: 4 },
   backdrop: { flex: 1, backgroundColor: "rgba(15,23,42,0.55)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: "#FFF", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 32, gap: 10 },
-  sheetTitle: { fontSize: 17, fontWeight: "900", color: "#1B2B4B", marginBottom: 4 },
-  opt: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#F8FAFC", borderRadius: 14, padding: 14, minHeight: 52, borderWidth: 1, borderColor: "#E2E8F0" },
-  optLbl: { fontSize: 11.5, color: "#64748B", fontWeight: "700" },
-  optTxt: { fontSize: 15, fontWeight: "700", color: "#1B2B4B" },
+  sheet: { backgroundColor: HT.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 32, gap: 10 },
+  sheetTitle: { fontSize: 17, fontWeight: "900", color: HT.text, marginBottom: 4 },
+  opt: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: HT.card2, borderRadius: 14, padding: 14, minHeight: 52, borderWidth: 1, borderColor: HT.border },
+  optLbl: { fontSize: 11.5, color: HT.muted, fontWeight: "700" },
+  optTxt: { fontSize: 15, fontWeight: "700", color: HT.text },
   cancel: { alignItems: "center", justifyContent: "center", minHeight: 44 },
-  cancelTxt: { color: "#64748B", fontWeight: "700" },
+  cancelTxt: { color: HT.muted, fontWeight: "700" },
 });

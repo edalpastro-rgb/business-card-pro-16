@@ -6,6 +6,7 @@ import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type SmtpOut = { host: string; port: number; username: string; sender_name: string; sender_email: string; use_ssl: boolean; configured: boolean };
 
@@ -78,14 +79,14 @@ export default function SmtpConfigScreen() {
   };
 
   if (loading) return (
-    <SafeAreaView style={styles.root}><ActivityIndicator style={{ marginTop: 40 }} color={theme.color.brandPrimary} /></SafeAreaView>
+    <SafeAreaView style={styles.root}><ActivityIndicator style={{ marginTop: 40 }} color={HT.brand} /></SafeAreaView>
   );
 
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={10}>
-          <Ionicons name="chevron-back" size={26} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={26} color={HT.text} />
         </Pressable>
         <Text style={styles.title}>SMTP Email</Text>
         <View style={{ width: 26 }} />
@@ -94,7 +95,7 @@ export default function SmtpConfigScreen() {
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: bottomPad }}>
           <View style={styles.infoBox}>
-            <Ionicons name="information-circle" size={20} color={theme.color.info} />
+            <Ionicons name="information-circle" size={20} color={HT.axon} />
             <Text style={styles.infoTxt}>
               Configura le credenziali del tuo server email per inviare comunicazioni bulk ai gruppi contatti. Le password sono memorizzate solo sul tuo tenant.
             </Text>
@@ -114,7 +115,7 @@ export default function SmtpConfigScreen() {
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Server</Text>
             <Text style={styles.lbl}>Host SMTP *</Text>
-            <TextInput testID="smtp-host" value={form.host} onChangeText={(t) => setForm({ ...form, host: t })} placeholder="smtps.aruba.it" placeholderTextColor="#94A3B8" style={styles.input} autoCapitalize="none" />
+            <TextInput testID="smtp-host" value={form.host} onChangeText={(t) => setForm({ ...form, host: t })} placeholder="smtps.aruba.it" placeholderTextColor={HT.muted} style={styles.input} autoCapitalize="none" />
             <View style={{ flexDirection: "row", gap: 10 }}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.lbl}>Porta *</Text>
@@ -123,7 +124,7 @@ export default function SmtpConfigScreen() {
               <View style={{ flex: 1, justifyContent: "flex-end" }}>
                 <Pressable testID="smtp-ssl-toggle" onPress={() => setForm({ ...form, use_ssl: !form.use_ssl })} style={styles.switchRow}>
                   <Text style={styles.switchLbl}>SSL / TLS</Text>
-                  <Ionicons name={form.use_ssl ? "toggle" : "toggle-outline"} size={40} color={form.use_ssl ? theme.color.success : theme.color.muted} />
+                  <Ionicons name={form.use_ssl ? "toggle" : "toggle-outline"} size={40} color={form.use_ssl ? HT.success : HT.muted} />
                 </Pressable>
               </View>
             </View>
@@ -132,17 +133,17 @@ export default function SmtpConfigScreen() {
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Credenziali</Text>
             <Text style={styles.lbl}>Utente / Email login *</Text>
-            <TextInput testID="smtp-user" value={form.username} onChangeText={(t) => setForm({ ...form, username: t })} placeholder="tu@tuodominio.it" placeholderTextColor="#94A3B8" style={styles.input} autoCapitalize="none" keyboardType="email-address" />
+            <TextInput testID="smtp-user" value={form.username} onChangeText={(t) => setForm({ ...form, username: t })} placeholder="tu@tuodominio.it" placeholderTextColor={HT.muted} style={styles.input} autoCapitalize="none" keyboardType="email-address" />
             <Text style={styles.lbl}>Password {configured ? "(compila solo per cambiare)" : "*"}</Text>
-            <TextInput testID="smtp-pass" value={form.password} onChangeText={(t) => setForm({ ...form, password: t })} placeholder={configured ? "•••••••• (già configurata)" : "Password casella"} placeholderTextColor="#94A3B8" style={styles.input} secureTextEntry autoCapitalize="none" />
+            <TextInput testID="smtp-pass" value={form.password} onChangeText={(t) => setForm({ ...form, password: t })} placeholder={configured ? "•••••••• (già configurata)" : "Password casella"} placeholderTextColor={HT.muted} style={styles.input} secureTextEntry autoCapitalize="none" />
           </View>
 
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Mittente</Text>
             <Text style={styles.lbl}>Nome mittente</Text>
-            <TextInput testID="smtp-sname" value={form.sender_name} onChangeText={(t) => setForm({ ...form, sender_name: t })} placeholder="Es. Dal Pastro CRM" placeholderTextColor="#94A3B8" style={styles.input} />
+            <TextInput testID="smtp-sname" value={form.sender_name} onChangeText={(t) => setForm({ ...form, sender_name: t })} placeholder="Es. Dal Pastro CRM" placeholderTextColor={HT.muted} style={styles.input} />
             <Text style={styles.lbl}>Email mittente (opzionale, default = utente)</Text>
-            <TextInput testID="smtp-sender" value={form.sender_email} onChangeText={(t) => setForm({ ...form, sender_email: t })} placeholder="info@tuodominio.it" placeholderTextColor="#94A3B8" style={styles.input} autoCapitalize="none" keyboardType="email-address" />
+            <TextInput testID="smtp-sender" value={form.sender_email} onChangeText={(t) => setForm({ ...form, sender_email: t })} placeholder="info@tuodominio.it" placeholderTextColor={HT.muted} style={styles.input} autoCapitalize="none" keyboardType="email-address" />
           </View>
 
           <Pressable testID="smtp-save" onPress={save} disabled={saving} style={styles.saveBtn}>
@@ -153,8 +154,8 @@ export default function SmtpConfigScreen() {
             <View style={styles.card}>
               <Text style={styles.sectionTitle}>Test invio</Text>
               <Text style={styles.lbl}>Email destinatario di test</Text>
-              <TextInput testID="smtp-test-email" value={testEmail} onChangeText={setTestEmail} placeholder="tuo@indirizzo.it" placeholderTextColor="#94A3B8" style={styles.input} autoCapitalize="none" keyboardType="email-address" />
-              <Pressable testID="smtp-test-btn" onPress={runTest} disabled={testing || !testEmail.trim()} style={[styles.saveBtn, { backgroundColor: theme.color.info, marginTop: 12, opacity: testEmail.trim() ? 1 : 0.5 }]}>
+              <TextInput testID="smtp-test-email" value={testEmail} onChangeText={setTestEmail} placeholder="tuo@indirizzo.it" placeholderTextColor={HT.muted} style={styles.input} autoCapitalize="none" keyboardType="email-address" />
+              <Pressable testID="smtp-test-btn" onPress={runTest} disabled={testing || !testEmail.trim()} style={[styles.saveBtn, { backgroundColor: HT.axon, marginTop: 12, opacity: testEmail.trim() ? 1 : 0.5 }]}>
                 {testing ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveBtnTxt}>Invia test</Text>}
               </Pressable>
             </View>
@@ -168,20 +169,20 @@ export default function SmtpConfigScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
+  root: { flex: 1, backgroundColor: HT.card2 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12 },
-  title: { fontSize: 18, fontWeight: "700", color: theme.color.onSurface },
-  card: { backgroundColor: "#FFF", borderRadius: theme.radius.md, padding: 14, borderWidth: 1, borderColor: theme.color.border },
-  sectionTitle: { fontSize: 12, fontWeight: "700", color: theme.color.brandPrimary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 },
-  lbl: { fontSize: 12, color: theme.color.onSurfaceTertiary, fontWeight: "600", marginTop: 8, marginBottom: 4 },
-  input: { backgroundColor: theme.color.surface, borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: theme.color.border, color: theme.color.onSurface },
-  saveBtn: { backgroundColor: theme.color.brandPrimary, paddingVertical: 14, borderRadius: theme.radius.md, alignItems: "center" },
+  title: { fontSize: 18, fontWeight: "700", color: HT.text },
+  card: { backgroundColor: HT.card, borderRadius: theme.radius.md, padding: 14, borderWidth: 1, borderColor: HT.border },
+  sectionTitle: { fontSize: 12, fontWeight: "700", color: HT.brand, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 },
+  lbl: { fontSize: 12, color: HT.text2, fontWeight: "600", marginTop: 8, marginBottom: 4 },
+  input: { backgroundColor: HT.card2, borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: HT.border, color: HT.text },
+  saveBtn: { backgroundColor: HT.brand, paddingVertical: 14, borderRadius: theme.radius.md, alignItems: "center" },
   saveBtnTxt: { color: "#FFF", fontWeight: "700", fontSize: 15 },
   switchRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 4 },
-  switchLbl: { fontSize: 13, color: theme.color.onSurface, fontWeight: "600" },
+  switchLbl: { fontSize: 13, color: HT.text, fontWeight: "600" },
   chipsRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: theme.radius.pill, backgroundColor: theme.color.brandTertiary },
-  chipTxt: { color: theme.color.brandPrimary, fontWeight: "600", fontSize: 12 },
-  infoBox: { flexDirection: "row", gap: 10, backgroundColor: "#DBEAFE", padding: 12, borderRadius: theme.radius.md },
-  infoTxt: { flex: 1, fontSize: 12, color: theme.color.info, lineHeight: 18 },
+  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: theme.radius.pill, backgroundColor: HT.brandTint },
+  chipTxt: { color: HT.brand, fontWeight: "600", fontSize: 12 },
+  infoBox: { flexDirection: "row", gap: 10, backgroundColor: HT.axonTint, padding: 12, borderRadius: theme.radius.md },
+  infoTxt: { flex: 1, fontSize: 12, color: HT.axon, lineHeight: 18 },
 });

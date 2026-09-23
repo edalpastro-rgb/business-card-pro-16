@@ -21,6 +21,7 @@ import { ModuleErrorBoundary } from "@/src/shared";
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 // V29.av — Date picker nativo Android/iOS per la data di nascita
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type PendingAttachment = {
   local_id: string;
@@ -44,7 +45,7 @@ type Group = { group_id: string; name: string; color: string };
 type CustomArea = { id: string; name: string; color: string; icon?: string };
 type Settings = { energy_title: string; energy_color: string; network_title: string; network_color: string; custom_areas: CustomArea[] };
 
-const AREA_COLOR_SWATCHES = ["#1B6CB0", "#C83232", "#2D7A5A", "#B77C14", "#7A2E8E", "#0B7285", "#E67700", "#6B7280"];
+const AREA_COLOR_SWATCHES = ["#1B6CB0", "#C83232", "#2D7A5A", "#B77C14", "#7A2E8E", "#0B7285", "#E67700", HT.muted];
 
 export default function NewContactRoute() {
   return (
@@ -1225,7 +1226,7 @@ function NewContactScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable testID="back-btn" onPress={() => router.back()} hitSlop={10}>
-          <Ionicons name="chevron-back" size={26} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={26} color={HT.text} />
         </Pressable>
         <Text style={styles.title}>{isEdit ? "Modifica contatto" : "Nuovo contatto"}</Text>
         <View style={{ width: 26 }} />
@@ -1234,24 +1235,24 @@ function NewContactScreen() {
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
           <Pressable testID="import-phone-btn" onPress={importFromPhone} style={styles.importBtn}>
-            <Ionicons name="download-outline" size={18} color={theme.color.brandPrimary} />
+            <Ionicons name="download-outline" size={18} color={HT.brand} />
             <Text style={styles.importBtnTxt}>Importa dalla rubrica telefono</Text>
           </Pressable>
 
           <View style={{ flexDirection: "row", gap: 6, marginBottom: 10 }}>
-            <Pressable testID="ai-card-btn" onPress={() => openAI("card")} style={[styles.aiBtn, { backgroundColor: "#8B5CF6" }]}>
+            <Pressable testID="ai-card-btn" onPress={() => openAI("card")} style={[styles.aiBtn, { backgroundColor: '#8B5CF6' }]}>
               <Ionicons name="scan" size={16} color="#FFF" />
               <Text style={styles.aiBtnTxt}>Biglietto</Text>
             </Pressable>
-            <Pressable testID="ai-qr-btn" onPress={() => setShowQrScanner(true)} style={[styles.aiBtn, { backgroundColor: "#059669" }]}>
+            <Pressable testID="ai-qr-btn" onPress={() => setShowQrScanner(true)} style={[styles.aiBtn, { backgroundColor: '#059669' }]}>
               <Ionicons name="qr-code" size={16} color="#FFF" />
               <Text style={styles.aiBtnTxt}>QR</Text>
             </Pressable>
-            <Pressable testID="ai-url-btn" onPress={() => openAI("url")} style={[styles.aiBtn, { backgroundColor: "#0891B2" }]}>
+            <Pressable testID="ai-url-btn" onPress={() => openAI("url")} style={[styles.aiBtn, { backgroundColor: '#0891B2' }]}>
               <Ionicons name="link" size={16} color="#FFF" />
               <Text style={styles.aiBtnTxt}>Da URL</Text>
             </Pressable>
-            <Pressable testID="ai-voice-btn" onPress={() => openAI("voice")} style={[styles.aiBtn, { backgroundColor: "#DC2626" }]}>
+            <Pressable testID="ai-voice-btn" onPress={() => openAI("voice")} style={[styles.aiBtn, { backgroundColor: '#DC2626' }]}>
               <Ionicons name="mic" size={16} color="#FFF" />
               <Text style={styles.aiBtnTxt}>Dettato</Text>
             </Pressable>
@@ -1286,9 +1287,9 @@ function NewContactScreen() {
                             </View>
                           );
                         })}
-                        <Pressable testID="c-area-change" onPress={() => setExpandAreas(true)} style={[styles.pill, { flexDirection: "row", alignItems: "center", borderStyle: "dashed", borderColor: theme.color.brandPrimary }]}>
-                          <Ionicons name="create-outline" size={14} color={theme.color.brandPrimary} style={{ marginRight: 4 }} />
-                          <Text style={[styles.pillTxt, { color: theme.color.brandPrimary }]}>Cambia</Text>
+                        <Pressable testID="c-area-change" onPress={() => setExpandAreas(true)} style={[styles.pill, { flexDirection: "row", alignItems: "center", borderStyle: "dashed", borderColor: HT.brand }]}>
+                          <Ionicons name="create-outline" size={14} color={HT.brand} style={{ marginRight: 4 }} />
+                          <Text style={[styles.pillTxt, { color: HT.brand }]}>Cambia</Text>
                         </Pressable>
                       </View>
 
@@ -1312,7 +1313,7 @@ function NewContactScreen() {
                                     onPress={() => setForm({ ...form, customer_types: { ...form.customer_types, [id]: v } })}
                                     style={[styles.customerTypeBtn, on && styles.customerTypeBtnOn]}
                                   >
-                                    <Ionicons name={v === "business" ? "business" : "person"} size={12} color={on ? "#FFF" : theme.color.brandPrimary} />
+                                    <Ionicons name={v === "business" ? "business" : "person"} size={12} color={on ? "#FFF" : HT.brand} />
                                     <Text style={[styles.customerTypeBtnTxt, on && { color: "#FFF" }]}>{v === "business" ? "Business" : "Privato"}</Text>
                                   </Pressable>
                                 );
@@ -1343,12 +1344,12 @@ function NewContactScreen() {
                           );
                         })}
                         {renderSubcategoryPicker()}
-                        <Pressable testID="c-area-new" onPress={() => setNewAreaModal(true)} style={[styles.pill, { flexDirection: "row", alignItems: "center", borderStyle: "dashed", borderColor: theme.color.brandPrimary }]}>
-                          <Ionicons name="add" size={14} color={theme.color.brandPrimary} style={{ marginRight: 4 }} />
-                          <Text style={[styles.pillTxt, { color: theme.color.brandPrimary }]}>Nuova area</Text>
+                        <Pressable testID="c-area-new" onPress={() => setNewAreaModal(true)} style={[styles.pill, { flexDirection: "row", alignItems: "center", borderStyle: "dashed", borderColor: HT.brand }]}>
+                          <Ionicons name="add" size={14} color={HT.brand} style={{ marginRight: 4 }} />
+                          <Text style={[styles.pillTxt, { color: HT.brand }]}>Nuova area</Text>
                         </Pressable>
                         {hasSelection ? (
-                          <Pressable testID="c-area-done" onPress={() => setExpandAreas(false)} style={[styles.pill, { flexDirection: "row", alignItems: "center", backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary }]}>
+                          <Pressable testID="c-area-done" onPress={() => setExpandAreas(false)} style={[styles.pill, { flexDirection: "row", alignItems: "center", backgroundColor: HT.brand, borderColor: HT.brand }]}>
                             <Ionicons name="checkmark" size={14} color="#FFF" style={{ marginRight: 4 }} />
                             <Text style={[styles.pillTxt, styles.pillTxtActive]}>Fine</Text>
                           </Pressable>
@@ -1396,13 +1397,13 @@ function NewContactScreen() {
                     <Pressable
                       testID="c-group-new"
                       onPress={openNewGroup}
-                      style={[styles.pill, { flexDirection: "row", alignItems: "center", borderStyle: "dashed", borderColor: theme.color.brandPrimary }]}
+                      style={[styles.pill, { flexDirection: "row", alignItems: "center", borderStyle: "dashed", borderColor: HT.brand }]}
                     >
-                      <Ionicons name="add" size={14} color={theme.color.brandPrimary} style={{ marginRight: 4 }} />
-                      <Text style={[styles.pillTxt, { color: theme.color.brandPrimary }]}>Nuovo gruppo</Text>
+                      <Ionicons name="add" size={14} color={HT.brand} style={{ marginRight: 4 }} />
+                      <Text style={[styles.pillTxt, { color: HT.brand }]}>Nuovo gruppo</Text>
                     </Pressable>
                     {form.group_ids.length > 0 ? (
-                      <Pressable testID="c-group-done" onPress={() => setExpandGroups(false)} style={[styles.pill, { flexDirection: "row", alignItems: "center", backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary }]}>
+                      <Pressable testID="c-group-done" onPress={() => setExpandGroups(false)} style={[styles.pill, { flexDirection: "row", alignItems: "center", backgroundColor: HT.brand, borderColor: HT.brand }]}>
                         <Ionicons name="checkmark" size={14} color="#FFF" style={{ marginRight: 4 }} />
                         <Text style={[styles.pillTxt, styles.pillTxtActive]}>Fine</Text>
                       </Pressable>
@@ -1418,14 +1419,14 @@ function NewContactScreen() {
                       if (!g) return null;
                       return (
                         <View key={gid} style={[styles.pill, { flexDirection: "row", alignItems: "center", backgroundColor: g.color, borderColor: g.color }]}>
-                          <View style={[styles.dot, { backgroundColor: "#FFF" }]} />
+                          <View style={[styles.dot, { backgroundColor: HT.card }]} />
                           <Text style={[styles.pillTxt, styles.pillTxtActive]}>{g.name}</Text>
                         </View>
                       );
                     })}
-                    <Pressable testID="c-group-change" onPress={() => setExpandGroups(true)} style={[styles.pill, { flexDirection: "row", alignItems: "center", borderStyle: "dashed", borderColor: theme.color.brandPrimary }]}>
-                      <Ionicons name="create-outline" size={14} color={theme.color.brandPrimary} style={{ marginRight: 4 }} />
-                      <Text style={[styles.pillTxt, { color: theme.color.brandPrimary }]}>Cambia</Text>
+                    <Pressable testID="c-group-change" onPress={() => setExpandGroups(true)} style={[styles.pill, { flexDirection: "row", alignItems: "center", borderStyle: "dashed", borderColor: HT.brand }]}>
+                      <Ionicons name="create-outline" size={14} color={HT.brand} style={{ marginRight: 4 }} />
+                      <Text style={[styles.pillTxt, { color: HT.brand }]}>Cambia</Text>
                     </Pressable>
                   </View>
                 </>
@@ -1433,7 +1434,7 @@ function NewContactScreen() {
             })()}
             {form.group_ids.length > 0 && (
               <View style={styles.selectedBox}>
-                <Ionicons name="checkmark-circle" size={16} color={theme.color.success} />
+                <Ionicons name="checkmark-circle" size={16} color={HT.success} />
                 <Text style={styles.selectedTxt}>
                   Assegnato a {form.group_ids.length} grupp{form.group_ids.length === 1 ? "o" : "i"}: {form.group_ids.map((id) => availableGroups.find((g) => g.group_id === id)?.name).filter(Boolean).join(", ")}
                 </Text>
@@ -1493,7 +1494,7 @@ function NewContactScreen() {
                 <View style={styles.rowBetween}>
                   <Text style={styles.switchLbl}>Invia automaticamente messaggio</Text>
                   <Pressable testID="c-bday-auto" onPress={() => setForm({ ...form, birthday_auto_send: !form.birthday_auto_send })}>
-                    <Ionicons name={form.birthday_auto_send ? "toggle" : "toggle-outline"} size={38} color={form.birthday_auto_send ? theme.color.success : theme.color.muted} />
+                    <Ionicons name={form.birthday_auto_send ? "toggle" : "toggle-outline"} size={38} color={form.birthday_auto_send ? HT.success : HT.muted} />
                   </Pressable>
                 </View>
                 {form.birthday_auto_send && (
@@ -1501,7 +1502,7 @@ function NewContactScreen() {
                     <View style={styles.rowBetween}>
                       <Text style={styles.switchLbl}>Cliente ancora attivo</Text>
                       <Pressable testID="c-bday-active" onPress={() => setForm({ ...form, is_active_client: !form.is_active_client })}>
-                        <Ionicons name={form.is_active_client ? "toggle" : "toggle-outline"} size={38} color={form.is_active_client ? theme.color.success : theme.color.muted} />
+                        <Ionicons name={form.is_active_client ? "toggle" : "toggle-outline"} size={38} color={form.is_active_client ? HT.success : HT.muted} />
                       </Pressable>
                     </View>
                     <Text style={styles.hintTxt}>
@@ -1573,7 +1574,7 @@ function NewContactScreen() {
                               setBdayGenerating(false);
                             }
                           }}
-                          style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, backgroundColor: "#EDE9FE" }}
+                          style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, backgroundColor: HT.violetTint }}
                         >
                           {bdayGenerating ? (
                             <ActivityIndicator size="small" color="#7C3AED" />
@@ -1612,7 +1613,7 @@ function NewContactScreen() {
                   <TextInput
                     testID={`c-ann-name-${idx}`}
                     placeholder="Nome ricorrenza"
-                    placeholderTextColor="#94A3B8"
+                    placeholderTextColor={HT.muted}
                     value={ann.name}
                     onChangeText={(t) => {
                       const list = [...form.anniversaries];
@@ -1647,7 +1648,7 @@ function NewContactScreen() {
                     <TextInput
                       testID={`c-ann-date-${idx}`}
                       placeholder="gg/mm/aaaa"
-                      placeholderTextColor="#94A3B8"
+                      placeholderTextColor={HT.muted}
                       value={ann.date}
                       onChangeText={(t) => {
                         const list = [...form.anniversaries];
@@ -1665,17 +1666,17 @@ function NewContactScreen() {
                     }}
                     style={{ padding: 8, marginLeft: 4 }}
                   >
-                    <Ionicons name="trash-outline" size={18} color={theme.color.error} />
+                    <Ionicons name="trash-outline" size={18} color={HT.danger} />
                   </Pressable>
                 </View>
               ))}
               <Pressable
                 testID="c-ann-add"
                 onPress={() => setForm({ ...form, anniversaries: [...form.anniversaries, { name: "", date: "" }] })}
-                style={[styles.pill, { flexDirection: "row", alignItems: "center", borderStyle: "dashed", borderColor: theme.color.brandPrimary, alignSelf: "flex-start", marginTop: 6 }]}
+                style={[styles.pill, { flexDirection: "row", alignItems: "center", borderStyle: "dashed", borderColor: HT.brand, alignSelf: "flex-start", marginTop: 6 }]}
               >
-                <Ionicons name="add" size={14} color={theme.color.brandPrimary} style={{ marginRight: 4 }} />
-                <Text style={[styles.pillTxt, { color: theme.color.brandPrimary }]}>Aggiungi ricorrenza</Text>
+                <Ionicons name="add" size={14} color={HT.brand} style={{ marginRight: 4 }} />
+                <Text style={[styles.pillTxt, { color: HT.brand }]}>Aggiungi ricorrenza</Text>
               </Pressable>
             </View>
           </Section>
@@ -1688,7 +1689,7 @@ function NewContactScreen() {
             {(form.phones.length || form.emails.length) ? (
               <View style={{ marginBottom: 10 }}>
                 <ContactChannelsEditor value={form as any} onChange={(patch) => setForm((f) => ({ ...f, ...(patch as any) }))} testIdPrefix="c" />
-                <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 6 }}>I campi Telefono/Email principali qui sotto vengono aggiornati in base alle ★ scelte.</Text>
+                <Text style={{ fontSize: 11, color: HT.muted, marginTop: 6 }}>I campi Telefono/Email principali qui sotto vengono aggiornati in base alle ★ scelte.</Text>
               </View>
             ) : null}
             <Field label="Telefono cellulare" testID="c-phone" value={form.phone} onChangeText={(t: string) => setForm({ ...form, phone: t })} keyboardType="phone-pad" />
@@ -1760,7 +1761,7 @@ function NewContactScreen() {
                 <Text style={styles.lbl}>Chi lo ha segnalato</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
                   {contacts.length === 0 ? (
-                    <Text style={{ color: theme.color.muted, fontSize: 12, paddingVertical: 8 }}>Ancora nessun contatto in rubrica</Text>
+                    <Text style={{ color: HT.muted, fontSize: 12, paddingVertical: 8 }}>Ancora nessun contatto in rubrica</Text>
                   ) : contacts.map((c) => (
                     <Pressable key={c.contact_id} onPress={() => setForm({ ...form, referred_by_contact_id: c.contact_id })} style={[styles.pill, form.referred_by_contact_id === c.contact_id && styles.pillActive]}>
                       <Text style={[styles.pillTxt, form.referred_by_contact_id === c.contact_id && styles.pillTxtActive]}>{c.first_name} {c.last_name}</Text>
@@ -1786,7 +1787,7 @@ function NewContactScreen() {
                 onSubmitEditing={addTag}
                 style={[styles.input, { flex: 1 }]}
                 placeholder="Es. VIP, energia+gas"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={HT.muted}
                 returnKeyType="done"
               />
               <Pressable testID="c-tag-add" onPress={addTag} style={styles.tagAddBtn}>
@@ -1798,7 +1799,7 @@ function NewContactScreen() {
                 {form.tags.map((t) => (
                   <Pressable key={t} onPress={() => removeTag(t)} style={styles.tagChip}>
                     <Text style={styles.tagChipTxt}>{t}</Text>
-                    <Ionicons name="close" size={12} color={theme.color.brandPrimary} />
+                    <Ionicons name="close" size={12} color={HT.brand} />
                   </Pressable>
                 ))}
               </View>
@@ -1808,11 +1809,11 @@ function NewContactScreen() {
           <Section title="Foto contatto">
             <View style={styles.photoRow}>
               <Pressable testID="photo-camera" onPress={() => pickPhoto(true)} style={styles.photoAddBtn}>
-                <Ionicons name="camera" size={22} color={theme.color.brandPrimary} />
+                <Ionicons name="camera" size={22} color={HT.brand} />
                 <Text style={styles.photoAddTxt}>Foto camera</Text>
               </Pressable>
               <Pressable testID="photo-gallery" onPress={() => pickPhoto(false)} style={styles.photoAddBtn}>
-                <Ionicons name="image" size={22} color={theme.color.brandPrimary} />
+                <Ionicons name="image" size={22} color={HT.brand} />
                 <Text style={styles.photoAddTxt}>Da galleria</Text>
               </Pressable>
             </View>
@@ -1832,7 +1833,7 @@ function NewContactScreen() {
 
           <Pressable testID="c-toggle-more" onPress={() => setShowMore(!showMore)} style={styles.toggleMore}>
             <Text style={styles.toggleMoreTxt}>{showMore ? "Nascondi" : "Mostra"} campi aggiuntivi (web, social, note)</Text>
-            <Ionicons name={showMore ? "chevron-up" : "chevron-down"} size={16} color={theme.color.brandPrimary} />
+            <Ionicons name={showMore ? "chevron-up" : "chevron-down"} size={16} color={HT.brand} />
           </Pressable>
 
           {showMore && (
@@ -1919,7 +1920,7 @@ function NewContactScreen() {
               value={newAreaName}
               onChangeText={setNewAreaName}
               placeholder="Nome della nuova area"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={HT.muted}
               style={styles.input}
             />
             <Text style={styles.lbl}>Colore</Text>
@@ -1931,10 +1932,10 @@ function NewContactScreen() {
               ))}
             </View>
             <View style={{ flexDirection: "row", gap: 10, marginTop: 18 }}>
-              <Pressable onPress={() => setNewAreaModal(false)} style={[styles.modalBtn, { flex: 1, backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border }]}>
-                <Text style={{ color: theme.color.onSurface, fontWeight: "700" }}>Annulla</Text>
+              <Pressable onPress={() => setNewAreaModal(false)} style={[styles.modalBtn, { flex: 1, backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border }]}>
+                <Text style={{ color: HT.text, fontWeight: "700" }}>Annulla</Text>
               </Pressable>
-              <Pressable testID="new-area-save" onPress={saveNewCustomArea} disabled={!newAreaName.trim()} style={[styles.modalBtn, { flex: 1, backgroundColor: theme.color.brandPrimary, opacity: newAreaName.trim() ? 1 : 0.5 }]}>
+              <Pressable testID="new-area-save" onPress={saveNewCustomArea} disabled={!newAreaName.trim()} style={[styles.modalBtn, { flex: 1, backgroundColor: HT.brand, opacity: newAreaName.trim() ? 1 : 0.5 }]}>
                 <Text style={{ color: "#FFF", fontWeight: "700" }}>Crea</Text>
               </Pressable>
             </View>
@@ -1953,7 +1954,7 @@ function NewContactScreen() {
               value={groupModal?.name || ""}
               onChangeText={(t) => setGroupModal((m) => m ? { ...m, name: t } : m)}
               placeholder="Nome del gruppo"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={HT.muted}
               autoFocus
               style={styles.input}
             />
@@ -1966,14 +1967,14 @@ function NewContactScreen() {
               ))}
             </View>
             <View style={{ flexDirection: "row", gap: 10, marginTop: 18 }}>
-              <Pressable onPress={() => setGroupModal(null)} style={[styles.modalBtn, { flex: 1, backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border }]}>
-                <Text style={{ color: theme.color.onSurface, fontWeight: "700" }}>Annulla</Text>
+              <Pressable onPress={() => setGroupModal(null)} style={[styles.modalBtn, { flex: 1, backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border }]}>
+                <Text style={{ color: HT.text, fontWeight: "700" }}>Annulla</Text>
               </Pressable>
               <Pressable
                 testID="c-group-modal-save"
                 onPress={saveGroupModal}
                 disabled={!groupModal?.name?.trim()}
-                style={[styles.modalBtn, { flex: 1, backgroundColor: theme.color.brandPrimary, opacity: groupModal?.name?.trim() ? 1 : 0.5 }]}
+                style={[styles.modalBtn, { flex: 1, backgroundColor: HT.brand, opacity: groupModal?.name?.trim() ? 1 : 0.5 }]}
               >
                 <Text style={{ color: "#FFF", fontWeight: "700" }}>{groupModal?.mode === "create" ? "Crea" : "Salva"}</Text>
               </Pressable>
@@ -1985,31 +1986,31 @@ function NewContactScreen() {
       {/* Phone contacts multi-select picker */}
       <Modal visible={!!phoneContactsModal} animationType="slide" transparent onRequestClose={() => setPhoneContactsModal(null)}>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }}>
-          <View style={{ backgroundColor: theme.color.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "90%" }}>
-            <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: theme.color.border, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+          <View style={{ backgroundColor: HT.card2, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "90%" }}>
+            <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: HT.border, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 17, fontWeight: "700", color: theme.color.onSurface }}>Importa dalla rubrica</Text>
-                <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 2 }}>Seleziona uno o più contatti</Text>
+                <Text style={{ fontSize: 17, fontWeight: "700", color: HT.text }}>Importa dalla rubrica</Text>
+                <Text style={{ fontSize: 11, color: HT.muted, marginTop: 2 }}>Seleziona uno o più contatti</Text>
               </View>
               <Pressable onPress={() => setPhoneContactsModal(null)} hitSlop={8}>
-                <Ionicons name="close" size={22} color={theme.color.onSurface} />
+                <Ionicons name="close" size={22} color={HT.text} />
               </Pressable>
             </View>
             {/* Search */}
-            <View style={{ paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: theme.color.border, gap: 8 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, paddingHorizontal: 10 }}>
-                <Ionicons name="search" size={16} color={theme.color.muted} />
+            <View style={{ paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: HT.border, gap: 8 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border, borderRadius: 10, paddingHorizontal: 10 }}>
+                <Ionicons name="search" size={16} color={HT.muted} />
                 <TextInput
                   value={phoneImportSearch}
                   onChangeText={setPhoneImportSearch}
                   placeholder="Cerca per nome o numero…"
-                  placeholderTextColor={theme.color.muted}
-                  style={{ flex: 1, paddingVertical: 8, paddingHorizontal: 8, color: theme.color.onSurface, fontSize: 14 }}
+                  placeholderTextColor={HT.muted}
+                  style={{ flex: 1, paddingVertical: 8, paddingHorizontal: 8, color: HT.text, fontSize: 14 }}
                   testID="phone-import-search"
                 />
                 {!!phoneImportSearch && (
                   <Pressable hitSlop={8} onPress={() => setPhoneImportSearch("")}>
-                    <Ionicons name="close-circle" size={18} color={theme.color.muted} />
+                    <Ionicons name="close-circle" size={18} color={HT.muted} />
                   </Pressable>
                 )}
               </View>
@@ -2027,13 +2028,13 @@ function NewContactScreen() {
                         : "square-outline"
                     }
                     size={20}
-                    color={theme.color.brandPrimary}
+                    color={HT.brand}
                   />
-                  <Text style={{ fontSize: 13, color: theme.color.brandPrimary, fontWeight: "600" }}>
+                  <Text style={{ fontSize: 13, color: HT.brand, fontWeight: "600" }}>
                     Seleziona tutti ({filteredPhoneContacts.length})
                   </Text>
                 </Pressable>
-                <Text style={{ fontSize: 12, color: theme.color.muted }}>
+                <Text style={{ fontSize: 12, color: HT.muted }}>
                   Selezionati: {phoneImportSelected.size}
                 </Text>
               </View>
@@ -2049,7 +2050,7 @@ function NewContactScreen() {
                     style={{
                       padding: 14,
                       borderBottomWidth: 1,
-                      borderBottomColor: theme.color.border,
+                      borderBottomColor: HT.border,
                       flexDirection: "row",
                       alignItems: "center",
                       gap: 12,
@@ -2060,12 +2061,12 @@ function NewContactScreen() {
                     <Ionicons
                       name={selected ? "checkbox" : "square-outline"}
                       size={22}
-                      color={selected ? theme.color.brandPrimary : theme.color.muted}
+                      color={selected ? HT.brand : HT.muted}
                     />
                     <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 14, fontWeight: "600", color: theme.color.onSurface }}>{displayName}</Text>
+                      <Text style={{ fontSize: 14, fontWeight: "600", color: HT.text }}>{displayName}</Text>
                       {!!c.phoneNumbers?.[0]?.number && (
-                        <Text style={{ fontSize: 12, color: theme.color.muted, marginTop: 2 }}>{c.phoneNumbers[0].number}</Text>
+                        <Text style={{ fontSize: 12, color: HT.muted, marginTop: 2 }}>{c.phoneNumbers[0].number}</Text>
                       )}
                     </View>
                   </Pressable>
@@ -2073,16 +2074,16 @@ function NewContactScreen() {
               })}
               {filteredPhoneContacts.length === 0 && (
                 <View style={{ padding: 24, alignItems: "center" }}>
-                  <Text style={{ color: theme.color.muted, fontSize: 13 }}>Nessun contatto trovato</Text>
+                  <Text style={{ color: HT.muted, fontSize: 13 }}>Nessun contatto trovato</Text>
                 </View>
               )}
             </ScrollView>
             {/* Footer with Import button */}
-            <View style={{ padding: 12, paddingBottom: 12 + bottomSheetPad, borderTopWidth: 1, borderTopColor: theme.color.border, backgroundColor: "#FFF" }}>
+            <View style={{ padding: 12, paddingBottom: 12 + bottomSheetPad, borderTopWidth: 1, borderTopColor: HT.border, backgroundColor: HT.card }}>
               {phoneImportBusy && phoneImportProgress ? (
                 <View style={{ alignItems: "center", gap: 6 }}>
-                  <ActivityIndicator color={theme.color.brandPrimary} />
-                  <Text style={{ fontSize: 12, color: theme.color.muted }}>
+                  <ActivityIndicator color={HT.brand} />
+                  <Text style={{ fontSize: 12, color: HT.muted }}>
                     Importazione in corso… {phoneImportProgress.done}/{phoneImportProgress.total}
                   </Text>
                 </View>
@@ -2091,7 +2092,7 @@ function NewContactScreen() {
                   onPress={commitMultiImport}
                   disabled={phoneImportSelected.size === 0}
                   style={{
-                    backgroundColor: phoneImportSelected.size === 0 ? "#CBD5E1" : theme.color.brandPrimary,
+                    backgroundColor: phoneImportSelected.size === 0 ? "#CBD5E1" : HT.brand,
                     paddingVertical: 12,
                     borderRadius: 12,
                     alignItems: "center",
@@ -2124,11 +2125,11 @@ function NewContactScreen() {
         <View style={styles.modalBack}>
           <View style={styles.modalCard}>
             <View style={{ alignItems: "center", marginBottom: 10 }}>
-              <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: "#DCFCE7", justifyContent: "center", alignItems: "center", marginBottom: 8 }}>
+              <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: HT.successTint, justifyContent: "center", alignItems: "center", marginBottom: 8 }}>
                 <Ionicons name="checkmark-circle" size={40} color="#16A34A" />
               </View>
-              <Text style={[styles.modalTitle, { textAlign: "center", color: "#0F172A" }]}>{chainMode ? "Referenza aggiunta ✅" : "Contatto salvato ✅"}</Text>
-              <Text style={{ fontSize: 13, color: "#475569", textAlign: "center", marginTop: 4 }}>
+              <Text style={[styles.modalTitle, { textAlign: "center", color: HT.text }]}>{chainMode ? "Referenza aggiunta ✅" : "Contatto salvato ✅"}</Text>
+              <Text style={{ fontSize: 13, color: HT.text2, textAlign: "center", marginTop: 4 }}>
                 {chainMode
                   ? `Vuoi fissare subito un appuntamento con ${postCreateModal?.name}?`
                   : `Vuoi programmare subito un appuntamento con ${postCreateModal?.name}?`}
@@ -2149,7 +2150,7 @@ function NewContactScreen() {
                     router.replace(`/appointment/new?contact_id=${encodeURIComponent(id)}&contact_name=${encodeURIComponent(name)}${chainQuery}` as any);
                   }
                 }}
-                style={[styles.modalBtn, { backgroundColor: "#1C4869", flexDirection: "row", justifyContent: "center", gap: 8 }]}
+                style={[styles.modalBtn, { backgroundColor: '#1C4869', flexDirection: "row", justifyContent: "center", gap: 8 }]}
               >
                 <Ionicons name="calendar" size={18} color="#FFFFFF" />
                 <Text style={{ color: "#FFFFFF", fontWeight: "800", fontSize: 15 }}>Fissa appuntamento</Text>
@@ -2164,7 +2165,7 @@ function NewContactScreen() {
                       setPostCreateModal(null);
                       router.replace(`/contact/new?source=referral&referred_by=${chainBackTo}&chain=1&back_to=${chainBackTo}` as any);
                     }}
-                    style={[styles.modalBtn, { backgroundColor: "#FFF1E9", borderWidth: 2, borderColor: "#FF6B35", flexDirection: "row", justifyContent: "center", gap: 8 }]}
+                    style={[styles.modalBtn, { backgroundColor: HT.brandTint, borderWidth: 2, borderColor: '#FF6B35', flexDirection: "row", justifyContent: "center", gap: 8 }]}
                   >
                     <Ionicons name="person-add" size={18} color="#FF6B35" />
                     <Text style={{ color: "#FF6B35", fontWeight: "800", fontSize: 15 }}>Aggiungi altra referenza</Text>
@@ -2175,10 +2176,10 @@ function NewContactScreen() {
                       setPostCreateModal(null);
                       router.replace("/(tabs)/home" as any);
                     }}
-                    style={[styles.modalBtn, { backgroundColor: "#E2E8F0", borderWidth: 1, borderColor: "#94A3B8", flexDirection: "row", justifyContent: "center", gap: 8 }]}
+                    style={[styles.modalBtn, { backgroundColor: HT.border, borderWidth: 1, borderColor: '#94A3B8', flexDirection: "row", justifyContent: "center", gap: 8 }]}
                   >
-                    <Ionicons name="checkmark-done" size={18} color="#0F172A" />
-                    <Text style={{ color: "#0F172A", fontWeight: "800", fontSize: 15 }}>Finito · Torna alla Home</Text>
+                    <Ionicons name="checkmark-done" size={18} color={HT.text} />
+                    <Text style={{ color: HT.text, fontWeight: "800", fontSize: 15 }}>Finito · Torna alla Home</Text>
                   </Pressable>
                 </>
               ) : (
@@ -2202,15 +2203,15 @@ function NewContactScreen() {
                     ]}
                   >
                     {savingToPhone ? (
-                      <ActivityIndicator color="#0F172A" />
+                      <ActivityIndicator color={HT.text} />
                     ) : (
                       <Ionicons
                         name={savedToPhone ? "checkmark-circle" : "phone-portrait"}
                         size={18}
-                        color={savedToPhone ? "#16A34A" : "#0F172A"}
+                        color={savedToPhone ? "#16A34A" : HT.text}
                       />
                     )}
-                    <Text style={{ color: savedToPhone ? "#16A34A" : "#0F172A", fontWeight: "800", fontSize: 14 }}>
+                    <Text style={{ color: savedToPhone ? "#16A34A" : HT.text, fontWeight: "800", fontSize: 14 }}>
                       {savedToPhone ? "Salvato in rubrica ✓" : (savingToPhone ? "Salvo in rubrica…" : "Salva anche in rubrica telefono")}
                     </Text>
                   </Pressable>
@@ -2222,10 +2223,10 @@ function NewContactScreen() {
                       setPostCreateModal(null);
                       if (id) router.replace(`/contact/${id}`);
                     }}
-                    style={[styles.modalBtn, { backgroundColor: "#E2E8F0", borderWidth: 1, borderColor: "#94A3B8", flexDirection: "row", justifyContent: "center", gap: 8 }]}
+                    style={[styles.modalBtn, { backgroundColor: HT.border, borderWidth: 1, borderColor: '#94A3B8', flexDirection: "row", justifyContent: "center", gap: 8 }]}
                   >
-                    <Ionicons name="arrow-forward" size={18} color="#0F172A" />
-                    <Text style={{ color: "#0F172A", fontWeight: "800", fontSize: 15 }}>{savedToPhone ? "Vai alla scheda" : "Salta, vai alla scheda"}</Text>
+                    <Ionicons name="arrow-forward" size={18} color={HT.text} />
+                    <Text style={{ color: HT.text, fontWeight: "800", fontSize: 15 }}>{savedToPhone ? "Vai alla scheda" : "Salta, vai alla scheda"}</Text>
                   </Pressable>
                 </>
               )}
@@ -2237,38 +2238,38 @@ function NewContactScreen() {
       {/* AI helper modal */}
       <Modal visible={!!aiMode} animationType="slide" transparent onRequestClose={closeAI}>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }}>
-          <View style={{ backgroundColor: theme.color.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "88%" }}>
-            <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: theme.color.border, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-              <Text style={{ fontSize: 17, fontWeight: "800", color: theme.color.onSurface }}>
+          <View style={{ backgroundColor: HT.card2, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "88%" }}>
+            <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: HT.border, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <Text style={{ fontSize: 17, fontWeight: "800", color: HT.text }}>
                 {aiMode === "card" ? "📸 Scanner biglietto" : aiMode === "url" ? "🔗 Estrai da URL" : "🎤 Dettato vocale"}
               </Text>
               <Pressable onPress={closeAI} hitSlop={8}>
-                <Ionicons name="close" size={22} color={theme.color.onSurface} />
+                <Ionicons name="close" size={22} color={HT.text} />
               </Pressable>
             </View>
             <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: bottomSheetPad + 16, gap: 12 }}>
               {aiMode === "url" && (
                 <>
-                  <Text style={{ fontSize: 13, color: theme.color.muted }}>Incolla un URL (LinkedIn, sito aziendale, profilo…). L&apos;AI estrae i dati.</Text>
+                  <Text style={{ fontSize: 13, color: HT.muted }}>Incolla un URL (LinkedIn, sito aziendale, profilo…). L&apos;AI estrae i dati.</Text>
                   <TextInput
                     testID="ai-url-input"
                     value={aiUrl}
                     onChangeText={setAiUrl}
                     placeholder="https://…"
-                    placeholderTextColor="#94A3B8"
+                    placeholderTextColor={HT.muted}
                     autoCapitalize="none"
                     keyboardType="url"
-                    style={{ backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, padding: 12, color: theme.color.onSurface }}
+                    style={{ backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, borderRadius: 10, padding: 12, color: HT.text }}
                   />
-                  <Pressable testID="ai-url-go" onPress={runAIUrl} disabled={aiBusy} style={{ backgroundColor: theme.color.brandPrimary, padding: 12, borderRadius: 10, alignItems: "center" }}>
+                  <Pressable testID="ai-url-go" onPress={runAIUrl} disabled={aiBusy} style={{ backgroundColor: HT.brand, padding: 12, borderRadius: 10, alignItems: "center" }}>
                     {aiBusy ? <ActivityIndicator color="#FFF" /> : <Text style={{ color: "#FFF", fontWeight: "800" }}>Estrai dati</Text>}
                   </Pressable>
                 </>
               )}
               {aiMode === "card" && (
                 <>
-                  <Text style={{ fontSize: 13, color: theme.color.muted }}>Scatta una foto del biglietto da visita. L&apos;AI riconosce i campi.</Text>
-                  <Pressable testID="ai-card-go" onPress={runAICard} disabled={aiBusy} style={{ backgroundColor: "#8B5CF6", padding: 14, borderRadius: 10, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8 }}>
+                  <Text style={{ fontSize: 13, color: HT.muted }}>Scatta una foto del biglietto da visita. L&apos;AI riconosce i campi.</Text>
+                  <Pressable testID="ai-card-go" onPress={runAICard} disabled={aiBusy} style={{ backgroundColor: '#8B5CF6', padding: 14, borderRadius: 10, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8 }}>
                     <Ionicons name="camera" size={18} color="#FFF" />
                     {aiBusy ? <ActivityIndicator color="#FFF" /> : <Text style={{ color: "#FFF", fontWeight: "800" }}>Scatta biglietto</Text>}
                   </Pressable>
@@ -2276,29 +2277,29 @@ function NewContactScreen() {
               )}
               {aiMode === "voice" && (
                 <>
-                  <Text style={{ fontSize: 13, color: theme.color.muted }}>Tocca per iniziare/fermare. Es: &quot;Mario Rossi, telefono 335 1234567, email mario@rossi.it, indirizzo via Roma 10 Milano&quot;.</Text>
+                  <Text style={{ fontSize: 13, color: HT.muted }}>Tocca per iniziare/fermare. Es: &quot;Mario Rossi, telefono 335 1234567, email mario@rossi.it, indirizzo via Roma 10 Milano&quot;.</Text>
                   <Pressable testID="ai-voice-go" onPress={runAIVoice} disabled={aiBusy} style={{ backgroundColor: recordingFor === "general" ? "#DC2626" : "#16A34A", padding: 14, borderRadius: 10, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8 }}>
                     <Ionicons name={recordingFor === "general" ? "stop-circle" : "mic"} size={20} color="#FFF" />
                     <Text style={{ color: "#FFF", fontWeight: "800" }}>{recordingFor === "general" ? "Ferma registrazione" : (aiBusy ? "Elaborazione…" : "Inizia dettato")}</Text>
                   </Pressable>
-                  {aiTranscript ? <Text style={{ fontSize: 12, color: theme.color.muted, fontStyle: "italic" }}>&quot;{aiTranscript}&quot;</Text> : null}
+                  {aiTranscript ? <Text style={{ fontSize: 12, color: HT.muted, fontStyle: "italic" }}>&quot;{aiTranscript}&quot;</Text> : null}
                 </>
               )}
 
               {aiPreview && (
-                <View style={{ marginTop: 12, backgroundColor: "#F1F5F9", borderRadius: 12, padding: 12, gap: 6 }}>
-                  <Text style={{ fontSize: 13, fontWeight: "800", color: theme.color.brandPrimary }}>🤖 Anteprima AI — verifica prima di salvare</Text>
+                <View style={{ marginTop: 12, backgroundColor: HT.card2, borderRadius: 12, padding: 12, gap: 6 }}>
+                  <Text style={{ fontSize: 13, fontWeight: "800", color: HT.brand }}>🤖 Anteprima AI — verifica prima di salvare</Text>
                   {Object.entries(aiPreview).map(([k, v]) => (
                     <View key={k} style={{ flexDirection: "row", gap: 8 }}>
-                      <Text style={{ fontSize: 12, color: theme.color.muted, fontWeight: "700", width: 100 }}>{k}</Text>
-                      <Text style={{ fontSize: 12, color: theme.color.onSurface, flex: 1 }}>{Array.isArray(v) ? (v as any[]).map((x: any) => typeof x === "object" ? [x.label || x.name, x.number || x.address || x.phone].filter(Boolean).join(": ") : String(x)).join("\n") : typeof v === "object" ? JSON.stringify(v) : String(v)}</Text>
+                      <Text style={{ fontSize: 12, color: HT.muted, fontWeight: "700", width: 100 }}>{k}</Text>
+                      <Text style={{ fontSize: 12, color: HT.text, flex: 1 }}>{Array.isArray(v) ? (v as any[]).map((x: any) => typeof x === "object" ? [x.label || x.name, x.number || x.address || x.phone].filter(Boolean).join(": ") : String(x)).join("\n") : typeof v === "object" ? JSON.stringify(v) : String(v)}</Text>
                     </View>
                   ))}
                   <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
-                    <Pressable onPress={closeAI} style={{ flex: 1, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: theme.color.border, alignItems: "center" }}>
-                      <Text style={{ color: theme.color.onSurface, fontWeight: "700" }}>Annulla</Text>
+                    <Pressable onPress={closeAI} style={{ flex: 1, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: HT.border, alignItems: "center" }}>
+                      <Text style={{ color: HT.text, fontWeight: "700" }}>Annulla</Text>
                     </Pressable>
-                    <Pressable testID="ai-apply-btn" onPress={() => applyAIFields(aiPreview)} style={{ flex: 1, padding: 12, borderRadius: 10, backgroundColor: theme.color.success, alignItems: "center" }}>
+                    <Pressable testID="ai-apply-btn" onPress={() => applyAIFields(aiPreview)} style={{ flex: 1, padding: 12, borderRadius: 10, backgroundColor: HT.success, alignItems: "center" }}>
                       <Text style={{ color: "#FFF", fontWeight: "800" }}>Applica al form</Text>
                     </Pressable>
                   </View>
@@ -2324,11 +2325,11 @@ function NewContactScreen() {
         <View style={styles.modalBack}>
           <View style={[styles.modalCard, { maxWidth: 460 }]}>
             <View style={{ alignItems: "center", marginBottom: 8 }}>
-              <View style={{ width: 54, height: 54, borderRadius: 27, backgroundColor: "#FEF3C7", justifyContent: "center", alignItems: "center", marginBottom: 8 }}>
-                <Ionicons name="alert-circle" size={30} color="#B45309" />
+              <View style={{ width: 54, height: 54, borderRadius: 27, backgroundColor: HT.warningTint, justifyContent: "center", alignItems: "center", marginBottom: 8 }}>
+                <Ionicons name="alert-circle" size={30} color={HT.warning} />
               </View>
               <Text style={[styles.modalTitle, { textAlign: "center" }]}>Contatto già esistente?</Text>
-              <Text style={{ fontSize: 12, color: theme.color.muted, textAlign: "center", marginTop: 4 }}>
+              <Text style={{ fontSize: 12, color: HT.muted, textAlign: "center", marginTop: 4 }}>
                 {dupModal?.matches.length === 1
                   ? "Trovato 1 contatto con dati simili:"
                   : `Trovati ${dupModal?.matches.length} contatti con dati simili:`}
@@ -2346,18 +2347,18 @@ function NewContactScreen() {
                       setDupModal(null);
                       router.replace(`/contact/${m.contact_id}`);
                     }}
-                    style={{ flexDirection: "row", alignItems: "center", padding: 10, borderRadius: 10, backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: theme.color.border, marginBottom: 6, gap: 10 }}
+                    style={{ flexDirection: "row", alignItems: "center", padding: 10, borderRadius: 10, backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border, marginBottom: 6, gap: 10 }}
                   >
-                    <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: theme.color.brandTertiary, justifyContent: "center", alignItems: "center" }}>
-                      <Text style={{ color: theme.color.brandPrimary, fontWeight: "800" }}>{(m.first_name?.[0] || "?").toUpperCase()}</Text>
+                    <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: HT.brandTint, justifyContent: "center", alignItems: "center" }}>
+                      <Text style={{ color: HT.brand, fontWeight: "800" }}>{(m.first_name?.[0] || "?").toUpperCase()}</Text>
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 14, fontWeight: "700", color: theme.color.onSurface }} numberOfLines={1}>{nm}</Text>
+                      <Text style={{ fontSize: 14, fontWeight: "700", color: HT.text }} numberOfLines={1}>{nm}</Text>
                       {contact ? (
-                        <Text style={{ fontSize: 11, color: theme.color.muted }} numberOfLines={1}>{contact}</Text>
+                        <Text style={{ fontSize: 11, color: HT.muted }} numberOfLines={1}>{contact}</Text>
                       ) : null}
                     </View>
-                    <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+                    <Ionicons name="chevron-forward" size={18} color={HT.muted} />
                   </Pressable>
                 );
               })}
@@ -2372,7 +2373,7 @@ function NewContactScreen() {
                     setDupModal(null);
                     router.replace(`/contact/edit/${target.contact_id}`);
                   }}
-                  style={[styles.modalBtn, { backgroundColor: "#16A34A", flexDirection: "row", justifyContent: "center", gap: 8 }]}
+                  style={[styles.modalBtn, { backgroundColor: '#16A34A', flexDirection: "row", justifyContent: "center", gap: 8 }]}
                 >
                   <Ionicons name="create" size={18} color="#FFF" />
                   <Text style={{ color: "#FFF", fontWeight: "700" }}>Aggiorna scheda esistente</Text>
@@ -2386,7 +2387,7 @@ function NewContactScreen() {
                   // Trigger submit again (bypass will let it through)
                   setTimeout(() => { submit(); }, 60);
                 }}
-                style={[styles.modalBtn, { backgroundColor: "#F97316", flexDirection: "row", justifyContent: "center", gap: 8 }]}
+                style={[styles.modalBtn, { backgroundColor: '#F97316', flexDirection: "row", justifyContent: "center", gap: 8 }]}
               >
                 <Ionicons name="add-circle" size={18} color="#FFF" />
                 <Text style={{ color: "#FFF", fontWeight: "700" }}>Salva come nuovo contatto</Text>
@@ -2394,12 +2395,12 @@ function NewContactScreen() {
               <Pressable
                 testID="dup-cancel-btn"
                 onPress={() => setDupModal(null)}
-                style={[styles.modalBtn, { backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border, flexDirection: "row", justifyContent: "center", gap: 8 }]}
+                style={[styles.modalBtn, { backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border, flexDirection: "row", justifyContent: "center", gap: 8 }]}
               >
-                <Ionicons name="close" size={18} color={theme.color.onSurface} />
-                <Text style={{ color: theme.color.onSurface, fontWeight: "700" }}>Annulla</Text>
+                <Ionicons name="close" size={18} color={HT.text} />
+                <Text style={{ color: HT.text, fontWeight: "700" }}>Annulla</Text>
               </Pressable>
-              <Text style={{ fontSize: 11, color: theme.color.muted, textAlign: "center", marginTop: 4, fontStyle: "italic" }}>
+              <Text style={{ fontSize: 11, color: HT.muted, textAlign: "center", marginTop: 4, fontStyle: "italic" }}>
                 {dupModal?.matches.length === 1
                   ? "Aggiorna il contatto trovato oppure salvane uno nuovo se è un cliente diverso."
                   : "Tocca un contatto qui sopra per aprire la sua scheda esistente."}
@@ -2418,11 +2419,11 @@ function NoteMediaBar({ target, recording, onPhotoCam, onPhotoGal, onFile, onRec
   // Testo del bottone audio: "Registra audio" (removed obsolete "Non supportato").
   return (
     <View style={mediaBarStyles.row}>
-      <Pressable testID={`att-${target}-file`} onPress={onFile} style={[mediaBarStyles.btn, { backgroundColor: "#0891B2" }]}>
+      <Pressable testID={`att-${target}-file`} onPress={onFile} style={[mediaBarStyles.btn, { backgroundColor: '#0891B2' }]}>
         <Ionicons name="attach" size={14} color="#FFF" />
         <Text style={mediaBarStyles.txt}>Allega file</Text>
       </Pressable>
-      <Pressable testID={`att-${target}-gallery`} onPress={onPhotoGal} style={[mediaBarStyles.btn, { backgroundColor: "#8B5CF6" }]}>
+      <Pressable testID={`att-${target}-gallery`} onPress={onPhotoGal} style={[mediaBarStyles.btn, { backgroundColor: '#8B5CF6' }]}>
         <Ionicons name="image" size={14} color="#FFF" />
         <Text style={mediaBarStyles.txt}>Importa foto</Text>
       </Pressable>
@@ -2433,7 +2434,7 @@ function NoteMediaBar({ target, recording, onPhotoCam, onPhotoGal, onFile, onRec
       <Pressable
         testID={`att-${target}-audio`}
         onPress={recording ? onRecStop : onRecStart}
-        style={[mediaBarStyles.btn, { backgroundColor: recording ? theme.color.error : theme.color.warning }]}
+        style={[mediaBarStyles.btn, { backgroundColor: recording ? HT.danger : HT.warning }]}
       >
         <Ionicons name={recording ? "stop-circle" : "mic"} size={14} color="#FFF" />
         <Text style={mediaBarStyles.txt}>{recording ? "Stop" : "Registra audio"}</Text>
@@ -2456,7 +2457,7 @@ function AttachmentsPreview({ list, onRemove }: { list: PendingAttachment[]; onR
               <View style={attStyles.iconBox}>
                 <Ionicons
                   name={a.kind === "audio" ? "musical-notes" : a.kind === "video" ? "videocam" : "document"}
-                  size={20} color={theme.color.brandPrimary}
+                  size={20} color={HT.brand}
                 />
               </View>
             )}
@@ -2464,7 +2465,7 @@ function AttachmentsPreview({ list, onRemove }: { list: PendingAttachment[]; onR
               {a.kind === "photo" ? "Foto" : a.kind === "audio" ? "Vocale" : a.kind === "video" ? "Video" : (a.file_name || "File")}
             </Text>
             <Pressable onPress={() => onRemove(a.local_id)} style={attStyles.rmBtn} hitSlop={8}>
-              <Ionicons name="close-circle" size={16} color={theme.color.error} />
+              <Ionicons name="close-circle" size={16} color={HT.danger} />
             </Pressable>
           </View>
         ))}
@@ -2479,17 +2480,17 @@ const mediaBarStyles = StyleSheet.create({
   txt: { color: "#FFF", fontWeight: "700", fontSize: 11 },
 });
 const attStyles = StyleSheet.create({
-  wrap: { marginTop: 8, padding: 10, backgroundColor: "#F0F9FF", borderRadius: theme.radius.md, borderWidth: 1, borderColor: "#BAE6FD" },
-  hint: { color: theme.color.info, fontSize: 11, fontWeight: "700", marginBottom: 6 },
+  wrap: { marginTop: 8, padding: 10, backgroundColor: HT.axonTint, borderRadius: theme.radius.md, borderWidth: 1, borderColor: HT.axonLine },
+  hint: { color: HT.axon, fontSize: 11, fontWeight: "700", marginBottom: 6 },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  chip: { flexDirection: "row", alignItems: "center", gap: 6, padding: 6, backgroundColor: "#FFF", borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border, maxWidth: 200 },
+  chip: { flexDirection: "row", alignItems: "center", gap: 6, padding: 6, backgroundColor: HT.card, borderRadius: theme.radius.md, borderWidth: 1, borderColor: HT.border, maxWidth: 200 },
   thumb: { width: 36, height: 36, borderRadius: 6 },
   // V29.bb — Stile Optima: icona full-round con bordo bianco e ombra rialzata.
   iconBox: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: theme.color.brandTertiary,
+    backgroundColor: HT.brandTint,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
@@ -2500,7 +2501,7 @@ const attStyles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     elevation: 4,
   },
-  name: { fontSize: 12, color: theme.color.onSurface, flex: 1 },
+  name: { fontSize: 12, color: HT.text, flex: 1 },
   rmBtn: { padding: 2 },
 });
 
@@ -2523,7 +2524,7 @@ function Field({ label, multiline, flex, ...rest }: any) {
       <TextInput
         {...rest}
         style={[styles.input, multiline && { minHeight: 70, textAlignVertical: "top" }]}
-        placeholderTextColor="#94A3B8"
+        placeholderTextColor={HT.muted}
         multiline={multiline}
       />
     </View>
@@ -2553,10 +2554,10 @@ function BirthdayPickerNative({ value, onChange }: { value: string; onChange: (t
         testID="c-birth-date"
         onPress={() => setShow(true)}
         style={{
-          backgroundColor: "#FFF",
+          backgroundColor: HT.card,
           borderRadius: theme.radius.md,
           borderWidth: 1,
-          borderColor: theme.color.border,
+          borderColor: HT.border,
           paddingHorizontal: 12,
           paddingVertical: 12,
           flexDirection: "row",
@@ -2564,13 +2565,13 @@ function BirthdayPickerNative({ value, onChange }: { value: string; onChange: (t
           gap: 10,
         }}
       >
-        <Ionicons name="calendar" size={18} color={theme.color.brandPrimary} />
-        <Text style={{ color: parsed ? theme.color.onSurface : theme.color.muted, fontSize: 15, flex: 1 }}>
+        <Ionicons name="calendar" size={18} color={HT.brand} />
+        <Text style={{ color: parsed ? HT.text : HT.muted, fontSize: 15, flex: 1 }}>
           {display}
         </Text>
         {parsed && (
           <Pressable testID="c-birth-date-clear" hitSlop={8} onPress={() => onChange("")}>
-            <Ionicons name="close-circle" size={18} color={theme.color.muted} />
+            <Ionicons name="close-circle" size={18} color={HT.muted} />
           </Pressable>
         )}
       </Pressable>
@@ -2599,48 +2600,48 @@ function BirthdayPickerNative({ value, onChange }: { value: string; onChange: (t
 
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
+  root: { flex: 1, backgroundColor: HT.card2 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12 },
-  title: { fontSize: 18, fontWeight: "700", color: theme.color.onSurface },
+  title: { fontSize: 18, fontWeight: "700", color: HT.text },
   content: { padding: 16, paddingBottom: 140 },
-  section: { backgroundColor: "#FFF", borderRadius: theme.radius.md, padding: 14, borderWidth: 1, borderColor: theme.color.border, marginTop: 12 },
-  sectionTitle: { fontSize: 12, fontWeight: "700", color: theme.color.brandPrimary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 },
-  lbl: { fontSize: 12, fontWeight: "600", color: theme.color.onSurfaceTertiary, marginTop: 8, marginBottom: 4 },
-  input: { backgroundColor: theme.color.surface, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: theme.color.onSurface },
+  section: { backgroundColor: HT.card, borderRadius: theme.radius.md, padding: 14, borderWidth: 1, borderColor: HT.border, marginTop: 12 },
+  sectionTitle: { fontSize: 12, fontWeight: "700", color: HT.brand, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 },
+  lbl: { fontSize: 12, fontWeight: "600", color: HT.text2, marginTop: 8, marginBottom: 4 },
+  input: { backgroundColor: HT.card2, borderRadius: theme.radius.md, borderWidth: 1, borderColor: HT.border, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: HT.text },
   pillsRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
-  pill: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: theme.radius.pill, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, flexShrink: 0 },
-  pillActive: { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary },
-  pillTxt: { color: theme.color.onSurfaceTertiary, fontWeight: "600", fontSize: 13 },
+  pill: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: theme.radius.pill, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, flexShrink: 0 },
+  pillActive: { backgroundColor: HT.brand, borderColor: HT.brand },
+  pillTxt: { color: HT.text2, fontWeight: "600", fontSize: 13 },
   pillTxtActive: { color: "#FFF" },
   tagRow: { flexDirection: "row", gap: 8, alignItems: "center" },
-  tagAddBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: theme.color.brandPrimary, alignItems: "center", justifyContent: "center" },
+  tagAddBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: HT.brand, alignItems: "center", justifyContent: "center" },
   tagsWrap: { flexDirection: "row", gap: 6, flexWrap: "wrap", marginTop: 8 },
-  tagChip: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: theme.color.brandTertiary, paddingHorizontal: 10, paddingVertical: 4, borderRadius: theme.radius.pill },
-  tagChipTxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 12 },
+  tagChip: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: HT.brandTint, paddingHorizontal: 10, paddingVertical: 4, borderRadius: theme.radius.pill },
+  tagChipTxt: { color: HT.brand, fontWeight: "700", fontSize: 12 },
   rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8 },
-  switchLbl: { fontSize: 13, color: theme.color.onSurface, fontWeight: "600" },
+  switchLbl: { fontSize: 13, color: HT.text, fontWeight: "600" },
   toggleMore: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 14, paddingVertical: 10 },
-  toggleMoreTxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 13 },
-  importBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#FFF", padding: 12, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.brandPrimary, borderStyle: "dashed" },
+  toggleMoreTxt: { color: HT.brand, fontWeight: "700", fontSize: 13 },
+  importBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: HT.card, padding: 12, borderRadius: theme.radius.md, borderWidth: 1, borderColor: HT.brand, borderStyle: "dashed" },
   aiBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 10, borderRadius: theme.radius.md },
   aiBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 12 },
-  importBtnTxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 14 },
+  importBtnTxt: { color: HT.brand, fontWeight: "700", fontSize: 14 },
   photoRow: { flexDirection: "row", gap: 10 },
-  photoAddBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: theme.color.surface, padding: 12, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border },
-  photoAddTxt: { color: theme.color.brandPrimary, fontWeight: "600", fontSize: 13 },
+  photoAddBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: HT.card2, padding: 12, borderRadius: theme.radius.md, borderWidth: 1, borderColor: HT.border },
+  photoAddTxt: { color: HT.brand, fontWeight: "600", fontSize: 13 },
   photoThumb: { position: "relative", width: 80, height: 80 },
   photoThumbImg: { width: 80, height: 80, borderRadius: theme.radius.md },
-  photoThumbRemove: { position: "absolute", top: -6, right: -6, width: 22, height: 22, borderRadius: 11, backgroundColor: theme.color.error, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "#FFF" },
-  saveBtn: { backgroundColor: theme.color.brandPrimary, paddingVertical: 14, borderRadius: theme.radius.md, alignItems: "center", marginTop: 20 },
+  photoThumbRemove: { position: "absolute", top: -6, right: -6, width: 22, height: 22, borderRadius: 11, backgroundColor: HT.danger, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: HT.card },
+  saveBtn: { backgroundColor: HT.brand, paddingVertical: 14, borderRadius: theme.radius.md, alignItems: "center", marginTop: 20 },
   saveBtnTxt: { color: "#FFF", fontWeight: "700", fontSize: 15 },
-  deleteBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#FEE2E2", paddingVertical: 12, borderRadius: theme.radius.md, marginTop: 10, borderWidth: 1, borderColor: "#FCA5A5" },
+  deleteBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: HT.dangerTint, paddingVertical: 12, borderRadius: theme.radius.md, marginTop: 10, borderWidth: 1, borderColor: '#FCA5A5' },
   deleteBtnTxt: { color: "#DC2626", fontWeight: "700", fontSize: 14 },
   dot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
-  linkChip: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: theme.color.brandTertiary, paddingHorizontal: 12, paddingVertical: 8, borderRadius: theme.radius.pill, alignSelf: "flex-start" },
-  linkChipTxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 12 },
-  hintTxt: { color: theme.color.muted, fontSize: 12, marginBottom: 8, fontStyle: "italic" },
+  linkChip: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: HT.brandTint, paddingHorizontal: 12, paddingVertical: 8, borderRadius: theme.radius.pill, alignSelf: "flex-start" },
+  linkChipTxt: { color: HT.brand, fontWeight: "700", fontSize: 12 },
+  hintTxt: { color: HT.muted, fontSize: 12, marginBottom: 8, fontStyle: "italic" },
   annRow: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
-  selectedBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F0FDF4", borderRadius: theme.radius.md, padding: 10, marginTop: 10, borderWidth: 1, borderColor: theme.color.success },
+  selectedBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: HT.successTint, borderRadius: theme.radius.md, padding: 10, marginTop: 10, borderWidth: 1, borderColor: HT.success },
   // V28.f — customer type per area
   customerTypeRow: {
     flexDirection: "row",
@@ -2648,16 +2649,16 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: theme.color.border,
+    borderBottomColor: HT.border,
   },
   customerTypeDot: { width: 10, height: 10, borderRadius: 5 },
-  customerTypeArea: { flex: 1, fontSize: 13, fontWeight: "700", color: theme.color.onSurface },
+  customerTypeArea: { flex: 1, fontSize: 13, fontWeight: "700", color: HT.text },
   customerTypeSeg: {
     flexDirection: "row",
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderRadius: theme.radius.pill,
     borderWidth: 1,
-    borderColor: theme.color.border,
+    borderColor: HT.border,
     overflow: "hidden",
   },
   customerTypeBtn: {
@@ -2667,26 +2668,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
-  customerTypeBtnOn: { backgroundColor: theme.color.brandPrimary },
-  customerTypeBtnTxt: { fontSize: 12, fontWeight: "800", color: theme.color.brandPrimary },
-  selectedTxt: { flex: 1, color: theme.color.success, fontSize: 12, fontWeight: "600" },
+  customerTypeBtnOn: { backgroundColor: HT.brand },
+  customerTypeBtnTxt: { fontSize: 12, fontWeight: "800", color: HT.brand },
+  selectedTxt: { flex: 1, color: HT.success, fontSize: 12, fontWeight: "600" },
   modalBack: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center", padding: 20 },
-  modalCard: { width: "100%", maxWidth: 420, backgroundColor: "#FFF", borderRadius: theme.radius.md, padding: 18 },
-  modalTitle: { fontSize: 18, fontWeight: "700", color: theme.color.onSurface, marginBottom: 8 },
+  modalCard: { width: "100%", maxWidth: 420, backgroundColor: HT.card, borderRadius: theme.radius.md, padding: 18 },
+  modalTitle: { fontSize: 18, fontWeight: "700", color: HT.text, marginBottom: 8 },
   swatches: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   swatch: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "transparent" },
-  swatchActive: { borderColor: theme.color.onSurface },
+  swatchActive: { borderColor: HT.text },
   modalBtn: { paddingVertical: 12, borderRadius: theme.radius.md, alignItems: "center", justifyContent: "center", minHeight: 46 },
 });
 
 const webDateInputStyle: any = {
   width: "100%",
-  backgroundColor: theme.color.surface,
-  border: `1px solid ${theme.color.border}`,
+  backgroundColor: HT.card2,
+  border: `1px solid ${HT.border}`,
   borderRadius: 12,
   padding: "10px 12px",
   fontSize: 15,
-  color: theme.color.onSurface,
+  color: HT.text,
   fontFamily: "inherit",
   outline: "none",
 };

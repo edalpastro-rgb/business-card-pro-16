@@ -7,6 +7,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { api } from "@/src/api";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const PURPLE = "#7C3AED";
 type PermKey = "location" | "microphone" | "camera" | "contacts";
@@ -84,7 +85,7 @@ export default function PermessiScreen() {
                 <Text style={styles.cardBenefit}>{c.benefit}</Text>
               </View>
               {st === "granted" ? (
-                <View style={styles.okBadge} testID={`perm-ok-${c.key}`}><Ionicons name="checkmark" size={14} color="#065F46" /><Text style={styles.okTxt}>Attivo</Text></View>
+                <View style={styles.okBadge} testID={`perm-ok-${c.key}`}><Ionicons name="checkmark" size={14} color={HT.success} /><Text style={styles.okTxt}>Attivo</Text></View>
               ) : st === "unavailable" ? (
                 <Text style={styles.naTxt}>Solo su app</Text>
               ) : (
@@ -107,25 +108,25 @@ export default function PermessiScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#FAF5FF" },
+  root: { flex: 1, backgroundColor: '#FAF5FF' },
   hero: { alignItems: "center", gap: 8, marginBottom: 6 },
-  heroIcon: { width: 64, height: 64, borderRadius: 22, backgroundColor: "#EDE9FE", alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 24, fontWeight: "900", color: "#1B2B4B" },
-  sub: { fontSize: 13.5, color: "#64748B", textAlign: "center", lineHeight: 19, paddingHorizontal: 8 },
-  card: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#FFF", borderRadius: 16, padding: 14, borderWidth: 1, borderColor: "#EDE9FE", minHeight: 76 },
-  cardIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: "#F5F3FF", alignItems: "center", justifyContent: "center" },
-  cardTitle: { fontSize: 15, fontWeight: "800", color: "#1B2B4B" },
-  cardBenefit: { fontSize: 12, color: "#64748B", marginTop: 2, lineHeight: 16 },
+  heroIcon: { width: 64, height: 64, borderRadius: 22, backgroundColor: HT.violetTint, alignItems: "center", justifyContent: "center" },
+  title: { fontSize: 24, fontWeight: "900", color: HT.text },
+  sub: { fontSize: 13.5, color: HT.muted, textAlign: "center", lineHeight: 19, paddingHorizontal: 8 },
+  card: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: HT.card, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: HT.violetTint, minHeight: 76 },
+  cardIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: HT.violetTint, alignItems: "center", justifyContent: "center" },
+  cardTitle: { fontSize: 15, fontWeight: "800", color: HT.text },
+  cardBenefit: { fontSize: 12, color: HT.muted, marginTop: 2, lineHeight: 16 },
   allowBtn: { backgroundColor: PURPLE, borderRadius: 999, paddingHorizontal: 14, minHeight: 40, justifyContent: "center" },
-  allowBtnAlt: { backgroundColor: "#F5F3FF", borderWidth: 1, borderColor: "#DDD6FE" },
+  allowBtnAlt: { backgroundColor: HT.violetTint, borderWidth: 1, borderColor: HT.violet + '66' },
   allowTxt: { color: "#FFF", fontWeight: "800", fontSize: 12.5 },
-  okBadge: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#ECFDF5", borderRadius: 999, paddingHorizontal: 10, minHeight: 32 },
-  okTxt: { color: "#065F46", fontWeight: "800", fontSize: 12 },
-  naTxt: { fontSize: 11.5, color: "#94A3B8", fontWeight: "700" },
-  foot: { fontSize: 11.5, color: "#94A3B8", textAlign: "center", marginTop: 4 },
-  footer: { position: "absolute", left: 0, right: 0, bottom: 0, padding: 16, gap: 8, backgroundColor: "#FAF5FF" },
+  okBadge: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: HT.successTint, borderRadius: 999, paddingHorizontal: 10, minHeight: 32 },
+  okTxt: { color: HT.success, fontWeight: "800", fontSize: 12 },
+  naTxt: { fontSize: 11.5, color: HT.muted, fontWeight: "700" },
+  foot: { fontSize: 11.5, color: HT.muted, textAlign: "center", marginTop: 4 },
+  footer: { position: "absolute", left: 0, right: 0, bottom: 0, padding: 16, gap: 8, backgroundColor: '#FAF5FF' },
   primary: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: PURPLE, borderRadius: 16, minHeight: 52 },
   primaryTxt: { color: "#FFF", fontWeight: "900", fontSize: 16 },
   skip: { alignItems: "center", justifyContent: "center", minHeight: 44 },
-  skipTxt: { color: "#64748B", fontWeight: "700", fontSize: 14 },
+  skipTxt: { color: HT.muted, fontWeight: "700", fontSize: 14 },
 });

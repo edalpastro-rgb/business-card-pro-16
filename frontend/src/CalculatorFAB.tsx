@@ -10,8 +10,8 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeBottom } from "@/src/hooks/useSafeBottom";
-import { theme } from "@/src/theme";
 import { useRegisterFab } from "@/src/FabStack";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Op = "+" | "-" | "×" | "÷" | null;
 
@@ -302,7 +302,7 @@ function CalculatorModal({ visible, onClose }: { visible: boolean; onClose: () =
             ) : null}
           </View>
           <Pressable testID="calc-close" onPress={onClose} hitSlop={10}>
-            <Ionicons name="close" size={22} color={theme.color.muted} />
+            <Ionicons name="close" size={22} color={HT.muted} />
           </Pressable>
         </View>
         <View style={styles.displayBox}>
@@ -340,7 +340,7 @@ function CalculatorModal({ visible, onClose }: { visible: boolean; onClose: () =
           </View>
           <View style={styles.rowSmall}>
             <Pressable testID="calc-backspace" onPress={backspace} style={styles.bsBtn}>
-              <Ionicons name="backspace-outline" size={18} color={theme.color.muted} />
+              <Ionicons name="backspace-outline" size={18} color={HT.muted} />
               <Text style={styles.bsTxt}>Cancella</Text>
             </Pressable>
           </View>
@@ -362,7 +362,7 @@ const styles = StyleSheet.create({
     width: FAB_SIZE,
     height: FAB_SIZE,
     borderRadius: FAB_SIZE / 2,
-    backgroundColor: theme.color.brandPrimary,
+    backgroundColor: HT.brand,
     alignItems: "center",
     justifyContent: "center",
     elevation: 6,
@@ -396,7 +396,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   sheet: {
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 16,
@@ -422,21 +422,21 @@ const styles = StyleSheet.create({
     width: 44,
     height: 5,
     borderRadius: 3,
-    backgroundColor: "#CBD5E1",
+    backgroundColor: HT.borderStrong,
   },
   head: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
-  headTitle: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface },
-  headSub: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
+  headTitle: { fontSize: 16, fontWeight: "800", color: HT.text },
+  headSub: { fontSize: 12, color: HT.muted, marginTop: 2 },
   displayBox: {
-    backgroundColor: "#F1F5F9",
+    backgroundColor: HT.card2,
     borderRadius: 12,
     padding: 14,
     alignItems: "flex-end",
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: theme.color.border,
+    borderColor: HT.border,
   },
-  displayTxt: { fontSize: 34, fontWeight: "700", color: theme.color.onSurface },
+  displayTxt: { fontSize: 34, fontWeight: "700", color: HT.text },
   pad: { gap: 6 },
   row: { flexDirection: "row", gap: 6 },
   rowSmall: { alignItems: "center", marginTop: 2 },
@@ -444,15 +444,15 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 48,
     borderRadius: 10,
-    backgroundColor: "#E2E8F0",
+    backgroundColor: HT.border,
     alignItems: "center",
     justifyContent: "center",
   },
-  keyTxt: { fontSize: 20, fontWeight: "600", color: theme.color.onSurface },
-  keyOp: { backgroundColor: "#F59E0B" },
-  keyEq: { backgroundColor: theme.color.brandPrimary },
-  keyClr: { backgroundColor: "#DC2626" },
-  keyAcc: { backgroundColor: "#CBD5E1" },
+  keyTxt: { fontSize: 20, fontWeight: "600", color: HT.text },
+  keyOp: { backgroundColor: '#F59E0B' },
+  keyEq: { backgroundColor: HT.brand },
+  keyClr: { backgroundColor: '#DC2626' },
+  keyAcc: { backgroundColor: HT.borderStrong },
   bsBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 8, paddingHorizontal: 12 },
-  bsTxt: { color: theme.color.muted, fontWeight: "600", fontSize: 12 },
+  bsTxt: { color: HT.muted, fontWeight: "600", fontSize: 12 },
 });

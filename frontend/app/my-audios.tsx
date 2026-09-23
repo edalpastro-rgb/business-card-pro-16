@@ -6,12 +6,13 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { api, buildFileUrl } from "@/src/api";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 // V50.z205 — Fase 4 Spazio Personale: sfera (Privata/Aziendale) + trascrizione automatica (Whisper + Haiku)
 type Sphere = "business" | "home" | "unclassified";
 const SPHERE_ICON: Record<Sphere, string> = { business: "🔵", home: "🟢", unclassified: "⚪" };
 const SPHERE_LABEL: Record<Sphere, string> = { business: "Aziendale", home: "Privata", unclassified: "Da classificare" };
-const SPHERE_COLOR: Record<Sphere, string> = { business: "#2563EB", home: "#059669", unclassified: "#94A3B8" };
+const SPHERE_COLOR: Record<Sphere, string> = { business: "#2563EB", home: "#059669", unclassified: HT.muted };
 const FILTERS: Array<{ key: "all" | Sphere; label: string }> = [
   { key: "all", label: "Tutti" }, { key: "home", label: "🟢 Private" }, { key: "business", label: "🔵 Aziendali" }, { key: "unclassified", label: "⚪ Da classificare" },
 ];
@@ -141,7 +142,7 @@ export default function MyAudiosScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.background }} edges={["top"]}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.headerBtn}><Ionicons name="chevron-back" size={22} color={theme.color.onSurface} /></Pressable>
+        <Pressable onPress={() => router.back()} style={styles.headerBtn}><Ionicons name="chevron-back" size={22} color={HT.text} /></Pressable>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>I miei audio</Text>
           <Text style={styles.headerSub}>🟢 Spazio Personale · {items.length} note vocali · trascrizione automatica</Text>
@@ -166,10 +167,10 @@ export default function MyAudiosScreen() {
       )}
 
       {loading ? (
-        <ActivityIndicator style={{ marginTop: 40 }} color={theme.color.brandPrimary} />
+        <ActivityIndicator style={{ marginTop: 40 }} color={HT.brand} />
       ) : items.length === 0 ? (
         <View style={styles.empty}>
-          <Ionicons name="folder-open-outline" size={54} color={theme.color.muted} />
+          <Ionicons name="folder-open-outline" size={54} color={HT.muted} />
           <Text style={styles.emptyTitle}>Nessun audio personale</Text>
           <Text style={styles.emptyTxt}>Registra un audio dall&apos;Interfaccia Master e scegli &quot;Cartella personale&quot; come destinazione. Axon lo trascrive automaticamente.</Text>
           <Pressable onPress={() => router.push("/master" as any)} style={styles.recordBtn}>
@@ -195,12 +196,12 @@ export default function MyAudiosScreen() {
                   <View style={{ flex: 1, marginLeft: 12 }}>
                     <Text style={styles.title} numberOfLines={1}>{rec.title || "Nota vocale"}</Text>
                     <View style={styles.metaRow}>
-                      <Ionicons name="calendar-outline" size={12} color={theme.color.muted} />
+                      <Ionicons name="calendar-outline" size={12} color={HT.muted} />
                       <Text style={styles.metaTxt}>{fmtDateTime(rec.created_at)}</Text>
                       {typeof rec.duration_sec === "number" && rec.duration_sec > 0 && (
                         <>
                           <Text style={styles.metaSep}>·</Text>
-                          <Ionicons name="time-outline" size={12} color={theme.color.muted} />
+                          <Ionicons name="time-outline" size={12} color={HT.muted} />
                           <Text style={styles.metaTxt}>{fmtDuration(rec.duration_sec)}</Text>
                         </>
                       )}
@@ -259,10 +260,10 @@ export default function MyAudiosScreen() {
             <Text style={styles.modalT}>Rinomina audio</Text>
             <TextInput value={renameVal} onChangeText={setRenameVal} style={styles.input} autoFocus placeholder="Nome file" testID="rename-input" />
             <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
-              <Pressable onPress={() => setRenameFor(null)} style={[styles.modalBtn, { backgroundColor: "#F1F5F9", flex: 1 }]} testID="rename-cancel">
-                <Text style={[styles.modalBtnTxt, { color: theme.color.onSurface }]}>Annulla</Text>
+              <Pressable onPress={() => setRenameFor(null)} style={[styles.modalBtn, { backgroundColor: HT.card2, flex: 1 }]} testID="rename-cancel">
+                <Text style={[styles.modalBtnTxt, { color: HT.text }]}>Annulla</Text>
               </Pressable>
-              <Pressable onPress={saveRename} style={[styles.modalBtn, { backgroundColor: "#7C3AED", flex: 1 }]} testID="rename-save">
+              <Pressable onPress={saveRename} style={[styles.modalBtn, { backgroundColor: '#7C3AED', flex: 1 }]} testID="rename-save">
                 <Text style={[styles.modalBtnTxt, { color: "#FFF" }]}>Salva</Text>
               </Pressable>
             </View>
@@ -287,13 +288,13 @@ function fmtDuration(s: number) {
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: "row", alignItems: "center", padding: 14, gap: 10, borderBottomWidth: 1, borderBottomColor: theme.color.border, backgroundColor: theme.color.surface },
+  header: { flexDirection: "row", alignItems: "center", padding: 14, gap: 10, borderBottomWidth: 1, borderBottomColor: HT.border, backgroundColor: HT.card2 },
   // V29.bc — Stile Optima
   headerBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: HT.card2,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
@@ -304,45 +305,45 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     elevation: 4,
   },
-  headerTitle: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface },
-  headerSub: { fontSize: 11, color: theme.color.muted, marginTop: 1 },
+  headerTitle: { fontSize: 16, fontWeight: "800", color: HT.text },
+  headerSub: { fontSize: 11, color: HT.muted, marginTop: 1 },
   empty: { alignItems: "center", padding: 40, marginTop: 40 },
-  emptyTitle: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface, marginTop: 14 },
-  emptyTxt: { fontSize: 12, color: theme.color.muted, marginTop: 6, textAlign: "center", lineHeight: 16 },
-  recordBtn: { marginTop: 24, flexDirection: "row", gap: 8, alignItems: "center", backgroundColor: "#7C3AED", paddingHorizontal: 18, paddingVertical: 12, borderRadius: 12 },
+  emptyTitle: { fontSize: 16, fontWeight: "800", color: HT.text, marginTop: 14 },
+  emptyTxt: { fontSize: 12, color: HT.muted, marginTop: 6, textAlign: "center", lineHeight: 16 },
+  recordBtn: { marginTop: 24, flexDirection: "row", gap: 8, alignItems: "center", backgroundColor: '#7C3AED', paddingHorizontal: 18, paddingVertical: 12, borderRadius: 12 },
   recordTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
-  card: { backgroundColor: theme.color.surface, borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: theme.color.border },
+  card: { backgroundColor: HT.card2, borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: HT.border },
   cardRow: { flexDirection: "row", alignItems: "center" },
   filterRow: { paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
-  chip: { paddingHorizontal: 12, minHeight: 36, borderRadius: 999, backgroundColor: "#F1F5F9", justifyContent: "center", borderWidth: 1, borderColor: "#E2E8F0" },
-  chipOn: { backgroundColor: "#ECFDF5", borderColor: "#059669" },
-  chipTxt: { fontSize: 12, fontWeight: "700", color: "#475569" },
-  chipTxtOn: { color: "#065F46" },
-  noneTxt: { textAlign: "center", color: theme.color.muted, fontSize: 12.5, marginTop: 30 },
+  chip: { paddingHorizontal: 12, minHeight: 36, borderRadius: 999, backgroundColor: HT.card2, justifyContent: "center", borderWidth: 1, borderColor: HT.border },
+  chipOn: { backgroundColor: HT.successTint, borderColor: '#059669' },
+  chipTxt: { fontSize: 12, fontWeight: "700", color: HT.text2 },
+  chipTxtOn: { color: HT.success },
+  noneTxt: { textAlign: "center", color: HT.muted, fontSize: 12.5, marginTop: 30 },
   sphereRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8, marginTop: 10 },
   sphereNow: { fontSize: 12, fontWeight: "800" },
-  sphereBtn: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, minHeight: 32, justifyContent: "center", backgroundColor: "#FFF" },
+  sphereBtn: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, minHeight: 32, justifyContent: "center", backgroundColor: HT.card },
   sphereBtnTxt: { fontSize: 11.5, fontWeight: "800" },
   suggestTxt: { fontSize: 11, color: "#7C3AED", fontStyle: "italic" },
   trRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10, minHeight: 36 },
-  trHint: { fontSize: 12, color: theme.color.muted },
-  trBox: { marginTop: 10, backgroundColor: "#F5F3FF", borderRadius: 10, padding: 10, gap: 6 },
-  trSummary: { fontSize: 13, color: "#1B2B4B", lineHeight: 18 },
-  trText: { fontSize: 12.5, color: "#334155", lineHeight: 18, borderTopWidth: 1, borderTopColor: "#E9D5FF", paddingTop: 6 },
-  trActions: { fontSize: 12, color: "#B45309", fontWeight: "700" },
+  trHint: { fontSize: 12, color: HT.muted },
+  trBox: { marginTop: 10, backgroundColor: HT.violetTint, borderRadius: 10, padding: 10, gap: 6 },
+  trSummary: { fontSize: 13, color: HT.text, lineHeight: 18 },
+  trText: { fontSize: 12.5, color: HT.text2, lineHeight: 18, borderTopWidth: 1, borderTopColor: '#E9D5FF', paddingTop: 6 },
+  trActions: { fontSize: 12, color: HT.warning, fontWeight: "700" },
   trTags: { fontSize: 11, color: "#7C3AED", fontWeight: "700" },
   trMore: { fontSize: 11, color: "#7C3AED", fontWeight: "800", textAlign: "right" },
   playBtn: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 3, shadowOffset: { width: 0, height: 2 }, elevation: 3 },
-  title: { fontSize: 13, fontWeight: "700", color: theme.color.onSurface },
+  title: { fontSize: 13, fontWeight: "700", color: HT.text },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 4 },
-  metaTxt: { fontSize: 11, color: theme.color.muted },
-  metaSep: { fontSize: 11, color: theme.color.muted, marginHorizontal: 4 },
+  metaTxt: { fontSize: 11, color: HT.muted },
+  metaSep: { fontSize: 11, color: HT.muted, marginHorizontal: 4 },
   playingHint: { fontSize: 10, color: "#DC2626", fontWeight: "800", marginTop: 3 },
   iconBtn: { padding: 8 },
   modalRoot: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", padding: 20 },
-  modalBox: { backgroundColor: "#FFF", borderRadius: 16, padding: 18 },
-  modalT: { fontSize: 15, fontWeight: "800", color: theme.color.onSurface, marginBottom: 12 },
-  input: { borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, padding: 12, fontSize: 14, color: theme.color.onSurface, backgroundColor: theme.color.surface },
+  modalBox: { backgroundColor: HT.card, borderRadius: 16, padding: 18 },
+  modalT: { fontSize: 15, fontWeight: "800", color: HT.text, marginBottom: 12 },
+  input: { borderWidth: 1, borderColor: HT.border, borderRadius: 10, padding: 12, fontSize: 14, color: HT.text, backgroundColor: HT.card2 },
   modalBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", padding: 12, borderRadius: 10 },
   modalBtnTxt: { fontWeight: "800", fontSize: 13 },
 });

@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { api, setToken } from "@/src/api";
 import { theme } from "@/src/theme";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type InviteInfo = { trial_days: number; note: string };
 
@@ -53,7 +54,7 @@ export default function InvitePublicScreen() {
     return (
       <SafeAreaView style={styles.root} edges={["top"]}>
         <View style={styles.errBox}>
-          <Ionicons name="alert-circle" size={40} color={theme.color.error} />
+          <Ionicons name="alert-circle" size={40} color={HT.danger} />
           <Text style={styles.errTitle}>Invito non disponibile</Text>
           <Text style={styles.errMsg}>{loadErr}</Text>
           <Pressable onPress={() => router.replace("/login")} style={styles.link}>
@@ -63,31 +64,31 @@ export default function InvitePublicScreen() {
       </SafeAreaView>
     );
   }
-  if (!info) return <SafeAreaView style={styles.root}><ActivityIndicator style={{ marginTop: 60 }} color={theme.color.brandPrimary} /></SafeAreaView>;
+  if (!info) return <SafeAreaView style={styles.root}><ActivityIndicator style={{ marginTop: 60 }} color={HT.brand} /></SafeAreaView>;
 
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={{ padding: 22 }}>
           <View style={styles.brand}>
-            <Ionicons name="business" size={44} color={theme.color.brandPrimary} />
+            <Ionicons name="business" size={44} color={HT.brand} />
             <Text style={styles.brandTitle}>Sei stato invitato!</Text>
             <Text style={styles.brandSub}>Registra il tuo account per iniziare — il primo mese è gratis.</Text>
           </View>
 
           <View style={styles.trialBanner}>
-            <Ionicons name="time" size={16} color={theme.color.success} />
+            <Ionicons name="time" size={16} color={HT.success} />
             <Text style={styles.trialTxt}>Trial gratuito di <Text style={{ fontWeight: "800" }}>{info.trial_days} giorni</Text> incluso</Text>
           </View>
           {info.note ? <Text style={styles.note}>&quot;{info.note}&quot;</Text> : null}
 
           <View style={styles.form}>
             <Text style={styles.lbl}>Nome e Cognome</Text>
-            <TextInput testID="reg-name" value={name} onChangeText={setName} placeholder="Mario Rossi" placeholderTextColor="#94A3B8" style={styles.input} />
+            <TextInput testID="reg-name" value={name} onChangeText={setName} placeholder="Mario Rossi" placeholderTextColor={HT.muted} style={styles.input} />
             <Text style={styles.lbl}>Email</Text>
-            <TextInput testID="reg-email" value={email} onChangeText={setEmail} placeholder="tu@email.it" placeholderTextColor="#94A3B8" style={styles.input} autoCapitalize="none" keyboardType="email-address" />
+            <TextInput testID="reg-email" value={email} onChangeText={setEmail} placeholder="tu@email.it" placeholderTextColor={HT.muted} style={styles.input} autoCapitalize="none" keyboardType="email-address" />
             <Text style={styles.lbl}>Password</Text>
-            <TextInput testID="reg-password" value={password} onChangeText={setPassword} placeholder="Almeno 6 caratteri" placeholderTextColor="#94A3B8" style={styles.input} secureTextEntry />
+            <TextInput testID="reg-password" value={password} onChangeText={setPassword} placeholder="Almeno 6 caratteri" placeholderTextColor={HT.muted} style={styles.input} secureTextEntry />
             <Pressable testID="reg-submit" onPress={submit} disabled={busy} style={styles.btn}>
               {busy ? <ActivityIndicator color="#FFF" /> : <Text style={styles.btnTxt}>Registrati e accedi</Text>}
             </Pressable>
@@ -101,22 +102,22 @@ export default function InvitePublicScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
+  root: { flex: 1, backgroundColor: HT.card2 },
   brand: { alignItems: "center", gap: 6, marginBottom: 24 },
-  brandTitle: { fontSize: 24, fontWeight: "800", color: theme.color.onSurface },
-  brandSub: { fontSize: 13, color: theme.color.muted, textAlign: "center" },
-  trialBanner: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: theme.radius.md, backgroundColor: "#F0FDF4", borderWidth: 1, borderColor: theme.color.success, justifyContent: "center", marginBottom: 8 },
-  trialTxt: { color: theme.color.success, fontSize: 14 },
-  note: { textAlign: "center", color: theme.color.muted, fontStyle: "italic", fontSize: 12, marginBottom: 12 },
-  form: { backgroundColor: "#FFF", borderRadius: theme.radius.md, padding: 16, borderWidth: 1, borderColor: theme.color.border, marginTop: 12 },
-  lbl: { fontSize: 12, color: theme.color.onSurfaceTertiary, fontWeight: "600", marginTop: 10, marginBottom: 4 },
-  input: { backgroundColor: theme.color.surface, borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: theme.color.border, color: theme.color.onSurface },
-  btn: { backgroundColor: theme.color.brandPrimary, paddingVertical: 14, borderRadius: theme.radius.md, alignItems: "center", marginTop: 18 },
+  brandTitle: { fontSize: 24, fontWeight: "800", color: HT.text },
+  brandSub: { fontSize: 13, color: HT.muted, textAlign: "center" },
+  trialBanner: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: theme.radius.md, backgroundColor: HT.successTint, borderWidth: 1, borderColor: HT.success, justifyContent: "center", marginBottom: 8 },
+  trialTxt: { color: HT.success, fontSize: 14 },
+  note: { textAlign: "center", color: HT.muted, fontStyle: "italic", fontSize: 12, marginBottom: 12 },
+  form: { backgroundColor: HT.card, borderRadius: theme.radius.md, padding: 16, borderWidth: 1, borderColor: HT.border, marginTop: 12 },
+  lbl: { fontSize: 12, color: HT.text2, fontWeight: "600", marginTop: 10, marginBottom: 4 },
+  input: { backgroundColor: HT.card2, borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: HT.border, color: HT.text },
+  btn: { backgroundColor: HT.brand, paddingVertical: 14, borderRadius: theme.radius.md, alignItems: "center", marginTop: 18 },
   btnTxt: { color: "#FFF", fontWeight: "700", fontSize: 15 },
   errBox: { flex: 1, alignItems: "center", justifyContent: "center", padding: 30, gap: 10 },
-  errTitle: { fontSize: 20, fontWeight: "700", color: theme.color.onSurface },
-  errMsg: { color: theme.color.muted, textAlign: "center" },
+  errTitle: { fontSize: 20, fontWeight: "700", color: HT.text },
+  errMsg: { color: HT.muted, textAlign: "center" },
   link: { marginTop: 12 },
-  linkTxt: { color: theme.color.brandPrimary, fontWeight: "700" },
-  legal: { fontSize: 10, color: theme.color.muted, textAlign: "center", marginTop: 14, lineHeight: 14 },
+  linkTxt: { color: HT.brand, fontWeight: "700" },
+  legal: { fontSize: 10, color: HT.muted, textAlign: "center", marginTop: 14, lineHeight: 14 },
 });

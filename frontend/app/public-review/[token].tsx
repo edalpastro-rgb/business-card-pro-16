@@ -17,6 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
 import Constants from "expo-constants";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 // Ricava base URL backend (usa lo stesso approccio di src/api.ts ma senza auth)
 const BACKEND = (
@@ -174,7 +175,7 @@ export default function PublicReviewPage() {
           value={textVal}
           onChangeText={setTextVal}
           placeholder="Racconta la tua esperienza…"
-          placeholderTextColor="#94A3B8"
+          placeholderTextColor={HT.muted}
           testID="review-text-input"
         />
 
@@ -183,7 +184,7 @@ export default function PublicReviewPage() {
           onPress={() => setConsent(!consent)}
           testID="review-consent"
         >
-          <View style={[styles.checkbox, consent && { backgroundColor: "#8B5CF6", borderColor: "#8B5CF6" }]}>
+          <View style={[styles.checkbox, consent && { backgroundColor: '#8B5CF6', borderColor: '#8B5CF6' }]}>
             {consent ? <Ionicons name="checkmark" size={16} color="#FFF" /> : null}
           </View>
           <Text style={styles.consentTxt}>
@@ -218,31 +219,31 @@ export default function PublicReviewPage() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F8FAFC" },
+  container: { flex: 1, backgroundColor: HT.card2 },
   scroll: { padding: 20, paddingBottom: 60 },
   centered: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24 },
   header: { alignItems: "center", marginBottom: 20 },
-  title: { fontSize: 24, fontWeight: "800", color: "#111820", textAlign: "center" },
-  subtitle: { fontSize: 14, color: "#6B7280", textAlign: "center", marginTop: 8 },
-  q: { fontSize: 14, fontWeight: "700", color: "#111820", marginTop: 20, marginBottom: 8 },
+  title: { fontSize: 24, fontWeight: "800", color: HT.text, textAlign: "center" },
+  subtitle: { fontSize: 14, color: HT.muted, textAlign: "center", marginTop: 8 },
+  q: { fontSize: 14, fontWeight: "700", color: HT.text, marginTop: 20, marginBottom: 8 },
   starsRow: { flexDirection: "row", justifyContent: "center", gap: 4, marginTop: 6 },
   starBtn: { padding: 4 },
-  ratingLabel: { textAlign: "center", fontSize: 13, color: "#6B7280", marginTop: 6, fontWeight: "600" },
+  ratingLabel: { textAlign: "center", fontSize: 13, color: HT.muted, marginTop: 6, fontWeight: "600" },
   textArea: {
-    borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 12,
-    padding: 14, backgroundColor: "#FFF", color: "#111820",
+    borderWidth: 1, borderColor: HT.border, borderRadius: 12,
+    padding: 14, backgroundColor: HT.card, color: HT.text,
     fontSize: 15, minHeight: 130,
     textAlignVertical: "top",
   },
   consentRow: { flexDirection: "row", gap: 10, marginTop: 18, alignItems: "flex-start" },
   checkbox: {
-    width: 22, height: 22, borderRadius: 4, borderWidth: 2, borderColor: "#CBD5E1",
+    width: 22, height: 22, borderRadius: 4, borderWidth: 2, borderColor: HT.borderStrong,
     alignItems: "center", justifyContent: "center", marginTop: 2,
   },
-  consentTxt: { flex: 1, fontSize: 13, color: "#374151", lineHeight: 18 },
+  consentTxt: { flex: 1, fontSize: 13, color: HT.text2, lineHeight: 18 },
   submitBtn: {
     marginTop: 24,
-    backgroundColor: "#8B5CF6",
+    backgroundColor: '#8B5CF6',
     paddingVertical: 15,
     borderRadius: 12,
     flexDirection: "row",
@@ -256,10 +257,10 @@ const styles = StyleSheet.create({
   },
   submitTxt: { color: "#FFF", fontWeight: "800", fontSize: 15 },
   errInline: { color: "#DC2626", fontSize: 13, marginTop: 12 },
-  errorTitle: { fontSize: 18, fontWeight: "800", color: "#111820", marginTop: 12, textAlign: "center" },
-  errorSub: { fontSize: 13, color: "#6B7280", marginTop: 6, textAlign: "center" },
-  successIcon: { width: 80, height: 80, borderRadius: 40, backgroundColor: "#10B981", alignItems: "center", justifyContent: "center", marginBottom: 16 },
-  successTitle: { fontSize: 22, fontWeight: "800", color: "#111820", textAlign: "center" },
-  successSub: { fontSize: 14, color: "#6B7280", marginTop: 10, textAlign: "center", lineHeight: 20 },
-  footer: { fontSize: 11, color: "#94A3B8", textAlign: "center", marginTop: 30 },
+  errorTitle: { fontSize: 18, fontWeight: "800", color: HT.text, marginTop: 12, textAlign: "center" },
+  errorSub: { fontSize: 13, color: HT.muted, marginTop: 6, textAlign: "center" },
+  successIcon: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#10B981', alignItems: "center", justifyContent: "center", marginBottom: 16 },
+  successTitle: { fontSize: 22, fontWeight: "800", color: HT.text, textAlign: "center" },
+  successSub: { fontSize: 14, color: HT.muted, marginTop: 10, textAlign: "center", lineHeight: 20 },
+  footer: { fontSize: 11, color: HT.muted, textAlign: "center", marginTop: 30 },
 });

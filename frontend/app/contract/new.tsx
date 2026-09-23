@@ -9,13 +9,14 @@ import { notify } from "@/src/utils/notify";
 
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 import { ContractFormsSection } from "@/src/ContractFormsSection"; // V50.z268
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 type Contact = { contact_id: string; first_name: string; last_name: string; contact_code?: string; phone?: string };
 
 const TYPES = [
   { id: "luce", label: "Luce", color: "#F59E0B", icon: "flash" as const },
   { id: "gas", label: "Gas", color: "#DC2626", icon: "flame" as const },
   { id: "telco", label: "Telco", color: "#0891B2", icon: "call" as const },
-  { id: "other", label: "Altro", color: "#6B7280", icon: "document" as const },
+  { id: "other", label: "Altro", color: HT.muted, icon: "document" as const },
 ];
 
 export default function NewContractScreen() {
@@ -79,7 +80,7 @@ export default function NewContractScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.background }} edges={["top"]}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.headerBtn}><Ionicons name="chevron-back" size={22} color={theme.color.onSurface} /></Pressable>
+        <Pressable onPress={() => router.back()} style={styles.headerBtn}><Ionicons name="chevron-back" size={22} color={HT.text} /></Pressable>
         <Text style={styles.headerTitle}>Nuovo Contratto</Text>
       </View>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
@@ -89,12 +90,12 @@ export default function NewContractScreen() {
             <>
               <Ionicons name="person-circle" size={22} color="#059669" />
               <Text style={styles.pickerTxt}>{contact.first_name} {contact.last_name}{contact.contact_code ? ` · ${contact.contact_code}` : ""}</Text>
-              <Ionicons name="close-circle" size={18} color={theme.color.muted} onPress={(e: any) => { e.stopPropagation?.(); setContact(null); }} />
+              <Ionicons name="close-circle" size={18} color={HT.muted} onPress={(e: any) => { e.stopPropagation?.(); setContact(null); }} />
             </>
           ) : (
             <>
-              <Ionicons name="person-add" size={20} color={theme.color.muted} />
-              <Text style={[styles.pickerTxt, { color: theme.color.muted }]}>Seleziona cliente…</Text>
+              <Ionicons name="person-add" size={20} color={HT.muted} />
+              <Text style={[styles.pickerTxt, { color: HT.muted }]}>Seleziona cliente…</Text>
             </>
           )}
         </Pressable>
@@ -149,14 +150,14 @@ export default function NewContractScreen() {
             <ScrollView style={{ maxHeight: 400 }}>
               {filtered.map(c => (
                 <Pressable key={c.contact_id} onPress={() => { setContact(c); setPickerOpen(false); }} style={styles.contactRow} testID={`pick-${c.contact_id}`}>
-                  <Ionicons name="person" size={18} color={theme.color.muted} />
+                  <Ionicons name="person" size={18} color={HT.muted} />
                   <View style={{ flex: 1, marginLeft: 10 }}>
                     <Text style={styles.contactName}>{c.first_name} {c.last_name}</Text>
                     <Text style={styles.contactMeta}>{c.contact_code} · {c.phone}</Text>
                   </View>
                 </Pressable>
               ))}
-              {filtered.length === 0 && <Text style={{ textAlign: "center", color: theme.color.muted, padding: 20 }}>Nessun cliente trovato.</Text>}
+              {filtered.length === 0 && <Text style={{ textAlign: "center", color: HT.muted, padding: 20 }}>Nessun cliente trovato.</Text>}
             </ScrollView>
           </View>
         </Pressable>
@@ -166,24 +167,24 @@ export default function NewContractScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: "row", alignItems: "center", padding: 14, gap: 10, borderBottomWidth: 1, borderBottomColor: theme.color.border, backgroundColor: theme.color.surface },
-  headerBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center" },
-  headerTitle: { flex: 1, fontSize: 16, fontWeight: "800", color: theme.color.onSurface },
-  label: { fontSize: 12, fontWeight: "700", color: theme.color.muted, marginTop: 14, marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 },
-  pickerBtn: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 10, backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border },
-  pickerTxt: { flex: 1, fontSize: 14, color: theme.color.onSurface, fontWeight: "600" },
+  header: { flexDirection: "row", alignItems: "center", padding: 14, gap: 10, borderBottomWidth: 1, borderBottomColor: HT.border, backgroundColor: HT.card2 },
+  headerBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: HT.card2, alignItems: "center", justifyContent: "center" },
+  headerTitle: { flex: 1, fontSize: 16, fontWeight: "800", color: HT.text },
+  label: { fontSize: 12, fontWeight: "700", color: HT.muted, marginTop: 14, marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 },
+  pickerBtn: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 10, backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border },
+  pickerTxt: { flex: 1, fontSize: 14, color: HT.text, fontWeight: "600" },
   typeRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  typeChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: theme.color.border, backgroundColor: theme.color.surface },
-  typeChipTxt: { fontSize: 12, fontWeight: "700", color: theme.color.onSurface },
-  input: { borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, padding: 12, fontSize: 14, color: theme.color.onSurface, backgroundColor: theme.color.surface },
+  typeChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: HT.border, backgroundColor: HT.card2 },
+  typeChipTxt: { fontSize: 12, fontWeight: "700", color: HT.text },
+  input: { borderWidth: 1, borderColor: HT.border, borderRadius: 10, padding: 12, fontSize: 14, color: HT.text, backgroundColor: HT.card2 },
   rowGap: { flexDirection: "row", gap: 10 },
-  submitBtn: { marginTop: 24, backgroundColor: "#059669", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 14, borderRadius: 12 },
+  submitBtn: { marginTop: 24, backgroundColor: '#059669', flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 14, borderRadius: 12 },
   submitTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: "#FFF", borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 16, paddingBottom: 30, maxHeight: "80%" },
-  sheetHandle: { alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: "#CBD5E1", marginBottom: 12 },
-  sheetTitle: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface, marginBottom: 10 },
-  contactRow: { flexDirection: "row", alignItems: "center", padding: 10, borderRadius: 8, borderBottomWidth: 1, borderBottomColor: theme.color.border },
-  contactName: { fontSize: 14, fontWeight: "700", color: theme.color.onSurface },
-  contactMeta: { fontSize: 11, color: theme.color.muted, marginTop: 2 },
+  sheet: { backgroundColor: HT.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 16, paddingBottom: 30, maxHeight: "80%" },
+  sheetHandle: { alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: HT.borderStrong, marginBottom: 12 },
+  sheetTitle: { fontSize: 16, fontWeight: "800", color: HT.text, marginBottom: 10 },
+  contactRow: { flexDirection: "row", alignItems: "center", padding: 10, borderRadius: 8, borderBottomWidth: 1, borderBottomColor: HT.border },
+  contactName: { fontSize: 14, fontWeight: "700", color: HT.text },
+  contactMeta: { fontSize: 11, color: HT.muted, marginTop: 2 },
 });

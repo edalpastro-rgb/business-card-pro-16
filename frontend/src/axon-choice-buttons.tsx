@@ -4,6 +4,7 @@
 // Tap → il testo dell'opzione viene inviato come messaggio utente (Axon lo capisce senza ambiguità).
 import React from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 export type Choice = { key: string; label: string; text: string };
 
@@ -72,8 +73,8 @@ export function ChoiceButtons({ choices, onSelect }: { choices: Choice[]; onSele
 
 const s = StyleSheet.create({
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginLeft: 36, marginTop: -2, marginBottom: 6 },
-  btn: { minHeight: 40, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12, borderWidth: 1.5, borderColor: "#7C3AED", backgroundColor: "#F5F3FF", maxWidth: "100%", justifyContent: "center" },
-  btnAction: { backgroundColor: "#7C3AED", borderColor: "#7C3AED" },
-  txt: { color: "#5B21B6", fontWeight: "800", fontSize: 14 },
+  btn: { minHeight: 40, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12, borderWidth: 1.5, borderColor: '#7C3AED', backgroundColor: HT.violetTint, maxWidth: "100%", justifyContent: "center" },
+  btnAction: { backgroundColor: '#7C3AED', borderColor: '#7C3AED' },
+  txt: { color: HT.violet, fontWeight: "800", fontSize: 14 },
   txtAction: { color: "#FFF" },
 });

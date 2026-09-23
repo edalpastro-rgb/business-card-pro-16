@@ -7,8 +7,8 @@ import { View, Text, StyleSheet, Pressable, ActivityIndicator } from "react-nati
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 import { getWeatherCoords, weatherIcon } from "@/src/utils/weather";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Res = {
   alerts?: { id: string }[];
@@ -48,7 +48,7 @@ export function WeatherWidget({ alwaysVisible = false }: { alwaysVisible?: boole
   return (
     <Pressable testID="weather-widget" onPress={() => router.push("/meteo" as any)} style={({ pressed }) => [styles.card, pressed && { opacity: 0.9 }]}>
       <View style={[styles.iconBox, { backgroundColor: icon.color + "1A" }]}>
-        {loading ? <ActivityIndicator color={theme.color.brandPrimary} /> : <Ionicons name={icon.name} size={28} color={icon.color} />}
+        {loading ? <ActivityIndicator color={HT.brand} /> : <Ionicons name={icon.name} size={28} color={icon.color} />}
       </View>
       <View style={{ flex: 1, minWidth: 0 }}>
         {res?.needs_address ? (
@@ -64,7 +64,7 @@ export function WeatherWidget({ alwaysVisible = false }: { alwaysVisible?: boole
             </View>
             <Text style={styles.sub} numberOfLines={1}>{w?.label || (loading ? "Caricamento…" : "Meteo non disponibile · tocca per riprovare")}</Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-              <Ionicons name="location" size={11} color={theme.color.muted} />
+              <Ionicons name="location" size={11} color={HT.muted} />
               <Text style={styles.place} numberOfLines={1}>{res?.place || "Posizione"}</Text>
             </View>
           </>
@@ -72,9 +72,9 @@ export function WeatherWidget({ alwaysVisible = false }: { alwaysVisible?: boole
       </View>
       <View style={{ alignItems: "flex-end", gap: 6 }}>
         {nAlerts > 0 ? (
-          <View style={[styles.pill, { backgroundColor: "#FEF3C7" }]}>
-            <Ionicons name="warning" size={12} color="#B45309" />
-            <Text style={[styles.pillTxt, { color: "#B45309" }]}>{nAlerts} {nAlerts === 1 ? "allerta" : "allerte"}</Text>
+          <View style={[styles.pill, { backgroundColor: HT.warningTint }]}>
+            <Ionicons name="warning" size={12} color={HT.warning} />
+            <Text style={[styles.pillTxt, { color: HT.warning }]}>{nAlerts} {nAlerts === 1 ? "allerta" : "allerte"}</Text>
           </View>
         ) : !loading && w ? (
           <View style={styles.pill}>
@@ -82,21 +82,21 @@ export function WeatherWidget({ alwaysVisible = false }: { alwaysVisible?: boole
             <Text style={styles.pillTxt}>Nessuna allerta</Text>
           </View>
         ) : null}
-        <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+        <Ionicons name="chevron-forward" size={18} color={HT.muted} />
       </View>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { marginHorizontal: 16, marginTop: 8, flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: theme.color.surfaceSecondary, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: theme.color.border, minHeight: 72 },
+  card: { marginHorizontal: 16, marginTop: 8, flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: HT.card2, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: HT.border, minHeight: 72 },
   iconBox: { width: 52, height: 52, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 15, fontWeight: "800", color: theme.color.onSurface },
-  temp: { fontSize: 24, fontWeight: "900", color: theme.color.onSurface },
-  min: { fontSize: 12, color: theme.color.muted, fontWeight: "600" },
-  sub: { fontSize: 12.5, color: theme.color.onSurfaceTertiary, fontWeight: "600" },
-  place: { fontSize: 11, color: theme.color.muted, flexShrink: 1 },
-  pill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: "#DCFCE7" },
+  title: { fontSize: 15, fontWeight: "800", color: HT.text },
+  temp: { fontSize: 24, fontWeight: "900", color: HT.text },
+  min: { fontSize: 12, color: HT.muted, fontWeight: "600" },
+  sub: { fontSize: 12.5, color: HT.text2, fontWeight: "600" },
+  place: { fontSize: 11, color: HT.muted, flexShrink: 1 },
+  pill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: HT.successTint },
   pillTxt: { fontSize: 10.5, fontWeight: "800", color: "#16A34A" },
   headerBadge: { position: "absolute", left: 8, bottom: 6, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999, backgroundColor: "rgba(15,23,42,0.45)" },
   // V50.z334 — variante inline per la barra superiore dark della Home

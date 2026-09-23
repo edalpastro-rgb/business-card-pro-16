@@ -11,6 +11,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type DeletionRequest = {
   request_id: string;
@@ -71,7 +72,7 @@ export default function HelpCenterAdminScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={10} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={24} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={24} color={HT.text} />
         </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Richieste cancellazione dati</Text>
@@ -97,7 +98,7 @@ export default function HelpCenterAdminScreen() {
         <View style={styles.empty}><ActivityIndicator size="large" color="#7C3AED" /></View>
       ) : visible.length === 0 ? (
         <View style={styles.empty}>
-          <Ionicons name="checkmark-done" size={40} color={theme.color.muted} />
+          <Ionicons name="checkmark-done" size={40} color={HT.muted} />
           <Text style={styles.emptyTxt}>Nessuna richiesta {filter === "pending" ? "in attesa" : filter === "handled" ? "gestita" : ""}</Text>
         </View>
       ) : (
@@ -117,7 +118,7 @@ export default function HelpCenterAdminScreen() {
                   {item.user_email ? <Text style={styles.cardMail} numberOfLines={1}>{item.user_email}</Text> : null}
                 </View>
                 <View style={[styles.statusBadge, item.status === "pending" ? styles.statusPending : styles.statusHandled]}>
-                  <Text style={[styles.statusTxt, item.status === "pending" ? { color: "#B91C1C" } : { color: "#059669" }]}>
+                  <Text style={[styles.statusTxt, item.status === "pending" ? { color: HT.danger } : { color: "#059669" }]}>
                     {item.status === "pending" ? "IN ATTESA" : "GESTITA"}
                   </Text>
                 </View>
@@ -154,46 +155,46 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row", alignItems: "center", gap: 8,
     paddingHorizontal: 12, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: theme.color.border,
-    backgroundColor: "#FFF",
+    borderBottomWidth: 1, borderBottomColor: HT.border,
+    backgroundColor: HT.card,
   },
   backBtn: { width: 30, height: 30, alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface },
-  headerSub: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
+  headerTitle: { fontSize: 16, fontWeight: "800", color: HT.text },
+  headerSub: { fontSize: 12, color: HT.muted, marginTop: 2 },
   filterBar: {
     flexDirection: "row", gap: 8, padding: 10,
-    borderBottomWidth: 1, borderBottomColor: theme.color.border, backgroundColor: "#FFF",
+    borderBottomWidth: 1, borderBottomColor: HT.border, backgroundColor: HT.card,
   },
   filterChip: {
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: HT.card2,
   },
-  filterChipOn: { backgroundColor: "#7C3AED" },
-  filterTxt: { color: theme.color.onSurface, fontWeight: "700", fontSize: 12 },
+  filterChipOn: { backgroundColor: '#7C3AED' },
+  filterTxt: { color: HT.text, fontWeight: "700", fontSize: 12 },
   filterTxtOn: { color: "#FFF" },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8, padding: 30 },
-  emptyTxt: { color: theme.color.muted, fontSize: 13 },
+  emptyTxt: { color: HT.muted, fontSize: 13 },
   card: {
-    padding: 12, borderRadius: 12, backgroundColor: "#FFF",
-    borderWidth: 1, borderColor: theme.color.border, gap: 8,
+    padding: 12, borderRadius: 12, backgroundColor: HT.card,
+    borderWidth: 1, borderColor: HT.border, gap: 8,
   },
   cardHead: { flexDirection: "row", alignItems: "center", gap: 10 },
   cardIcon: {
-    width: 36, height: 36, borderRadius: 10, backgroundColor: "#FEF2F2",
+    width: 36, height: 36, borderRadius: 10, backgroundColor: HT.dangerTint,
     alignItems: "center", justifyContent: "center",
   },
-  cardName: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface },
-  cardMail: { fontSize: 11, color: theme.color.muted, marginTop: 1 },
+  cardName: { fontSize: 14, fontWeight: "800", color: HT.text },
+  cardMail: { fontSize: 11, color: HT.muted, marginTop: 1 },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  statusPending: { backgroundColor: "#FEF2F2" },
-  statusHandled: { backgroundColor: "#DCFCE7" },
+  statusPending: { backgroundColor: HT.dangerTint },
+  statusHandled: { backgroundColor: HT.successTint },
   statusTxt: { fontSize: 10, fontWeight: "900", letterSpacing: 0.3 },
-  cardReason: { fontSize: 13, color: "#334155", lineHeight: 18 },
-  cardReasonEmpty: { fontSize: 12, color: theme.color.muted, fontStyle: "italic" },
-  cardMeta: { fontSize: 11, color: theme.color.muted },
+  cardReason: { fontSize: 13, color: HT.text2, lineHeight: 18 },
+  cardReasonEmpty: { fontSize: 12, color: HT.muted, fontStyle: "italic" },
+  cardMeta: { fontSize: 11, color: HT.muted },
   handleBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
-    marginTop: 4, paddingVertical: 10, borderRadius: 10, backgroundColor: "#7C3AED",
+    marginTop: 4, paddingVertical: 10, borderRadius: 10, backgroundColor: '#7C3AED',
   },
   handleBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
 });

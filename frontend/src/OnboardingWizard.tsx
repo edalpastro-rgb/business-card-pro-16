@@ -16,6 +16,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { theme } from "@/src/theme";
 import { useAuth } from "@/src/auth";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const C = theme.color;
 
@@ -158,7 +159,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   card: {
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderRadius: 20,
     padding: 20,
     shadowColor: "#000",
@@ -178,7 +179,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#E5E7EB",
+    backgroundColor: HT.border,
   },
   dotActive: { backgroundColor: C.primary, width: 22 },
   skip: { color: C.muted, fontSize: 13, fontWeight: "700" },
@@ -233,7 +234,7 @@ const styles = StyleSheet.create({
   },
   btnPrimaryTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
   btnGhost: {
-    backgroundColor: "#F3F4F6",
+    backgroundColor: HT.card2,
   },
   btnGhostTxt: { color: C.navy, fontWeight: "700", fontSize: 13 },
   nextLater: {

@@ -7,13 +7,13 @@ import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, TextI
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { theme } from "@/src/theme";
 import { notify, confirmAsync } from "@/src/utils/notify";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { api } from "@/src/api";
 import { CGYM_ORANGE } from "@/src/corporate-gym/api";
 import { CgymManualRef } from "@/src/corporate-gym/manualsApi";
 import { CgymDrivePicker } from "@/src/corporate-gym/CgymDrivePicker";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Phase = { id?: string; name: string; minutes_to?: number | null; manual_ref?: CgymManualRef | null };
 type Scenario = {
@@ -100,7 +100,7 @@ export default function CgymCoachPanel() {
   const field = (label: string, value: string, onChange: (v: string) => void, opts?: { multiline?: boolean; keyboard?: "numeric" | "default"; testID?: string; placeholder?: string }) => (
     <View style={{ gap: 4 }}>
       <Text style={styles.fieldLabel}>{label}</Text>
-      <TextInput value={value} onChangeText={onChange} multiline={opts?.multiline} keyboardType={opts?.keyboard || "default"} placeholder={opts?.placeholder} placeholderTextColor={theme.color.muted}
+      <TextInput value={value} onChangeText={onChange} multiline={opts?.multiline} keyboardType={opts?.keyboard || "default"} placeholder={opts?.placeholder} placeholderTextColor={HT.muted}
         style={[styles.input, opts?.multiline && { minHeight: 80, textAlignVertical: "top" }]} editable={canEdit} testID={opts?.testID} />
     </View>
   );
@@ -108,7 +108,7 @@ export default function CgymCoachPanel() {
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
-        <Pressable onPress={() => (form ? (setForm(null), setSel(null)) : router.back())} hitSlop={10} testID="cgym-coach-back"><Ionicons name="chevron-back" size={26} color={theme.color.onSurface} /></Pressable>
+        <Pressable onPress={() => (form ? (setForm(null), setSel(null)) : router.back())} hitSlop={10} testID="cgym-coach-back"><Ionicons name="chevron-back" size={26} color={HT.text} /></Pressable>
         <Text style={styles.title} numberOfLines={1}>{form ? `Role-play · ${form.label}` : "Pannello Master Coach"}</Text>
         <View style={{ width: 26 }} />
       </View>
@@ -128,7 +128,7 @@ export default function CgymCoachPanel() {
                 <View style={{ flexDirection: "row", gap: 8 }}>
                   {(["obiezioni", "winwin"] as const).map((a) => (
                     <Pressable key={a} onPress={() => setDraft({ ...draft, area: a })} style={[styles.smallBtn, draft.area !== a && styles.ghost, { flex: 1, alignItems: "center" }]} testID={`cgym-coach-new-area-${a}`}>
-                      <Text style={[styles.smallBtnTxt, draft.area !== a && { color: theme.color.muted }]}>{a === "obiezioni" ? "Gym Obiezioni" : "Gym WIN-WIN"}</Text>
+                      <Text style={[styles.smallBtnTxt, draft.area !== a && { color: HT.muted }]}>{a === "obiezioni" ? "Gym Obiezioni" : "Gym WIN-WIN"}</Text>
                     </Pressable>
                   ))}
                 </View>
@@ -142,7 +142,7 @@ export default function CgymCoachPanel() {
                 {field("Azienda", draft.customer.company, (v) => setDraft({ ...draft, customer: { ...draft.customer, company: v } }))}
                 <View style={{ flexDirection: "row", gap: 8 }}>
                   <Pressable onPress={createScenario} disabled={saving} style={[styles.primaryBtn, { flex: 1 }]} testID="cgym-coach-new-save">{saving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.primaryTxt}>Crea</Text>}</Pressable>
-                  <Pressable onPress={() => setCreating(false)} style={[styles.smallBtn, styles.ghost, { minHeight: 48 }]}><Text style={[styles.smallBtnTxt, { color: theme.color.muted }]}>Annulla</Text></Pressable>
+                  <Pressable onPress={() => setCreating(false)} style={[styles.smallBtn, styles.ghost, { minHeight: 48 }]}><Text style={[styles.smallBtnTxt, { color: HT.muted }]}>Annulla</Text></Pressable>
                 </View>
               </View>
             )}
@@ -154,8 +154,8 @@ export default function CgymCoachPanel() {
                     <Text style={styles.cardTitle}>{s.label}</Text>
                     <Text style={styles.sub}>{s.customer?.name} · {s.duration_min} min · {s.max_turns} interventi · {s.phases.length} fasi{s.manual_ref ? " · manuale collegato" : ""}</Text>
                   </View>
-                  {s.is_custom ? <Text style={[styles.badge, { backgroundColor: "#7C3AED" }]}>Nuovo</Text> : s.is_customized ? <Text style={styles.badge}>Personalizzato</Text> : <Text style={[styles.badge, { backgroundColor: "#F1F5F9", color: theme.color.muted }]}>Default</Text>}
-                  <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+                  {s.is_custom ? <Text style={[styles.badge, { backgroundColor: '#7C3AED' }]}>Nuovo</Text> : s.is_customized ? <Text style={styles.badge}>Personalizzato</Text> : <Text style={[styles.badge, { backgroundColor: HT.card2, color: HT.muted }]}>Default</Text>}
+                  <Ionicons name="chevron-forward" size={18} color={HT.muted} />
                 </View>
               </Pressable>
             ))}
@@ -185,7 +185,7 @@ export default function CgymCoachPanel() {
                 {field("Criteri di valutazione finale", form.eval_criteria || "", (v) => up({ eval_criteria: v }), { multiline: true, placeholder: "vuoto = criteri standard" })}
                 <Text style={styles.fieldLabel}>Voce</Text>
                 <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>
-                  {VOICES.map((v) => <Pressable key={v} onPress={() => up({ voice: v })} style={[styles.smallBtn, form.voice !== v && styles.ghost]}><Text style={[styles.smallBtnTxt, form.voice !== v && { color: theme.color.muted }]}>{v}</Text></Pressable>)}
+                  {VOICES.map((v) => <Pressable key={v} onPress={() => up({ voice: v })} style={[styles.smallBtn, form.voice !== v && styles.ghost]}><Text style={[styles.smallBtnTxt, form.voice !== v && { color: HT.muted }]}>{v}</Text></Pressable>)}
                 </View>
               </View>
             )}
@@ -213,7 +213,7 @@ export default function CgymCoachPanel() {
               {canEdit && (
                 <View style={{ flexDirection: "row", gap: 8 }}>
                   <Pressable onPress={() => setPicker({ target: "scenario" })} style={styles.smallBtn} testID="cgym-coach-pick-manual"><Text style={styles.smallBtnTxt}>{form.manual_ref ? "Cambia" : "Scegli cartella o file"}</Text></Pressable>
-                  {form.manual_ref && <Pressable onPress={() => up({ manual_ref: null })} style={[styles.smallBtn, styles.ghost]}><Text style={[styles.smallBtnTxt, { color: theme.color.muted }]}>Rimuovi</Text></Pressable>}
+                  {form.manual_ref && <Pressable onPress={() => up({ manual_ref: null })} style={[styles.smallBtn, styles.ghost]}><Text style={[styles.smallBtnTxt, { color: HT.muted }]}>Rimuovi</Text></Pressable>}
                 </View>
               )}
             </View>
@@ -225,16 +225,16 @@ export default function CgymCoachPanel() {
                 <View key={p.id || i} style={styles.phase} testID={`cgym-coach-phase-${i}`}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                     <Text style={styles.phaseNum}>{i + 1}</Text>
-                    <TextInput value={p.name} onChangeText={(v) => { const ph = [...form.phases]; ph[i] = { ...p, name: v }; up({ phases: ph }); }} placeholder="Nome fase" placeholderTextColor={theme.color.muted} style={[styles.input, { flex: 1 }]} editable={canEdit} testID={`cgym-coach-phase-name-${i}`} />
-                    <TextInput value={p.minutes_to != null ? String(p.minutes_to) : ""} onChangeText={(v) => { const ph = [...form.phases]; ph[i] = { ...p, minutes_to: v.trim() ? Number(v.replace(",", ".")) : null }; up({ phases: ph }); }} placeholder="min" placeholderTextColor={theme.color.muted} keyboardType="numeric" style={[styles.input, { width: 62, textAlign: "center" }]} editable={canEdit} />
+                    <TextInput value={p.name} onChangeText={(v) => { const ph = [...form.phases]; ph[i] = { ...p, name: v }; up({ phases: ph }); }} placeholder="Nome fase" placeholderTextColor={HT.muted} style={[styles.input, { flex: 1 }]} editable={canEdit} testID={`cgym-coach-phase-name-${i}`} />
+                    <TextInput value={p.minutes_to != null ? String(p.minutes_to) : ""} onChangeText={(v) => { const ph = [...form.phases]; ph[i] = { ...p, minutes_to: v.trim() ? Number(v.replace(",", ".")) : null }; up({ phases: ph }); }} placeholder="min" placeholderTextColor={HT.muted} keyboardType="numeric" style={[styles.input, { width: 62, textAlign: "center" }]} editable={canEdit} />
                   </View>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                     <Text style={[styles.sub, { flex: 1 }]} numberOfLines={1}>{p.manual_ref ? `${p.manual_ref.kind === "folder" ? "📁" : "📄"} ${p.manual_ref.name || p.manual_ref.id}` : "Nessun manuale collegato"}</Text>
                     {canEdit && (
                       <>
-                        <Pressable onPress={() => setPicker({ target: i })} hitSlop={6} style={styles.iconBtn} testID={`cgym-coach-phase-manual-${i}`}><Ionicons name="link" size={18} color={theme.color.brandPrimary} /></Pressable>
-                        <Pressable onPress={() => movePhase(i, -1)} hitSlop={6} style={styles.iconBtn} testID={`cgym-coach-phase-up-${i}`}><Ionicons name="arrow-up" size={18} color={theme.color.onSurface} /></Pressable>
-                        <Pressable onPress={() => movePhase(i, 1)} hitSlop={6} style={styles.iconBtn} testID={`cgym-coach-phase-down-${i}`}><Ionicons name="arrow-down" size={18} color={theme.color.onSurface} /></Pressable>
+                        <Pressable onPress={() => setPicker({ target: i })} hitSlop={6} style={styles.iconBtn} testID={`cgym-coach-phase-manual-${i}`}><Ionicons name="link" size={18} color={HT.brand} /></Pressable>
+                        <Pressable onPress={() => movePhase(i, -1)} hitSlop={6} style={styles.iconBtn} testID={`cgym-coach-phase-up-${i}`}><Ionicons name="arrow-up" size={18} color={HT.text} /></Pressable>
+                        <Pressable onPress={() => movePhase(i, 1)} hitSlop={6} style={styles.iconBtn} testID={`cgym-coach-phase-down-${i}`}><Ionicons name="arrow-down" size={18} color={HT.text} /></Pressable>
                         <Pressable onPress={() => up({ phases: form.phases.filter((_, j) => j !== i) })} hitSlop={6} style={styles.iconBtn} testID={`cgym-coach-phase-del-${i}`}><Ionicons name="trash-outline" size={18} color="#DC2626" /></Pressable>
                       </>
                     )}
@@ -249,7 +249,7 @@ export default function CgymCoachPanel() {
                 <Pressable onPress={save} disabled={saving} style={[styles.primaryBtn, { flex: 1 }, saving && { opacity: 0.6 }]} testID="cgym-coach-save">
                   {saving ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="save" size={18} color="#FFF" /><Text style={styles.primaryTxt}>Salva</Text></>}
                 </Pressable>
-                <Pressable onPress={reset} disabled={saving} style={[styles.smallBtn, styles.ghost, { minHeight: 48 }]} testID="cgym-coach-reset"><Text style={[styles.smallBtnTxt, { color: form.is_custom ? "#DC2626" : theme.color.muted }]}>{form.is_custom ? "Elimina role-play" : "Ripristina default"}</Text></Pressable>
+                <Pressable onPress={reset} disabled={saving} style={[styles.smallBtn, styles.ghost, { minHeight: 48 }]} testID="cgym-coach-reset"><Text style={[styles.smallBtnTxt, { color: form.is_custom ? "#DC2626" : HT.muted }]}>{form.is_custom ? "Elimina role-play" : "Ripristina default"}</Text></Pressable>
               </View>
             )}
           </>
@@ -272,26 +272,26 @@ export default function CgymCoachPanel() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
+  root: { flex: 1, backgroundColor: HT.card2 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 },
-  title: { flex: 1, textAlign: "center", fontSize: 17, fontWeight: "800", color: theme.color.onSurface },
-  hint: { fontSize: 12.5, color: theme.color.muted, lineHeight: 18 },
-  card: { backgroundColor: "#FFF", borderRadius: 16, borderWidth: 1, borderColor: theme.color.border, padding: 14, gap: 10 },
-  cardTitle: { fontSize: 15, fontWeight: "800", color: theme.color.onSurface },
-  section: { fontSize: 12, fontWeight: "800", color: theme.color.muted, textTransform: "uppercase", letterSpacing: 0.4 },
-  sub: { fontSize: 12, color: theme.color.muted, lineHeight: 16 },
+  title: { flex: 1, textAlign: "center", fontSize: 17, fontWeight: "800", color: HT.text },
+  hint: { fontSize: 12.5, color: HT.muted, lineHeight: 18 },
+  card: { backgroundColor: HT.card, borderRadius: 16, borderWidth: 1, borderColor: HT.border, padding: 14, gap: 10 },
+  cardTitle: { fontSize: 15, fontWeight: "800", color: HT.text },
+  section: { fontSize: 12, fontWeight: "800", color: HT.muted, textTransform: "uppercase", letterSpacing: 0.4 },
+  sub: { fontSize: 12, color: HT.muted, lineHeight: 16 },
   badge: { fontSize: 10.5, fontWeight: "800", color: "#FFF", backgroundColor: CGYM_ORANGE, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3 },
-  fieldLabel: { fontSize: 12, fontWeight: "700", color: theme.color.onSurface },
-  input: { borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 9, fontSize: 14, color: theme.color.onSurface, minHeight: 42, backgroundColor: "#FFF" },
-  preview: { width: "100%", height: 140, borderRadius: 12, backgroundColor: "#E2E8F0" },
+  fieldLabel: { fontSize: 12, fontWeight: "700", color: HT.text },
+  input: { borderWidth: 1, borderColor: HT.border, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 9, fontSize: 14, color: HT.text, minHeight: 42, backgroundColor: HT.card },
+  preview: { width: "100%", height: 140, borderRadius: 12, backgroundColor: HT.border },
   iconBtn: { minWidth: 36, minHeight: 36, alignItems: "center", justifyContent: "center" },
   addBtn: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 40 },
   addTxt: { color: CGYM_ORANGE, fontWeight: "800", fontSize: 13 },
-  phase: { borderWidth: 1, borderColor: theme.color.border, borderRadius: 12, padding: 8, gap: 6, backgroundColor: "#FAFAFA" },
+  phase: { borderWidth: 1, borderColor: HT.border, borderRadius: 12, padding: 8, gap: 6, backgroundColor: HT.card2 },
   phaseNum: { width: 22, textAlign: "center", fontWeight: "900", color: CGYM_ORANGE },
   smallBtn: { backgroundColor: CGYM_ORANGE, borderRadius: 12, paddingHorizontal: 12, minHeight: 40, justifyContent: "center" },
   smallBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 12.5 },
-  ghost: { backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border },
+  ghost: { backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border },
   primaryBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: CGYM_ORANGE, borderRadius: 14, minHeight: 48 },
   primaryTxt: { color: "#FFF", fontWeight: "800", fontSize: 15 },
 });

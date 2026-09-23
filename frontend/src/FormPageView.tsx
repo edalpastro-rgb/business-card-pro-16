@@ -2,6 +2,7 @@
 // Coordinate 0-1000 relative alla pagina. onTap restituisce il punto toccato (0-1000) per spostare campi / aggiungere testi.
 import React, { useState } from "react";
 import { View, Image, Pressable, Text, StyleSheet, ActivityIndicator, useWindowDimensions } from "react-native";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 export type PageInfo = { data_url: string; width: number; height: number };
 export type Box = { id: string; bbox: number[]; label?: string; color?: string; filled?: boolean };
@@ -36,7 +37,7 @@ export function FormPageView({ page, boxes, selectedId, onSelect, onTap, showLab
 }
 
 const s = StyleSheet.create({
-  wrap: { width: "100%", borderRadius: 10, overflow: "hidden", backgroundColor: "#E2E8F0", borderWidth: 1, borderColor: "#CBD5E1" },
+  wrap: { width: "100%", borderRadius: 10, overflow: "hidden", backgroundColor: HT.border, borderWidth: 1, borderColor: HT.borderStrong },
   box: { position: "absolute", borderRadius: 2, justifyContent: "center" },
   lbl: { fontWeight: "800", paddingHorizontal: 2 },
 });

@@ -6,6 +6,7 @@ import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Alert,
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const PURPLE = "#7C3AED";
 
@@ -80,11 +81,11 @@ export function ImportedDataSection() {
               <View key={it.item_id} style={styles.item} testID={`imported-item-${it.item_id}`}>
                 {editId === it.item_id ? (
                   <View style={styles.editRow}>
-                    <TextInput value={edit.valore} onChangeText={(v) => setEdit((p) => ({ ...p, valore: v }))} keyboardType="decimal-pad" placeholder="Valore" placeholderTextColor="#94A3B8" style={[styles.input, { flex: 1.2 }]} testID="imported-edit-valore" />
-                    <TextInput value={edit.unita} onChangeText={(v) => setEdit((p) => ({ ...p, unita: v }))} placeholder="Unità" placeholderTextColor="#94A3B8" style={styles.input} testID="imported-edit-unita" />
-                    <TextInput value={edit.data} onChangeText={(v) => setEdit((p) => ({ ...p, data: v }))} placeholder="AAAA-MM" placeholderTextColor="#94A3B8" style={styles.input} testID="imported-edit-data" />
+                    <TextInput value={edit.valore} onChangeText={(v) => setEdit((p) => ({ ...p, valore: v }))} keyboardType="decimal-pad" placeholder="Valore" placeholderTextColor={HT.muted} style={[styles.input, { flex: 1.2 }]} testID="imported-edit-valore" />
+                    <TextInput value={edit.unita} onChangeText={(v) => setEdit((p) => ({ ...p, unita: v }))} placeholder="Unità" placeholderTextColor={HT.muted} style={styles.input} testID="imported-edit-unita" />
+                    <TextInput value={edit.data} onChangeText={(v) => setEdit((p) => ({ ...p, data: v }))} placeholder="AAAA-MM" placeholderTextColor={HT.muted} style={styles.input} testID="imported-edit-data" />
                     <Pressable onPress={() => saveEdit(it)} style={styles.saveBtn} testID="imported-edit-save"><Ionicons name="checkmark" size={18} color="#FFF" /></Pressable>
-                    <Pressable onPress={() => setEditId(null)} style={[styles.saveBtn, { backgroundColor: "#E5E7EB" }]}><Ionicons name="close" size={18} color="#1B2B4B" /></Pressable>
+                    <Pressable onPress={() => setEditId(null)} style={[styles.saveBtn, { backgroundColor: HT.border }]}><Ionicons name="close" size={18} color={HT.text} /></Pressable>
                   </View>
                 ) : (
                   <>
@@ -92,7 +93,7 @@ export function ImportedDataSection() {
                       <Text style={styles.itemTxt}>{it.etichetta}{it.data ? <Text style={styles.itemData}>  {it.data}</Text> : null}</Text>
                       <Text style={styles.itemVal}>{fmtValore(it.valore)} {it.unita || ""}</Text>
                     </View>
-                    <Pressable onPress={() => startEdit(it)} hitSlop={6} style={styles.iconBtn} testID={`imported-edit-${it.item_id}`}><Ionicons name="create-outline" size={18} color="#1B2B4B" /></Pressable>
+                    <Pressable onPress={() => startEdit(it)} hitSlop={6} style={styles.iconBtn} testID={`imported-edit-${it.item_id}`}><Ionicons name="create-outline" size={18} color={HT.text} /></Pressable>
                     <Pressable onPress={() => removeItem(it)} hitSlop={6} style={styles.iconBtn} testID={`imported-delete-${it.item_id}`}><Ionicons name="trash-outline" size={18} color="#DC2626" /></Pressable>
                   </>
                 )}
@@ -106,23 +107,23 @@ export function ImportedDataSection() {
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: "#FFF", borderRadius: 14, padding: 12, gap: 8, borderWidth: 1, borderColor: "#EDE9FE" },
+  card: { backgroundColor: HT.card, borderRadius: 14, padding: 12, gap: 8, borderWidth: 1, borderColor: HT.violetTint },
   head: { flexDirection: "row", alignItems: "center", gap: 10 },
-  icon: { width: 32, height: 32, borderRadius: 10, backgroundColor: "#F5F3FF", alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 15, fontWeight: "800", color: "#1B2B4B" },
-  intro: { fontSize: 11.5, color: "#64748B", marginTop: 1 },
-  empty: { fontSize: 12.5, color: "#94A3B8", fontStyle: "italic", paddingVertical: 4, lineHeight: 18 },
-  cat: { borderTopWidth: 1, borderTopColor: "#F1F5F9", paddingTop: 8, gap: 4 },
+  icon: { width: 32, height: 32, borderRadius: 10, backgroundColor: HT.violetTint, alignItems: "center", justifyContent: "center" },
+  title: { fontSize: 15, fontWeight: "800", color: HT.text },
+  intro: { fontSize: 11.5, color: HT.muted, marginTop: 1 },
+  empty: { fontSize: 12.5, color: HT.muted, fontStyle: "italic", paddingVertical: 4, lineHeight: 18 },
+  cat: { borderTopWidth: 1, borderTopColor: HT.card2, paddingTop: 8, gap: 4 },
   catHead: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 44 },
-  catTitle: { fontSize: 14, fontWeight: "800", color: "#1B2B4B" },
-  catCount: { fontWeight: "600", color: "#64748B", fontSize: 12 },
-  catMeta: { fontSize: 11, color: "#94A3B8", marginTop: 1 },
-  item: { flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 26, paddingVertical: 4, borderTopWidth: 1, borderTopColor: "#F8FAFC" },
-  itemTxt: { fontSize: 13, color: "#1B2B4B" },
-  itemData: { fontSize: 12, color: "#64748B" },
+  catTitle: { fontSize: 14, fontWeight: "800", color: HT.text },
+  catCount: { fontWeight: "600", color: HT.muted, fontSize: 12 },
+  catMeta: { fontSize: 11, color: HT.muted, marginTop: 1 },
+  item: { flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 26, paddingVertical: 4, borderTopWidth: 1, borderTopColor: HT.card2 },
+  itemTxt: { fontSize: 13, color: HT.text },
+  itemData: { fontSize: 12, color: HT.muted },
   itemVal: { fontSize: 14, fontWeight: "800", color: PURPLE, marginTop: 1 },
   iconBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 10 },
   editRow: { flexDirection: "row", alignItems: "center", gap: 6, flex: 1, flexWrap: "wrap" },
-  input: { flex: 1, minWidth: 70, backgroundColor: "#F8FAFC", borderRadius: 10, borderWidth: 1, borderColor: "#E5E7EB", padding: 8, minHeight: 44, fontSize: 13, color: "#1B2B4B" },
+  input: { flex: 1, minWidth: 70, backgroundColor: HT.card2, borderRadius: 10, borderWidth: 1, borderColor: HT.border, padding: 8, minHeight: 44, fontSize: 13, color: HT.text },
   saveBtn: { width: 44, height: 44, borderRadius: 10, backgroundColor: PURPLE, alignItems: "center", justifyContent: "center" },
 });

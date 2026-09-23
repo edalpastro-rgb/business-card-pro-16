@@ -7,10 +7,10 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { uriToBase64DataUrl } from "@/src/utils/media";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Member = { user_id: string; name: string };
 type F = { name: string; mime: string; data_base64: string };
@@ -50,22 +50,22 @@ export default function NewCourseScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.surface }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: HT.card2 }}>
       <View style={s.header}>
-        <Pressable onPress={() => router.back()} hitSlop={10} style={s.hBtn}><Ionicons name="chevron-back" size={24} color={theme.color.onSurface} /></Pressable>
+        <Pressable onPress={() => router.back()} hitSlop={10} style={s.hBtn}><Ionicons name="chevron-back" size={24} color={HT.text} /></Pressable>
         <Text style={[s.title, { flex: 1 }]}>Nuova cartella corso</Text>
         <Pressable onPress={save} disabled={saving} style={[s.saveBtn, saving && { opacity: 0.6 }]} testID="course-save">{saving ? <ActivityIndicator color="#FFF" size="small" /> : <Text style={s.saveTxt}>Crea</Text>}</Pressable>
       </View>
       <ScrollView contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: pagePad }} keyboardShouldPersistTaps="handled">
-        <TextInput value={title} onChangeText={setTitle} placeholder="Titolo del corso *" placeholderTextColor={theme.color.muted} style={s.input} testID="course-title" />
-        <TextInput value={desc} onChangeText={setDesc} placeholder="Descrizione / indicazioni" placeholderTextColor={theme.color.muted} style={[s.input, { minHeight: 70 }]} multiline testID="course-desc" />
+        <TextInput value={title} onChangeText={setTitle} placeholder="Titolo del corso *" placeholderTextColor={HT.muted} style={s.input} testID="course-title" />
+        <TextInput value={desc} onChangeText={setDesc} placeholder="Descrizione / indicazioni" placeholderTextColor={HT.muted} style={[s.input, { minHeight: 70 }]} multiline testID="course-desc" />
         <View style={{ flexDirection: "row", gap: 8 }}>
-          <TextInput value={date} onChangeText={setDate} placeholder="Data (AAAA-MM-GG)" placeholderTextColor={theme.color.muted} style={[s.input, { flex: 1.4 }]} testID="course-date" />
-          <TextInput value={time} onChangeText={setTime} placeholder="Ora (HH:MM)" placeholderTextColor={theme.color.muted} style={[s.input, { flex: 1 }]} keyboardType="numbers-and-punctuation" testID="course-time" />
+          <TextInput value={date} onChangeText={setDate} placeholder="Data (AAAA-MM-GG)" placeholderTextColor={HT.muted} style={[s.input, { flex: 1.4 }]} testID="course-date" />
+          <TextInput value={time} onChangeText={setTime} placeholder="Ora (HH:MM)" placeholderTextColor={HT.muted} style={[s.input, { flex: 1 }]} keyboardType="numbers-and-punctuation" testID="course-time" />
         </View>
-        <TextInput value={loc} onChangeText={setLoc} placeholder="Luogo" placeholderTextColor={theme.color.muted} style={s.input} testID="course-location" />
-        <TextInput value={maps} onChangeText={setMaps} placeholder="Link Google Maps / Waze (opzionale)" placeholderTextColor={theme.color.muted} style={s.input} autoCapitalize="none" />
-        <TextInput value={body} onChangeText={setBody} placeholder="Appunti / testo libero del corso" placeholderTextColor={theme.color.muted} style={[s.input, { minHeight: 110 }]} multiline />
+        <TextInput value={loc} onChangeText={setLoc} placeholder="Luogo" placeholderTextColor={HT.muted} style={s.input} testID="course-location" />
+        <TextInput value={maps} onChangeText={setMaps} placeholder="Link Google Maps / Waze (opzionale)" placeholderTextColor={HT.muted} style={s.input} autoCapitalize="none" />
+        <TextInput value={body} onChangeText={setBody} placeholder="Appunti / testo libero del corso" placeholderTextColor={HT.muted} style={[s.input, { minHeight: 110 }]} multiline />
 
         <Text style={s.section}>Destinatari</Text>
         <View style={{ flexDirection: "row", gap: 8 }}>
@@ -74,7 +74,7 @@ export default function NewCourseScreen() {
         </View>
         {!all ? team.map((m) => { const on = sel.includes(m.user_id); return (
           <Pressable key={m.user_id} onPress={() => setSel((l) => on ? l.filter((x) => x !== m.user_id) : [...l, m.user_id])} style={s.row} testID={`course-recipient-${m.user_id}`}>
-            <Ionicons name={on ? "checkbox" : "square-outline"} size={20} color="#7C3AED" /><Text style={{ flex: 1, color: theme.color.onSurface, fontWeight: "600" }}>{m.name}</Text>
+            <Ionicons name={on ? "checkbox" : "square-outline"} size={20} color="#7C3AED" /><Text style={{ flex: 1, color: HT.text, fontWeight: "600" }}>{m.name}</Text>
           </Pressable>); }) : null}
 
         <Text style={s.section}>Reminder automatico se non apre / non risponde</Text>
@@ -90,7 +90,7 @@ export default function NewCourseScreen() {
         <Text style={s.hint}>{date ? (preRem.length ? "Avviso a chi partecipa (o non ha ancora risposto) e riepilogo presenze a te. Il giorno dopo: attestati agli idonei." : "Nessun promemoria pre-lezione.") : "Inserisci la data del corso per attivare i promemoria."}</Text>
 
         <Text style={s.section}>Allegati (PDF, Excel, foto, audio, testo)</Text>
-        {files.map((f, i) => <View key={i} style={s.row}><Ionicons name="document" size={18} color="#7C3AED" /><Text style={{ flex: 1, color: theme.color.onSurface }} numberOfLines={1}>{f.name}</Text><Pressable onPress={() => setFiles((l) => l.filter((_, k) => k !== i))} hitSlop={8}><Ionicons name="close-circle" size={18} color={theme.color.muted} /></Pressable></View>)}
+        {files.map((f, i) => <View key={i} style={s.row}><Ionicons name="document" size={18} color="#7C3AED" /><Text style={{ flex: 1, color: HT.text }} numberOfLines={1}>{f.name}</Text><Pressable onPress={() => setFiles((l) => l.filter((_, k) => k !== i))} hitSlop={8}><Ionicons name="close-circle" size={18} color={HT.muted} /></Pressable></View>)}
         <Pressable onPress={pick} style={s.pick} testID="course-add-file"><Ionicons name="attach" size={18} color="#7C3AED" /><Text style={{ color: "#7C3AED", fontWeight: "800" }}>Aggiungi file {Platform.OS === "web" ? "dal computer" : "dal dispositivo"}</Text></Pressable>
       </ScrollView>
     </SafeAreaView>
@@ -98,14 +98,14 @@ export default function NewCourseScreen() {
 }
 
 const s = StyleSheet.create({
-  header: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderBottomWidth: 1, borderBottomColor: theme.color.border },
-  hBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" }, title: { fontSize: 18, fontWeight: "900", color: theme.color.onSurface },
-  saveBtn: { backgroundColor: "#7C3AED", borderRadius: 10, paddingHorizontal: 16, minHeight: 40, alignItems: "center", justifyContent: "center" }, saveTxt: { color: "#FFF", fontWeight: "900" },
-  input: { backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, paddingHorizontal: 12, minHeight: 46, fontSize: 14, color: theme.color.onSurface },
-  section: { fontSize: 14, fontWeight: "900", color: theme.color.onSurface, marginTop: 6 },
-  hint: { fontSize: 12, color: theme.color.muted },
-  chip: { paddingHorizontal: 12, minHeight: 40, borderRadius: 20, borderWidth: 1, borderColor: theme.color.border, alignItems: "center", justifyContent: "center", backgroundColor: "#FFF" },
-  chipOn: { backgroundColor: "#7C3AED", borderColor: "#7C3AED" }, chipTxt: { fontSize: 13, fontWeight: "800", color: theme.color.onSurface },
-  row: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 10, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, minHeight: 46 },
-  pick: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 46, borderRadius: 10, borderWidth: 1, borderStyle: "dashed", borderColor: "#C4B5FD", backgroundColor: "#FAF5FF" },
+  header: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderBottomWidth: 1, borderBottomColor: HT.border },
+  hBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" }, title: { fontSize: 18, fontWeight: "900", color: HT.text },
+  saveBtn: { backgroundColor: '#7C3AED', borderRadius: 10, paddingHorizontal: 16, minHeight: 40, alignItems: "center", justifyContent: "center" }, saveTxt: { color: "#FFF", fontWeight: "900" },
+  input: { backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, borderRadius: 10, paddingHorizontal: 12, minHeight: 46, fontSize: 14, color: HT.text },
+  section: { fontSize: 14, fontWeight: "900", color: HT.text, marginTop: 6 },
+  hint: { fontSize: 12, color: HT.muted },
+  chip: { paddingHorizontal: 12, minHeight: 40, borderRadius: 20, borderWidth: 1, borderColor: HT.border, alignItems: "center", justifyContent: "center", backgroundColor: HT.card },
+  chipOn: { backgroundColor: '#7C3AED', borderColor: '#7C3AED' }, chipTxt: { fontSize: 13, fontWeight: "800", color: HT.text },
+  row: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 10, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, minHeight: 46 },
+  pick: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 46, borderRadius: 10, borderWidth: 1, borderStyle: "dashed", borderColor: '#C4B5FD', backgroundColor: '#FAF5FF' },
 });

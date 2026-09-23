@@ -8,6 +8,7 @@ import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import Constants from "expo-constants";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type InvitedUser = { user_id: string; name: string; email: string; subscription: { status: string; days_left?: number | null; expires_at?: string | null; is_active: boolean }; promo_codes?: { code: string; benefit_summary?: string; redeemed_at?: string }[] };
 type Invite = { invite_token: string; trial_days: number; note: string; created_at: string; used_at?: string | null; invited_user?: InvitedUser };
@@ -132,7 +133,7 @@ export default function InvitatiScreen() {
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={10}><Ionicons name="chevron-back" size={26} color={theme.color.onSurface} /></Pressable>
+        <Pressable onPress={() => router.back()} hitSlop={10}><Ionicons name="chevron-back" size={26} color={HT.text} /></Pressable>
         <Text style={styles.title}>{linkedContactId ? `Invita Prospect: ${params.contact_name || "…"}` : "Invita Prospect"}</Text>
         <View style={{ width: 26 }} />
       </View>
@@ -148,7 +149,7 @@ export default function InvitatiScreen() {
             </View>
             <View style={{ flex: 2 }}>
               <Text style={styles.lbl}>Nota (opz.)</Text>
-              <TextInput testID="inv-note" value={note} onChangeText={setNote} placeholder="Es. Presentazione demo Rossi" placeholderTextColor="#94A3B8" style={styles.input} />
+              <TextInput testID="inv-note" value={note} onChangeText={setNote} placeholder="Es. Presentazione demo Rossi" placeholderTextColor={HT.muted} style={styles.input} />
             </View>
           </View>
           <Pressable testID="inv-create" onPress={createInvite} disabled={creating} style={styles.saveBtn}>
@@ -158,7 +159,7 @@ export default function InvitatiScreen() {
 
         <Text style={styles.sectionTitle}>Storico inviti ({items.length})</Text>
         {loading ? (
-          <ActivityIndicator color={theme.color.brandPrimary} />
+          <ActivityIndicator color={HT.brand} />
         ) : items.length === 0 ? (
           <Text style={styles.emptyTxt}>Ancora nessun invito. Crea il primo qui sopra.</Text>
         ) : items.map((i) => {
@@ -169,10 +170,10 @@ export default function InvitatiScreen() {
           const isFreeForever = status === "free_forever";
           const statusColor =
             isFreeForever ? "#7A2E8E"
-            : status === "trial" && (daysLeft ?? 0) > 5 ? theme.color.success
-            : status === "trial" ? theme.color.warning
-            : status === "expired" ? theme.color.error
-            : theme.color.info;
+            : status === "trial" && (daysLeft ?? 0) > 5 ? HT.success
+            : status === "trial" ? HT.warning
+            : status === "expired" ? HT.danger
+            : HT.axon;
           return (
             <View key={i.invite_token} style={styles.inviteCard}>
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
@@ -184,7 +185,7 @@ export default function InvitatiScreen() {
                   </Text>
                 </View>
                 <Pressable onPress={() => deleteInvite(i.invite_token)} hitSlop={8}>
-                  <Ionicons name="trash-outline" size={18} color={theme.color.error} />
+                  <Ionicons name="trash-outline" size={18} color={HT.danger} />
                 </Pressable>
               </View>
               {invited && <Text style={styles.inviteEmail}>{invited.email}</Text>}
@@ -208,12 +209,12 @@ export default function InvitatiScreen() {
                         <Pressable onPress={() => extendTrial(invited.user_id, 7)} style={styles.extendBtn}><Text style={styles.extendBtnTxt}>+7</Text></Pressable>
                         <Pressable onPress={() => extendTrial(invited.user_id, 15)} style={styles.extendBtn}><Text style={styles.extendBtnTxt}>+15</Text></Pressable>
                         <Pressable onPress={() => extendTrial(invited.user_id, 30)} style={styles.extendBtn}><Text style={styles.extendBtnTxt}>+30</Text></Pressable>
-                        <Pressable onPress={() => extendCustom(invited.user_id)} style={[styles.extendBtn, { backgroundColor: theme.color.brandPrimary }]}><Text style={[styles.extendBtnTxt, { color: "#FFF" }]}>Custom</Text></Pressable>
+                        <Pressable onPress={() => extendCustom(invited.user_id)} style={[styles.extendBtn, { backgroundColor: HT.brand }]}><Text style={[styles.extendBtnTxt, { color: "#FFF" }]}>Custom</Text></Pressable>
                       </View>
                       <Pressable
                         testID={`inv-free-forever-${invited.user_id}`}
                         onPress={() => setFreeForever(invited.user_id)}
-                        style={[styles.extendBtn, { backgroundColor: "#7A2E8E", alignSelf: "flex-start", paddingHorizontal: 14 }]}
+                        style={[styles.extendBtn, { backgroundColor: '#7A2E8E', alignSelf: "flex-start", paddingHorizontal: 14 }]}
                       >
                         <Text style={[styles.extendBtnTxt, { color: "#FFF" }]}>♾️ Attiva Free Sempre</Text>
                       </Pressable>
@@ -222,7 +223,7 @@ export default function InvitatiScreen() {
                     <Pressable
                       testID={`inv-revoke-free-forever-${invited.user_id}`}
                       onPress={() => revokeFreeForever(invited.user_id)}
-                      style={[styles.extendBtn, { backgroundColor: theme.color.error, alignSelf: "flex-start", paddingHorizontal: 14 }]}
+                      style={[styles.extendBtn, { backgroundColor: HT.danger, alignSelf: "flex-start", paddingHorizontal: 14 }]}
                     >
                       <Text style={[styles.extendBtnTxt, { color: "#FFF" }]}>Rimuovi Free Sempre → Passa a pagamento</Text>
                     </Pressable>
@@ -239,27 +240,27 @@ export default function InvitatiScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
+  root: { flex: 1, backgroundColor: HT.card2 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12 },
-  title: { fontSize: 20, fontWeight: "700", color: theme.color.onSurface },
-  card: { backgroundColor: "#FFF", borderRadius: theme.radius.md, padding: 14, borderWidth: 1, borderColor: theme.color.border },
-  sectionTitle: { fontSize: 13, fontWeight: "700", color: theme.color.brandPrimary, textTransform: "uppercase", letterSpacing: 0.5 },
-  hint: { color: theme.color.muted, fontSize: 12, marginTop: 4, fontStyle: "italic" },
-  lbl: { fontSize: 12, color: theme.color.onSurfaceTertiary, fontWeight: "600", marginBottom: 4 },
-  input: { backgroundColor: theme.color.surface, borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: theme.color.border, color: theme.color.onSurface },
-  saveBtn: { backgroundColor: theme.color.brandPrimary, paddingVertical: 12, borderRadius: theme.radius.md, alignItems: "center", marginTop: 12 },
+  title: { fontSize: 20, fontWeight: "700", color: HT.text },
+  card: { backgroundColor: HT.card, borderRadius: theme.radius.md, padding: 14, borderWidth: 1, borderColor: HT.border },
+  sectionTitle: { fontSize: 13, fontWeight: "700", color: HT.brand, textTransform: "uppercase", letterSpacing: 0.5 },
+  hint: { color: HT.muted, fontSize: 12, marginTop: 4, fontStyle: "italic" },
+  lbl: { fontSize: 12, color: HT.text2, fontWeight: "600", marginBottom: 4 },
+  input: { backgroundColor: HT.card2, borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: HT.border, color: HT.text },
+  saveBtn: { backgroundColor: HT.brand, paddingVertical: 12, borderRadius: theme.radius.md, alignItems: "center", marginTop: 12 },
   saveBtnTxt: { color: "#FFF", fontWeight: "700", fontSize: 14 },
-  emptyTxt: { color: theme.color.muted, fontStyle: "italic", textAlign: "center", padding: 20 },
-  inviteCard: { backgroundColor: "#FFF", borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: theme.color.border },
+  emptyTxt: { color: HT.muted, fontStyle: "italic", textAlign: "center", padding: 20 },
+  inviteCard: { backgroundColor: HT.card, borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: HT.border },
   statusDot: { width: 10, height: 10, borderRadius: 5 },
-  statusLabel: { fontWeight: "700", color: theme.color.onSurface, fontSize: 13 },
-  inviteEmail: { color: theme.color.brandPrimary, fontSize: 13, marginBottom: 2 },
-  inviteNote: { color: theme.color.onSurfaceTertiary, fontSize: 12, fontStyle: "italic", marginBottom: 4 },
-  inviteMeta: { color: theme.color.muted, fontSize: 11, marginBottom: 8 },
-  copyBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: theme.color.brandPrimary, paddingVertical: 8, borderRadius: theme.radius.md },
+  statusLabel: { fontWeight: "700", color: HT.text, fontSize: 13 },
+  inviteEmail: { color: HT.brand, fontSize: 13, marginBottom: 2 },
+  inviteNote: { color: HT.text2, fontSize: 12, fontStyle: "italic", marginBottom: 4 },
+  inviteMeta: { color: HT.muted, fontSize: 11, marginBottom: 8 },
+  copyBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: HT.brand, paddingVertical: 8, borderRadius: theme.radius.md },
   copyBtnTxt: { color: "#FFF", fontWeight: "700", fontSize: 12 },
   extendRow: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
-  extendLbl: { fontSize: 12, color: theme.color.onSurfaceTertiary, fontWeight: "600", marginRight: 4 },
-  extendBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: theme.radius.pill, backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border },
-  extendBtnTxt: { fontSize: 12, fontWeight: "700", color: theme.color.onSurface },
+  extendLbl: { fontSize: 12, color: HT.text2, fontWeight: "600", marginRight: 4 },
+  extendBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: theme.radius.pill, backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border },
+  extendBtnTxt: { fontSize: 12, fontWeight: "700", color: HT.text },
 });

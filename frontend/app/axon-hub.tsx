@@ -6,8 +6,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Card = {
   id: string;
@@ -56,7 +56,7 @@ const CARDS: Card[] = [
   { id: "mail-crm-proposals", href: "/mail-crm-proposals", icon: "sparkles", color: "#F97316",
     title: "🤖 Auto-CRM da Mail", sub: "Axon riconosce clienti, salva allegati, aggiorna anagrafica" },
   // Amministrazione
-  { id: "help-center", href: "/help-center", icon: "shield-checkmark", color: "#475569",
+  { id: "help-center", href: "/help-center", icon: "shield-checkmark", color: HT.text2,
     title: "🛡️ HELP CENTER", sub: "Termini d'uso · richiedi cancellazione dei tuoi dati" },
 ];
 
@@ -79,7 +79,7 @@ export default function AxonHubScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={10} style={styles.backBtn} testID="axon-hub-back">
-          <Ionicons name="chevron-back" size={24} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={24} color={HT.text} />
         </Pressable>
         <Text style={styles.title}>Axon Center</Text>
         {/* V50.z20 — Campanellino con badge unread */}
@@ -89,7 +89,7 @@ export default function AxonHubScreen() {
           style={styles.bellBtn}
           testID="axon-alerts-bell"
         >
-          <Ionicons name="notifications" size={22} color={theme.color.onSurface} />
+          <Ionicons name="notifications" size={22} color={HT.text} />
           {unreadAlerts > 0 ? (
             <View style={styles.bellBadge}>
               <Text style={styles.bellBadgeTxt}>{unreadAlerts > 9 ? "9+" : String(unreadAlerts)}</Text>
@@ -115,7 +115,7 @@ export default function AxonHubScreen() {
           const groups: { label: string; icon: any; color: string; items: Card[] }[] = [
             { label: "AI & Axon",       icon: "sparkles",         color: "#7C3AED", items: CARDS.filter(c => c.color === "#7C3AED") },
             { label: "Comunicazioni",   icon: "mail",             color: "#F97316", items: CARDS.filter(c => c.color === "#F97316") },
-            { label: "Amministrazione", icon: "shield-checkmark", color: "#475569", items: CARDS.filter(c => c.color === "#475569") },
+            { label: "Amministrazione", icon: "shield-checkmark", color: HT.text2, items: CARDS.filter(c => c.color === HT.text2) },
           ];
           return groups.filter(g => g.items.length > 0).map((g) => (
             <View key={g.label}>
@@ -140,7 +140,7 @@ export default function AxonHubScreen() {
                     <Text style={styles.cardTitle}>{c.title}</Text>
                     <Text style={styles.cardSub} numberOfLines={2}>{c.sub}</Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
+                  <Ionicons name="chevron-forward" size={20} color={HT.muted} />
                 </Pressable>
               ))}
             </View>
@@ -152,15 +152,15 @@ export default function AxonHubScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
+  root: { flex: 1, backgroundColor: HT.card2 },
   header: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: 12, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: theme.color.border,
-    backgroundColor: "#FFF",
+    borderBottomWidth: 1, borderBottomColor: HT.border,
+    backgroundColor: HT.card,
   },
   backBtn: { width: 30, height: 30, alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 18, fontWeight: "800", color: theme.color.onSurface },
+  title: { fontSize: 18, fontWeight: "800", color: HT.text },
   // V50.z20 — Campanellino notifiche
   bellBtn: {
     width: 34, height: 34, alignItems: "center", justifyContent: "center",
@@ -169,32 +169,32 @@ const styles = StyleSheet.create({
   bellBadge: {
     position: "absolute", top: 2, right: 0,
     minWidth: 18, height: 18, borderRadius: 9,
-    backgroundColor: "#DC2626", alignItems: "center", justifyContent: "center",
-    paddingHorizontal: 4, borderWidth: 2, borderColor: "#FFF",
+    backgroundColor: '#DC2626', alignItems: "center", justifyContent: "center",
+    paddingHorizontal: 4, borderWidth: 2, borderColor: HT.card,
   },
   bellBadgeTxt: { color: "#FFF", fontSize: 10, fontWeight: "900" },
   intro: {
     flexDirection: "row", alignItems: "center", gap: 12,
-    backgroundColor: "#FFF7ED", borderRadius: 14, padding: 14,
-    borderWidth: 1, borderColor: "#FED7AA", marginBottom: 6,
+    backgroundColor: HT.brandTint, borderRadius: 14, padding: 14,
+    borderWidth: 1, borderColor: HT.brandLine, marginBottom: 6,
   },
   introIcon: {
     width: 44, height: 44, borderRadius: 22,
-    backgroundColor: "#FFEDD5", alignItems: "center", justifyContent: "center",
+    backgroundColor: HT.brandTint, alignItems: "center", justifyContent: "center",
   },
-  introTitle: { fontSize: 14, fontWeight: "800", color: "#9A3412" },
-  introSub: { fontSize: 12, color: "#9A3412", marginTop: 4, lineHeight: 18 },
+  introTitle: { fontSize: 14, fontWeight: "800", color: "#FDBA74" },
+  introSub: { fontSize: 12, color: "#FDBA74", marginTop: 4, lineHeight: 18 },
   card: {
     flexDirection: "row", alignItems: "center", gap: 12,
-    backgroundColor: "#FFF", padding: 14, borderRadius: 14,
-    borderWidth: 1, borderColor: theme.color.border,
+    backgroundColor: HT.card, padding: 14, borderRadius: 14,
+    borderWidth: 1, borderColor: HT.border,
   },
   iconBox: {
     width: 44, height: 44, borderRadius: 22,
     alignItems: "center", justifyContent: "center",
   },
-  cardTitle: { fontSize: 15, fontWeight: "800", color: theme.color.onSurface },
-  cardSub: { fontSize: 12, color: theme.color.muted, marginTop: 3, lineHeight: 17 },
+  cardTitle: { fontSize: 15, fontWeight: "800", color: HT.text },
+  cardSub: { fontSize: 12, color: HT.muted, marginTop: 3, lineHeight: 17 },
   // V50.z34 — Header categoria (badge + label + linea)
   catHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 18, marginBottom: 8, paddingHorizontal: 4 },
   catBadge: { width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center" },

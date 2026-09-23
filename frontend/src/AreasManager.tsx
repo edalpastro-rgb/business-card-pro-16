@@ -14,7 +14,7 @@
 import React, { useMemo, useState } from "react";
 import { View, Text, StyleSheet, Pressable, TextInput, Modal } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { theme } from "@/src/theme";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 export type AreaCategory = { name: string; subs: string[] };
 export type AreaMeta = { description?: string; subcategories?: string[]; categories?: AreaCategory[]; allowed_roles?: string[]; archived?: boolean };
@@ -28,7 +28,7 @@ export type AreasSettings = {
 
 type AreaRow = { key: string; builtin: boolean; name: string; color: string; meta: AreaMeta };
 
-const PALETTE = ["#EF4444", "#F97316", "#F59E0B", "#22C55E", "#10B981", "#06B6D4", "#3B82F6", "#2563EB", "#8B5CF6", "#EC4899", "#F43F5E", "#84CC16", "#6B7280", "#0F172A"];
+const PALETTE = ["#EF4444", "#F97316", "#F59E0B", "#22C55E", "#10B981", "#06B6D4", "#3B82F6", "#2563EB", "#8B5CF6", "#EC4899", "#F43F5E", "#84CC16", HT.muted, HT.text];
 const ROLES: { key: string; label: string }[] = [
   { key: "owner", label: "Titolare" },
   { key: "admin", label: "Admin" },
@@ -118,14 +118,14 @@ export function AreasManager({ settings, onSave, onReset }: {
       <View style={styles.footerRow}>
         {archivedCount > 0 && (
           <Pressable testID="areas-toggle-archived" onPress={() => setShowArchived((v) => !v)} style={styles.linkBtn}>
-            <Ionicons name={showArchived ? "eye-off-outline" : "eye-outline"} size={14} color={theme.color.brandPrimary} />
+            <Ionicons name={showArchived ? "eye-off-outline" : "eye-outline"} size={14} color={HT.brand} />
             <Text style={styles.linkTxt}>{showArchived ? "Nascondi archiviate" : `Mostra archiviate (${archivedCount})`}</Text>
           </Pressable>
         )}
         <View style={{ flex: 1 }} />
         <Pressable testID="areas-reset" onPress={() => setResetAsk(true)} style={styles.linkBtn}>
-          <Ionicons name="refresh-circle-outline" size={14} color={theme.color.error} />
-          <Text style={[styles.linkTxt, { color: theme.color.error }]}>Azzera tutto</Text>
+          <Ionicons name="refresh-circle-outline" size={14} color={HT.danger} />
+          <Text style={[styles.linkTxt, { color: HT.danger }]}>Azzera tutto</Text>
         </Pressable>
       </View>
 
@@ -142,11 +142,11 @@ export function AreasManager({ settings, onSave, onReset }: {
             <Pressable
               testID="area-archive"
               onPress={() => { if (confirm) { updateArea(confirm.key, { meta: { archived: true } }); if (openKey === confirm.key) setOpenKey(null); } setConfirm(null); }}
-              style={[styles.modalBtn, { backgroundColor: "#FEF3C7" }]}
+              style={[styles.modalBtn, { backgroundColor: HT.warningTint }]}
             >
-              <Ionicons name="archive-outline" size={18} color="#B45309" />
+              <Ionicons name="archive-outline" size={18} color={HT.warning} />
               <View style={{ flex: 1 }}>
-                <Text style={[styles.modalBtnTxt, { color: "#B45309" }]}>Archivia (nascondi senza cancellare)</Text>
+                <Text style={[styles.modalBtnTxt, { color: HT.warning }]}>Archivia (nascondi senza cancellare)</Text>
                 <Text style={styles.modalBtnSub}>Sparisce dagli elenchi, i dati restano. Puoi ripristinarla in qualsiasi momento.</Text>
               </View>
             </Pressable>
@@ -154,17 +154,17 @@ export function AreasManager({ settings, onSave, onReset }: {
               <Pressable
                 testID="area-delete-forever"
                 onPress={() => { if (confirm) deleteForever(confirm.key); setConfirm(null); }}
-                style={[styles.modalBtn, { backgroundColor: "#FEE2E2" }]}
+                style={[styles.modalBtn, { backgroundColor: HT.dangerTint }]}
               >
-                <Ionicons name="trash-outline" size={18} color={theme.color.error} />
+                <Ionicons name="trash-outline" size={18} color={HT.danger} />
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.modalBtnTxt, { color: theme.color.error }]}>Elimina definitivamente tutti i dati</Text>
+                  <Text style={[styles.modalBtnTxt, { color: HT.danger }]}>Elimina definitivamente tutti i dati</Text>
                   <Text style={styles.modalBtnSub}>Area, descrizione, permessi e sottocategorie vengono cancellati. Non reversibile.</Text>
                 </View>
               </Pressable>
             )}
-            <Pressable onPress={() => setConfirm(null)} style={[styles.modalBtn, { justifyContent: "center", backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border }]}>
-              <Text style={[styles.modalBtnTxt, { color: theme.color.onSurface }]}>Annulla</Text>
+            <Pressable onPress={() => setConfirm(null)} style={[styles.modalBtn, { justifyContent: "center", backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border }]}>
+              <Text style={[styles.modalBtnTxt, { color: HT.text }]}>Annulla</Text>
             </Pressable>
           </View>
         </View>
@@ -176,11 +176,11 @@ export function AreasManager({ settings, onSave, onReset }: {
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Azzerare tutte le aree?</Text>
             <Text style={styles.modalHint}>Cancella aree personalizzate, descrizioni, permessi, sottocategorie, categorie prodotto e tipi appuntamento personalizzati. Energia e Network restano con nome e colore attuali.</Text>
-            <Pressable testID="areas-reset-confirm" onPress={async () => { setResetAsk(false); setOpenKey(null); await onReset(); }} style={[styles.modalBtn, { backgroundColor: "#FEE2E2", justifyContent: "center" }]}>
-              <Text style={[styles.modalBtnTxt, { color: theme.color.error }]}>Sì, azzera tutto</Text>
+            <Pressable testID="areas-reset-confirm" onPress={async () => { setResetAsk(false); setOpenKey(null); await onReset(); }} style={[styles.modalBtn, { backgroundColor: HT.dangerTint, justifyContent: "center" }]}>
+              <Text style={[styles.modalBtnTxt, { color: HT.danger }]}>Sì, azzera tutto</Text>
             </Pressable>
-            <Pressable onPress={() => setResetAsk(false)} style={[styles.modalBtn, { justifyContent: "center", backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border }]}>
-              <Text style={[styles.modalBtnTxt, { color: theme.color.onSurface }]}>Annulla</Text>
+            <Pressable onPress={() => setResetAsk(false)} style={[styles.modalBtn, { justifyContent: "center", backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border }]}>
+              <Text style={[styles.modalBtnTxt, { color: HT.text }]}>Annulla</Text>
             </Pressable>
           </View>
         </View>
@@ -249,7 +249,7 @@ function AreaCard({ row, open, onToggle, onChange, onDelete, onRestore }: {
             {row.builtin ? " · predefinita" : ""}{archived ? " · ARCHIVIATA" : ""}
           </Text>
         </View>
-        <Ionicons name={open ? "chevron-up" : "chevron-down"} size={20} color={theme.color.muted} />
+        <Ionicons name={open ? "chevron-up" : "chevron-down"} size={20} color={HT.muted} />
       </Pressable>
 
       {open && (
@@ -264,7 +264,7 @@ function AreaCard({ row, open, onToggle, onChange, onDelete, onRestore }: {
             onSubmitEditing={commitName}
             style={styles.input}
             placeholder="Es. Assicurazioni"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={HT.muted}
           />
 
           {/* Colore — selettore a scomparsa */}
@@ -274,7 +274,7 @@ function AreaCard({ row, open, onToggle, onChange, onDelete, onRestore }: {
             <Text style={styles.colorHex}>{row.color.toUpperCase()}</Text>
             <View style={{ flex: 1 }} />
             <Pressable testID={`area-color-toggle-${row.key}`} onPress={() => setColorOpen((v) => !v)} style={styles.smallBtn}>
-              <Ionicons name="color-palette-outline" size={14} color={theme.color.brandPrimary} />
+              <Ionicons name="color-palette-outline" size={14} color={HT.brand} />
               <Text style={styles.smallBtnTxt}>{colorOpen ? "Chiudi" : "Cambia colore"}</Text>
             </Pressable>
           </View>
@@ -294,7 +294,7 @@ function AreaCard({ row, open, onToggle, onChange, onDelete, onRestore }: {
                 onSubmitEditing={commitHex}
                 style={[styles.input, { marginTop: 8 }]}
                 placeholder="#RRGGBB"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={HT.muted}
                 autoCapitalize="characters"
                 maxLength={7}
               />
@@ -311,7 +311,7 @@ function AreaCard({ row, open, onToggle, onChange, onDelete, onRestore }: {
             multiline
             style={[styles.input, { minHeight: 64, textAlignVertical: "top" }]}
             placeholder="A cosa serve quest'area? Es. Contratti luce/gas per privati e PMI"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={HT.muted}
           />
 
           {/* Permessi di accesso */}
@@ -321,7 +321,7 @@ function AreaCard({ row, open, onToggle, onChange, onDelete, onRestore }: {
               const on = roles.includes(r.key);
               return (
                 <Pressable key={r.key} testID={`area-role-${row.key}-${r.key}`} onPress={() => toggleRole(r.key)} style={[styles.roleChip, on && { backgroundColor: row.color + "22", borderColor: row.color }]}>
-                  <Ionicons name={on ? "checkmark-circle" : "ellipse-outline"} size={14} color={on ? row.color : theme.color.muted} />
+                  <Ionicons name={on ? "checkmark-circle" : "ellipse-outline"} size={14} color={on ? row.color : HT.muted} />
                   <Text style={[styles.roleTxt, on && { color: row.color }]}>{r.label}</Text>
                 </Pressable>
               );
@@ -345,7 +345,7 @@ function AreaCard({ row, open, onToggle, onChange, onDelete, onRestore }: {
                     <Ionicons name="folder-outline" size={14} color={row.color} />
                     <Text style={[styles.treeLeaf, { fontWeight: "800" }]} numberOfLines={1}>{cat.name}</Text>
                     <Pressable onPress={() => removeCat(cat.name)} hitSlop={8} testID={`area-cat-del-${row.key}-${ci}`}>
-                      <Ionicons name="close-circle" size={16} color={theme.color.muted} />
+                      <Ionicons name="close-circle" size={16} color={HT.muted} />
                     </Pressable>
                   </View>
                   {cat.subs.map((sub, si) => (
@@ -353,7 +353,7 @@ function AreaCard({ row, open, onToggle, onChange, onDelete, onRestore }: {
                       <Text style={styles.treeBranch}>{lastCat ? "   " : "│  "}{si === cat.subs.length - 1 ? "└─" : "├─"}</Text>
                       <Text style={styles.treeLeaf} numberOfLines={1}>{sub}</Text>
                       <Pressable onPress={() => removeSub(cat.name, sub)} hitSlop={8} testID={`area-sub-del-${row.key}-${ci}-${si}`}>
-                        <Ionicons name="close-circle" size={14} color={theme.color.muted} />
+                        <Ionicons name="close-circle" size={14} color={HT.muted} />
                       </Pressable>
                     </View>
                   ))}
@@ -365,7 +365,7 @@ function AreaCard({ row, open, onToggle, onChange, onDelete, onRestore }: {
                       onSubmitEditing={() => addSub(cat.name)}
                       style={[styles.input, { flex: 1, marginTop: 0, paddingVertical: 6, fontSize: 13 }]}
                       placeholder={`Sottocategoria di ${cat.name}`}
-                      placeholderTextColor="#94A3B8"
+                      placeholderTextColor={HT.muted}
                     />
                     <Pressable testID={`area-sub-add-${row.key}-${ci}`} onPress={() => addSub(cat.name)} style={[styles.plusBtn, { width: 34, height: 34, backgroundColor: row.color + "33" }]}>
                       <Ionicons name="add" size={16} color={row.color} />
@@ -382,7 +382,7 @@ function AreaCard({ row, open, onToggle, onChange, onDelete, onRestore }: {
                 onSubmitEditing={addCat}
                 style={[styles.input, { flex: 1, marginTop: 0 }]}
                 placeholder="Nuova categoria (es. Luce, Gas)"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={HT.muted}
               />
               <Pressable testID={`area-cat-add-${row.key}`} onPress={addCat} style={[styles.plusBtn, { backgroundColor: row.color }]}>
                 <Ionicons name="add" size={18} color="#FFF" />
@@ -393,14 +393,14 @@ function AreaCard({ row, open, onToggle, onChange, onDelete, onRestore }: {
           {/* Azioni */}
           <View style={styles.actions}>
             {archived ? (
-              <Pressable testID={`area-restore-${row.key}`} onPress={onRestore} style={[styles.actionBtn, { backgroundColor: "#DCFCE7" }]}>
+              <Pressable testID={`area-restore-${row.key}`} onPress={onRestore} style={[styles.actionBtn, { backgroundColor: HT.successTint }]}>
                 <Ionicons name="arrow-undo-outline" size={16} color="#16A34A" />
                 <Text style={[styles.actionTxt, { color: "#16A34A" }]}>Ripristina</Text>
               </Pressable>
             ) : (
-              <Pressable testID={`area-delete-${row.key}`} onPress={onDelete} style={[styles.actionBtn, { backgroundColor: "#FEE2E2" }]}>
-                <Ionicons name="trash-outline" size={16} color={theme.color.error} />
-                <Text style={[styles.actionTxt, { color: theme.color.error }]}>Elimina</Text>
+              <Pressable testID={`area-delete-${row.key}`} onPress={onDelete} style={[styles.actionBtn, { backgroundColor: HT.dangerTint }]}>
+                <Ionicons name="trash-outline" size={16} color={HT.danger} />
+                <Text style={[styles.actionTxt, { color: HT.danger }]}>Elimina</Text>
               </Pressable>
             )}
           </View>
@@ -411,53 +411,53 @@ function AreaCard({ row, open, onToggle, onChange, onDelete, onRestore }: {
 }
 
 const styles = StyleSheet.create({
-  legend: { fontSize: 12, color: theme.color.muted, marginBottom: 10 },
-  legendStrong: { fontWeight: "800", color: theme.color.onSurface },
-  card: { borderWidth: 1, borderColor: theme.color.border, borderLeftWidth: 4, borderRadius: 12, backgroundColor: theme.color.surface, marginBottom: 8, overflow: "hidden" },
+  legend: { fontSize: 12, color: HT.muted, marginBottom: 10 },
+  legendStrong: { fontWeight: "800", color: HT.text },
+  card: { borderWidth: 1, borderColor: HT.border, borderLeftWidth: 4, borderRadius: 12, backgroundColor: HT.card2, marginBottom: 8, overflow: "hidden" },
   cardHead: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 12, minHeight: 52 },
   dot: { width: 24, height: 24, borderRadius: 12 },
   dotSm: { width: 10, height: 10, borderRadius: 5 },
-  cardTitle: { fontSize: 15, fontWeight: "800", color: theme.color.onSurface },
-  cardSub: { fontSize: 11.5, color: theme.color.muted, marginTop: 1 },
-  body: { paddingHorizontal: 12, paddingBottom: 12, borderTopWidth: 1, borderTopColor: theme.color.border },
-  label: { fontSize: 11.5, fontWeight: "800", color: theme.color.muted, marginTop: 12, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.3 },
-  input: { borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, fontSize: 14, color: theme.color.onSurface, backgroundColor: theme.color.surfaceSecondary },
+  cardTitle: { fontSize: 15, fontWeight: "800", color: HT.text },
+  cardSub: { fontSize: 11.5, color: HT.muted, marginTop: 1 },
+  body: { paddingHorizontal: 12, paddingBottom: 12, borderTopWidth: 1, borderTopColor: HT.border },
+  label: { fontSize: 11.5, fontWeight: "800", color: HT.muted, marginTop: 12, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.3 },
+  input: { borderWidth: 1, borderColor: HT.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, fontSize: 14, color: HT.text, backgroundColor: HT.card2 },
   colorRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  colorCurrent: { width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: "#FFF" },
-  colorHex: { fontSize: 13, fontWeight: "700", color: theme.color.onSurface },
-  smallBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: theme.color.brandPrimary, minHeight: 32 },
-  smallBtnTxt: { fontSize: 12, fontWeight: "700", color: theme.color.brandPrimary },
-  colorPanel: { marginTop: 8, padding: 10, borderRadius: 10, backgroundColor: theme.color.surfaceSecondary, borderWidth: 1, borderColor: theme.color.border },
+  colorCurrent: { width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: HT.card },
+  colorHex: { fontSize: 13, fontWeight: "700", color: HT.text },
+  smallBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: HT.brand, minHeight: 32 },
+  smallBtnTxt: { fontSize: 12, fontWeight: "700", color: HT.brand },
+  colorPanel: { marginTop: 8, padding: 10, borderRadius: 10, backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border },
   swatches: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   swatch: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  swatchActive: { borderWidth: 3, borderColor: "#0F172A" },
+  swatchActive: { borderWidth: 3, borderColor: '#0F172A' },
   rolesRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  roleChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: theme.color.border, backgroundColor: theme.color.surfaceSecondary, minHeight: 34 },
-  roleTxt: { fontSize: 12.5, fontWeight: "700", color: theme.color.muted },
-  tree: { borderRadius: 10, backgroundColor: theme.color.surfaceSecondary, borderWidth: 1, borderColor: theme.color.border, padding: 10 },
+  roleChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: HT.border, backgroundColor: HT.card2, minHeight: 34 },
+  roleTxt: { fontSize: 12.5, fontWeight: "700", color: HT.muted },
+  tree: { borderRadius: 10, backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border, padding: 10 },
   treeRoot: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
-  treeRootTxt: { fontSize: 13.5, fontWeight: "800", color: theme.color.onSurface },
+  treeRootTxt: { fontSize: 13.5, fontWeight: "800", color: HT.text },
   treeRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 5, paddingLeft: 4 },
-  treeBranch: { fontFamily: "monospace", fontSize: 13, color: theme.color.muted },
-  treeLeaf: { flex: 1, fontSize: 13.5, color: theme.color.onSurface },
-  treeEmpty: { fontSize: 12, color: theme.color.muted, fontStyle: "italic", paddingLeft: 4, paddingVertical: 4 },
+  treeBranch: { fontFamily: "monospace", fontSize: 13, color: HT.muted },
+  treeLeaf: { flex: 1, fontSize: 13.5, color: HT.text },
+  treeEmpty: { fontSize: 12, color: HT.muted, fontStyle: "italic", paddingLeft: 4, paddingVertical: 4 },
   addRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 },
   plusBtn: { width: 40, height: 40, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   actions: { flexDirection: "row", justifyContent: "flex-end", gap: 8, marginTop: 14 },
   actionBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, minHeight: 40 },
   actionTxt: { fontSize: 13, fontWeight: "800" },
-  addBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: theme.color.brandPrimary, paddingVertical: 13, borderRadius: 12, marginTop: 4, minHeight: 48 },
+  addBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: HT.brand, paddingVertical: 13, borderRadius: 12, marginTop: 4, minHeight: 48 },
   addBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
   footerRow: { flexDirection: "row", alignItems: "center", marginTop: 10 },
   linkBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 6, minHeight: 32 },
-  linkTxt: { fontSize: 12, fontWeight: "700", color: theme.color.brandPrimary },
+  linkTxt: { fontSize: 12, fontWeight: "700", color: HT.brand },
   modalBack: { flex: 1, backgroundColor: "rgba(15,23,42,0.55)", alignItems: "center", justifyContent: "center", padding: 20 },
-  modalCard: { width: "100%", maxWidth: 440, backgroundColor: theme.color.surface, borderRadius: 16, padding: 18, gap: 10 },
-  modalTitle: { fontSize: 17, fontWeight: "900", color: theme.color.onSurface },
-  modalHint: { fontSize: 12.5, color: theme.color.muted, marginBottom: 4 },
+  modalCard: { width: "100%", maxWidth: 440, backgroundColor: HT.card2, borderRadius: 16, padding: 18, gap: 10 },
+  modalTitle: { fontSize: 17, fontWeight: "900", color: HT.text },
+  modalHint: { fontSize: 12.5, color: HT.muted, marginBottom: 4 },
   modalBtn: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 12, minHeight: 48 },
   modalBtnTxt: { fontSize: 14, fontWeight: "800" },
-  modalBtnSub: { fontSize: 11.5, color: theme.color.muted, marginTop: 2 },
+  modalBtnSub: { fontSize: 11.5, color: HT.muted, marginTop: 2 },
 });
 
 export default AreasManager;

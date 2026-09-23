@@ -8,6 +8,7 @@ import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { useAuth } from "@/src/auth";
 import { notify } from "@/src/utils/notify";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 /**
  * V50.z67 — Master può creare/modificare/eliminare campi personalizzati
@@ -151,12 +152,12 @@ export default function CustomFieldsScreen() {
         <SafeAreaView style={styles.root} edges={["top"]}>
           <View style={styles.header}>
             <Pressable onPress={() => router.back()} hitSlop={10}>
-              <Ionicons name="chevron-back" size={24} color={theme.color.onSurface} />
+              <Ionicons name="chevron-back" size={24} color={HT.text} />
             </Pressable>
             <Text style={styles.title}>Campi personalizzati</Text>
             <View style={{ width: 24 }} />
           </View>
-          <ActivityIndicator style={{ marginTop: 40 }} color={theme.color.brandPrimary} />
+          <ActivityIndicator style={{ marginTop: 40 }} color={HT.brand} />
         </SafeAreaView>
       );
     }
@@ -164,13 +165,13 @@ export default function CustomFieldsScreen() {
       <SafeAreaView style={styles.root} edges={["top"]}>
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} hitSlop={10}>
-            <Ionicons name="chevron-back" size={24} color={theme.color.onSurface} />
+            <Ionicons name="chevron-back" size={24} color={HT.text} />
           </Pressable>
           <Text style={styles.title}>Campi personalizzati</Text>
           <View style={{ width: 24 }} />
         </View>
         <View style={styles.emptyBox}>
-          <Ionicons name="lock-closed" size={48} color={theme.color.muted} />
+          <Ionicons name="lock-closed" size={48} color={HT.muted} />
           <Text style={styles.emptyTitle}>Accesso riservato al Master</Text>
           <Text style={styles.emptySub}>Solo il proprietario del CRM può configurare i campi personalizzati.</Text>
         </View>
@@ -182,11 +183,11 @@ export default function CustomFieldsScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={10}>
-          <Ionicons name="chevron-back" size={24} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={24} color={HT.text} />
         </Pressable>
         <Text style={styles.title}>Campi personalizzati</Text>
         <Pressable onPress={openCreate} hitSlop={10}>
-          <Ionicons name="add-circle" size={26} color={theme.color.brandPrimary} />
+          <Ionicons name="add-circle" size={26} color={HT.brand} />
         </Pressable>
       </View>
 
@@ -198,10 +199,10 @@ export default function CustomFieldsScreen() {
         </View>
 
         {loading ? (
-          <ActivityIndicator style={{ marginTop: 40 }} color={theme.color.brandPrimary} />
+          <ActivityIndicator style={{ marginTop: 40 }} color={HT.brand} />
         ) : items.length === 0 ? (
           <View style={styles.emptyBox}>
-            <Ionicons name="options" size={48} color={theme.color.muted} />
+            <Ionicons name="options" size={48} color={HT.muted} />
             <Text style={styles.emptyTitle}>Nessun campo personalizzato</Text>
             <Text style={styles.emptySub}>Tocca "+" in alto per aggiungerne uno.</Text>
           </View>
@@ -209,7 +210,7 @@ export default function CustomFieldsScreen() {
           items.map((f, idx) => (
             <View key={f.field_id} style={styles.card}>
               <View style={styles.cardIcon}>
-                <Ionicons name={TYPE_ICONS[f.type]} size={22} color={theme.color.brandPrimary} />
+                <Ionicons name={TYPE_ICONS[f.type]} size={22} color={HT.brand} />
               </View>
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -224,16 +225,16 @@ export default function CustomFieldsScreen() {
                     <Ionicons
                       name={f.visibility === "master" ? "lock-closed" : "people"}
                       size={11}
-                      color={f.visibility === "master" ? "#7C2D12" : "#065F46"}
+                      color={f.visibility === "master" ? "#7C2D12" : HT.success}
                     />
-                    <Text style={[styles.tagTxt, f.visibility === "master" ? { color: "#7C2D12" } : { color: "#065F46" }]}>
+                    <Text style={[styles.tagTxt, f.visibility === "master" ? { color: "#7C2D12" } : { color: HT.success }]}>
                       {f.visibility === "master" ? "Solo Master" : "Tutti"}
                     </Text>
                   </View>
                   {f.required ? (
                     <View style={[styles.tag, styles.tagRequired]}>
-                      <Ionicons name="alert-circle" size={11} color="#B45309" />
-                      <Text style={[styles.tagTxt, { color: "#B45309" }]}>Obbligatorio</Text>
+                      <Ionicons name="alert-circle" size={11} color={HT.warning} />
+                      <Text style={[styles.tagTxt, { color: HT.warning }]}>Obbligatorio</Text>
                     </View>
                   ) : null}
                 </View>
@@ -247,7 +248,7 @@ export default function CustomFieldsScreen() {
                   style={[styles.iconBtn, idx === 0 && { opacity: 0.3 }]}
                   testID={`cf-up-${f.field_id}`}
                 >
-                  <Ionicons name="chevron-up" size={16} color={theme.color.onSurface} />
+                  <Ionicons name="chevron-up" size={16} color={HT.text} />
                 </Pressable>
                 <Pressable
                   onPress={() => move(idx, 1)}
@@ -256,12 +257,12 @@ export default function CustomFieldsScreen() {
                   style={[styles.iconBtn, idx === items.length - 1 && { opacity: 0.3 }]}
                   testID={`cf-down-${f.field_id}`}
                 >
-                  <Ionicons name="chevron-down" size={16} color={theme.color.onSurface} />
+                  <Ionicons name="chevron-down" size={16} color={HT.text} />
                 </Pressable>
               </View>
               <View style={{ gap: 6 }}>
                 <Pressable onPress={() => openEdit(f)} hitSlop={8} style={styles.iconBtn}>
-                  <Ionicons name="create-outline" size={18} color={theme.color.brandPrimary} />
+                  <Ionicons name="create-outline" size={18} color={HT.brand} />
                 </Pressable>
                 <Pressable onPress={() => remove(f)} hitSlop={8} style={styles.iconBtn}>
                   <Ionicons name="trash-outline" size={18} color="#DC2626" />
@@ -286,7 +287,7 @@ export default function CustomFieldsScreen() {
                   onChangeText={(v) => setForm({ ...form, name: v })}
                   placeholder="es. Codice fiscale coniuge"
                   style={styles.input}
-                  placeholderTextColor={theme.color.muted}
+                  placeholderTextColor={HT.muted}
                 />
               </View>
 
@@ -302,7 +303,7 @@ export default function CustomFieldsScreen() {
                       <Ionicons
                         name={TYPE_ICONS[t]}
                         size={14}
-                        color={form.type === t ? "#FFF" : theme.color.onSurface}
+                        color={form.type === t ? "#FFF" : HT.text}
                       />
                       <Text style={[styles.chipTxt, form.type === t && { color: "#FFF" }]}>{TYPE_LABELS[t]}</Text>
                     </Pressable>
@@ -317,14 +318,14 @@ export default function CustomFieldsScreen() {
                     onPress={() => setForm({ ...form, visibility: "all" })}
                     style={[styles.chip, form.visibility === "all" && styles.chipActive]}
                   >
-                    <Ionicons name="people" size={14} color={form.visibility === "all" ? "#FFF" : theme.color.onSurface} />
+                    <Ionicons name="people" size={14} color={form.visibility === "all" ? "#FFF" : HT.text} />
                     <Text style={[styles.chipTxt, form.visibility === "all" && { color: "#FFF" }]}>Tutti gli utenti</Text>
                   </Pressable>
                   <Pressable
                     onPress={() => setForm({ ...form, visibility: "master" })}
                     style={[styles.chip, form.visibility === "master" && styles.chipActive]}
                   >
-                    <Ionicons name="lock-closed" size={14} color={form.visibility === "master" ? "#FFF" : theme.color.onSurface} />
+                    <Ionicons name="lock-closed" size={14} color={form.visibility === "master" ? "#FFF" : HT.text} />
                     <Text style={[styles.chipTxt, form.visibility === "master" && { color: "#FFF" }]}>Solo Master</Text>
                   </Pressable>
                 </View>
@@ -345,7 +346,7 @@ export default function CustomFieldsScreen() {
                   <Ionicons
                     name={form.required ? "checkmark-circle" : "ellipse-outline"}
                     size={22}
-                    color={form.required ? "#B45309" : theme.color.muted}
+                    color={form.required ? HT.warning : HT.muted}
                   />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.toggleTitle}>
@@ -391,29 +392,29 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     padding: 14,
     borderBottomWidth: 1,
-    borderBottomColor: theme.color.border,
+    borderBottomColor: HT.border,
   },
-  title: { fontSize: 17, fontWeight: "800", color: theme.color.onSurface },
+  title: { fontSize: 17, fontWeight: "800", color: HT.text },
   infoBox: {
-    backgroundColor: "#EFF6FF",
+    backgroundColor: HT.axonTint,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#93C5FD",
+    borderColor: '#93C5FD',
     padding: 12,
     marginBottom: 14,
   },
-  infoTxt: { fontSize: 13, color: theme.color.onSurface, lineHeight: 18 },
+  infoTxt: { fontSize: 13, color: HT.text, lineHeight: 18 },
   emptyBox: { alignItems: "center", padding: 40, gap: 8 },
-  emptyTitle: { fontSize: 15, fontWeight: "700", color: theme.color.onSurface, marginTop: 8 },
-  emptySub: { fontSize: 13, color: theme.color.muted, textAlign: "center" },
+  emptyTitle: { fontSize: 15, fontWeight: "700", color: HT.text, marginTop: 8 },
+  emptySub: { fontSize: 13, color: HT.muted, textAlign: "center" },
   card: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: theme.color.border,
+    borderColor: HT.border,
     padding: 12,
     marginBottom: 10,
   },
@@ -421,12 +422,12 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: "#EEF2FF",
+    backgroundColor: HT.violetTint,
     alignItems: "center",
     justifyContent: "center",
   },
-  cardTitle: { fontSize: 15, fontWeight: "800", color: theme.color.onSurface },
-  cardKey: { fontSize: 10, color: theme.color.muted, marginTop: 4, fontStyle: "italic" },
+  cardTitle: { fontSize: 15, fontWeight: "800", color: HT.text },
+  cardKey: { fontSize: 10, color: HT.muted, marginTop: 4, fontStyle: "italic" },
   tagRow: { flexDirection: "row", gap: 6, marginTop: 4, flexWrap: "wrap" },
   tag: {
     flexDirection: "row",
@@ -435,38 +436,38 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 999,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: HT.card2,
   },
-  tagAll: { backgroundColor: "#D1FAE5" },
-  tagMaster: { backgroundColor: "#FEE2E2" },
-  tagRequired: { backgroundColor: "#FEF3C7" },
-  tagTxt: { fontSize: 10, fontWeight: "700", color: theme.color.onSurface },
-  reqStar: { fontSize: 16, fontWeight: "900", color: "#B45309" },
+  tagAll: { backgroundColor: HT.successTint },
+  tagMaster: { backgroundColor: HT.dangerTint },
+  tagRequired: { backgroundColor: HT.warningTint },
+  tagTxt: { fontSize: 10, fontWeight: "700", color: HT.text },
+  reqStar: { fontSize: 16, fontWeight: "900", color: HT.warning },
   iconBtn: {
     width: 34,
     height: 34,
     borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#F1F5F9",
+    backgroundColor: HT.card2,
   },
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", padding: 20 },
   sheet: {
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderRadius: 16,
     maxHeight: "90%",
   },
-  sheetTitle: { fontSize: 17, fontWeight: "800", color: theme.color.onSurface },
-  label: { fontSize: 12, fontWeight: "700", color: theme.color.muted, marginBottom: 6, textTransform: "uppercase" },
+  sheetTitle: { fontSize: 17, fontWeight: "800", color: HT.text },
+  label: { fontSize: 12, fontWeight: "700", color: HT.muted, marginBottom: 6, textTransform: "uppercase" },
   input: {
     borderWidth: 1,
-    borderColor: theme.color.border,
+    borderColor: HT.border,
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 15,
-    color: theme.color.onSurface,
-    backgroundColor: "#F8FAFC",
+    color: HT.text,
+    backgroundColor: HT.card2,
   },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: {
@@ -476,13 +477,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: HT.card2,
     borderWidth: 1,
-    borderColor: theme.color.border,
+    borderColor: HT.border,
   },
-  chipActive: { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary },
-  chipTxt: { fontSize: 12, fontWeight: "700", color: theme.color.onSurface },
-  hint: { fontSize: 11, color: theme.color.muted, marginTop: 6, fontStyle: "italic" },
+  chipActive: { backgroundColor: HT.brand, borderColor: HT.brand },
+  chipTxt: { fontSize: 12, fontWeight: "700", color: HT.text },
+  hint: { fontSize: 11, color: HT.muted, marginTop: 6, fontStyle: "italic" },
   toggleRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -490,12 +491,12 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: theme.color.border,
-    backgroundColor: "#F8FAFC",
+    borderColor: HT.border,
+    backgroundColor: HT.card2,
   },
-  toggleRowOn: { backgroundColor: "#FEF3C7", borderColor: "#FBBF24" },
-  toggleTitle: { fontSize: 13, fontWeight: "800", color: theme.color.onSurface },
-  toggleSub: { fontSize: 11, color: theme.color.muted, marginTop: 2 },
+  toggleRowOn: { backgroundColor: HT.warningTint, borderColor: '#FBBF24' },
+  toggleTitle: { fontSize: 13, fontWeight: "800", color: HT.text },
+  toggleSub: { fontSize: 11, color: HT.muted, marginTop: 2 },
   btn: {
     flex: 1,
     flexDirection: "row",
@@ -505,8 +506,8 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 10,
   },
-  btnPrimary: { backgroundColor: theme.color.brandPrimary },
+  btnPrimary: { backgroundColor: HT.brand },
   btnPrimaryTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
-  btnGhost: { backgroundColor: "#F1F5F9" },
-  btnGhostTxt: { color: theme.color.onSurface, fontWeight: "700" },
+  btnGhost: { backgroundColor: HT.card2 },
+  btnGhostTxt: { color: HT.text, fontWeight: "700" },
 });

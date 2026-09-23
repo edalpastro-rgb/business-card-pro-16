@@ -16,6 +16,7 @@ import { ShareSheet, type ShareTarget } from "@/src/ShareSheet";
 import { ModuleErrorBoundary } from "@/src/shared";
 
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 type MasterCat = "notes" | "bills" | "audio" | "files" | "analisi" | "scanner" | "neo_prompts";
 type MasterFile = {
   file_id: string;
@@ -44,7 +45,7 @@ const CATS: { id: MasterCat; label: string; icon: any; color: string }[] = [
   { id: "neo_prompts", label: "Prompt per Neo", icon: "code-slash", color: "#0F766E" }, // V50.z239 — coda prompt autorizzati per l'agente di sviluppo
 ];
 const NEO_STATUS_LABEL: Record<string, { label: string; color: string }> = {
-  pending: { label: "In attesa", color: "#B45309" }, read: { label: "Letto da Neo", color: "#1D4ED8" }, done: { label: "Completato", color: "#15803D" }, rejected: { label: "Non eseguibile", color: "#B91C1C" },
+  pending: { label: "In attesa", color: HT.warning }, read: { label: "Letto da Neo", color: HT.axon }, done: { label: "Completato", color: HT.success }, rejected: { label: "Non eseguibile", color: HT.danger },
 };
 const CAT_IDS = CATS.map((c) => c.id);
 
@@ -409,7 +410,7 @@ function MasterFilesScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable testID="master-files-back" onPress={() => router.back()} hitSlop={10}>
-          <Ionicons name="chevron-back" size={26} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={26} color={HT.text} />
         </Pressable>
         <Text style={styles.title}>I miei file</Text>
         <View style={{ width: 26 }} />
@@ -456,7 +457,7 @@ function MasterFilesScreen() {
                   testID="master-files-stop-recording"
                   onPress={stopAndSaveRecording}
                   disabled={busy}
-                  style={[styles.addBtn, { backgroundColor: "#16A34A", flex: 1, opacity: busy ? 0.5 : 1 }]}
+                  style={[styles.addBtn, { backgroundColor: '#16A34A', flex: 1, opacity: busy ? 0.5 : 1 }]}
                 >
                   <Ionicons name="stop-circle" size={20} color="#FFF" />
                   <Text style={styles.addTxt}>Stop & Salva ({Math.floor((Date.now() - recStart) / 1000)}s)</Text>
@@ -464,7 +465,7 @@ function MasterFilesScreen() {
                 <Pressable
                   testID="master-files-cancel-recording"
                   onPress={cancelRecording}
-                  style={[styles.addBtn, { backgroundColor: "#78716C", paddingHorizontal: 14, flex: 0 }]}
+                  style={[styles.addBtn, { backgroundColor: '#78716C', paddingHorizontal: 14, flex: 0 }]}
                 >
                   <Ionicons name="close" size={18} color="#FFF" />
                 </Pressable>
@@ -479,7 +480,7 @@ function MasterFilesScreen() {
                   testID="master-files-record-audio"
                   onPress={startRecording}
                   disabled={busy}
-                  style={[styles.addBtn, { backgroundColor: "#DC2626", flex: 1, opacity: busy ? 0.5 : 1 }]}
+                  style={[styles.addBtn, { backgroundColor: '#DC2626', flex: 1, opacity: busy ? 0.5 : 1 }]}
                 >
                   <Ionicons name="mic" size={20} color="#FFF" />
                   <Text style={styles.addTxt}>REC</Text>
@@ -515,7 +516,7 @@ function MasterFilesScreen() {
               <Ionicons name="document" size={18} color="#FFF" />
               <Text style={styles.addTxt}>Carica file</Text>
             </Pressable>
-            <Pressable testID="master-files-add-image" onPress={openPhotoPicker} disabled={busy} style={[styles.addBtn, { backgroundColor: "#16A34A", flex: 1, opacity: busy ? 0.5 : 1 }]}>
+            <Pressable testID="master-files-add-image" onPress={openPhotoPicker} disabled={busy} style={[styles.addBtn, { backgroundColor: '#16A34A', flex: 1, opacity: busy ? 0.5 : 1 }]}>
               <Ionicons name="camera" size={18} color="#FFF" />
               <Text style={styles.addTxt}>Foto</Text>
             </Pressable>
@@ -525,20 +526,20 @@ function MasterFilesScreen() {
 
       {tab === "scanner" || tab === "files" ? (
         <View style={styles.searchRow}>
-          <Ionicons name="search" size={16} color={theme.color.muted} />
-          <TextInput value={query} onChangeText={setQuery} placeholder="Cerca nel testo dei documenti (OCR)…" placeholderTextColor={theme.color.muted} style={styles.searchInput} returnKeyType="search" testID="master-files-search" />
-          {query ? <Pressable onPress={() => setQuery("")} hitSlop={8} testID="master-files-search-clear"><Ionicons name="close-circle" size={18} color={theme.color.muted} /></Pressable> : null}
+          <Ionicons name="search" size={16} color={HT.muted} />
+          <TextInput value={query} onChangeText={setQuery} placeholder="Cerca nel testo dei documenti (OCR)…" placeholderTextColor={HT.muted} style={styles.searchInput} returnKeyType="search" testID="master-files-search" />
+          {query ? <Pressable onPress={() => setQuery("")} hitSlop={8} testID="master-files-search-clear"><Ionicons name="close-circle" size={18} color={HT.muted} /></Pressable> : null}
         </View>
       ) : null}
       {tab === "neo_prompts" && items.length > 0 ? (
         // V50.z309 — barra azioni «Prompt per Neo»: Cancella tutti (in attesa) · Cancella completati
         <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 12, paddingBottom: 4, flexWrap: "wrap" }} testID="neo-toolbar">
-          <Pressable onPress={() => void neoDeleteAll("pending")} style={[styles.iconBtn, { flexDirection: "row", gap: 6, paddingHorizontal: 12, minHeight: 40, borderColor: "#FECACA", backgroundColor: "#FEF2F2" }]} testID="neo-delete-all">
-            <Ionicons name="trash-outline" size={16} color="#B91C1C" /><Text style={{ color: "#B91C1C", fontWeight: "800", fontSize: 13 }}>Cancella tutti in attesa ({items.filter((f) => (f.neo_status || "pending") !== "done").length})</Text>
+          <Pressable onPress={() => void neoDeleteAll("pending")} style={[styles.iconBtn, { flexDirection: "row", gap: 6, paddingHorizontal: 12, minHeight: 40, borderColor: HT.danger + '66', backgroundColor: HT.dangerTint }]} testID="neo-delete-all">
+            <Ionicons name="trash-outline" size={16} color={HT.danger} /><Text style={{ color: HT.danger, fontWeight: "800", fontSize: 13 }}>Cancella tutti in attesa ({items.filter((f) => (f.neo_status || "pending") !== "done").length})</Text>
           </Pressable>
           {items.some((f) => f.neo_status === "done") ? (
             <Pressable onPress={() => void neoDeleteAll("done")} style={[styles.iconBtn, { flexDirection: "row", gap: 6, paddingHorizontal: 12, minHeight: 40 }]} testID="neo-delete-done">
-              <Ionicons name="checkmark-done" size={16} color={theme.color.muted} /><Text style={{ color: theme.color.muted, fontWeight: "800", fontSize: 13 }}>Pulisci completati</Text>
+              <Ionicons name="checkmark-done" size={16} color={HT.muted} /><Text style={{ color: HT.muted, fontWeight: "800", fontSize: 13 }}>Pulisci completati</Text>
             </Pressable>
           ) : null}
         </View>
@@ -548,7 +549,7 @@ function MasterFilesScreen() {
           <ActivityIndicator style={{ marginTop: 30 }} color={catMeta.color} />
         ) : items.length === 0 ? (
           <View style={styles.emptyCard}>
-            <Ionicons name={catMeta.icon} size={40} color={theme.color.muted} />
+            <Ionicons name={catMeta.icon} size={40} color={HT.muted} />
             <Text style={styles.emptyTxt}>
               {tab === "notes" ? "Nessuna nota. Tocca 'Nuova nota' per iniziare." :
                 tab === "bills" ? "Nessuna fattura salvata." :
@@ -581,9 +582,9 @@ function MasterFilesScreen() {
                   {f.ocr_excerpt ? <Text style={styles.ocrExcerpt} numberOfLines={2} testID={`ocr-excerpt-${f.file_id}`}>🔍 {f.ocr_excerpt}</Text> : null}
                   {tab === "neo_prompts" ? (
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
-                      <Pressable onPress={() => void neoToggleDone(f)} hitSlop={8} style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: (NEO_STATUS_LABEL[f.neo_status || "pending"]?.color || "#64748B") + "22" }} testID={`neo-status-${f.file_id}`} accessibilityLabel={f.neo_status === "done" ? "Riporta in attesa" : "Segna completato"}>
-                        <Ionicons name={f.neo_status === "done" ? "checkmark-circle" : "ellipse-outline"} size={13} color={NEO_STATUS_LABEL[f.neo_status || "pending"]?.color || "#64748B"} />
-                        <Text style={{ fontSize: 10, fontWeight: "800", color: NEO_STATUS_LABEL[f.neo_status || "pending"]?.color || "#64748B" }}>{NEO_STATUS_LABEL[f.neo_status || "pending"]?.label || f.neo_status}{f.neo_status === "done" ? "" : " · tocca per completare"}</Text>
+                      <Pressable onPress={() => void neoToggleDone(f)} hitSlop={8} style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: (NEO_STATUS_LABEL[f.neo_status || "pending"]?.color || HT.muted) + "22" }} testID={`neo-status-${f.file_id}`} accessibilityLabel={f.neo_status === "done" ? "Riporta in attesa" : "Segna completato"}>
+                        <Ionicons name={f.neo_status === "done" ? "checkmark-circle" : "ellipse-outline"} size={13} color={NEO_STATUS_LABEL[f.neo_status || "pending"]?.color || HT.muted} />
+                        <Text style={{ fontSize: 10, fontWeight: "800", color: NEO_STATUS_LABEL[f.neo_status || "pending"]?.color || HT.muted }}>{NEO_STATUS_LABEL[f.neo_status || "pending"]?.label || f.neo_status}{f.neo_status === "done" ? "" : " · tocca per completare"}</Text>
                       </Pressable>
                       {f.neo_note ? <Text style={[styles.itemMeta, { flexShrink: 1 }]} numberOfLines={1}>Neo: {f.neo_note}</Text> : null}
                     </View>
@@ -608,7 +609,7 @@ function MasterFilesScreen() {
                     hitSlop={8}
                     style={styles.iconBtn}
                   >
-                    <Ionicons name="pencil" size={14} color={theme.color.muted} />
+                    <Ionicons name="pencil" size={14} color={HT.muted} />
                   </Pressable>
                 )}
                 <Pressable
@@ -630,22 +631,22 @@ function MasterFilesScreen() {
         <View style={[styles.modalBack, { justifyContent: "center", padding: 20 }]}>
           <View style={[styles.modalCard, { borderRadius: 20 }]} testID="master-files-dup-modal">
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 }}>
-              <View style={[styles.icoBox, { backgroundColor: "#FEF3C7" }]}><Ionicons name="copy" size={20} color="#D97706" /></View>
+              <View style={[styles.icoBox, { backgroundColor: HT.warningTint }]}><Ionicons name="copy" size={20} color="#D97706" /></View>
               <Text style={[styles.modalTitle, { marginBottom: 0, flex: 1 }]}>File già presente</Text>
             </View>
-            <Text style={{ color: theme.color.muted, fontSize: 13.5, lineHeight: 19 }}>
+            <Text style={{ color: HT.muted, fontSize: 13.5, lineHeight: 19 }}>
               «{dupPrompt?.existing.name}» esiste già con la stessa dimensione. Vuoi sostituirlo o tenerli entrambi?
             </Text>
             <View style={{ flexDirection: "row", gap: 8, marginTop: 16 }}>
-              <Pressable testID="master-files-dup-replace" onPress={() => dupPrompt?.resolve("replace")} style={[styles.modalBtn, { backgroundColor: "#DC2626" }]}>
+              <Pressable testID="master-files-dup-replace" onPress={() => dupPrompt?.resolve("replace")} style={[styles.modalBtn, { backgroundColor: '#DC2626' }]}>
                 <Text style={{ color: "#FFF", fontWeight: "800" }}>Sostituisci</Text>
               </Pressable>
-              <Pressable testID="master-files-dup-keep" onPress={() => dupPrompt?.resolve("keep")} style={[styles.modalBtn, { backgroundColor: theme.color.brandPrimary }]}>
+              <Pressable testID="master-files-dup-keep" onPress={() => dupPrompt?.resolve("keep")} style={[styles.modalBtn, { backgroundColor: HT.brand }]}>
                 <Text style={{ color: "#FFF", fontWeight: "800" }}>Tieni entrambi</Text>
               </Pressable>
             </View>
             <Pressable testID="master-files-dup-cancel" onPress={() => dupPrompt?.resolve("cancel")} style={{ alignSelf: "center", marginTop: 12, minHeight: 36, justifyContent: "center" }}>
-              <Text style={{ color: theme.color.muted, fontWeight: "700" }}>Annulla caricamento</Text>
+              <Text style={{ color: HT.muted, fontWeight: "700" }}>Annulla caricamento</Text>
             </Pressable>
           </View>
         </View>
@@ -662,7 +663,7 @@ function MasterFilesScreen() {
               value={noteEditor?.title || ""}
               onChangeText={(v) => setNoteEditor((n) => n ? { ...n, title: v } : n)}
               placeholder="Titolo"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={HT.muted}
               style={[styles.noteInput, { fontSize: 15, fontWeight: "700" }]}
             />
             <TextInput
@@ -670,7 +671,7 @@ function MasterFilesScreen() {
               value={noteEditor?.body || ""}
               onChangeText={(v) => setNoteEditor((n) => n ? { ...n, body: v } : n)}
               placeholder="Contenuto della nota…"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={HT.muted}
               multiline
               style={[styles.noteInput, { minHeight: 220, textAlignVertical: "top" }]}
             />
@@ -678,15 +679,15 @@ function MasterFilesScreen() {
               <Pressable
                 testID="master-note-cancel"
                 onPress={() => setNoteEditor(null)}
-                style={[styles.modalBtn, { backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border }]}
+                style={[styles.modalBtn, { backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border }]}
               >
-                <Text style={{ color: theme.color.onSurface, fontWeight: "700" }}>Annulla</Text>
+                <Text style={{ color: HT.text, fontWeight: "700" }}>Annulla</Text>
               </Pressable>
               <Pressable
                 testID="master-note-save"
                 onPress={saveNote}
                 disabled={busy}
-                style={[styles.modalBtn, { backgroundColor: "#7C3AED", opacity: busy ? 0.5 : 1 }]}
+                style={[styles.modalBtn, { backgroundColor: '#7C3AED', opacity: busy ? 0.5 : 1 }]}
               >
                 {busy ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={{ color: "#FFF", fontWeight: "700" }}>Salva</Text>}
               </Pressable>
@@ -705,18 +706,18 @@ function MasterFilesScreen() {
               value={renameInput}
               onChangeText={setRenameInput}
               placeholder="Nome file"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={HT.muted}
               style={styles.noteInput}
             />
             <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
-              <Pressable onPress={() => setRenameTarget(null)} style={[styles.modalBtn, { backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border }]}>
-                <Text style={{ color: theme.color.onSurface, fontWeight: "700" }}>Annulla</Text>
+              <Pressable onPress={() => setRenameTarget(null)} style={[styles.modalBtn, { backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border }]}>
+                <Text style={{ color: HT.text, fontWeight: "700" }}>Annulla</Text>
               </Pressable>
               <Pressable
                 testID="master-rename-save"
                 onPress={commitRename}
                 disabled={busy}
-                style={[styles.modalBtn, { backgroundColor: theme.color.brandPrimary, opacity: busy ? 0.5 : 1 }]}
+                style={[styles.modalBtn, { backgroundColor: HT.brand, opacity: busy ? 0.5 : 1 }]}
               >
                 <Text style={{ color: "#FFF", fontWeight: "700" }}>Salva</Text>
               </Pressable>
@@ -758,24 +759,24 @@ function MasterFilesScreen() {
           <Pressable style={[styles.sheetCard, { paddingBottom: bottomPad }]} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.modalTitle}>Aggiungi foto o video</Text>
             <View style={{ gap: 8, marginTop: 8 }}>
-              <Pressable testID="mf-photo-camera" onPress={() => runMediaPicker("camera-photo")} style={[styles.sheetBtn, { backgroundColor: "#7C3AED" }]}>
+              <Pressable testID="mf-photo-camera" onPress={() => runMediaPicker("camera-photo")} style={[styles.sheetBtn, { backgroundColor: '#7C3AED' }]}>
                 <Ionicons name="camera" size={18} color="#FFF" />
                 <Text style={styles.sheetTxt}>Scatta foto</Text>
               </Pressable>
-              <Pressable testID="mf-video-camera" onPress={() => runMediaPicker("camera-video")} style={[styles.sheetBtn, { backgroundColor: "#DB2777" }]}>
+              <Pressable testID="mf-video-camera" onPress={() => runMediaPicker("camera-video")} style={[styles.sheetBtn, { backgroundColor: '#DB2777' }]}>
                 <Ionicons name="videocam" size={18} color="#FFF" />
                 <Text style={styles.sheetTxt}>Registra video</Text>
               </Pressable>
-              <Pressable testID="mf-photo-library" onPress={() => runMediaPicker("library-photo")} style={[styles.sheetBtn, { backgroundColor: "#0891B2" }]}>
+              <Pressable testID="mf-photo-library" onPress={() => runMediaPicker("library-photo")} style={[styles.sheetBtn, { backgroundColor: '#0891B2' }]}>
                 <Ionicons name="images" size={18} color="#FFF" />
                 <Text style={styles.sheetTxt}>Scegli foto dalla galleria</Text>
               </Pressable>
-              <Pressable testID="mf-video-library" onPress={() => runMediaPicker("library-video")} style={[styles.sheetBtn, { backgroundColor: "#16A34A" }]}>
+              <Pressable testID="mf-video-library" onPress={() => runMediaPicker("library-video")} style={[styles.sheetBtn, { backgroundColor: '#16A34A' }]}>
                 <Ionicons name="film" size={18} color="#FFF" />
                 <Text style={styles.sheetTxt}>Scegli video dalla galleria</Text>
               </Pressable>
-              <Pressable onPress={() => setPhotoPickerOpen(false)} style={[styles.sheetBtn, { backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border }]}>
-                <Text style={{ color: theme.color.onSurface, fontWeight: "700" }}>Annulla</Text>
+              <Pressable onPress={() => setPhotoPickerOpen(false)} style={[styles.sheetBtn, { backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border }]}>
+                <Text style={{ color: HT.text, fontWeight: "700" }}>Annulla</Text>
               </Pressable>
             </View>
           </Pressable>
@@ -798,33 +799,33 @@ function formatSize(bytes: number): string {
 }
 
 const styles = StyleSheet.create({
-  searchRow: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 12, marginBottom: 4, paddingHorizontal: 12, minHeight: 42, borderRadius: 12, backgroundColor: "#FFF", borderWidth: 1, borderColor: "#E2E8F0" },
-  searchInput: { flex: 1, fontSize: 14, color: "#0F172A", paddingVertical: 8 },
+  searchRow: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 12, marginBottom: 4, paddingHorizontal: 12, minHeight: 42, borderRadius: 12, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border },
+  searchInput: { flex: 1, fontSize: 14, color: HT.text, paddingVertical: 8 },
   ocrExcerpt: { fontSize: 11, color: "#0F766E", marginTop: 3, fontStyle: "italic" },
 
   root: { flex: 1, backgroundColor: theme.color.bg },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.color.border, backgroundColor: theme.color.surface },
-  title: { fontSize: 18, fontWeight: "800", color: theme.color.onSurface },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: HT.border, backgroundColor: HT.card2 },
+  title: { fontSize: 18, fontWeight: "800", color: HT.text },
   tabBar: { flexDirection: "row", gap: 6, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 6 },
-  tabBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 10, paddingHorizontal: 12, minHeight: 44, borderRadius: 10, backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border },
-  tabTxt: { fontSize: 12, fontWeight: "700", color: theme.color.onSurface },
+  tabBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 10, paddingHorizontal: 12, minHeight: 44, borderRadius: 10, backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border },
+  tabTxt: { fontSize: 12, fontWeight: "700", color: HT.text },
   addBar: { paddingHorizontal: 12, paddingVertical: 8, flexDirection: "row" },
   addBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderRadius: 10, flex: 1 },
   addTxt: { color: "#FFF", fontWeight: "700", fontSize: 13 },
-  emptyCard: { alignItems: "center", padding: 32, backgroundColor: theme.color.surface, borderRadius: 12, borderWidth: 1, borderColor: theme.color.border, borderStyle: "dashed" },
-  emptyTxt: { color: theme.color.muted, fontSize: 13, textAlign: "center", marginTop: 10, maxWidth: 300 },
-  card: { backgroundColor: theme.color.surface, borderRadius: 12, borderWidth: 1, borderColor: theme.color.border, marginBottom: 8, flexDirection: "row", alignItems: "center", overflow: "hidden" },
+  emptyCard: { alignItems: "center", padding: 32, backgroundColor: HT.card2, borderRadius: 12, borderWidth: 1, borderColor: HT.border, borderStyle: "dashed" },
+  emptyTxt: { color: HT.muted, fontSize: 13, textAlign: "center", marginTop: 10, maxWidth: 300 },
+  card: { backgroundColor: HT.card2, borderRadius: 12, borderWidth: 1, borderColor: HT.border, marginBottom: 8, flexDirection: "row", alignItems: "center", overflow: "hidden" },
   icoBox: { width: 40, height: 40, borderRadius: 20, justifyContent: "center", alignItems: "center" },
-  itemName: { fontSize: 14, fontWeight: "700", color: theme.color.onSurface },
-  itemMeta: { fontSize: 11, color: theme.color.muted, marginTop: 2 },
+  itemName: { fontSize: 14, fontWeight: "700", color: HT.text },
+  itemMeta: { fontSize: 11, color: HT.muted, marginTop: 2 },
   iconBtn: { padding: 8, borderRadius: 6 },
   modalBack: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
-  modalCard: { backgroundColor: theme.color.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: "88%" },
-  modalTitle: { fontSize: 18, fontWeight: "800", color: theme.color.onSurface, marginBottom: 12 },
+  modalCard: { backgroundColor: HT.card2, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: "88%" },
+  modalTitle: { fontSize: 18, fontWeight: "800", color: HT.text, marginBottom: 12 },
   modalBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: "center" },
-  noteInput: { backgroundColor: "#F1F5F9", borderRadius: 8, paddingHorizontal: 10, paddingVertical: Platform.OS === "ios" ? 10 : 8, fontSize: 13, color: theme.color.onSurface, marginTop: 6 },
-  recDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: "#DC2626" },
-  sheetCard: { backgroundColor: theme.color.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
+  noteInput: { backgroundColor: HT.card2, borderRadius: 8, paddingHorizontal: 10, paddingVertical: Platform.OS === "ios" ? 10 : 8, fontSize: 13, color: HT.text, marginTop: 6 },
+  recDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#DC2626' },
+  sheetCard: { backgroundColor: HT.card2, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
   sheetBtn: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 14, borderRadius: 10, justifyContent: "flex-start" },
   sheetTxt: { color: "#FFF", fontWeight: "700", fontSize: 14 },
 });

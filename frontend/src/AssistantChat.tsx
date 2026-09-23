@@ -57,6 +57,7 @@ import { styles, ASSISTANT_COLOR, ASSISTANT_COLOR_DARK } from "@/src/assistant/c
 import { CT } from "@/src/assistant/chatTheme"; // V50.z337 — chat dark/premium
 import { ConversationPanel, MessageBubble, TypingDots } from "@/src/assistant/ChatBubbles";
 import type { ChatMsg } from "@/src/assistant/chatTypes";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 // V29.l — Logo AxonOS orizzontale trasparente per l'empty state chat (senza card scura, compatto).
 const AXONOS_LOGO_HORIZONTAL = require("@/assets/images/axonos-logo-light.png"); // V50.z228 — nuovo logo (sfondo chiaro)
@@ -1580,7 +1581,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                   disabled={!voiceSupported}
                   style={[
                     styles.headerAction,
-                    convMode && { backgroundColor: "#EF4444" },
+                    convMode && { backgroundColor: '#EF4444' },
                     !voiceSupported && { opacity: 0.4 },
                   ]}
                   accessibilityLabel={convMode ? "Termina conversazione audio" : "Inizia conversazione audio"}
@@ -2062,7 +2063,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
               value={feedbackComment}
               onChangeText={setFeedbackComment}
               placeholder="Aggiungi un commento (facoltativo)…"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={HT.muted}
               style={styles.fbInput}
               multiline
               maxLength={500}

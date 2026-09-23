@@ -37,6 +37,7 @@ import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
 import { storage } from "@/src/utils/storage";
 import { ManualCropEditor } from "@/src/ManualCropEditor";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 // V50.z166 — Suono di scatto regolabile: "soft" (click discreto a basso volume,
 // default), "system" (otturatore di sistema, forte), "mute" (nessun suono).
@@ -557,18 +558,18 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
                   : "Per scansionare documenti in modalità continua l'app deve accedere alla fotocamera del dispositivo. Nessun dato viene inviato senza il tuo consenso."}
             </Text>
             <View style={{ flexDirection: "row", gap: 10, marginTop: 20 }}>
-              <Pressable onPress={onClose} style={[styles.permBtn, { backgroundColor: "#334155" }]} testID="live-scan-perm-cancel">
+              <Pressable onPress={onClose} style={[styles.permBtn, { backgroundColor: '#334155' }]} testID="live-scan-perm-cancel">
                 <Text style={{ color: "#FFF", fontWeight: "700" }}>Annulla</Text>
               </Pressable>
               {checking ? (
-                <View style={[styles.permBtn, { backgroundColor: "#FF6B35", flexDirection: "row", alignItems: "center", gap: 8 }]}>
+                <View style={[styles.permBtn, { backgroundColor: '#FF6B35', flexDirection: "row", alignItems: "center", gap: 8 }]}>
                   <ActivityIndicator color="#FFF" size="small" />
                   <Text style={{ color: "#FFF", fontWeight: "800" }}>Attendi…</Text>
                 </View>
               ) : permission.canAskAgain ? (
                 <Pressable
                   onPress={askPermission}
-                  style={[styles.permBtn, { backgroundColor: "#FF6B35" }]}
+                  style={[styles.permBtn, { backgroundColor: '#FF6B35' }]}
                   testID="live-scan-perm-allow"
                 >
                   <Text style={{ color: "#FFF", fontWeight: "800" }}>Consenti</Text>
@@ -578,7 +579,7 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
                   onPress={() => {
                     if (Platform.OS !== "web") Linking.openSettings?.();
                   }}
-                  style={[styles.permBtn, { backgroundColor: "#FF6B35" }]}
+                  style={[styles.permBtn, { backgroundColor: '#FF6B35' }]}
                   testID="live-scan-perm-settings"
                 >
                   <Text style={{ color: "#FFF", fontWeight: "800" }}>Apri impostazioni</Text>
@@ -587,7 +588,7 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
             </View>
             {!checking && (
               <Pressable onPress={() => getPermission().catch(() => {})} style={{ marginTop: 18 }} hitSlop={8} testID="live-scan-perm-recheck">
-                <Text style={{ color: "#94A3B8", fontSize: 12, textDecorationLine: "underline" }}>
+                <Text style={{ color: HT.muted, fontSize: 12, textDecorationLine: "underline" }}>
                   Ho già concesso il permesso · ricontrolla
                 </Text>
               </Pressable>
@@ -596,7 +597,7 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
                 subito "denied + non richiedibile" senza mai mostrare il popup, la build
                 installata NON dichiara CAMERA nel manifest (problema di build, non di app). */}
             {!checking && (
-              <Text style={{ color: "#64748B", fontSize: 11, marginTop: 14, textAlign: "center" }} testID="live-scan-perm-diag">
+              <Text style={{ color: HT.muted, fontSize: 11, marginTop: 14, textAlign: "center" }} testID="live-scan-perm-diag">
                 Diagnostica · stato: {permission.status} · richiedibile: {permission.canAskAgain ? "sì" : "no"}
                 {"\n"}
                 {!permission.canAskAgain
@@ -720,7 +721,7 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
             <Pressable
               onPress={cycleShutterMode}
               hitSlop={12}
-              style={[styles.circleBtn, shutterMode === "system" && { backgroundColor: "#F59E0B" }]}
+              style={[styles.circleBtn, shutterMode === "system" && { backgroundColor: '#F59E0B' }]}
               testID="live-scan-sound"
               accessibilityLabel={
                 shutterMode === "soft" ? "Suono scatto: basso" : shutterMode === "mute" ? "Suono scatto: muto" : "Suono scatto: sistema"
@@ -739,7 +740,7 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
                 setAutoCountdown(null);
               }}
               hitSlop={12}
-              style={[styles.circleBtn, autoShutter && { backgroundColor: "#22C55E" }]}
+              style={[styles.circleBtn, autoShutter && { backgroundColor: '#22C55E' }]}
               testID="live-scan-auto-toggle"
               accessibilityLabel={autoShutter ? "Passa a scatto manuale" : "Passa a scatto automatico"}
             >
@@ -748,7 +749,7 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
             <Pressable
               onPress={() => setTorch((t) => (t === "on" ? "off" : "on"))}
               hitSlop={12}
-              style={[styles.circleBtn, torch === "on" && { backgroundColor: "#FF6B35" }]}
+              style={[styles.circleBtn, torch === "on" && { backgroundColor: '#FF6B35' }]}
               testID="live-scan-torch"
             >
               <Ionicons name={torch === "on" ? "flash" : "flash-off"} size={20} color="#FFF" />
@@ -809,7 +810,7 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
             <Pressable
               onPress={takeShot}
               disabled={busy}
-              style={[styles.shutter, busy && { opacity: 0.6 }, autoCountdown !== null && { borderColor: "#22C55E" }]}
+              style={[styles.shutter, busy && { opacity: 0.6 }, autoCountdown !== null && { borderColor: '#22C55E' }]}
               testID="live-scan-shutter"
               accessibilityLabel="Scatta"
             >
@@ -905,14 +906,14 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
                   setPages((prev) => prev.filter((_, i) => i !== reviewIdx));
                   setReviewIdx(null);
                 }}
-                style={[styles.reviewBtn, { backgroundColor: "#DC2626" }]}
+                style={[styles.reviewBtn, { backgroundColor: '#DC2626' }]}
               >
                 <Ionicons name="refresh" size={20} color="#FFF" />
                 <Text style={styles.reviewBtnTxt}>Rifai</Text>
               </Pressable>
               <Pressable
                 onPress={() => setCropOpen(true)}
-                style={[styles.reviewBtn, { backgroundColor: "#FF6B35" }]}
+                style={[styles.reviewBtn, { backgroundColor: '#FF6B35' }]}
                 testID="live-review-crop"
               >
                 <Ionicons name="crop" size={20} color="#FFF" />
@@ -925,7 +926,7 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
                   setReviewIdx(null);
                 }}
                 disabled={singleShot && !pages[reviewIdx].processed}
-                style={[styles.reviewBtn, { backgroundColor: "#0F9D58" }, singleShot && !pages[reviewIdx].processed && { opacity: 0.55 }]}
+                style={[styles.reviewBtn, { backgroundColor: '#0F9D58' }, singleShot && !pages[reviewIdx].processed && { opacity: 0.55 }]}
                 testID="live-review-ok"
               >
                 {singleShot && !pages[reviewIdx].processed ? (
@@ -965,11 +966,11 @@ export function LiveCameraScanner({ visible, onClose, onDone, enhance = true, gr
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#000" },
+  root: { flex: 1, backgroundColor: '#000' },
   // V50.z9 — Preview post-scatto
   reviewOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "#050505",
+    backgroundColor: '#050505',
     padding: 14,
     paddingTop: 14,
     zIndex: 100,
@@ -984,7 +985,7 @@ const styles = StyleSheet.create({
   cropBadgeInfo: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(37,99,235,0.22)", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, flexShrink: 1, marginLeft: 8 }, // V50.z226
   cropBadgeTxtInfo: { color: "#93C5FD", fontSize: 11, fontWeight: "800", flexShrink: 1 },
 
-  reviewImgWrap: { flex: 1, backgroundColor: "#111", borderRadius: 8, overflow: "hidden", marginBottom: 12 },
+  reviewImgWrap: { flex: 1, backgroundColor: '#111', borderRadius: 8, overflow: "hidden", marginBottom: 12 },
   reviewImg: { width: "100%", height: "100%" },
   reviewActions: { flexDirection: "row", gap: 10, paddingBottom: 20 },
   reviewBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 999 },
@@ -1000,7 +1001,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     width: 32,
     height: 32,
-    borderColor: "#FF6B35",
+    borderColor: '#FF6B35',
   },
   cornerTL: { top: 0, left: 0, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 6 },
   cornerTR: { top: 0, right: 0, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 6 },
@@ -1058,35 +1059,35 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 8,
-    backgroundColor: "#111",
+    backgroundColor: '#111',
     borderWidth: 2,
-    borderColor: "#FFF",
+    borderColor: HT.card,
   },
   thumbBadge: {
     position: "absolute",
     top: -4,
     left: -4,
-    backgroundColor: "#10B981",
+    backgroundColor: '#10B981',
     width: 18,
     height: 18,
     borderRadius: 9,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1.5,
-    borderColor: "#FFF",
+    borderColor: HT.card,
   },
   thumbBlurBadge: {
     position: "absolute",
     top: 22,
     left: -4,
-    backgroundColor: "#F59E0B",
+    backgroundColor: '#F59E0B',
     width: 18,
     height: 18,
     borderRadius: 9,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1.5,
-    borderColor: "#FFF",
+    borderColor: HT.card,
   },
   thumbDel: {
     position: "absolute",
@@ -1095,11 +1096,11 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: "#DC2626",
+    backgroundColor: '#DC2626',
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1.5,
-    borderColor: "#FFF",
+    borderColor: HT.card,
   },
   thumbNum: {
     position: "absolute",
@@ -1130,14 +1131,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 6,
   },
-  sideBtnDone: { backgroundColor: "#FF6B35" },
+  sideBtnDone: { backgroundColor: '#FF6B35' },
   doneTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
   shutter: {
     width: 76,
     height: 76,
     borderRadius: 38,
     borderWidth: 4,
-    borderColor: "#FFF",
+    borderColor: HT.card,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1149,20 +1150,20 @@ const styles = StyleSheet.create({
     bottom: -6,
     borderRadius: 44,
     borderWidth: 4,
-    borderColor: "#22C55E",
+    borderColor: '#22C55E',
   },
   shutterInner: {
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     alignItems: "center",
     justifyContent: "center",
   },
 
-  permWrap: { flex: 1, alignItems: "center", justifyContent: "center", padding: 30, backgroundColor: "#0B1220" },
+  permWrap: { flex: 1, alignItems: "center", justifyContent: "center", padding: 30, backgroundColor: '#0B1220' },
   permTitle: { color: "#F1F5F9", fontSize: 18, fontWeight: "800", marginTop: 16, textAlign: "center" },
-  permSub: { color: "#94A3B8", fontSize: 13, textAlign: "center", marginTop: 8, lineHeight: 19 },
+  permSub: { color: HT.muted, fontSize: 13, textAlign: "center", marginTop: 8, lineHeight: 19 },
   permBtn: { paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12 },
 });
 

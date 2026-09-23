@@ -6,9 +6,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
-import { theme } from "@/src/theme";
 import { notify, confirmAsync } from "@/src/utils/notify";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 /**
  * V50.z82 — Richieste info aziendali.
@@ -130,7 +130,7 @@ export default function InfoRequestsScreen() {
     <SafeAreaView style={styles.root}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={12} testID="ireq-back">
-          <Ionicons name="chevron-back" size={24} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={24} color={HT.text} />
         </Pressable>
         <Text style={styles.title}>Richieste info</Text>
         <View style={{ width: 24 }} />
@@ -146,7 +146,7 @@ export default function InfoRequestsScreen() {
           <Text style={[styles.tabTxt, tab === "resolved" && styles.tabTxtActive]}>Risolte</Text>
         </Pressable>
         <Pressable onPress={() => setTab("compose")} style={[styles.tab, tab === "compose" && styles.tabActive]} testID="ireq-tab-compose">
-          <Ionicons name="add-circle" size={14} color={tab === "compose" ? "#FFF" : theme.color.brandPrimary} />
+          <Ionicons name="add-circle" size={14} color={tab === "compose" ? "#FFF" : HT.brand} />
           <Text style={[styles.tabTxt, tab === "compose" && styles.tabTxtActive, { marginLeft: 4 }]}>Nuova</Text>
         </Pressable>
       </View>
@@ -162,7 +162,7 @@ export default function InfoRequestsScreen() {
             onChangeText={setSubject}
             style={styles.input}
             placeholder="Es. Chiarimento offerta Luce Impresa Plus"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={HT.muted}
             maxLength={200}
             testID="ireq-subject"
           />
@@ -172,7 +172,7 @@ export default function InfoRequestsScreen() {
             onChangeText={setBody}
             style={[styles.input, styles.textarea]}
             placeholder="Descrivi la richiesta…"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={HT.muted}
             multiline
             maxLength={4000}
             testID="ireq-body"
@@ -181,15 +181,15 @@ export default function InfoRequestsScreen() {
           <Text style={styles.label}>Cliente collegato (opzionale)</Text>
           {selectedContact ? (
             <View style={styles.contactPill}>
-              <Ionicons name="person" size={14} color={theme.color.brandPrimary} />
+              <Ionicons name="person" size={14} color={HT.brand} />
               <Text style={styles.contactPillTxt} numberOfLines={1}>{`${selectedContact.first_name || ""} ${selectedContact.last_name || ""}`.trim() || selectedContact.contact_id}</Text>
               <Pressable onPress={() => setSelectedContact(null)} hitSlop={6}>
-                <Ionicons name="close-circle" size={16} color={theme.color.muted} />
+                <Ionicons name="close-circle" size={16} color={HT.muted} />
               </Pressable>
             </View>
           ) : (
             <Pressable onPress={() => setContactPickerOpen(true)} style={styles.pickerBtn} testID="ireq-pick-contact">
-              <Ionicons name="link" size={14} color={theme.color.brandPrimary} />
+              <Ionicons name="link" size={14} color={HT.brand} />
               <Text style={styles.pickerBtnTxt}>Collega un cliente</Text>
             </Pressable>
           )}
@@ -206,13 +206,13 @@ export default function InfoRequestsScreen() {
       ) : (
         <ScrollView
           contentContainerStyle={{ padding: 16, paddingBottom: 40 + insets.bottom + (Platform.OS === "web" ? 60 : 0) }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={theme.color.brandPrimary} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={HT.brand} />}
         >
           {loading ? (
-            <ActivityIndicator style={{ marginTop: 32 }} color={theme.color.brandPrimary} />
+            <ActivityIndicator style={{ marginTop: 32 }} color={HT.brand} />
           ) : filtered.length === 0 ? (
             <View style={styles.empty}>
-              <Ionicons name="mail-open-outline" size={40} color={theme.color.muted} />
+              <Ionicons name="mail-open-outline" size={40} color={HT.muted} />
               <Text style={styles.emptyTxt}>
                 {tab === "pending" ? "Nessuna richiesta in attesa" : "Nessuna richiesta risolta"}
               </Text>
@@ -243,7 +243,7 @@ export default function InfoRequestsScreen() {
                 <Text style={styles.cardBody} numberOfLines={3}>{r.body}</Text>
                 <View style={styles.actions}>
                   <View style={styles.openHint}>
-                    <Ionicons name="chatbubbles" size={12} color={theme.color.brandPrimary} />
+                    <Ionicons name="chatbubbles" size={12} color={HT.brand} />
                     <Text style={styles.openHintTxt}>Apri conversazione</Text>
                   </View>
                   {isMaster ? (
@@ -272,22 +272,22 @@ export default function InfoRequestsScreen() {
             <View style={styles.pickerHead}>
               <Text style={styles.pickerTitle}>Seleziona cliente</Text>
               <Pressable onPress={() => setContactPickerOpen(false)} hitSlop={8}>
-                <Ionicons name="close" size={20} color={theme.color.muted} />
+                <Ionicons name="close" size={20} color={HT.muted} />
               </Pressable>
             </View>
             <TextInput
               value={contactSearch}
               onChangeText={setContactSearch}
               placeholder="Cerca nome, cognome…"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={HT.muted}
               style={[styles.input, { margin: 12 }]}
               testID="ireq-contact-search"
             />
             <ScrollView style={{ maxHeight: 360 }}>
               {contactLoading ? (
-                <ActivityIndicator style={{ marginVertical: 24 }} color={theme.color.brandPrimary} />
+                <ActivityIndicator style={{ marginVertical: 24 }} color={HT.brand} />
               ) : contactResults.length === 0 ? (
-                <Text style={{ padding: 24, textAlign: "center", color: theme.color.muted, fontSize: 13 }}>Nessun contatto trovato</Text>
+                <Text style={{ padding: 24, textAlign: "center", color: HT.muted, fontSize: 13 }}>Nessun contatto trovato</Text>
               ) : (
                 contactResults.map((c) => (
                   <Pressable
@@ -295,7 +295,7 @@ export default function InfoRequestsScreen() {
                     onPress={() => { setSelectedContact(c); setContactPickerOpen(false); }}
                     style={styles.pickerRow}
                   >
-                    <Ionicons name="person-circle" size={26} color={theme.color.brandPrimary} />
+                    <Ionicons name="person-circle" size={26} color={HT.brand} />
                     <Text style={styles.pickerRowTxt}>{`${c.first_name || ""} ${c.last_name || ""}`.trim() || c.contact_id}</Text>
                   </Pressable>
                 ))
@@ -316,49 +316,49 @@ function formatDate(iso: string): string {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.color.border },
-  title: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface },
+  root: { flex: 1, backgroundColor: HT.card2 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: HT.border },
+  title: { fontSize: 16, fontWeight: "800", color: HT.text },
   tabs: { flexDirection: "row", gap: 6, paddingHorizontal: 16, paddingTop: 12 },
-  tab: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: theme.color.border, backgroundColor: "#FFF" },
-  tabActive: { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary },
-  tabTxt: { fontSize: 12, fontWeight: "700", color: theme.color.onSurface },
+  tab: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: HT.border, backgroundColor: HT.card },
+  tabActive: { backgroundColor: HT.brand, borderColor: HT.brand },
+  tabTxt: { fontSize: 12, fontWeight: "700", color: HT.text },
   tabTxtActive: { color: "#FFF" },
-  hint: { fontSize: 12, color: theme.color.muted, lineHeight: 17 },
-  label: { fontSize: 11, fontWeight: "800", color: theme.color.muted, textTransform: "uppercase", letterSpacing: 0.4 },
-  input: { borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, padding: 12, fontSize: 14, color: theme.color.onSurface, backgroundColor: "#FFF" },
+  hint: { fontSize: 12, color: HT.muted, lineHeight: 17 },
+  label: { fontSize: 11, fontWeight: "800", color: HT.muted, textTransform: "uppercase", letterSpacing: 0.4 },
+  input: { borderWidth: 1, borderColor: HT.border, borderRadius: 10, padding: 12, fontSize: 14, color: HT.text, backgroundColor: HT.card },
   textarea: { minHeight: 120, textAlignVertical: "top" },
-  sendBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 14, borderRadius: 12, backgroundColor: theme.color.brandPrimary, marginTop: 6 },
+  sendBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 14, borderRadius: 12, backgroundColor: HT.brand, marginTop: 6 },
   sendTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
   empty: { alignItems: "center", padding: 40, gap: 8 },
-  emptyTxt: { fontSize: 13, color: theme.color.muted },
-  card: { backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, borderRadius: 12, padding: 12, marginBottom: 10, gap: 8 },
-  cardUnread: { borderColor: "#DC2626", borderLeftWidth: 4 },
-  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#DC2626" },
+  emptyTxt: { fontSize: 13, color: HT.muted },
+  card: { backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, borderRadius: 12, padding: 12, marginBottom: 10, gap: 8 },
+  cardUnread: { borderColor: '#DC2626', borderLeftWidth: 4 },
+  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#DC2626' },
   cardHead: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
-  cardSubject: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface },
-  cardMeta: { fontSize: 11, color: theme.color.muted, marginTop: 3 },
-  cardBody: { fontSize: 13, color: theme.color.onSurface, lineHeight: 18 },
+  cardSubject: { fontSize: 14, fontWeight: "800", color: HT.text },
+  cardMeta: { fontSize: 11, color: HT.muted, marginTop: 3 },
+  cardBody: { fontSize: 13, color: HT.text, lineHeight: 18 },
   statusPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
-  pillPending: { backgroundColor: "#FEF3C7" },
-  pillResolved: { backgroundColor: "#DCFCE7" },
-  pillTxt: { fontSize: 10, fontWeight: "800", color: theme.color.onSurface, textTransform: "uppercase", letterSpacing: 0.4 },
+  pillPending: { backgroundColor: HT.warningTint },
+  pillResolved: { backgroundColor: HT.successTint },
+  pillTxt: { fontSize: 10, fontWeight: "800", color: HT.text, textTransform: "uppercase", letterSpacing: 0.4 },
   actions: { flexDirection: "row", gap: 8, justifyContent: "flex-end", marginTop: 4 },
   actionBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
   actionTxt: { color: "#FFF", fontWeight: "800", fontSize: 12 },
-  btnResolve: { backgroundColor: "#16A34A" },
-  btnReopen: { backgroundColor: "#F59E0B" },
-  btnDelete: { backgroundColor: "#FEE2E2", paddingHorizontal: 10 },
+  btnResolve: { backgroundColor: '#16A34A' },
+  btnReopen: { backgroundColor: '#F59E0B' },
+  btnDelete: { backgroundColor: HT.dangerTint, paddingHorizontal: 10 },
   openHint: { flex: 1, flexDirection: "row", alignItems: "center", gap: 4 },
-  openHintTxt: { fontSize: 11, fontWeight: "700", color: theme.color.brandPrimary },
-  contactPill: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: theme.color.brandPrimary + "18", borderRadius: 999, alignSelf: "flex-start" },
-  contactPillTxt: { fontSize: 12, fontWeight: "700", color: theme.color.brandPrimary, maxWidth: 200 },
-  pickerBtn: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderStyle: "dashed", borderColor: theme.color.brandPrimary },
-  pickerBtnTxt: { fontSize: 12, fontWeight: "700", color: theme.color.brandPrimary },
+  openHintTxt: { fontSize: 11, fontWeight: "700", color: HT.brand },
+  contactPill: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: HT.brand + "18", borderRadius: 999, alignSelf: "flex-start" },
+  contactPillTxt: { fontSize: 12, fontWeight: "700", color: HT.brand, maxWidth: 200 },
+  pickerBtn: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderStyle: "dashed", borderColor: HT.brand },
+  pickerBtnTxt: { fontSize: 12, fontWeight: "700", color: HT.brand },
   pickerOverlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end", zIndex: 100 },
-  pickerSheet: { backgroundColor: "#FFF", borderTopLeftRadius: 18, borderTopRightRadius: 18, maxHeight: "80%" },
-  pickerHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 14, borderBottomWidth: 1, borderBottomColor: theme.color.border },
-  pickerTitle: { fontSize: 15, fontWeight: "800", color: theme.color.onSurface },
-  pickerRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.color.border },
-  pickerRowTxt: { fontSize: 14, color: theme.color.onSurface },
+  pickerSheet: { backgroundColor: HT.card, borderTopLeftRadius: 18, borderTopRightRadius: 18, maxHeight: "80%" },
+  pickerHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 14, borderBottomWidth: 1, borderBottomColor: HT.border },
+  pickerTitle: { fontSize: 15, fontWeight: "800", color: HT.text },
+  pickerRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: HT.border },
+  pickerRowTxt: { fontSize: 14, color: HT.text },
 });

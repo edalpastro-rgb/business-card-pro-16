@@ -3,8 +3,9 @@
 import React from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
-const AXON_DARK = "#6D28D9";
+const AXON_DARK = HT.violet;
 export const IMPORT_QUESTION_MARK = "memorizzi questi dati";
 export const IMPORT_YES_TEXT = "Sì, memorizza i dati";
 export const IMPORT_NO_TEXT = "No, non memorizzare i dati";
@@ -30,7 +31,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", gap: 8, paddingLeft: 30, marginTop: 6, flexWrap: "wrap" },
   chip: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 20, paddingHorizontal: 14, minHeight: 40 },
   yes: { backgroundColor: AXON_DARK },
-  no: { backgroundColor: "#F5F3FF", borderWidth: 1, borderColor: "#DDD6FE" },
+  no: { backgroundColor: HT.violetTint, borderWidth: 1, borderColor: HT.violet + '66' },
   yesTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
   noTxt: { color: AXON_DARK, fontWeight: "800", fontSize: 13 },
 });

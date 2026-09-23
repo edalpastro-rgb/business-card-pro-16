@@ -11,6 +11,7 @@ import * as LocalAuthentication from "expo-local-authentication";
 import { api } from "@/src/api";
 import { storage } from "@/src/utils/storage";
 import { useAuth, hasPin, verifyPin, type User } from "@/src/auth";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const KEY = "quick_unlock_v1";
 type Enrollment = { device_id: string; secret: string; email: string; name: string };
@@ -144,7 +145,7 @@ export function QuickUnlockCard({ onUseOtherAccount, onSuccess }: Props) {
       {showPin && !busy && (
         <View style={styles.pinRow}>
           <TextInput value={pin} onChangeText={(t) => setPin(t.replace(/\D/g, "").slice(0, 6))} keyboardType="number-pad" secureTextEntry maxLength={6}
-            placeholder="PIN a 6 cifre" placeholderTextColor="#94A3B8" style={styles.pinInput} testID="quick-unlock-pin-input" onSubmitEditing={withPin} />
+            placeholder="PIN a 6 cifre" placeholderTextColor={HT.muted} style={styles.pinInput} testID="quick-unlock-pin-input" onSubmitEditing={withPin} />
           <Pressable onPress={withPin} disabled={pin.length !== 6} style={[styles.pinGo, pin.length !== 6 && { opacity: 0.5 }]} testID="quick-unlock-pin-go">
             <Ionicons name="arrow-forward" size={18} color="#FFF" />
           </Pressable>
@@ -159,19 +160,19 @@ export function QuickUnlockCard({ onUseOtherAccount, onSuccess }: Props) {
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: "#FFF", borderRadius: 18, padding: 18, alignItems: "center", marginBottom: 14, borderWidth: 1, borderColor: "#E9D5FF" },
-  avatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: "#7C3AED", alignItems: "center", justifyContent: "center", marginBottom: 8 },
+  card: { backgroundColor: HT.card, borderRadius: 18, padding: 18, alignItems: "center", marginBottom: 14, borderWidth: 1, borderColor: '#E9D5FF' },
+  avatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#7C3AED', alignItems: "center", justifyContent: "center", marginBottom: 8 },
   avatarTxt: { color: "#FFF", fontWeight: "800", fontSize: 22 },
-  title: { fontSize: 17, fontWeight: "800", color: "#1B2B4B" },
-  sub: { fontSize: 12, color: "#64748B", marginTop: 2, marginBottom: 12 },
+  title: { fontSize: 17, fontWeight: "800", color: HT.text },
+  sub: { fontSize: 12, color: HT.muted, marginTop: 2, marginBottom: 12 },
   row: { flexDirection: "row", gap: 10 },
   btn: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 18, minHeight: 46, borderRadius: 12 },
-  btnPrimary: { backgroundColor: "#7C3AED" },
-  btnGhost: { borderWidth: 1.5, borderColor: "#7C3AED" },
+  btnPrimary: { backgroundColor: '#7C3AED' },
+  btnGhost: { borderWidth: 1.5, borderColor: '#7C3AED' },
   btnTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
   pinRow: { flexDirection: "row", gap: 8, marginTop: 12, width: "100%" },
-  pinInput: { flex: 1, backgroundColor: "#F8FAFC", borderRadius: 12, borderWidth: 1, borderColor: "#E5E7EB", paddingHorizontal: 12, minHeight: 46, fontSize: 18, letterSpacing: 6, color: "#1B2B4B", textAlign: "center" },
-  pinGo: { width: 46, height: 46, borderRadius: 12, backgroundColor: "#7C3AED", alignItems: "center", justifyContent: "center" },
+  pinInput: { flex: 1, backgroundColor: HT.card2, borderRadius: 12, borderWidth: 1, borderColor: HT.border, paddingHorizontal: 12, minHeight: 46, fontSize: 18, letterSpacing: 6, color: HT.text, textAlign: "center" },
+  pinGo: { width: 46, height: 46, borderRadius: 12, backgroundColor: '#7C3AED', alignItems: "center", justifyContent: "center" },
   err: { color: "#DC2626", fontSize: 12, marginTop: 8 },
   link: { color: "#7C3AED", fontSize: 13, fontWeight: "700" },
 });
@@ -193,17 +194,17 @@ export function QuickUnlockSettingRow() {
         <Text style={settingStyles.settingLabel}>Accesso rapido al login</Text>
         <Text style={settingStyles.settingSub}>{on ? "Attivo: entri con impronta / Face ID / PIN senza password" : "Entra con impronta / Face ID / PIN dalla schermata di login"}</Text>
       </View>
-      <Pressable onPress={toggle} style={[settingStyles.settingBtn, on && { backgroundColor: "#FEE2E2", borderColor: "#FCA5A5" }]} testID="quick-unlock-toggle">
-        <Text style={[settingStyles.settingBtnTxt, on && { color: "#B91C1C" }]}>{on ? "Disattiva" : "Attiva"}</Text>
+      <Pressable onPress={toggle} style={[settingStyles.settingBtn, on && { backgroundColor: HT.dangerTint, borderColor: '#FCA5A5' }]} testID="quick-unlock-toggle">
+        <Text style={[settingStyles.settingBtnTxt, on && { color: HT.danger }]}>{on ? "Disattiva" : "Attiva"}</Text>
       </Pressable>
     </View>
   );
 }
 
 const settingStyles = StyleSheet.create({
-  settingRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 12, borderTopWidth: 1, borderTopColor: "#E5E7EB", marginTop: 8 },
-  settingLabel: { fontSize: 14, fontWeight: "700", color: "#1B2B4B" },
-  settingSub: { fontSize: 12, color: "#64748B", marginTop: 2 },
-  settingBtn: { paddingHorizontal: 14, minHeight: 40, borderRadius: 10, borderWidth: 1.5, borderColor: "#7C3AED", alignItems: "center", justifyContent: "center", backgroundColor: "#F5F3FF" },
+  settingRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 12, borderTopWidth: 1, borderTopColor: HT.border, marginTop: 8 },
+  settingLabel: { fontSize: 14, fontWeight: "700", color: HT.text },
+  settingSub: { fontSize: 12, color: HT.muted, marginTop: 2 },
+  settingBtn: { paddingHorizontal: 14, minHeight: 40, borderRadius: 10, borderWidth: 1.5, borderColor: '#7C3AED', alignItems: "center", justifyContent: "center", backgroundColor: HT.violetTint },
   settingBtnTxt: { color: "#7C3AED", fontWeight: "800", fontSize: 13 },
 });

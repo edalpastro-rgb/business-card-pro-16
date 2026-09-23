@@ -14,6 +14,7 @@ import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
 import { LeafletMap, MapMarker } from "@/src/LeafletMap";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 export const GIRO_KEY = "geo_giro_ids_v1";
 type GeoContact = { contact_id: string; name: string; company: string; status: string; phone: string; address: string; city: string; area: string; lat: number | null; lon: number | null; owner_id?: string; owner_name?: string };
@@ -76,7 +77,7 @@ export default function MapClientsScreen() {
   const visible = useMemo(() => (data?.items || []).filter((c) => c.lat != null && (status === "all" || c.status === status) && (city === "all" || (c.city || "").trim() === city) && (area === "all" || c.area === area)), [data, status, city, area]);
   const markers: MapMarker[] = useMemo(() => visible.map((c) => ({
     id: c.contact_id, lat: c.lat as number, lon: c.lon as number,
-    color: scope === "team" ? (ownerColors[c.owner_id || ""] || "#64748B") : (STATUS_COLOR[c.status] || "#64748B"),
+    color: scope === "team" ? (ownerColors[c.owner_id || ""] || HT.muted) : (STATUS_COLOR[c.status] || HT.muted),
     title: c.name + (c.company ? ` · ${c.company}` : ""),
     sub: `📍 ${c.address || c.city}${c.status ? ` · ${STATUS_LABEL[c.status] || c.status}` : ""}${c.phone ? `<br/>📞 ${c.phone}` : ""}${scope === "team" && c.owner_name ? `<br/>👤 ${c.owner_name}` : ""}`,
     actions: [{ id: "scheda", label: "Scheda" }, ...(c.phone ? [{ id: "call", label: "Chiama" }, { id: "wa", label: "WhatsApp" }] : []), { id: "nav", label: "Naviga" }, { id: "giro", label: giro.includes(c.contact_id) ? "✓ Nel giro" : "Aggiungi a Giro" }],
@@ -120,7 +121,7 @@ export default function MapClientsScreen() {
       {areas.length > 1 || cities.length > 1 ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filters2} contentContainerStyle={{ gap: 6, paddingHorizontal: 10, alignItems: "center" }} testID="map-filters-geo">
           {city !== "all" || area !== "all" ? (
-            <Pressable onPress={() => { setCity("all"); setArea("all"); }} style={[styles.chip, { backgroundColor: "#FEE2E2" }]} testID="map-filter-reset"><Ionicons name="close" size={12} color="#DC2626" /><Text style={[styles.chipTxt, { color: "#DC2626" }]}>Reset</Text></Pressable>
+            <Pressable onPress={() => { setCity("all"); setArea("all"); }} style={[styles.chip, { backgroundColor: HT.dangerTint }]} testID="map-filter-reset"><Ionicons name="close" size={12} color="#DC2626" /><Text style={[styles.chipTxt, { color: "#DC2626" }]}>Reset</Text></Pressable>
           ) : null}
           {areas.length > 1 ? areas.map(([a, n]) => (
             <Pressable key={`a-${a}`} onPress={() => setArea(area === a ? "all" : a)} style={[styles.chip, area === a && styles.chipOn2]} testID={`map-area-${a}`}>
@@ -140,9 +141,9 @@ export default function MapClientsScreen() {
           <LeafletMap ref={mapRef} markers={markers} center={center} zoom={10} office={data?.office} me={me} onAction={onAction} cluster testID="map-leaflet" />
         )}
         <View style={styles.ctrls}>
-          <Pressable onPress={() => void readGps(false)} style={styles.ctrl} testID="map-center-me" accessibilityLabel="Centra sulla mia posizione"><Ionicons name="locate" size={20} color={gpsDenied ? "#94A3B8" : "#1B2B4B"} /></Pressable>
-          {data?.office ? <Pressable onPress={() => mapRef.current?.center(data.office!.lat, data.office!.lon, 12)} style={styles.ctrl} testID="map-center-office"><Ionicons name="business" size={20} color="#1B2B4B" /></Pressable> : null}
-          <Pressable onPress={() => void load()} style={styles.ctrl} testID="map-reload"><Ionicons name="refresh" size={20} color="#1B2B4B" /></Pressable>
+          <Pressable onPress={() => void readGps(false)} style={styles.ctrl} testID="map-center-me" accessibilityLabel="Centra sulla mia posizione"><Ionicons name="locate" size={20} color={gpsDenied ? HT.muted : HT.text} /></Pressable>
+          {data?.office ? <Pressable onPress={() => mapRef.current?.center(data.office!.lat, data.office!.lon, 12)} style={styles.ctrl} testID="map-center-office"><Ionicons name="business" size={20} color={HT.text} /></Pressable> : null}
+          <Pressable onPress={() => void load()} style={styles.ctrl} testID="map-reload"><Ionicons name="refresh" size={20} color={HT.text} /></Pressable>
         </View>
         {scope === "team" && data ? (
           <View style={styles.legend}>{Object.entries(data.members).map(([id, name]) => <View key={id} style={styles.legendRow}><View style={[styles.dot, { backgroundColor: ownerColors[id] }]} /><Text style={styles.legendTxt} numberOfLines={1}>{name}</Text></View>)}</View>
@@ -160,22 +161,22 @@ export default function MapClientsScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F8FAFC" },
-  header: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: "#1B2B4B" },
+  root: { flex: 1, backgroundColor: HT.card2 },
+  header: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: '#1B2B4B' },
   title: { color: "#FFF", fontWeight: "800", fontSize: 17 }, sub: { color: "#CBD5E1", fontSize: 11 },
   tabs: { flexDirection: "row", backgroundColor: "rgba(255,255,255,0.15)", borderRadius: 999, padding: 3 },
-  tab: { paddingHorizontal: 12, minHeight: 32, alignItems: "center", justifyContent: "center", borderRadius: 999 }, tabOn: { backgroundColor: "#FF6B35" },
+  tab: { paddingHorizontal: 12, minHeight: 32, alignItems: "center", justifyContent: "center", borderRadius: 999 }, tabOn: { backgroundColor: '#FF6B35' },
   tabTxt: { color: "#CBD5E1", fontWeight: "800", fontSize: 12 }, tabTxtOn: { color: "#FFF" },
-  filters: { flexDirection: "row", gap: 6, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: "#FFF", borderBottomWidth: 1, borderBottomColor: "#E2E8F0", flexWrap: "wrap" },
-  chip: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, minHeight: 32, borderRadius: 999, backgroundColor: "#F1F5F9" }, chipOn: { backgroundColor: "#1B2B4B" },
-  chipTxt: { fontSize: 12, fontWeight: "700", color: "#1B2B4B" }, dot: { width: 10, height: 10, borderRadius: 5 },
-  filters2: { maxHeight: 44, backgroundColor: "#FFF", borderBottomWidth: 1, borderBottomColor: "#E2E8F0", paddingVertical: 6, flexGrow: 0 }, chipOn2: { backgroundColor: "#0EA5E9" },
-  vsep: { width: 1, height: 22, backgroundColor: "#E2E8F0", marginHorizontal: 2 },
+  filters: { flexDirection: "row", gap: 6, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: HT.card, borderBottomWidth: 1, borderBottomColor: HT.border, flexWrap: "wrap" },
+  chip: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, minHeight: 32, borderRadius: 999, backgroundColor: HT.card2 }, chipOn: { backgroundColor: '#1B2B4B' },
+  chipTxt: { fontSize: 12, fontWeight: "700", color: HT.text }, dot: { width: 10, height: 10, borderRadius: 5 },
+  filters2: { maxHeight: 44, backgroundColor: HT.card, borderBottomWidth: 1, borderBottomColor: HT.border, paddingVertical: 6, flexGrow: 0 }, chipOn2: { backgroundColor: '#0EA5E9' },
+  vsep: { width: 1, height: 22, backgroundColor: HT.border, marginHorizontal: 2 },
   ctrls: { position: "absolute", top: 10, right: 10, gap: 8 },
-  ctrl: { width: 44, height: 44, borderRadius: 12, backgroundColor: "#FFF", alignItems: "center", justifyContent: "center", ...(Platform.OS === "web" ? { boxShadow: "0 1px 4px rgba(0,0,0,0.25)" } as any : { elevation: 3 }) },
+  ctrl: { width: 44, height: 44, borderRadius: 12, backgroundColor: HT.card, alignItems: "center", justifyContent: "center", ...(Platform.OS === "web" ? { boxShadow: "0 1px 4px rgba(0,0,0,0.25)" } as any : { elevation: 3 }) },
   legend: { position: "absolute", left: 10, bottom: 10, backgroundColor: "rgba(255,255,255,0.92)", borderRadius: 10, padding: 8, gap: 4, maxWidth: 180 },
-  legendRow: { flexDirection: "row", alignItems: "center", gap: 6 }, legendTxt: { fontSize: 11, fontWeight: "700", color: "#1B2B4B", flexShrink: 1 },
-  footer: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingTop: 10, backgroundColor: "#FFF", borderTopWidth: 1, borderTopColor: "#E2E8F0" },
-  footTxt: { flex: 1, fontSize: 12, fontWeight: "700", color: "#475569" }, clear: { color: "#DC2626", fontWeight: "800", fontSize: 12 },
-  cta: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FF6B35", borderRadius: 999, paddingHorizontal: 14, minHeight: 44 }, ctaTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
+  legendRow: { flexDirection: "row", alignItems: "center", gap: 6 }, legendTxt: { fontSize: 11, fontWeight: "700", color: HT.text, flexShrink: 1 },
+  footer: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingTop: 10, backgroundColor: HT.card, borderTopWidth: 1, borderTopColor: HT.border },
+  footTxt: { flex: 1, fontSize: 12, fontWeight: "700", color: HT.text2 }, clear: { color: "#DC2626", fontWeight: "800", fontSize: 12 },
+  cta: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: '#FF6B35', borderRadius: 999, paddingHorizontal: 14, minHeight: 44 }, ctaTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
 });

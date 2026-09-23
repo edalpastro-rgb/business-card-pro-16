@@ -16,6 +16,7 @@ import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { WakeWordService } from "@/src/wakeword/WakeWordService";
 import { theme } from "@/src/theme";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const WAKE_ENABLED_KEY = "wake_word_enabled_v1";
 const WAKE_MODEL_KEY = "wake_word_model_v1"; // "hey_jarvis" | "axon_custom"
@@ -126,14 +127,14 @@ export default function WakeWordSettingsScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Modello di rilevamento</Text>
           <Pressable style={[styles.modelRow, model === "hey_jarvis" && styles.modelActive]} onPress={() => chooseModel("hey_jarvis")}>
-            <Ionicons name={model === "hey_jarvis" ? "radio-button-on" : "radio-button-off"} size={22} color={model === "hey_jarvis" ? "#EA580C" : theme.color.muted} />
+            <Ionicons name={model === "hey_jarvis" ? "radio-button-on" : "radio-button-off"} size={22} color={model === "hey_jarvis" ? "#EA580C" : HT.muted} />
             <View style={{ flex: 1 }}>
               <Text style={styles.modelName}>Hey Jarvis · pre-addestrato</Text>
               <Text style={styles.modelSub}>Modello di prova pronto all&apos;uso · OpenWakeWord</Text>
             </View>
           </Pressable>
           <Pressable style={[styles.modelRow, model === "axon_custom" && styles.modelActive]} onPress={() => chooseModel("axon_custom")}>
-            <Ionicons name={model === "axon_custom" ? "radio-button-on" : "radio-button-off"} size={22} color={model === "axon_custom" ? "#EA580C" : theme.color.muted} />
+            <Ionicons name={model === "axon_custom" ? "radio-button-on" : "radio-button-off"} size={22} color={model === "axon_custom" ? "#EA580C" : HT.muted} />
             <View style={{ flex: 1 }}>
               <Text style={styles.modelName}>Axon custom · ViolaWake ✅</Text>
               <Text style={styles.modelSub}>Modello TemporalCNN addestrato · 154 samples · Job #253</Text>
@@ -164,7 +165,7 @@ export default function WakeWordSettingsScreen() {
         </View>
 
         <View style={styles.hint}>
-          <Ionicons name="battery-half" size={20} color={theme.color.muted} />
+          <Ionicons name="battery-half" size={20} color={HT.muted} />
           <Text style={styles.hintTxt}>
             Il rilevamento continuo consuma ~3-5% di batteria/ora. Quando non ti serve puoi spegnere l&apos;ascolto da questo switch e usare comunque il pulsante microfono nella chat.
           </Text>
@@ -186,8 +187,8 @@ export default function WakeWordSettingsScreen() {
 function StatusItem({ done, label }: { done?: boolean; label: string }) {
   return (
     <View style={styles.statusRow}>
-      <Ionicons name={done ? "checkmark-circle" : "ellipse-outline"} size={18} color={done ? "#16A34A" : theme.color.muted} />
-      <Text style={[styles.statusLabel, done && { color: theme.color.onSurface, fontWeight: "700" }]}>{label}</Text>
+      <Ionicons name={done ? "checkmark-circle" : "ellipse-outline"} size={18} color={done ? "#16A34A" : HT.muted} />
+      <Text style={[styles.statusLabel, done && { color: HT.text, fontWeight: "700" }]}>{label}</Text>
     </View>
   );
 }
@@ -197,11 +198,11 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: 12, paddingVertical: 10,
-    backgroundColor: "#0F2438",
+    backgroundColor: '#0F2438',
   },
   headerTitle: { color: "#FFF", fontSize: 16, fontWeight: "900" },
   hero: {
-    backgroundColor: "#1C4869",
+    backgroundColor: '#1C4869',
     borderRadius: 16,
     padding: 20,
     alignItems: "center",
@@ -215,29 +216,29 @@ const styles = StyleSheet.create({
   },
   heroTitle: { color: "#FFF", fontSize: 17, fontWeight: "900", textAlign: "center" },
   heroSub: { color: "rgba(255,255,255,0.85)", fontSize: 13, lineHeight: 19, textAlign: "center" },
-  card: { backgroundColor: "#FFF", borderRadius: 14, padding: 14, gap: 12, borderWidth: 1, borderColor: theme.color.border },
-  cardTitle: { fontSize: 14, fontWeight: "900", color: theme.color.onSurface, letterSpacing: 0.3 },
+  card: { backgroundColor: HT.card, borderRadius: 14, padding: 14, gap: 12, borderWidth: 1, borderColor: HT.border },
+  cardTitle: { fontSize: 14, fontWeight: "900", color: HT.text, letterSpacing: 0.3 },
   row: { flexDirection: "row", alignItems: "center", gap: 12 },
-  rowTitle: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface },
-  rowSub: { fontSize: 12, color: theme.color.muted, lineHeight: 16 },
-  modelRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: theme.color.border, backgroundColor: theme.color.background },
-  modelActive: { borderColor: "#EA580C", backgroundColor: "#FFF7ED" },
-  badgeReady: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: "#16A34A" },
+  rowTitle: { fontSize: 14, fontWeight: "800", color: HT.text },
+  rowSub: { fontSize: 12, color: HT.muted, lineHeight: 16 },
+  modelRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: HT.border, backgroundColor: theme.color.background },
+  modelActive: { borderColor: '#EA580C', backgroundColor: HT.brandTint },
+  badgeReady: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: '#16A34A' },
   badgeReadyTxt: { color: "#FFF", fontSize: 10, fontWeight: "900", letterSpacing: 0.8 },
   testBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
     marginTop: 4, paddingVertical: 12, borderRadius: 999,
-    backgroundColor: "#EA580C",
+    backgroundColor: '#EA580C',
     shadowColor: "#EA580C", shadowOpacity: 0.35, shadowRadius: 8, shadowOffset: { width: 0, height: 3 },
     elevation: 4,
   },
   testBtnTxt: { color: "#FFF", fontWeight: "900", fontSize: 13.5, letterSpacing: 0.3 },
-  modelName: { fontSize: 13.5, fontWeight: "800", color: theme.color.onSurface },
-  modelSub: { fontSize: 11.5, color: theme.color.muted, marginTop: 2 },
-  statusCard: { backgroundColor: "#F1F5F9", borderRadius: 14, padding: 14, gap: 8, borderWidth: 1, borderColor: "#E2E8F0" },
-  statusTitle: { fontSize: 13, fontWeight: "900", color: theme.color.onSurface, letterSpacing: 0.3, marginBottom: 4 },
+  modelName: { fontSize: 13.5, fontWeight: "800", color: HT.text },
+  modelSub: { fontSize: 11.5, color: HT.muted, marginTop: 2 },
+  statusCard: { backgroundColor: HT.card2, borderRadius: 14, padding: 14, gap: 8, borderWidth: 1, borderColor: HT.border },
+  statusTitle: { fontSize: 13, fontWeight: "900", color: HT.text, letterSpacing: 0.3, marginBottom: 4 },
   statusRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  statusLabel: { fontSize: 12, color: theme.color.muted, flex: 1, lineHeight: 17 },
-  hint: { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 12, borderRadius: 12, backgroundColor: "#FEF3C7", borderWidth: 1, borderColor: "#FDE68A" },
-  hintTxt: { flex: 1, fontSize: 12, color: "#78350F", lineHeight: 17 },
+  statusLabel: { fontSize: 12, color: HT.muted, flex: 1, lineHeight: 17 },
+  hint: { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 12, borderRadius: 12, backgroundColor: HT.warningTint, borderWidth: 1, borderColor: HT.warning + '66' },
+  hintTxt: { flex: 1, fontSize: 12, color: "#FDBA74", lineHeight: 17 },
 });

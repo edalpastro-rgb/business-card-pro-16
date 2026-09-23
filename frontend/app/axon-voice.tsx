@@ -6,10 +6,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { playAudioBase64 } from "@/src/utils/audioPlayback";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 export const AXON_VOICES: { key: string; label: string; desc: string; gender: "F" | "M" | "N" }[] = [
   { key: "nova", label: "Nova", desc: "Femminile, chiara e brillante", gender: "F" },
@@ -71,9 +71,9 @@ export default function AxonVoiceScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.surface }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: HT.card2 }}>
       <View style={s.header}>
-        <Pressable onPress={() => router.back()} hitSlop={10} style={s.hBtn} testID="axon-voice-back"><Ionicons name="chevron-back" size={24} color={theme.color.onSurface} /></Pressable>
+        <Pressable onPress={() => router.back()} hitSlop={10} style={s.hBtn} testID="axon-voice-back"><Ionicons name="chevron-back" size={24} color={HT.text} /></Pressable>
         <View style={{ flex: 1 }}><Text style={s.title}>Voce e lingua di Axon</Text><Text style={s.sub}>Scegli come Axon ti parla e in che lingua risponde</Text></View>
       </View>
       {loading ? <ActivityIndicator color="#7C3AED" style={{ marginTop: 40 }} /> : (
@@ -88,7 +88,7 @@ export default function AxonVoiceScreen() {
                   <View style={[s.avatar, { backgroundColor: v.gender === "F" ? "#FCE7F3" : v.gender === "M" ? "#DBEAFE" : "#EDE9FE" }]}><Ionicons name={v.gender === "F" ? "woman" : v.gender === "M" ? "man" : "person"} size={18} color={v.gender === "F" ? "#DB2777" : v.gender === "M" ? "#2563EB" : "#7C3AED"} /></View>
                   <View style={{ flex: 1 }}><Text style={s.rowTitle}>{v.label}</Text><Text style={s.rowMeta}>{v.desc}</Text></View>
                   {previewing === v.key ? <ActivityIndicator color="#7C3AED" /> : <Pressable onPress={() => preview(v.key, lang)} hitSlop={8} style={s.play} testID={`axon-voice-play-${v.key}`}><Ionicons name="play" size={16} color="#7C3AED" /></Pressable>}
-                  <Ionicons name={on ? "radio-button-on" : "radio-button-off"} size={20} color={on ? "#7C3AED" : theme.color.muted} />
+                  <Ionicons name={on ? "radio-button-on" : "radio-button-off"} size={20} color={on ? "#7C3AED" : HT.muted} />
                 </Pressable>
               );
             })}
@@ -131,17 +131,17 @@ export default function AxonVoiceScreen() {
 }
 
 const s = StyleSheet.create({
-  header: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderBottomWidth: 1, borderBottomColor: theme.color.border },
+  header: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderBottomWidth: 1, borderBottomColor: HT.border },
   hBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 18, fontWeight: "900", color: theme.color.onSurface }, sub: { fontSize: 12, color: theme.color.muted },
-  section: { fontSize: 15, fontWeight: "900", color: theme.color.onSurface }, hint: { fontSize: 12, color: theme.color.muted, lineHeight: 17, marginTop: -8 },
-  row: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 14, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, minHeight: 60 },
-  rowOn: { borderColor: "#7C3AED", backgroundColor: "#FAF5FF" },
+  title: { fontSize: 18, fontWeight: "900", color: HT.text }, sub: { fontSize: 12, color: HT.muted },
+  section: { fontSize: 15, fontWeight: "900", color: HT.text }, hint: { fontSize: 12, color: HT.muted, lineHeight: 17, marginTop: -8 },
+  row: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 14, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, minHeight: 60 },
+  rowOn: { borderColor: '#7C3AED', backgroundColor: '#FAF5FF' },
   avatar: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
-  rowTitle: { fontSize: 15, fontWeight: "800", color: theme.color.onSurface }, rowMeta: { fontSize: 12, color: theme.color.muted },
-  play: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#F3E8FF", alignItems: "center", justifyContent: "center" },
-  chip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, minHeight: 42, borderRadius: 21, borderWidth: 1, borderColor: theme.color.border, backgroundColor: "#FFF" },
-  chipOn: { backgroundColor: "#7C3AED", borderColor: "#7C3AED" }, chipTxt: { fontSize: 13, fontWeight: "800", color: theme.color.onSurface },
-  testBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 48, borderRadius: 14, backgroundColor: "#7C3AED" }, testBtnTxt: { color: "#FFF", fontWeight: "900", fontSize: 14 },
-  note: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#ECFDF5", borderRadius: 12, padding: 12 }, noteTxt: { flex: 1, fontSize: 12, color: "#065F46", lineHeight: 17 },
+  rowTitle: { fontSize: 15, fontWeight: "800", color: HT.text }, rowMeta: { fontSize: 12, color: HT.muted },
+  play: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F3E8FF', alignItems: "center", justifyContent: "center" },
+  chip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, minHeight: 42, borderRadius: 21, borderWidth: 1, borderColor: HT.border, backgroundColor: HT.card },
+  chipOn: { backgroundColor: '#7C3AED', borderColor: '#7C3AED' }, chipTxt: { fontSize: 13, fontWeight: "800", color: HT.text },
+  testBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 48, borderRadius: 14, backgroundColor: '#7C3AED' }, testBtnTxt: { color: "#FFF", fontWeight: "900", fontSize: 14 },
+  note: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: HT.successTint, borderRadius: 12, padding: 12 }, noteTxt: { flex: 1, fontSize: 12, color: HT.success, lineHeight: 17 },
 });

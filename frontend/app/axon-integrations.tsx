@@ -10,6 +10,7 @@ import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
 import { buildOAuthReturn } from "@/src/utils/oauthReturn";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 try { WebBrowser.maybeCompleteAuthSession(); } catch { /* noop */ }
 
@@ -134,7 +135,7 @@ export default function AxonIntegrationsScreen() {
       </View>
       <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: insets.bottom + 120, gap: 14 }} refreshControl={<RefreshControl refreshing={!st} onRefresh={load} />}>
         <View style={styles.trust}>
-          <Ionicons name="shield-checkmark" size={20} color="#065F46" />
+          <Ionicons name="shield-checkmark" size={20} color={HT.success} />
           <Text style={styles.trustTxt}>Due sfere separate: 🔵 Business e 🟢 Home. I dati non si mescolano mai e Axon indica sempre in quale sfera sta operando. Tutto è referenziato, non duplicato, e revocabile con un tap.</Text>
         </View>
         {!st ? <ActivityIndicator color="#7C3AED" style={{ marginTop: 30 }} /> : (<>{renderSphere("business")}{renderSphere("home")}</>)}
@@ -144,27 +145,27 @@ export default function AxonIntegrationsScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F4F5FA" },
-  header: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "#7C3AED" },
+  root: { flex: 1, backgroundColor: '#F4F5FA' },
+  header: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: '#7C3AED' },
   title: { color: "#FFF", fontWeight: "800", fontSize: 17 },
   sub: { color: "#EDE9FE", fontSize: 12 },
-  trust: { flexDirection: "row", gap: 10, backgroundColor: "#ECFDF5", borderRadius: 14, padding: 12, borderWidth: 1, borderColor: "#A7F3D0" },
-  trustTxt: { flex: 1, fontSize: 12.5, color: "#065F46", lineHeight: 18 },
+  trust: { flexDirection: "row", gap: 10, backgroundColor: HT.successTint, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: '#A7F3D0' },
+  trustTxt: { flex: 1, fontSize: 12.5, color: HT.success, lineHeight: 18 },
   sphere: { borderRadius: 18, borderWidth: 1.5, padding: 12, gap: 10 },
   sphereHead: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 2 },
   dot: { width: 12, height: 12, borderRadius: 6 },
   sphereTitle: { fontSize: 16, fontWeight: "900" },
-  sphereSub: { flex: 1, fontSize: 11.5, color: "#64748B", textAlign: "right" },
-  card: { backgroundColor: "#FFF", borderRadius: 14, borderWidth: 1, borderColor: "#EEF0F6", padding: 12, gap: 10 },
+  sphereSub: { flex: 1, fontSize: 11.5, color: HT.muted, textAlign: "right" },
+  card: { backgroundColor: HT.card, borderRadius: 14, borderWidth: 1, borderColor: '#EEF0F6', padding: 12, gap: 10 },
   row: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
   icon: { width: 36, height: 36, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  label: { fontSize: 14.5, fontWeight: "800", color: "#1B2B4B" },
-  desc: { fontSize: 12, color: "#64748B", marginTop: 2, lineHeight: 16 },
-  meta: { fontSize: 11.5, fontWeight: "700", marginTop: 4, color: "#94A3B8" },
-  hint: { fontSize: 11.5, color: "#94A3B8", fontStyle: "italic" },
+  label: { fontSize: 14.5, fontWeight: "800", color: HT.text },
+  desc: { fontSize: 12, color: HT.muted, marginTop: 2, lineHeight: 16 },
+  meta: { fontSize: 11.5, fontWeight: "700", marginTop: 4, color: HT.muted },
+  hint: { fontSize: 11.5, color: HT.muted, fontStyle: "italic" },
   actions: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
   btn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 12, minHeight: 44, paddingHorizontal: 12, minWidth: 130 },
-  ghost: { backgroundColor: "#FFF", borderWidth: 1 },
-  danger: { backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FECACA" },
+  ghost: { backgroundColor: HT.card, borderWidth: 1 },
+  danger: { backgroundColor: HT.dangerTint, borderWidth: 1, borderColor: HT.danger + '66' },
   btnTxt: { fontWeight: "800", fontSize: 13 },
 });

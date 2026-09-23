@@ -2,12 +2,12 @@ import React, { useEffect, useState } from "react";
 import { View, Text, Modal, Pressable, StyleSheet, ActivityIndicator, Platform, TextInput } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { Ionicons } from "@expo/vector-icons";
-import { theme } from "@/src/theme";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
 import { shareDataUri } from "@/src/share";
 
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 export type ShareTarget = {
   // The file to share
   id: string;
@@ -187,7 +187,7 @@ export function ShareSheet({ visible, target, onClose, suggestedMessage }: Props
               <Text style={styles.subtitle} numberOfLines={1}>{target.name}</Text>
             </View>
             <Pressable onPress={onClose} hitSlop={8} testID="share-sheet-close">
-              <Ionicons name="close" size={22} color={theme.color.onSurface} />
+              <Ionicons name="close" size={22} color={HT.text} />
             </Pressable>
           </View>
 
@@ -236,7 +236,7 @@ export function ShareSheet({ visible, target, onClose, suggestedMessage }: Props
                 <Ionicons name="mail" size={18} color="#DC2626" />
                 <Text style={styles.emailTitle}>Invia via email (con allegato)</Text>
                 <Pressable onPress={() => setEmailMode(false)} hitSlop={6}>
-                  <Ionicons name="close" size={18} color={theme.color.muted} />
+                  <Ionicons name="close" size={18} color={HT.muted} />
                 </Pressable>
               </View>
               <TextInput
@@ -244,7 +244,7 @@ export function ShareSheet({ visible, target, onClose, suggestedMessage }: Props
                 value={emailTo}
                 onChangeText={setEmailTo}
                 placeholder="Destinatario (email)"
-                placeholderTextColor={theme.color.muted}
+                placeholderTextColor={HT.muted}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 style={styles.emailInput}
@@ -254,7 +254,7 @@ export function ShareSheet({ visible, target, onClose, suggestedMessage }: Props
                 value={emailSubject}
                 onChangeText={setEmailSubject}
                 placeholder="Oggetto"
-                placeholderTextColor={theme.color.muted}
+                placeholderTextColor={HT.muted}
                 style={styles.emailInput}
               />
               <TextInput
@@ -262,7 +262,7 @@ export function ShareSheet({ visible, target, onClose, suggestedMessage }: Props
                 value={emailMessage}
                 onChangeText={setEmailMessage}
                 placeholder="Messaggio (opzionale)"
-                placeholderTextColor={theme.color.muted}
+                placeholderTextColor={HT.muted}
                 multiline
                 numberOfLines={3}
                 style={[styles.emailInput, { minHeight: 60, textAlignVertical: "top" }]}
@@ -287,13 +287,13 @@ export function ShareSheet({ visible, target, onClose, suggestedMessage }: Props
 
           {loadingLink && (
             <View style={styles.linkStatus}>
-              <ActivityIndicator size="small" color={theme.color.muted} />
+              <ActivityIndicator size="small" color={HT.muted} />
               <Text style={styles.linkStatusTxt}>Genero link condivisibile…</Text>
             </View>
           )}
           {shareUrl && !loadingLink && (
             <View style={styles.linkBox}>
-              <Ionicons name="link" size={14} color={theme.color.muted} />
+              <Ionicons name="link" size={14} color={HT.muted} />
               <Text style={styles.linkTxt} numberOfLines={1}>{shareUrl}</Text>
               <Text style={styles.linkExp}>24h</Text>
             </View>
@@ -324,24 +324,24 @@ function ChannelBtn({ testID, icon, color, label, busy, onPress, disabled }: {
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: "#FFF", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 18, paddingBottom: 24, gap: 14 },
+  sheet: { backgroundColor: HT.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 18, paddingBottom: 24, gap: 14 },
   head: { flexDirection: "row", alignItems: "center", gap: 12 },
-  title: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface },
-  subtitle: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
+  title: { fontSize: 16, fontWeight: "800", color: HT.text },
+  subtitle: { fontSize: 12, color: HT.muted, marginTop: 2 },
   row: { flexDirection: "row", justifyContent: "space-around", paddingVertical: 8 },
   chBtn: { alignItems: "center", gap: 8, minWidth: 68 },
   chIcon: { width: 52, height: 52, borderRadius: 26, justifyContent: "center", alignItems: "center" },
-  chLbl: { fontSize: 12, color: theme.color.onSurface, fontWeight: "600" },
+  chLbl: { fontSize: 12, color: HT.text, fontWeight: "600" },
   linkStatus: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, justifyContent: "center" },
-  linkStatusTxt: { fontSize: 12, color: theme.color.muted },
-  linkBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F1F5F9", padding: 10, borderRadius: 10 },
-  linkTxt: { flex: 1, fontSize: 11, color: theme.color.onSurface, fontFamily: Platform.select({ ios: "Courier", android: "monospace" }) },
-  linkExp: { fontSize: 10, color: theme.color.muted, fontWeight: "700" },
+  linkStatusTxt: { fontSize: 12, color: HT.muted },
+  linkBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: HT.card2, padding: 10, borderRadius: 10 },
+  linkTxt: { flex: 1, fontSize: 11, color: HT.text, fontFamily: Platform.select({ ios: "Courier", android: "monospace" }) },
+  linkExp: { fontSize: 10, color: HT.muted, fontWeight: "700" },
   // V38I — email composer
-  emailBox: { backgroundColor: "#FFF7F5", padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "#FECACA", gap: 8 },
+  emailBox: { backgroundColor: '#FFF7F5', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: HT.danger + '66', gap: 8 },
   emailHeader: { flexDirection: "row", alignItems: "center", gap: 6 },
-  emailTitle: { flex: 1, fontSize: 13, fontWeight: "700", color: theme.color.onSurface },
-  emailInput: { backgroundColor: "#FFF", borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, color: theme.color.onSurface },
-  emailBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: "#DC2626", paddingVertical: 10, borderRadius: 8 },
+  emailTitle: { flex: 1, fontSize: 13, fontWeight: "700", color: HT.text },
+  emailInput: { backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, color: HT.text },
+  emailBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: '#DC2626', paddingVertical: 10, borderRadius: 8 },
   emailBtnTxt: { color: "#FFF", fontSize: 13, fontWeight: "700" },
 });

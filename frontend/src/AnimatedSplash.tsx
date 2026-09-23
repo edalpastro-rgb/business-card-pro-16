@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Animated, Easing, StyleSheet, View, Image } from "react-native";
 import { ADVISOROS_LOGO_URI, AXONOS_LOGO_LIGHT } from "@/src/BrandLogos";
 import { TuttunizzatoreTagline } from "@/src/Tuttunizzatore"; // V50.z191 — tagline «Il tuo "Tuttunizzatore"»
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 /**
  * V29.w — AnimatedSplash.
@@ -20,7 +21,7 @@ import { TuttunizzatoreTagline } from "@/src/Tuttunizzatore"; // V50.z191 — ta
 // module-level ref: garantisce che l'animazione parta SOLO una volta per sessione
 const _splashPlayedRef = { current: false };
 
-const NAVY = "#0F2438";
+const NAVY = HT.text;
 const ORANGE = "#FF6B35";
 const CREAM = "#FFF7F1";
 
@@ -260,14 +261,14 @@ const styles = StyleSheet.create({
   orbitDotRight: {
     bottom: -DOT_SIZE / 2,
     left: RING_SIZE / 2 - DOT_SIZE / 2,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: HT.card,
     shadowColor: "#FFFFFF",
   },
   logoWrap: {
     width: 108,
     height: 108,
     borderRadius: 26,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: HT.card,
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
@@ -303,7 +304,7 @@ const styles = StyleSheet.create({
     height: 41,
     backgroundColor: "transparent",
   },
-  axonosLogoBox: { backgroundColor: "#E6EBEE", borderRadius: 12, overflow: "hidden" }, // V50.z228 — il nuovo logo (sfondo chiaro) È la card: angoli arrotondati, nessun padding
+  axonosLogoBox: { backgroundColor: '#E6EBEE', borderRadius: 12, overflow: "hidden" }, // V50.z228 — il nuovo logo (sfondo chiaro) È la card: angoli arrotondati, nessun padding
 });
 
 export default AnimatedSplash;

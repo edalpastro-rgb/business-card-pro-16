@@ -10,13 +10,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
-import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 type QuickAction = { id: string; label: string; prompt: string };
 
-const C = { primary: "#8B5CF6", primarySoft: "#F1EEFF", navy: "#1B2B4B", muted: "#94A3B8" };
+const C = { primary: "#8B5CF6", primarySoft: "#F1EEFF", navy: HT.text, muted: HT.muted };
 
 // Preset suggeriti che il Master può aggiungere con un tap.
 const PRESETS: { label: string; prompt: string }[] = [
@@ -217,7 +217,7 @@ export default function QuickActionsScreen() {
                 value={edit?.label || ""}
                 onChangeText={(t) => setEdit((e) => ({ ...(e || {}), label: t }))}
                 placeholder="Es. Ritelefonate urgenti"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={HT.muted}
                 maxLength={80}
                 style={styles.input}
               />
@@ -229,7 +229,7 @@ export default function QuickActionsScreen() {
                 value={edit?.prompt || ""}
                 onChangeText={(t) => setEdit((e) => ({ ...(e || {}), prompt: t }))}
                 placeholder="Es. Quali sono le ritelefonate urgenti da fare oggi?"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={HT.muted}
                 multiline
                 maxLength={2000}
                 style={[styles.input, { minHeight: 100, textAlignVertical: "top" }]}
@@ -248,7 +248,7 @@ export default function QuickActionsScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
+  root: { flex: 1, backgroundColor: HT.card2 },
   header: { flexDirection: "row", alignItems: "center", gap: 10, padding: 16, paddingBottom: 6 },
   title: { fontSize: 18, fontWeight: "800", color: C.navy, letterSpacing: -0.3 },
   sub: { fontSize: 11, color: C.muted, marginTop: 2, fontWeight: "600" },
@@ -271,7 +271,7 @@ const styles = StyleSheet.create({
   sectionLbl: { fontSize: 11, fontWeight: "800", color: C.muted, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 4 },
   addBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.primary, paddingVertical: 13, borderRadius: 14 },
   addBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
-  card: { backgroundColor: "#FFF", borderRadius: 14, padding: 12, gap: 6, borderWidth: 1, borderColor: theme.color.border },
+  card: { backgroundColor: HT.card, borderRadius: 14, padding: 12, gap: 6, borderWidth: 1, borderColor: HT.border },
   // V29.bc — Stile Optima
   iconChip: {
     width: 28,
@@ -290,21 +290,21 @@ const styles = StyleSheet.create({
   },
   cardTitle: { flex: 1, fontSize: 14, fontWeight: "800", color: C.navy },
   cardPromptLabel: { fontSize: 10, fontWeight: "800", color: C.muted, textTransform: "uppercase", letterSpacing: 0.4, marginTop: 2 },
-  cardPrompt: { fontSize: 13, color: theme.color.onSurface, lineHeight: 18, fontStyle: "italic" },
+  cardPrompt: { fontSize: 13, color: HT.text, lineHeight: 18, fontStyle: "italic" },
   metaTxt: { fontSize: 11, color: C.muted, fontWeight: "600" },
-  empty: { padding: 24, alignItems: "center", gap: 8, backgroundColor: "#FFF", borderRadius: 14, borderWidth: 1, borderColor: theme.color.border, borderStyle: "dashed" },
+  empty: { padding: 24, alignItems: "center", gap: 8, backgroundColor: HT.card, borderRadius: 14, borderWidth: 1, borderColor: HT.border, borderStyle: "dashed" },
   emptyTxt: { color: C.muted, textAlign: "center", fontSize: 12, fontWeight: "600" },
   linkBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: C.primarySoft, marginTop: 4 },
   linkBtnTxt: { color: C.primary, fontWeight: "800", fontSize: 12 },
   presetGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  presetChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 999, backgroundColor: "#FFF", borderWidth: 1.5, borderColor: C.primary, maxWidth: "100%" },
+  presetChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 999, backgroundColor: HT.card, borderWidth: 1.5, borderColor: C.primary, maxWidth: "100%" },
   presetTxt: { fontSize: 12, fontWeight: "700", color: C.primary, flexShrink: 1 },
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: "#FFF", borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 16, paddingBottom: 30, maxHeight: "92%" },
+  sheet: { backgroundColor: HT.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 16, paddingBottom: 30, maxHeight: "92%" },
   sheetHdr: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
   sheetTitle: { fontSize: 17, fontWeight: "800", color: C.navy },
   lbl: { fontSize: 11, fontWeight: "800", color: C.muted, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 12, marginBottom: 4 },
-  input: { backgroundColor: "#F1F5F9", borderRadius: 10, padding: 12, fontSize: 14, color: C.navy, marginBottom: 4 },
+  input: { backgroundColor: HT.card2, borderRadius: 10, padding: 12, fontSize: 14, color: C.navy, marginBottom: 4 },
   helper: { fontSize: 11, color: C.muted, fontStyle: "italic", marginBottom: 4 },
   saveBtn: { padding: 14, borderRadius: 14, marginTop: 14, alignItems: "center" },
   saveBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },

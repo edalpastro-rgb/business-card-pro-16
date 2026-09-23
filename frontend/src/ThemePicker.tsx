@@ -41,6 +41,10 @@ export function useThemeSync(userId?: string | null) {
 export function ThemePicker() {
   const { user } = useAuth();
   const [busy, setBusy] = useState<ThemeId | null>(null);
+  // V50.z340 — Anteprima live: il tap sulla card mostra subito una mini-Home nella palette scelta; «Applica» salva e ricarica
+  const [selected, setSelected] = useState<ThemeId>(ACTIVE_THEME_ID);
+  const sel = PALETTES[selected];
+  const dirty = selected !== ACTIVE_THEME_ID;
 
   const choose = async (id: ThemeId) => {
     if (id === ACTIVE_THEME_ID || busy) return;
@@ -69,8 +73,8 @@ export function ThemePicker() {
           const p = PALETTES[id];
           const active = id === ACTIVE_THEME_ID;
           return (
-            <Pressable key={id} onPress={() => choose(id)} style={styles.item} testID={`theme-option-${id}`} accessibilityLabel={`Tema ${p.name}`} accessibilityState={{ selected: active }}>
-              <View style={[styles.preview, { backgroundColor: p.bg, borderColor: active ? HT.brand : HT.borderStrong, borderWidth: active ? 2 : 1 }]}>
+            <Pressable key={id} onPress={() => setSelected(id)} style={styles.item} testID={`theme-option-${id}`} accessibilityLabel={`Tema ${p.name}`} accessibilityState={{ selected: active }}>
+              <View style={[styles.preview, { backgroundColor: p.bg, borderColor: active ? HT.brand : selected === id ? p.accent : HT.borderStrong, borderWidth: active || selected === id ? 2 : 1 }]}>
                 <View style={[styles.pvBar, { backgroundColor: p.card, borderBottomColor: p.border }, p.shadow && styles.pvShadow]}>
                   <View style={[styles.pvDot, { backgroundColor: p.accent }]} />
                   <View style={[styles.pvLine, { backgroundColor: p.text2, width: 18 }]} />
@@ -99,6 +103,45 @@ export function ThemePicker() {
           );
         })}
       </View>
+
+      {/* Anteprima live nella palette selezionata */}
+      <View style={[styles.live, { backgroundColor: sel.bg, borderColor: sel.border }]} testID={`theme-live-preview-${selected}`}>
+        <View style={[styles.liveBar, { backgroundColor: sel.card, borderBottomColor: sel.border }]}>
+          <View style={[styles.liveIcon, { backgroundColor: sel.glassStrong }]} />
+          <Text style={[styles.liveBrand, { color: sel.text }]}>Advisor<Text style={{ color: sel.accent }}>OS</Text></Text>
+          <View style={{ flex: 1 }} />
+          <Text style={[styles.liveClock, { color: sel.text2 }]}>14:32</Text>
+          <View style={[styles.liveAvatar, { backgroundColor: sel.accent }]} />
+        </View>
+        <View style={styles.liveRow}>
+          {[["12", "Contatti"], ["3", "Oggi"]].map(([v, l]) => (
+            <View key={l} style={[styles.liveKpi, { backgroundColor: sel.card, borderColor: sel.border, borderRadius: sel.radius - 4 }, sel.shadow && styles.pvShadow]}>
+              <Text style={[styles.liveKpiVal, { color: sel.text }]}>{v}</Text>
+              <Text style={[styles.liveKpiLbl, { color: sel.muted }]}>{l}</Text>
+            </View>
+          ))}
+        </View>
+        <View style={[styles.liveCard, { backgroundColor: sel.card, borderColor: sel.border, borderRadius: sel.radius - 4 }, sel.shadow && styles.pvShadow]}>
+          <Text style={[styles.liveCardTitle, { color: sel.text }]}>Ritelefonate di oggi</Text>
+          <View style={[styles.liveTrack, { backgroundColor: sel.glassStrong }]}><View style={[styles.liveFill, { backgroundColor: sel.accent }]} /></View>
+          <View style={{ flexDirection: "row", gap: 6 }}>
+            <View style={[styles.liveBtn, { backgroundColor: sel.accent }]}><Text style={styles.liveBtnTxt}>+ Telefonata</Text></View>
+            <View style={[styles.liveBtn, { borderWidth: 1, borderColor: sel.borderStrong }]}><Text style={[styles.liveBtnTxt, { color: sel.text2 }]}>Dettagli</Text></View>
+          </View>
+        </View>
+        <View style={[styles.liveNav, { backgroundColor: sel.nav, borderTopColor: sel.border }]}>
+          {[0, 1, 2, 3, 4].map((i) => <View key={i} style={[styles.liveNavDot, { backgroundColor: i === 0 ? sel.navActive : sel.navInactive }]} />)}
+        </View>
+      </View>
+
+      {dirty ? (
+        <Pressable onPress={() => choose(selected)} disabled={!!busy} style={[styles.applyBtn, { backgroundColor: sel.accent }, busy && { opacity: 0.6 }]} testID="theme-apply">
+          {busy ? <ActivityIndicator color="#FFF" /> : <Ionicons name="checkmark-circle" size={18} color="#FFF" />}
+          <Text style={styles.applyTxt}>Applica tema {sel.name}</Text>
+        </Pressable>
+      ) : (
+        <Text style={styles.applyHint}>Tocca una card per vedere l'anteprima, poi «Applica».</Text>
+      )}
     </View>
   );
 }
@@ -122,4 +165,26 @@ const styles = StyleSheet.create({
   busy: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.25)" },
   check: { position: "absolute", top: 6, right: 6, width: 20, height: 20, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   name: { fontSize: 11.5, fontWeight: "800", color: HT.text2 },
+  // anteprima live
+  live: { borderRadius: 14, borderWidth: 1, overflow: "hidden", padding: 10, gap: 8 },
+  liveBar: { flexDirection: "row", alignItems: "center", gap: 6, padding: 8, borderRadius: 10, borderBottomWidth: 1 },
+  liveIcon: { width: 16, height: 16, borderRadius: 5 },
+  liveBrand: { fontSize: 12, fontWeight: "900", letterSpacing: -0.3 },
+  liveClock: { fontSize: 10, fontWeight: "700" },
+  liveAvatar: { width: 16, height: 16, borderRadius: 8 },
+  liveRow: { flexDirection: "row", gap: 8 },
+  liveKpi: { flex: 1, borderWidth: 1, padding: 10 },
+  liveKpiVal: { fontSize: 18, fontWeight: "900", letterSpacing: -0.5 },
+  liveKpiLbl: { fontSize: 10, fontWeight: "700", marginTop: 1 },
+  liveCard: { borderWidth: 1, padding: 10, gap: 8 },
+  liveCardTitle: { fontSize: 12, fontWeight: "800" },
+  liveTrack: { height: 6, borderRadius: 3, overflow: "hidden" },
+  liveFill: { width: "62%", height: 6, borderRadius: 3 },
+  liveBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 },
+  liveBtnTxt: { fontSize: 10.5, fontWeight: "800", color: "#FFF" },
+  liveNav: { flexDirection: "row", justifyContent: "space-around", alignItems: "center", height: 26, borderTopWidth: 1, borderRadius: 8 },
+  liveNavDot: { width: 10, height: 10, borderRadius: 5 },
+  applyBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 12, borderRadius: 12, minHeight: 46 },
+  applyTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
+  applyHint: { fontSize: 11.5, color: HT.muted, textAlign: "center" },
 });

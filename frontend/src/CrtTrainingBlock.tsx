@@ -5,11 +5,11 @@ import React, { useEffect, useState } from "react";
 import { View, Text, Pressable, TextInput, ActivityIndicator, Switch } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 import { notify, confirmAsync } from "@/src/utils/notify";
 import { CrtFilePick, PickedFile } from "@/src/CrtFilePick";
 import { CrtSignDate } from "@/src/CrtSignDate";
 import { crtStyles as s } from "@/app/crt/index";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Tpl = { template_id: string; name: string; created_at?: string; is_filled_example?: boolean; pages?: number };
 type Extract = { presets: { key: string; label: string }[]; fields: string[]; custom_fields: string[]; sign_place_date_everywhere: boolean; notes: string };
@@ -44,25 +44,25 @@ export function CrtTrainingBlock({ isMaster, signDate, signDateEffective, signPl
     <View style={s.card} testID="crt-block-training">
       <Text style={s.section}>BLOCCO 1 · Modelli di addestramento</Text>
       <View style={{ flexDirection: "row", gap: 10 }}>
-        <View style={{ flex: 1, gap: 6, padding: 10, borderRadius: 14, borderWidth: 1, borderColor: theme.color.border, backgroundColor: theme.color.surface }} testID="crt-train-example">
+        <View style={{ flex: 1, gap: 6, padding: 10, borderRadius: 14, borderWidth: 1, borderColor: HT.border, backgroundColor: HT.card2 }} testID="crt-train-example">
           <Ionicons name="school-outline" size={26} color="#7C3AED" />
-          <Text style={{ fontWeight: "800", color: theme.color.onSurface }}>Carica contratto compilato di esempio</Text>
+          <Text style={{ fontWeight: "800", color: HT.text }}>Carica contratto compilato di esempio</Text>
           <Text style={s.hint}>Axon impara da documenti già compilati come riferimento</Text>
           {isMaster ? (loading === "ex" ? <ActivityIndicator color="#7C3AED" /> : <CrtFilePick compact dropZone dropHint="Trascina qui il contratto compilato oppure" label="Carica" onPicked={(f) => void uploadExample(f)} testID="crt-train-example-pick" />) : <Text style={s.hint}>Solo Master</Text>}
           {example?.example_name ? <Text style={s.hint} numberOfLines={1}>📎 {example.example_name}</Text> : null}
         </View>
-        <View style={{ flex: 1, gap: 6, padding: 10, borderRadius: 14, borderWidth: 1, borderColor: theme.color.border, backgroundColor: theme.color.surface }} testID="crt-train-blank">
-          <Ionicons name="document-outline" size={26} color={theme.color.brandPrimary} />
-          <Text style={{ fontWeight: "800", color: theme.color.onSurface }}>Carica modulo vuoto da compilare</Text>
+        <View style={{ flex: 1, gap: 6, padding: 10, borderRadius: 14, borderWidth: 1, borderColor: HT.border, backgroundColor: HT.card2 }} testID="crt-train-blank">
+          <Ionicons name="document-outline" size={26} color={HT.brand} />
+          <Text style={{ fontWeight: "800", color: HT.text }}>Carica modulo vuoto da compilare</Text>
           <Text style={s.hint}>Il template che Axon riempirà con i dati del cliente</Text>
-          {loading === "tpl" ? <ActivityIndicator color={theme.color.brandPrimary} /> : <CrtFilePick compact dropZone dropHint="Trascina qui il modulo vuoto oppure" label="Carica" onPicked={(f) => void uploadBlank(f)} testID="crt-train-blank-pick" />}
+          {loading === "tpl" ? <ActivityIndicator color={HT.brand} /> : <CrtFilePick compact dropZone dropHint="Trascina qui il modulo vuoto oppure" label="Carica" onPicked={(f) => void uploadBlank(f)} testID="crt-train-blank-pick" />}
         </View>
       </View>
       {blanks.length ? blanks.map((t) => (
         <View key={t.template_id} style={[s.selRow, { alignItems: "center" }]} testID={`crt-tpl-${t.template_id}`}>
-          <Ionicons name="document-text-outline" size={18} color={theme.color.brandPrimary} />
-          <View style={{ flex: 1 }}><Text style={{ color: theme.color.onSurface, fontWeight: "700" }} numberOfLines={1}>{t.name}</Text><Text style={s.hint}>Caricato il {fmtDate(t.created_at)}{t.pages ? ` · ${t.pages} pagine` : ""}</Text></View>
-          <Pressable onPress={() => void delTpl(t)} hitSlop={8} style={{ width: 40, height: 40, alignItems: "center", justifyContent: "center" }} testID={`crt-tpl-del-${t.template_id}`}><Ionicons name="trash-outline" size={18} color={theme.color.error} /></Pressable>
+          <Ionicons name="document-text-outline" size={18} color={HT.brand} />
+          <View style={{ flex: 1 }}><Text style={{ color: HT.text, fontWeight: "700" }} numberOfLines={1}>{t.name}</Text><Text style={s.hint}>Caricato il {fmtDate(t.created_at)}{t.pages ? ` · ${t.pages} pagine` : ""}</Text></View>
+          <Pressable onPress={() => void delTpl(t)} hitSlop={8} style={{ width: 40, height: 40, alignItems: "center", justifyContent: "center" }} testID={`crt-tpl-del-${t.template_id}`}><Ionicons name="trash-outline" size={18} color={HT.danger} /></Pressable>
         </View>
       )) : <Text style={s.hint}>Nessun modulo vuoto caricato.</Text>}
 
@@ -71,34 +71,34 @@ export function CrtTrainingBlock({ isMaster, signDate, signDateEffective, signPl
         <>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
             {ex.presets.map((p) => { const on = ex.fields.includes(p.key); return (
-              <Pressable key={p.key} onPress={() => isMaster && toggleField(p.key)} style={[s.chip, on && { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary }]} testID={`crt-extract-${p.key}`}>
-                <Ionicons name={on ? "checkbox" : "square-outline"} size={14} color={on ? "#FFF" : theme.color.brandPrimary} /><Text style={[s.chipTxt, on && { color: "#FFF" }]}>{p.label}</Text>
+              <Pressable key={p.key} onPress={() => isMaster && toggleField(p.key)} style={[s.chip, on && { backgroundColor: HT.brand, borderColor: HT.brand }]} testID={`crt-extract-${p.key}`}>
+                <Ionicons name={on ? "checkbox" : "square-outline"} size={14} color={on ? "#FFF" : HT.brand} /><Text style={[s.chipTxt, on && { color: "#FFF" }]}>{p.label}</Text>
               </Pressable>
             ); })}
-            {ex.custom_fields.map((c) => <Pressable key={c} onPress={() => isMaster && saveEx({ custom_fields: ex.custom_fields.filter((x) => x !== c) })} style={[s.chip, { backgroundColor: "#EDE9FE" }]}><Text style={s.chipTxt}>{c} ✕</Text></Pressable>)}
+            {ex.custom_fields.map((c) => <Pressable key={c} onPress={() => isMaster && saveEx({ custom_fields: ex.custom_fields.filter((x) => x !== c) })} style={[s.chip, { backgroundColor: HT.violetTint }]}><Text style={s.chipTxt}>{c} ✕</Text></Pressable>)}
           </View>
           {isMaster ? <View style={{ flexDirection: "row", gap: 6 }}>
-            <TextInput value={custom} onChangeText={setCustom} placeholder="Altro dato da estrarre (es. codice ATECO)" placeholderTextColor={theme.color.muted} style={[s.input, { flex: 1, minHeight: 42 }]} testID="crt-extract-custom" />
-            <Pressable onPress={() => { if (custom.trim()) { saveEx({ custom_fields: [...ex.custom_fields, custom.trim()] }); setCustom(""); } }} style={[s.btn, { backgroundColor: theme.color.brandPrimary, minHeight: 42, paddingHorizontal: 12 }]} testID="crt-extract-custom-add"><Text style={s.btnTxt}>Aggiungi</Text></Pressable>
+            <TextInput value={custom} onChangeText={setCustom} placeholder="Altro dato da estrarre (es. codice ATECO)" placeholderTextColor={HT.muted} style={[s.input, { flex: 1, minHeight: 42 }]} testID="crt-extract-custom" />
+            <Pressable onPress={() => { if (custom.trim()) { saveEx({ custom_fields: [...ex.custom_fields, custom.trim()] }); setCustom(""); } }} style={[s.btn, { backgroundColor: HT.brand, minHeight: 42, paddingHorizontal: 12 }]} testID="crt-extract-custom-add"><Text style={s.btnTxt}>Aggiungi</Text></Pressable>
           </View> : null}
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Text style={[s.hint, { flex: 1, color: theme.color.onSurface }]}>Inserire data e luogo in tutti i campi dove è necessario?</Text>
+            <Text style={[s.hint, { flex: 1, color: HT.text }]}>Inserire data e luogo in tutti i campi dove è necessario?</Text>
             <Switch value={ex.sign_place_date_everywhere} onValueChange={(v) => saveEx({ sign_place_date_everywhere: v })} disabled={!isMaster} testID="crt-extract-signswitch" />
           </View>
           {ex.sign_place_date_everywhere ? (
             <View style={{ gap: 6 }}>
               <Text style={s.label}>Luogo</Text>
               <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
-                <TextInput value={place ?? signPlace} onChangeText={setPlace} placeholder={signPlaceSuggested ? `Proposto: ${signPlaceSuggested}` : "Es. Treviso"} placeholderTextColor={theme.color.muted} style={[s.input, { flex: 1 }]} testID="crt-sign-place" />
-                {place !== null && place !== signPlace ? <Pressable onPress={() => { onSignPlace(place); setPlace(null); }} style={[s.btn, { backgroundColor: theme.color.brandPrimary, minHeight: 44, paddingHorizontal: 12 }]} testID="crt-sign-place-save">{busy ? <ActivityIndicator color="#FFF" /> : <Text style={s.btnTxt}>Salva</Text>}</Pressable> : null}
+                <TextInput value={place ?? signPlace} onChangeText={setPlace} placeholder={signPlaceSuggested ? `Proposto: ${signPlaceSuggested}` : "Es. Treviso"} placeholderTextColor={HT.muted} style={[s.input, { flex: 1 }]} testID="crt-sign-place" />
+                {place !== null && place !== signPlace ? <Pressable onPress={() => { onSignPlace(place); setPlace(null); }} style={[s.btn, { backgroundColor: HT.brand, minHeight: 44, paddingHorizontal: 12 }]} testID="crt-sign-place-save">{busy ? <ActivityIndicator color="#FFF" /> : <Text style={s.btnTxt}>Salva</Text>}</Pressable> : null}
               </View>
-              {!signPlace && signPlaceSuggested ? <Pressable onPress={() => onSignPlace(signPlaceSuggested)} style={[s.chip, { alignSelf: "flex-start" }]} testID="crt-sign-place-suggest"><Ionicons name="sparkles" size={14} color={theme.color.brandPrimary} /><Text style={s.chipTxt}>Usa «{signPlaceSuggested}»</Text></Pressable> : null}
+              {!signPlace && signPlaceSuggested ? <Pressable onPress={() => onSignPlace(signPlaceSuggested)} style={[s.chip, { alignSelf: "flex-start" }]} testID="crt-sign-place-suggest"><Ionicons name="sparkles" size={14} color={HT.brand} /><Text style={s.chipTxt}>Usa «{signPlaceSuggested}»</Text></Pressable> : null}
               <Text style={s.label}>Data (calendario · anche retroattiva)</Text>
               <CrtSignDate value={signDate} effective={signDateEffective} onChange={onSignDate} busy={busy} />
             </View>
           ) : null}
         </>
-      ) : <ActivityIndicator color={theme.color.brandPrimary} />}
+      ) : <ActivityIndicator color={HT.brand} />}
     </View>
   );
 }

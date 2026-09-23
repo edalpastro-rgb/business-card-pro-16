@@ -2,6 +2,7 @@
 // Accessibile dal Master (Analizza bolletta) e dalla scheda cliente (tab Fatture).
 // 3 sezioni: Campi estrazione · Analisi comparativa · Richieste manuali. Tutto salvato per tenant (PUT /bills/analysis-config).
 import React, { useEffect, useMemo, useState } from "react";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 import { View, Text, StyleSheet, Pressable, ScrollView, Modal, TextInput, ActivityIndicator, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -188,14 +189,14 @@ export function BillAnalysisConfigModal({ visible, onClose, onSaved, previewBuil
         {/* Header */}
         <View style={styles.header}>
           <Pressable onPress={onClose} hitSlop={10} testID="bac-close">
-            <Ionicons name="close" size={26} color={theme.color.onSurface} />
+            <Ionicons name="close" size={26} color={HT.text} />
           </Pressable>
           <View style={{ flex: 1, marginLeft: 8 }}>
             <Text style={styles.title}>Configura Analisi Fatture</Text>
             <Text style={styles.subtitle}>Valido per Master e schede cliente</Text>
           </View>
           <Pressable onPress={reset} hitSlop={8} disabled={saving || !cfg} testID="bac-reset" style={styles.resetBtn}>
-            <Ionicons name="refresh" size={16} color={theme.color.muted} />
+            <Ionicons name="refresh" size={16} color={HT.muted} />
             <Text style={styles.resetTxt}>Predefiniti</Text>
           </Pressable>
         </View>
@@ -236,7 +237,7 @@ export function BillAnalysisConfigModal({ visible, onClose, onSaved, previewBuil
                     onChangeText={setPresetName}
                     onSubmitEditing={doSavePreset}
                     placeholder="Nome preset (es. Domestico, Business)…"
-                    placeholderTextColor={theme.color.muted}
+                    placeholderTextColor={HT.muted}
                     maxLength={40}
                     style={styles.input}
                   />
@@ -259,7 +260,7 @@ export function BillAnalysisConfigModal({ visible, onClose, onSaved, previewBuil
                         <Text style={[styles.presetTxt, loaded && { color: "#FFF" }]} numberOfLines={1}>{p.name}</Text>
                         {active && <Text style={[styles.presetActive, loaded && { color: "#EDE9FE" }]}>attivo</Text>}
                         <Pressable onPress={() => doDeletePreset(p)} hitSlop={8} testID={`bac-preset-del-${p.preset_id}`}>
-                          <Ionicons name="close-circle" size={16} color={loaded ? "#EDE9FE" : theme.color.muted} />
+                          <Ionicons name="close-circle" size={16} color={loaded ? "#EDE9FE" : HT.muted} />
                         </Pressable>
                       </Pressable>
                     );
@@ -314,7 +315,7 @@ export function BillAnalysisConfigModal({ visible, onClose, onSaved, previewBuil
                       <Pressable key={s.id} onPress={() => setCmp({ style: s.id })} style={[styles.styleCard, on && { borderColor: ACCENT, borderWidth: 2 }]} testID={`bac-style-${s.id}`}>
                         <View style={{ flexDirection: "row", gap: 4 }}>
                           <View style={[styles.swatch, { backgroundColor: s.primary || "#000" }]} />
-                          <View style={[styles.swatch, { backgroundColor: s.bg || "#FFF", borderWidth: 1, borderColor: theme.color.border }]} />
+                          <View style={[styles.swatch, { backgroundColor: s.bg || "#FFF", borderWidth: 1, borderColor: HT.border }]} />
                           <View style={[styles.swatch, { backgroundColor: s.accent || "#888" }]} />
                         </View>
                         <Text style={styles.styleTitle}>{s.label}</Text>
@@ -338,8 +339,8 @@ export function BillAnalysisConfigModal({ visible, onClose, onSaved, previewBuil
                   {catalog.sections.map((s, i) => {
                     const on = cfg.comparison.sections[s.id] ?? true;
                     return (
-                      <Pressable key={s.id} onPress={() => toggleSection(s.id)} style={[styles.sectionRow, i > 0 && { borderTopWidth: 1, borderTopColor: theme.color.divider }]} testID={`bac-section-${s.id}`}>
-                        <Ionicons name={on ? "checkbox" : "square-outline"} size={22} color={on ? ACCENT : theme.color.muted} />
+                      <Pressable key={s.id} onPress={() => toggleSection(s.id)} style={[styles.sectionRow, i > 0 && { borderTopWidth: 1, borderTopColor: HT.border }]} testID={`bac-section-${s.id}`}>
+                        <Ionicons name={on ? "checkbox" : "square-outline"} size={22} color={on ? ACCENT : HT.muted} />
                         <View style={{ flex: 1, marginLeft: 10 }}>
                           <Text style={styles.sectionTitle}>{s.label}</Text>
                           {!!s.desc && <Text style={styles.sectionDesc}>{s.desc}</Text>}
@@ -487,9 +488,9 @@ function TypeSwitch({ value, onChange, counts }: { value: BAType; onChange: (v: 
 
 function Pill({ on, color, label, onPress, testID }: { on: boolean; color: string; label: string; onPress: () => void; testID?: string }) {
   return (
-    <Pressable onPress={onPress} testID={testID} style={[styles.pill, { borderColor: on ? color : theme.color.border, backgroundColor: on ? color + "18" : theme.color.surfaceSecondary }]}>
-      <Ionicons name={on ? "checkbox" : "square-outline"} size={16} color={on ? color : theme.color.muted} />
-      <Text style={[styles.pillTxt, { color: on ? color : theme.color.onSurface, fontWeight: on ? "700" : "500" }]}>{label}</Text>
+    <Pressable onPress={onPress} testID={testID} style={[styles.pill, { borderColor: on ? color : HT.border, backgroundColor: on ? color + "18" : HT.card2 }]}>
+      <Ionicons name={on ? "checkbox" : "square-outline"} size={16} color={on ? color : HT.muted} />
+      <Text style={[styles.pillTxt, { color: on ? color : HT.text, fontWeight: on ? "700" : "500" }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -520,7 +521,7 @@ function AddRow({ value, onChange, onAdd, placeholder, testID }: { value: string
         onChangeText={onChange}
         onSubmitEditing={onAdd}
         placeholder={placeholder}
-        placeholderTextColor={theme.color.muted}
+        placeholderTextColor={HT.muted}
         style={styles.input}
       />
       <Pressable onPress={onAdd} disabled={!value.trim()} testID={`${testID}-add`} style={[styles.addBtn, { backgroundColor: value.trim() ? ACCENT : theme.color.borderStrong }]}>
@@ -533,8 +534,8 @@ function AddRow({ value, onChange, onAdd, placeholder, testID }: { value: string
 
 function RadioCard({ on, title, desc, onPress, testID }: { on: boolean; title: string; desc?: string; onPress: () => void; testID?: string }) {
   return (
-    <Pressable onPress={onPress} testID={testID} style={[styles.radioCard, on && { borderColor: ACCENT, backgroundColor: "#F5F3FF" }]}>
-      <Ionicons name={on ? "radio-button-on" : "radio-button-off"} size={20} color={on ? ACCENT : theme.color.muted} />
+    <Pressable onPress={onPress} testID={testID} style={[styles.radioCard, on && { borderColor: ACCENT, backgroundColor: HT.violetTint }]}>
+      <Ionicons name={on ? "radio-button-on" : "radio-button-off"} size={20} color={on ? ACCENT : HT.muted} />
       <View style={{ flex: 1, marginLeft: 10 }}>
         <Text style={[styles.sectionTitle, on && { color: ACCENT }]}>{title}</Text>
         {!!desc && <Text style={styles.sectionDesc}>{desc}</Text>}
@@ -551,7 +552,7 @@ function FreeText({ value, onChange, placeholder, testID, tall }: { value: strin
         value={value}
         onChangeText={onChange}
         placeholder={placeholder}
-        placeholderTextColor={theme.color.muted}
+        placeholderTextColor={HT.muted}
         multiline
         style={[styles.textArea, tall && { minHeight: 160 }]}
       />
@@ -570,54 +571,54 @@ const styles = StyleSheet.create({
   bigBtnIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
   bigBtnTitle: { color: "#FFF", fontSize: 15, fontWeight: "800" },
   bigBtnSub: { color: "#EDE9FE", fontSize: 11, marginTop: 2 },
-  root: { flex: 1, backgroundColor: theme.color.surface },
+  root: { flex: 1, backgroundColor: HT.card2 },
   header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10 },
-  title: { fontSize: 18, fontWeight: "800", color: theme.color.onSurface },
-  subtitle: { fontSize: 11, color: theme.color.muted, marginTop: 1 },
-  resetBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10, backgroundColor: theme.color.surfaceTertiary },
-  resetTxt: { fontSize: 12, fontWeight: "700", color: theme.color.muted },
-  tabs: { flexDirection: "row", marginHorizontal: 16, marginBottom: 4, backgroundColor: "#F3E8FF", borderRadius: 12, padding: 4, gap: 4 },
+  title: { fontSize: 18, fontWeight: "800", color: HT.text },
+  subtitle: { fontSize: 11, color: HT.muted, marginTop: 1 },
+  resetBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10, backgroundColor: HT.card2 },
+  resetTxt: { fontSize: 12, fontWeight: "700", color: HT.muted },
+  tabs: { flexDirection: "row", marginHorizontal: 16, marginBottom: 4, backgroundColor: '#F3E8FF', borderRadius: 12, padding: 4, gap: 4 },
   tab: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10 },
   tabOn: { backgroundColor: ACCENT },
   tabTxt: { fontSize: 13, fontWeight: "700", color: ACCENT },
   tabTxtOn: { color: "#FFF" },
-  infoBox: { flexDirection: "row", gap: 8, backgroundColor: "#F5F3FF", borderRadius: 12, padding: 12, marginBottom: 14, borderWidth: 1, borderColor: "#DDD6FE" },
-  infoTxt: { flex: 1, fontSize: 12, color: "#4C1D95", lineHeight: 17 },
+  infoBox: { flexDirection: "row", gap: 8, backgroundColor: HT.violetTint, borderRadius: 12, padding: 12, marginBottom: 14, borderWidth: 1, borderColor: HT.violet + '66' },
+  infoTxt: { flex: 1, fontSize: 12, color: HT.violet, lineHeight: 17 },
   rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 },
-  sectionLabel: { fontSize: 12, fontWeight: "800", color: theme.color.muted, marginBottom: 8, letterSpacing: 0.4 },
+  sectionLabel: { fontSize: 12, fontWeight: "800", color: HT.muted, marginBottom: 8, letterSpacing: 0.4 },
   linkTxt: { fontSize: 12, fontWeight: "700", color: ACCENT },
   typeRow: { flexDirection: "row", gap: 8, marginBottom: 12 },
-  typeBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: theme.color.border, backgroundColor: theme.color.surfaceSecondary },
-  typeTxt: { fontSize: 13, fontWeight: "700", color: theme.color.onSurface },
-  typeCount: { fontSize: 11, fontWeight: "600", color: theme.color.muted },
+  typeBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: HT.border, backgroundColor: HT.card2 },
+  typeTxt: { fontSize: 13, fontWeight: "700", color: HT.text },
+  typeCount: { fontSize: 11, fontWeight: "600", color: HT.muted },
   pillWrap: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   pill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 20, borderWidth: 1, minHeight: 36 },
   pillTxt: { fontSize: 12 },
-  chip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 20, backgroundColor: "#F3E8FF", borderWidth: 1, borderColor: ACCENT },
-  chipTxt: { fontSize: 12, color: "#5B21B6", fontWeight: "700" },
-  input: { flex: 1, backgroundColor: theme.color.surfaceSecondary, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: theme.color.border, fontSize: 13, color: theme.color.onSurface, minHeight: 44 },
+  chip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 20, backgroundColor: '#F3E8FF', borderWidth: 1, borderColor: ACCENT },
+  chipTxt: { fontSize: 12, color: HT.violet, fontWeight: "700" },
+  input: { flex: 1, backgroundColor: HT.card2, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: HT.border, fontSize: 13, color: HT.text, minHeight: 44 },
   addBtn: { paddingHorizontal: 14, paddingVertical: 12, borderRadius: 10, flexDirection: "row", alignItems: "center", gap: 4, minHeight: 44 },
   addTxt: { color: "#FFF", fontWeight: "700", fontSize: 12 },
-  card: { backgroundColor: theme.color.surfaceSecondary, borderRadius: 12, borderWidth: 1, borderColor: theme.color.border, paddingHorizontal: 12 },
+  card: { backgroundColor: HT.card2, borderRadius: 12, borderWidth: 1, borderColor: HT.border, paddingHorizontal: 12 },
   sectionRow: { flexDirection: "row", alignItems: "center", paddingVertical: 12, minHeight: 48 },
-  sectionTitle: { fontSize: 14, fontWeight: "700", color: theme.color.onSurface },
-  sectionDesc: { fontSize: 11, color: theme.color.muted, marginTop: 2 },
-  radioCard: { flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 12, borderWidth: 1, borderColor: theme.color.border, backgroundColor: theme.color.surfaceSecondary, minHeight: 52 },
-  styleCard: { width: "48%", flexGrow: 1, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: theme.color.border, backgroundColor: theme.color.surfaceSecondary, gap: 6, position: "relative" },
+  sectionTitle: { fontSize: 14, fontWeight: "700", color: HT.text },
+  sectionDesc: { fontSize: 11, color: HT.muted, marginTop: 2 },
+  radioCard: { flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 12, borderWidth: 1, borderColor: HT.border, backgroundColor: HT.card2, minHeight: 52 },
+  styleCard: { width: "48%", flexGrow: 1, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: HT.border, backgroundColor: HT.card2, gap: 6, position: "relative" },
   swatch: { width: 18, height: 18, borderRadius: 5 },
-  styleTitle: { fontSize: 13, fontWeight: "800", color: theme.color.onSurface },
-  styleDesc: { fontSize: 11, color: theme.color.muted },
-  textArea: { backgroundColor: theme.color.surfaceSecondary, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: "#DDD6FE", minHeight: 110, textAlignVertical: "top", color: theme.color.onSurface, fontSize: 13, lineHeight: 19 },
-  hint: { fontSize: 11, color: theme.color.muted, marginTop: 6, lineHeight: 15 },
-  presetBox: { backgroundColor: theme.color.surfaceSecondary, borderRadius: 12, borderWidth: 1, borderColor: theme.color.border, padding: 12, marginBottom: 14 },
+  styleTitle: { fontSize: 13, fontWeight: "800", color: HT.text },
+  styleDesc: { fontSize: 11, color: HT.muted },
+  textArea: { backgroundColor: HT.card2, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: HT.violet + '66', minHeight: 110, textAlignVertical: "top", color: HT.text, fontSize: 13, lineHeight: 19 },
+  hint: { fontSize: 11, color: HT.muted, marginTop: 6, lineHeight: 15 },
+  presetBox: { backgroundColor: HT.card2, borderRadius: 12, borderWidth: 1, borderColor: HT.border, padding: 12, marginBottom: 14 },
   presetAddBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 4, paddingHorizontal: 6, marginBottom: 8 },
-  presetChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: ACCENT, backgroundColor: "#F5F3FF", minHeight: 38, maxWidth: 220 },
+  presetChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: ACCENT, backgroundColor: HT.violetTint, minHeight: 38, maxWidth: 220 },
   presetChipOn: { backgroundColor: ACCENT },
-  presetTxt: { fontSize: 13, fontWeight: "700", color: "#5B21B6", flexShrink: 1 },
+  presetTxt: { fontSize: 13, fontWeight: "700", color: HT.violet, flexShrink: 1 },
   presetActive: { fontSize: 10, fontWeight: "700", color: ACCENT, textTransform: "uppercase" },
-  footer: { flexDirection: "row", gap: 8, padding: 12, borderTopWidth: 1, borderTopColor: theme.color.border, backgroundColor: theme.color.surfaceSecondary },
-  cancelBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: theme.color.surfaceTertiary, alignItems: "center", justifyContent: "center", minHeight: 48 },
-  cancelTxt: { color: theme.color.onSurface, fontWeight: "700", fontSize: 14 },
+  footer: { flexDirection: "row", gap: 8, padding: 12, borderTopWidth: 1, borderTopColor: HT.border, backgroundColor: HT.card2 },
+  cancelBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: HT.card2, alignItems: "center", justifyContent: "center", minHeight: 48 },
+  cancelTxt: { color: HT.text, fontWeight: "700", fontSize: 14 },
   saveBtn: { flex: 2, paddingVertical: 14, borderRadius: 12, backgroundColor: ACCENT, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8, minHeight: 48 },
   saveTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
 });

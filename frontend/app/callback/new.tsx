@@ -8,6 +8,7 @@ import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { scheduleCallbackReminder, cancelCallbackReminder } from "@/src/notifications";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Contact = { contact_id: string; first_name: string; last_name: string; area: string };
 
@@ -97,7 +98,7 @@ export default function NewCallbackScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.root} edges={["top"]}>
-        <ActivityIndicator style={{ marginTop: 40 }} color={theme.color.brandPrimary} />
+        <ActivityIndicator style={{ marginTop: 40 }} color={HT.brand} />
       </SafeAreaView>
     );
   }
@@ -105,7 +106,7 @@ export default function NewCallbackScreen() {
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
-        <Pressable testID="back-btn" onPress={() => router.back()}><Ionicons name="chevron-back" size={26} color={theme.color.onSurface} /></Pressable>
+        <Pressable testID="back-btn" onPress={() => router.back()}><Ionicons name="chevron-back" size={26} color={HT.text} /></Pressable>
         <Text style={styles.title}>{editId ? "Modifica ritelefonata" : "Nuova ritelefonata"}</Text>
         {editId ? (
           <Pressable testID="cb-delete" onPress={doDelete} hitSlop={10}>
@@ -115,7 +116,7 @@ export default function NewCallbackScreen() {
       </View>
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.lbl}>Titolo *</Text>
-        <TextInput testID="cb-title" value={form.title} onChangeText={(t) => setForm({ ...form, title: t })} style={styles.input} placeholder="Es. Ritelefonare cliente" placeholderTextColor="#94A3B8" />
+        <TextInput testID="cb-title" value={form.title} onChangeText={(t) => setForm({ ...form, title: t })} style={styles.input} placeholder="Es. Ritelefonare cliente" placeholderTextColor={HT.muted} />
 
         <Text style={styles.lbl}>Area</Text>
         <View style={styles.pillsRow}>
@@ -151,12 +152,12 @@ export default function NewCallbackScreen() {
               onChange={(e: any) => setForm({ ...form, scheduled_at: new Date(e.target.value) })}
               style={{
                 width: "100%",
-                backgroundColor: "#FFF",
-                border: `1px solid ${theme.color.border}`,
+                backgroundColor: HT.card,
+                border: `1px solid ${HT.border}`,
                 borderRadius: 12,
                 padding: "12px 14px",
                 fontSize: 15,
-                color: theme.color.onSurface,
+                color: HT.text,
                 fontFamily: "inherit",
                 outline: "none",
               } as any}
@@ -166,11 +167,11 @@ export default function NewCallbackScreen() {
           <>
             <View style={styles.dateRow}>
               <Pressable testID="cb-date-btn" onPress={() => setShowPicker("date")} style={styles.dateBtn}>
-                <Ionicons name="calendar-outline" size={16} color={theme.color.brandPrimary} />
+                <Ionicons name="calendar-outline" size={16} color={HT.brand} />
                 <Text style={styles.dateBtnTxt}>{form.scheduled_at.toLocaleDateString("it-IT")}</Text>
               </Pressable>
               <Pressable testID="cb-time-btn" onPress={() => setShowPicker("time")} style={styles.dateBtn}>
-                <Ionicons name="time-outline" size={16} color={theme.color.brandPrimary} />
+                <Ionicons name="time-outline" size={16} color={HT.brand} />
                 <Text style={styles.dateBtnTxt}>{form.scheduled_at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text>
               </Pressable>
             </View>
@@ -188,14 +189,14 @@ export default function NewCallbackScreen() {
           style={styles.input}
           keyboardType="phone-pad"
           placeholder="Es. +39 333 1234567"
-          placeholderTextColor="#94A3B8"
+          placeholderTextColor={HT.muted}
         />
-        <Text style={{ fontSize: 12, color: theme.color.muted, marginTop: -6, marginBottom: 6 }}>
+        <Text style={{ fontSize: 12, color: HT.muted, marginTop: -6, marginBottom: 6 }}>
           Inserisci un numero per creare la ritelefonata anche senza un contatto in anagrafica.
         </Text>
 
         <Text style={styles.lbl}>Nota</Text>
-        <TextInput testID="cb-note" value={form.note} onChangeText={(t) => setForm({ ...form, note: t })} style={[styles.input, { minHeight: 70, textAlignVertical: "top" }]} multiline placeholderTextColor="#94A3B8" />
+        <TextInput testID="cb-note" value={form.note} onChangeText={(t) => setForm({ ...form, note: t })} style={[styles.input, { minHeight: 70, textAlignVertical: "top" }]} multiline placeholderTextColor={HT.muted} />
 
         <Pressable testID="cb-save" onPress={submit} style={styles.saveBtn} disabled={busy}>
           {busy ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveBtnTxt}>{editId ? "Salva modifiche" : "Salva ritelefonata"}</Text>}
@@ -207,21 +208,21 @@ export default function NewCallbackScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
+  root: { flex: 1, backgroundColor: HT.card2 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12 },
-  title: { fontSize: 18, fontWeight: "700", color: theme.color.onSurface },
+  title: { fontSize: 18, fontWeight: "700", color: HT.text },
   content: { padding: 16, paddingBottom: 140 },
-  lbl: { fontSize: 12, fontWeight: "600", color: theme.color.onSurfaceTertiary, marginTop: 14, marginBottom: 6 },
-  input: { backgroundColor: "#FFF", borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: theme.color.onSurface },
+  lbl: { fontSize: 12, fontWeight: "600", color: HT.text2, marginTop: 14, marginBottom: 6 },
+  input: { backgroundColor: HT.card, borderRadius: theme.radius.md, borderWidth: 1, borderColor: HT.border, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: HT.text },
   pillsRow: { flexDirection: "row", gap: 8 },
-  pill: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: theme.radius.pill, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border },
-  pillActive: { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary },
-  pillTxt: { color: theme.color.onSurfaceTertiary, fontWeight: "600", fontSize: 13 },
+  pill: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: theme.radius.pill, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border },
+  pillActive: { backgroundColor: HT.brand, borderColor: HT.brand },
+  pillTxt: { color: HT.text2, fontWeight: "600", fontSize: 13 },
   pillTxtActive: { color: "#FFF" },
   dateRow: { flexDirection: "row", gap: 10, marginTop: 14 },
-  dateBtn: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF", padding: 12, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border },
-  dateBtnTxt: { color: theme.color.onSurface, fontWeight: "600" },
-  saveBtn: { backgroundColor: theme.color.brandPrimary, paddingVertical: 14, borderRadius: theme.radius.md, alignItems: "center", marginTop: 24 },
+  dateBtn: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: HT.card, padding: 12, borderRadius: theme.radius.md, borderWidth: 1, borderColor: HT.border },
+  dateBtnTxt: { color: HT.text, fontWeight: "600" },
+  saveBtn: { backgroundColor: HT.brand, paddingVertical: 14, borderRadius: theme.radius.md, alignItems: "center", marginTop: 24 },
   saveBtnTxt: { color: "#FFF", fontWeight: "700", fontSize: 15 },
   // V29.ao — ContactPicker (search + result list)
   cpWrap: { position: "relative", zIndex: 5 },
@@ -229,14 +230,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderRadius: theme.radius.md,
     borderWidth: 1,
-    borderColor: theme.color.border,
+    borderColor: HT.border,
     paddingHorizontal: 12,
     height: 44,
   },
-  cpInput: { flex: 1, color: theme.color.onSurface, fontSize: 15, paddingVertical: 0 },
+  cpInput: { flex: 1, color: HT.text, fontSize: 15, paddingVertical: 0 },
   cpClearBtn: { padding: 4 },
   cpSelectedRow: {
     flexDirection: "row",
@@ -244,18 +245,18 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 8,
     padding: 10,
-    backgroundColor: theme.color.brandTertiary,
+    backgroundColor: HT.brandTint,
     borderRadius: theme.radius.md,
     borderWidth: 1,
-    borderColor: theme.color.brandPrimary,
+    borderColor: HT.brand,
   },
-  cpSelectedTxt: { flex: 1, color: theme.color.brandPrimary, fontWeight: "700", fontSize: 14 },
+  cpSelectedTxt: { flex: 1, color: HT.brand, fontWeight: "700", fontSize: 14 },
   cpResults: {
     marginTop: 6,
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderRadius: theme.radius.md,
     borderWidth: 1,
-    borderColor: theme.color.border,
+    borderColor: HT.border,
     overflow: "hidden",
   },
   cpResultItem: {
@@ -265,17 +266,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: theme.color.divider,
+    borderBottomColor: HT.border,
   },
-  cpResultTxt: { flex: 1, color: theme.color.onSurface, fontWeight: "600", fontSize: 14 },
+  cpResultTxt: { flex: 1, color: HT.text, fontWeight: "600", fontSize: 14 },
   cpEmpty: {
     marginTop: 6,
     padding: 12,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: HT.card2,
     borderRadius: theme.radius.md,
     alignItems: "center",
   },
-  cpEmptyTxt: { color: theme.color.muted, fontSize: 12, fontStyle: "italic" },
+  cpEmptyTxt: { color: HT.muted, fontSize: 12, fontStyle: "italic" },
 });
 
 /**
@@ -312,7 +313,7 @@ function ContactPicker({
     return (
       <View style={styles.cpWrap} testID="cb-contact-picker">
         <View style={styles.cpSelectedRow}>
-          <Ionicons name="person-circle" size={22} color={theme.color.brandPrimary} />
+          <Ionicons name="person-circle" size={22} color={HT.brand} />
           <Text style={styles.cpSelectedTxt} numberOfLines={1}>
             {selected.first_name} {selected.last_name}
           </Text>
@@ -325,7 +326,7 @@ function ContactPicker({
             hitSlop={8}
             style={styles.cpClearBtn}
           >
-            <Ionicons name="close-circle" size={20} color={theme.color.error} />
+            <Ionicons name="close-circle" size={20} color={HT.danger} />
           </Pressable>
         </View>
       </View>
@@ -335,7 +336,7 @@ function ContactPicker({
   return (
     <View style={styles.cpWrap} testID="cb-contact-picker">
       <View style={styles.cpInputRow}>
-        <Ionicons name="search" size={18} color={theme.color.muted} />
+        <Ionicons name="search" size={18} color={HT.muted} />
         <TextInput
           testID="cb-contact-search"
           value={q}
@@ -343,14 +344,14 @@ function ContactPicker({
           onFocus={() => setFocused(true)}
           onBlur={() => setTimeout(() => setFocused(false), 150)}
           placeholder="Cerca un contatto per nome…"
-          placeholderTextColor={theme.color.muted}
+          placeholderTextColor={HT.muted}
           style={styles.cpInput}
           autoCorrect={false}
           autoCapitalize="words"
         />
         {q.length > 0 && (
           <Pressable onPress={() => setQ("")} hitSlop={8} style={styles.cpClearBtn}>
-            <Ionicons name="close-circle" size={18} color={theme.color.muted} />
+            <Ionicons name="close-circle" size={18} color={HT.muted} />
           </Pressable>
         )}
       </View>
@@ -368,11 +369,11 @@ function ContactPicker({
                 }}
                 style={[styles.cpResultItem, idx === filtered.length - 1 && { borderBottomWidth: 0 }]}
               >
-                <Ionicons name="person" size={16} color={theme.color.brandPrimary} />
+                <Ionicons name="person" size={16} color={HT.brand} />
                 <Text style={styles.cpResultTxt} numberOfLines={1}>
                   {c.first_name} {c.last_name}
                 </Text>
-                <Ionicons name="chevron-forward" size={16} color={theme.color.muted} />
+                <Ionicons name="chevron-forward" size={16} color={HT.muted} />
               </Pressable>
             ))}
           </View>

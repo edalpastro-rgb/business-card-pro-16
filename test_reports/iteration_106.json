@@ -1,0 +1,33 @@
+{
+  "summary": "V50.z340 theme system tested end-to-end. Theme picker live-preview + Apply flow validated across all 4 themes (Luce/Pearl/Slate/Midnight). Tour skipped via [data-testid=tour-skip]. Full Slate→Midnight flow: tap theme-option-midnight showed theme-live-preview-midnight and theme-apply button with correct text 'Applica tema Midnight'; theme-active-slate remained (active tick NOT changed until apply); after tap theme-apply reload landed on axon_theme_last=midnight and theme-active-midnight tick. Reverse Midnight→Slate and Slate→Light→Slate also worked. Visited /master, /report, /contatti, /axon-alarms, /email-config, /impostazioni, /help-center, /callback/new, /contact/new, /appointment/new in Midnight — no red screens, no JS console errors, backgrounds dark. Visited /master, /report, /contact/new in Light — backgrounds light, forms readable. Final theme reset to Slate as requested. NOTE: could not enumerate testIDs for contact-list rows (used a different prefix) so tab-bills / tab-contracts inside a contact detail were only partially reached; the contact-list itself rendered correctly in midnight (dark cards, cyan text). NOTE: /api/me/theme returned {'detail':'Invalid token'} when hit from client localStorage; token is stored under a non-'token' key (SecureStore/other) — behavioral validation of persisted theme relies on axon_theme_last localStorage value which correctly matches the applied theme after each reload. Login on RN-Web Pressable required synthetic PointerEvents (pointerdown/pointerup/click) — Playwright .click() alone was ignored by RN Web Pressable. This is a test harness quirk, not an app bug.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/impostazioni theme picker", "issues": ["When the current theme is already the active one, the live-preview card is shown but theme-apply is intentionally hidden. Spec is satisfied but consider showing a disabled 'Tema già attivo' button so the mini-preview isn't ambiguous."]}
+    ],
+    "react_native_issues": [
+      {"component": "RN Web Pressable", "issue": "'shadow*' and 'textShadow*' style props deprecated warnings emitted on every screen; migrate to boxShadow/textShadow CSS. Also 'props.pointerEvents deprecated - use style.pointerEvents'. Reference: multiple screens, console warnings only (no crash)."},
+      {"component": "Animated useNativeDriver on web", "issue": "'Animated: useNativeDriver is not supported because the native animated module is missing' warnings on every screen; expected on web preview."}
+    ]
+  },
+  "test_report_links": ["/tmp/scan.js", "/tmp/test_theme.py"],
+  "action_items": [
+    "OPTIONAL: expose the JWT under a stable localStorage key on web (currently unknown key) so E2E tests can verify /api/me/theme without probing every LS entry.",
+    "OPTIONAL: make login Pressable also react to synthetic MouseEvent click without pointerdown/pointerup (helps future automated tests).",
+    "OPTIONAL: contact-list rows need a stable testID prefix (e.g. contact-row-<id>) to enable tab-bills / tab-contracts tests to open a contact reliably."
+  ],
+  "critical_code_review_comments": [
+    "themes.ts palette values match spec (#0d0d14 / #13131e for midnight, #f5f7fa card for light).",
+    "resolveInitial() reads localStorage synchronously before StyleSheets are created — correct pattern for RN Web + Metro.",
+    "normalizeThemeId() migrates legacy 'grey' -> 'slate' and 'dark' -> 'midnight' — good backward compat."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "95%"},
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Login flow on RN Web Pressable buttons requires synthetic PointerEvents (pointerdown+pointerup+click) via page.evaluate; standard Playwright .click() is dropped. Store this TAP helper in test files. axon_theme_last localStorage key holds the applied theme; watch it to verify the reload path. To find contact list row testIDs, look at /app/frontend/app/(tabs)/contatti.tsx — the testID pattern differs from 'contact-row-<id>'.",
+  "rca_of_issue": "N/A — no bug found. All flows in scope worked: theme picker, live-preview, Applica, persistence via axon_theme_last, reload lands on same route via RoutePersistence. No red screens on any of the 10 requested Midnight routes and the 3 requested Light routes."
+}

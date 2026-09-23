@@ -9,6 +9,7 @@ import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
 import { ImportedDataSection } from "@/src/ImportedDataSection"; // V50.z194 — dati importati da PDF/Excel
 import { ProactiveLogSection } from "@/src/ProactiveLogSection"; // V50.z196 — log comunicazioni proattive
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const PURPLE = "#7C3AED";
 // V50.z205 — Fase 4: ogni voce ha un tag sfera 🔵 Business / 🟢 Home (modificabile con un tap)
@@ -91,7 +92,7 @@ export default function AxonMemoryScreen() {
 
       <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: insets.bottom + 120, gap: 12 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />} keyboardShouldPersistTaps="handled">
         <View style={styles.trust}>
-          <Ionicons name="shield-checkmark" size={20} color="#065F46" />
+          <Ionicons name="shield-checkmark" size={20} color={HT.success} />
           <Text style={styles.trustTxt}>
             Qui vedi, in parole semplici, tutto quello che Axon ha imparato su di te per aiutarti meglio. Ogni voce è tua: puoi correggerla, cancellarla o far dimenticare tutto. Nulla di questo esce dal tuo spazio.
             {data?.last_analyzed_at ? `\nUltima analisi: ${new Date(data.last_analyzed_at).toLocaleString("it-IT")}.` : ""}
@@ -137,7 +138,7 @@ export default function AxonMemoryScreen() {
             {addSec === s.key && (
               <View style={{ gap: 6 }}>
                 <View style={styles.editRow}>
-                  <TextInput value={addTxt} onChangeText={setAddTxt} placeholder="Scrivi qualcosa che Axon deve sapere…" placeholderTextColor="#94A3B8" style={styles.input} multiline testID="memory-add-input" />
+                  <TextInput value={addTxt} onChangeText={setAddTxt} placeholder="Scrivi qualcosa che Axon deve sapere…" placeholderTextColor={HT.muted} style={styles.input} multiline testID="memory-add-input" />
                   <Pressable onPress={add} disabled={addTxt.trim().length < 3} style={[styles.saveBtn, addTxt.trim().length < 3 && { opacity: 0.5 }]} testID="memory-add-save"><Ionicons name="checkmark" size={18} color="#FFF" /></Pressable>
                 </View>
                 <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
@@ -161,7 +162,7 @@ export default function AxonMemoryScreen() {
                   <View style={styles.editRow}>
                     <TextInput value={editTxt} onChangeText={setEditTxt} style={styles.input} multiline autoFocus testID="memory-edit-input" />
                     <Pressable onPress={() => saveEdit(it)} style={styles.saveBtn} testID="memory-edit-save"><Ionicons name="checkmark" size={18} color="#FFF" /></Pressable>
-                    <Pressable onPress={() => setEditId(null)} style={[styles.saveBtn, { backgroundColor: "#E5E7EB" }]}><Ionicons name="close" size={18} color="#1B2B4B" /></Pressable>
+                    <Pressable onPress={() => setEditId(null)} style={[styles.saveBtn, { backgroundColor: HT.border }]}><Ionicons name="close" size={18} color={HT.text} /></Pressable>
                   </View>
                 ) : (
                   <>
@@ -175,7 +176,7 @@ export default function AxonMemoryScreen() {
                         <Text style={styles.itemMeta}>{it.source === "manual" ? "✎ scritto da te" : `dedotto da Axon${it.evidence ? ` · ${it.evidence}` : ""}`}</Text>
                       </View>
                     </View>
-                    <Pressable onPress={() => { setEditId(it.id); setEditTxt(it.text); }} hitSlop={6} style={styles.iconBtn} testID={`memory-edit-${it.id}`}><Ionicons name="create-outline" size={18} color="#1B2B4B" /></Pressable>
+                    <Pressable onPress={() => { setEditId(it.id); setEditTxt(it.text); }} hitSlop={6} style={styles.iconBtn} testID={`memory-edit-${it.id}`}><Ionicons name="create-outline" size={18} color={HT.text} /></Pressable>
                     <Pressable onPress={() => remove(it)} hitSlop={6} style={styles.iconBtn} testID={`memory-delete-${it.id}`}><Ionicons name="trash-outline" size={18} color="#DC2626" /></Pressable>
                   </>
                 )}
@@ -193,7 +194,7 @@ export default function AxonMemoryScreen() {
         <ProactiveLogSection />
 
         <Pressable onPress={removeAll} style={styles.dangerBtn} testID="memory-delete-all">
-          <Ionicons name="trash" size={16} color="#B91C1C" /><Text style={styles.dangerTxt}>Cancella tutta la memoria</Text>
+          <Ionicons name="trash" size={16} color={HT.danger} /><Text style={styles.dangerTxt}>Cancella tutta la memoria</Text>
         </Pressable>
         <Text style={styles.foot}>I tuoi contatti, appuntamenti e documenti non vengono mai toccati da queste azioni: qui gestisci solo ciò che Axon ha imparato su di te.</Text>
       </ScrollView>
@@ -202,37 +203,37 @@ export default function AxonMemoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F5F3FF" },
+  root: { flex: 1, backgroundColor: HT.violetTint },
   header: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: PURPLE },
   title: { color: "#FFF", fontWeight: "800", fontSize: 17 },
   sub: { color: "#E9D5FF", fontSize: 11, marginTop: 1 },
-  runBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FFF", paddingHorizontal: 10, minHeight: 40, borderRadius: 12 },
+  runBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: HT.card, paddingHorizontal: 10, minHeight: 40, borderRadius: 12 },
   runTxt: { color: PURPLE, fontWeight: "800", fontSize: 11 },
-  trust: { flexDirection: "row", gap: 10, backgroundColor: "#ECFDF5", borderRadius: 14, padding: 12, borderWidth: 1, borderColor: "#A7F3D0" },
-  trustTxt: { flex: 1, fontSize: 12.5, color: "#065F46", lineHeight: 18 },
+  trust: { flexDirection: "row", gap: 10, backgroundColor: HT.successTint, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: '#A7F3D0' },
+  trustTxt: { flex: 1, fontSize: 12.5, color: HT.success, lineHeight: 18 },
   statsRow: { flexDirection: "row", gap: 8 },
-  statBox: { flex: 1, backgroundColor: "#FFF", borderRadius: 12, padding: 10, alignItems: "center", borderWidth: 1, borderColor: "#E9D5FF" },
+  statBox: { flex: 1, backgroundColor: HT.card, borderRadius: 12, padding: 10, alignItems: "center", borderWidth: 1, borderColor: '#E9D5FF' },
   statNum: { fontSize: 20, fontWeight: "800", color: PURPLE },
-  statLbl: { fontSize: 10, color: "#64748B", marginTop: 2, fontWeight: "700" },
+  statLbl: { fontSize: 10, color: HT.muted, marginTop: 2, fontWeight: "700" },
   sphereFilter: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
-  sphChip: { paddingHorizontal: 12, minHeight: 36, borderRadius: 999, backgroundColor: "#FFF", borderWidth: 1, borderColor: "#E9D5FF", justifyContent: "center" },
-  sphChipTxt: { fontSize: 12, fontWeight: "700", color: "#64748B" },
+  sphChip: { paddingHorizontal: 12, minHeight: 36, borderRadius: 999, backgroundColor: HT.card, borderWidth: 1, borderColor: '#E9D5FF', justifyContent: "center" },
+  sphChipTxt: { fontSize: 12, fontWeight: "700", color: HT.muted },
   sphTag: { flexDirection: "row", alignItems: "center", gap: 4, borderWidth: 1, borderRadius: 999, paddingHorizontal: 8, minHeight: 24 },
   sphTagTxt: { fontSize: 10.5, fontWeight: "800" },
-  card: { backgroundColor: "#FFF", borderRadius: 14, padding: 12, gap: 8, borderWidth: 1, borderColor: "#EDE9FE" },
+  card: { backgroundColor: HT.card, borderRadius: 14, padding: 12, gap: 8, borderWidth: 1, borderColor: HT.violetTint },
   cardHead: { flexDirection: "row", alignItems: "center", gap: 10 },
-  secIcon: { width: 32, height: 32, borderRadius: 10, backgroundColor: "#F5F3FF", alignItems: "center", justifyContent: "center" },
-  secTitle: { fontSize: 15, fontWeight: "800", color: "#1B2B4B" },
-  secIntro: { fontSize: 11.5, color: "#64748B", marginTop: 1 },
-  emptyTxt: { fontSize: 12.5, color: "#94A3B8", fontStyle: "italic", paddingVertical: 4 },
-  item: { flexDirection: "row", alignItems: "center", gap: 4, borderTopWidth: 1, borderTopColor: "#F1F5F9", paddingTop: 8 },
-  itemTxt: { fontSize: 14, lineHeight: 20, color: "#1B2B4B" },
-  itemMeta: { fontSize: 11, color: "#94A3B8", marginTop: 2 },
+  secIcon: { width: 32, height: 32, borderRadius: 10, backgroundColor: HT.violetTint, alignItems: "center", justifyContent: "center" },
+  secTitle: { fontSize: 15, fontWeight: "800", color: HT.text },
+  secIntro: { fontSize: 11.5, color: HT.muted, marginTop: 1 },
+  emptyTxt: { fontSize: 12.5, color: HT.muted, fontStyle: "italic", paddingVertical: 4 },
+  item: { flexDirection: "row", alignItems: "center", gap: 4, borderTopWidth: 1, borderTopColor: HT.card2, paddingTop: 8 },
+  itemTxt: { fontSize: 14, lineHeight: 20, color: HT.text },
+  itemMeta: { fontSize: 11, color: HT.muted, marginTop: 2 },
   iconBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 10 },
   editRow: { flexDirection: "row", alignItems: "center", gap: 6, flex: 1 },
-  input: { flex: 1, backgroundColor: "#F8FAFC", borderRadius: 10, borderWidth: 1, borderColor: "#E5E7EB", padding: 10, minHeight: 44, fontSize: 14, color: "#1B2B4B" },
+  input: { flex: 1, backgroundColor: HT.card2, borderRadius: 10, borderWidth: 1, borderColor: HT.border, padding: 10, minHeight: 44, fontSize: 14, color: HT.text },
   saveBtn: { width: 44, height: 44, borderRadius: 10, backgroundColor: PURPLE, alignItems: "center", justifyContent: "center" },
-  dangerBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: "#FCA5A5", backgroundColor: "#FEF2F2", marginTop: 8 },
-  dangerTxt: { color: "#B91C1C", fontWeight: "800", fontSize: 14 },
-  foot: { fontSize: 11.5, color: "#64748B", textAlign: "center", lineHeight: 16, paddingHorizontal: 8 },
+  dangerBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: '#FCA5A5', backgroundColor: HT.dangerTint, marginTop: 8 },
+  dangerTxt: { color: HT.danger, fontWeight: "800", fontSize: 14 },
+  foot: { fontSize: 11.5, color: HT.muted, textAlign: "center", lineHeight: 16, paddingHorizontal: 8 },
 });

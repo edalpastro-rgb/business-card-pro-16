@@ -4,10 +4,10 @@ import React from "react";
 import { View, Text, StyleSheet, Modal, Pressable, Image, ScrollView, Platform, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { theme } from "@/src/theme";
 import { InAppWebViewer } from "@/src/InAppWebViewer";
 import { CgymManualLink, downloadManual } from "@/src/corporate-gym/manualsApi";
 import { notify } from "@/src/utils/notify";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 export function manualViewerUrl(link: CgymManualLink): string {
   const isPdf = (link.mime || "").includes("pdf") || link.exportable;
@@ -46,10 +46,10 @@ export function CgymManualPreview({ link, onClose }: { link: CgymManualLink | nu
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#0B1220" },
+  root: { flex: 1, backgroundColor: '#0B1220' },
   head: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 10 },
   title: { flex: 1, color: "#FFF", fontWeight: "800", fontSize: 15 },
   imgWrap: { flexGrow: 1, alignItems: "center", justifyContent: "center", padding: 8 },
   img: { width: "100%", height: 600, maxHeight: "100%" as any },
-  hint: { color: theme.color.muted, fontSize: 11.5, textAlign: "center", paddingTop: 8 },
+  hint: { color: HT.muted, fontSize: 11.5, textAlign: "center", paddingTop: 8 },
 });

@@ -946,7 +946,7 @@ function ContactDetail() {
                       const logId = await logIdPromise;
                       activeCall.setLogId(logId);
                     }}
-                    style={[styles.commBtnPrimary, { backgroundColor: "#0F766E" }]}
+                    style={[styles.commBtnPrimary, { backgroundColor: '#0F766E' }]}
                   >
                     <Ionicons name="call" size={22} color="#FFF" /><Text style={styles.commBtnPrimaryTxt}>Chiama</Text>
                   </Pressable>
@@ -957,12 +957,12 @@ function ContactDetail() {
                     const num = raw.replace(/[^\d+]/g, "");
                     logComm("whatsapp", raw);
                     Linking.openURL(`https://wa.me/${num}`);
-                  }} style={[styles.commBtnPrimary, { backgroundColor: "#25D366" }]}>
+                  }} style={[styles.commBtnPrimary, { backgroundColor: '#25D366' }]}>
                     <Ionicons name="logo-whatsapp" size={22} color="#FFF" /><Text style={styles.commBtnPrimaryTxt}>WhatsApp</Text>
                   </Pressable>
                 ) : null}
                 {c.email ? (
-                  <Pressable testID="comm-email" onPress={() => { logComm("email"); Linking.openURL(`mailto:${c.email}`); }} style={[styles.commBtnPrimary, { backgroundColor: "#2563EB" }]}>
+                  <Pressable testID="comm-email" onPress={() => { logComm("email"); Linking.openURL(`mailto:${c.email}`); }} style={[styles.commBtnPrimary, { backgroundColor: '#2563EB' }]}>
                     <Ionicons name="mail" size={22} color="#FFF" /><Text style={styles.commBtnPrimaryTxt}>Email</Text>
                   </Pressable>
                 ) : null}

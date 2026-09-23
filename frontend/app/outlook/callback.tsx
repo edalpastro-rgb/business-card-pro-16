@@ -9,6 +9,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as WebBrowser from "expo-web-browser";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { theme } from "@/src/theme";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 // Chiude il popup su web se rimasto aperto (best-effort)
 WebBrowser.maybeCompleteAuthSession();
@@ -37,7 +38,7 @@ export default function OutlookCallback() {
       <View style={styles.center}>
         {ok ? (
           <>
-            <View style={[styles.iconBox, { backgroundColor: "#DCFCE7" }]}>
+            <View style={[styles.iconBox, { backgroundColor: HT.successTint }]}>
               <Ionicons name="checkmark-circle" size={48} color="#059669" />
             </View>
             <Text style={styles.title}>Outlook collegato!</Text>
@@ -45,7 +46,7 @@ export default function OutlookCallback() {
           </>
         ) : errorCode ? (
           <>
-            <View style={[styles.iconBox, { backgroundColor: "#FEE2E2" }]}>
+            <View style={[styles.iconBox, { backgroundColor: HT.dangerTint }]}>
               <Ionicons name="close-circle" size={48} color="#DC2626" />
             </View>
             <Text style={styles.title}>Collegamento fallito</Text>
@@ -78,13 +79,13 @@ const styles = StyleSheet.create({
     width: 88, height: 88, borderRadius: 44,
     alignItems: "center", justifyContent: "center",
   },
-  title: { fontSize: 20, fontWeight: "800", color: theme.color.onSurface, textAlign: "center", marginTop: 6 },
-  sub: { fontSize: 13, color: theme.color.muted, textAlign: "center", marginTop: 4, lineHeight: 18 },
-  hint: { fontSize: 12, color: theme.color.muted, textAlign: "center", marginTop: 6, fontStyle: "italic" },
+  title: { fontSize: 20, fontWeight: "800", color: HT.text, textAlign: "center", marginTop: 6 },
+  sub: { fontSize: 13, color: HT.muted, textAlign: "center", marginTop: 4, lineHeight: 18 },
+  hint: { fontSize: 12, color: HT.muted, textAlign: "center", marginTop: 6, fontStyle: "italic" },
   btn: {
     marginTop: 20, flexDirection: "row", alignItems: "center", justifyContent: "center",
     gap: 8, paddingHorizontal: 22, paddingVertical: 12, borderRadius: 999,
-    backgroundColor: "#0078D4",
+    backgroundColor: '#0078D4',
   },
   btnTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
 });

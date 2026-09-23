@@ -5,9 +5,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 export type MetricKey = "appointments_done" | "appointments_total" | "phone_done" | "contracts" | "products";
 export const METRIC_LABELS: Record<MetricKey, string> = {
   appointments_done: "Appuntamenti fatti",
@@ -90,7 +90,7 @@ export function MetricDrillModal({
               <Text style={styles.headTitle}>{title}</Text>
               <Text style={styles.headSub}>{metric ? METRIC_LABELS[metric] : ""}{area ? ` · ${area === "energy" ? "Consulente Energetico" : "Networker"}` : ""}</Text>
             </View>
-            <Pressable testID="drill-close" onPress={onClose} hitSlop={10}><Ionicons name="close" size={22} color={theme.color.muted} /></Pressable>
+            <Pressable testID="drill-close" onPress={onClose} hitSlop={10}><Ionicons name="close" size={22} color={HT.muted} /></Pressable>
           </View>
           {loading ? (
             <ActivityIndicator color={color} style={{ marginTop: 30 }} />
@@ -99,7 +99,7 @@ export function MetricDrillModal({
               {note ? <Text style={styles.note}>{note}</Text> : null}
               {items.length === 0 && !note ? (
                 <View style={{ padding: 30, alignItems: "center" }}>
-                  <Ionicons name="file-tray-outline" size={30} color={theme.color.muted} />
+                  <Ionicons name="file-tray-outline" size={30} color={HT.muted} />
                   <Text style={styles.note}>Nessun elemento nel periodo selezionato</Text>
                 </View>
               ) : null}
@@ -122,7 +122,7 @@ export function MetricDrillModal({
                     <Text style={styles.itemTitle} numberOfLines={1}>{it.title}</Text>
                     <Text style={styles.itemSub} numberOfLines={1}>{it.when}{it.subtitle ? " · " + it.subtitle : ""}</Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={16} color={theme.color.muted} />
+                  <Ionicons name="chevron-forward" size={16} color={HT.muted} />
                 </Pressable>
               ))}
             </ScrollView>
@@ -134,17 +134,17 @@ export function MetricDrillModal({
 }
 
 const styles = StyleSheet.create({
-  metric: { minWidth: 88, flexGrow: 1, flexBasis: "30%", backgroundColor: "#FFF", borderWidth: 1, borderRadius: 10, padding: 10, alignItems: "center", justifyContent: "center", position: "relative" },
+  metric: { minWidth: 88, flexGrow: 1, flexBasis: "30%", backgroundColor: HT.card, borderWidth: 1, borderRadius: 10, padding: 10, alignItems: "center", justifyContent: "center", position: "relative" },
   metricValue: { fontSize: 22, fontWeight: "800" },
-  metricLabel: { fontSize: 10, color: theme.color.muted, marginTop: 4, textAlign: "center", lineHeight: 12 },
+  metricLabel: { fontSize: 10, color: HT.muted, marginTop: 4, textAlign: "center", lineHeight: 12 },
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: "#FFF", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, paddingBottom: 32, maxHeight: "85%" },
+  sheet: { backgroundColor: HT.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, paddingBottom: 32, maxHeight: "85%" },
   head: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
-  headTitle: { fontSize: 15, fontWeight: "800", color: theme.color.onSurface },
-  headSub: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
-  note: { fontSize: 12, color: theme.color.muted, textAlign: "center", padding: 20, lineHeight: 18 },
-  itemRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: theme.color.border },
+  headTitle: { fontSize: 15, fontWeight: "800", color: HT.text },
+  headSub: { fontSize: 12, color: HT.muted, marginTop: 2 },
+  note: { fontSize: 12, color: HT.muted, textAlign: "center", padding: 20, lineHeight: 18 },
+  itemRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: HT.border },
   itemIcon: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
-  itemTitle: { fontSize: 13, fontWeight: "700", color: theme.color.onSurface },
-  itemSub: { fontSize: 11, color: theme.color.muted, marginTop: 2 },
+  itemTitle: { fontSize: 13, fontWeight: "700", color: HT.text },
+  itemSub: { fontSize: 11, color: HT.muted, marginTop: 2 },
 });

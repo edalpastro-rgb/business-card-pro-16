@@ -20,6 +20,7 @@ import { DocumentScannerModal, suggestBillScanName } from "@/src/DocumentScanner
 import { InAppWebViewer } from "@/src/InAppWebViewer";
 
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 // ---------- Types ----------
 
 type BillType = QuickBillType;
@@ -59,7 +60,7 @@ const SECTION_META: Record<BillType, { label: string; icon: any; color: string; 
 };
 
 const STATUS_META = {
-  pending: { label: "In coda…", color: "#6B7280", icon: "hourglass-outline" as const },
+  pending: { label: "In coda…", color: HT.muted, icon: "hourglass-outline" as const },
   analyzing: { label: "Analisi in corso…", color: "#0891B2", icon: "sync" as const },
   done: { label: "Analizzata", color: "#16A34A", icon: "checkmark-circle" as const },
   error: { label: "Errore", color: "#DC2626", icon: "warning" as const },
@@ -547,7 +548,7 @@ function BillQuickScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable testID="back-btn" onPress={() => router.back()} hitSlop={10}>
-          <Ionicons name="chevron-back" size={26} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={26} color={HT.text} />
         </Pressable>
         <Text style={styles.title}>Analizza bolletta</Text>
         <View style={{ width: 26 }} />
@@ -556,7 +557,7 @@ function BillQuickScreen() {
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
         {/* Intro card — mirrors BillsSection */}
         <View style={styles.introCard}>
-          <Ionicons name="sparkles" size={20} color={theme.color.brandPrimary} />
+          <Ionicons name="sparkles" size={20} color={HT.brand} />
           <View style={{ flex: 1, marginLeft: 10 }}>
             <Text style={styles.introTitle}>Fatture Energia · AI Claude Sonnet 5</Text>
             <Text style={styles.introTxt}>
@@ -574,7 +575,7 @@ function BillQuickScreen() {
           onPress={() => setHeaderCfgOpen(true)}
           style={{
             flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-            backgroundColor: "#0F172A", paddingVertical: 12, borderRadius: 12, marginBottom: 16,
+            backgroundColor: '#0F172A', paddingVertical: 12, borderRadius: 12, marginBottom: 16,
           }}
         >
           <Ionicons name="settings-outline" size={18} color="#FFF" />
@@ -600,13 +601,13 @@ function BillQuickScreen() {
                   <View key={bt} style={{ marginTop: 8 }}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 }}>
                       <Text style={{ fontWeight: "700", fontSize: 12, color: meta.color }}>{meta.emoji} {meta.label}</Text>
-                      <Text style={{ fontSize: 10, color: theme.color.muted }}>({myOffers.length})</Text>
+                      <Text style={{ fontSize: 10, color: HT.muted }}>({myOffers.length})</Text>
                     </View>
                     <Pressable
                       testID={`offer-upload-${bt}`}
                       onPress={() => uploadOffer(bt)}
                       disabled={uploadingOffer === bt}
-                      style={[styles.uploadBtn, { borderColor: "#7C3AED", paddingVertical: 8 }]}
+                      style={[styles.uploadBtn, { borderColor: '#7C3AED', paddingVertical: 8 }]}
                     >
                       {uploadingOffer === bt ? (
                         <ActivityIndicator color="#7C3AED" />
@@ -623,8 +624,8 @@ function BillQuickScreen() {
                         value={manualTxt[bt]}
                         onChangeText={(t) => setManualTxt((m) => ({ ...m, [bt]: t }))}
                         placeholder="…oppure inserisci qui le condizioni economiche (prezzi €/kWh, quota fissa, servizi extra, penali…)"
-                        placeholderTextColor="#94A3B8"
-                        style={{ backgroundColor: "#FFF", borderRadius: 8, padding: 8, borderWidth: 1, borderColor: "#DDD6FE", minHeight: 70, textAlignVertical: "top", color: theme.color.onSurface, fontSize: 12 }}
+                        placeholderTextColor={HT.muted}
+                        style={{ backgroundColor: HT.card, borderRadius: 8, padding: 8, borderWidth: 1, borderColor: HT.violet + '66', minHeight: 70, textAlignVertical: "top", color: HT.text, fontSize: 12 }}
                         multiline
                       />
                       <View style={{ flexDirection: "row", gap: 6 }}>
@@ -640,7 +641,7 @@ function BillQuickScreen() {
                           testID={`offer-manual-save-${bt}`}
                           onPress={() => saveManualOffer(bt)}
                           disabled={savingManual === bt || !manualTxt[bt]?.trim()}
-                          style={[styles.uploadBtn, { flex: 1, borderColor: "#16A34A", backgroundColor: manualTxt[bt]?.trim() ? "#16A34A" : "#94A3B8", paddingVertical: 8 }]}
+                          style={[styles.uploadBtn, { flex: 1, borderColor: '#16A34A', backgroundColor: manualTxt[bt]?.trim() ? "#16A34A" : HT.muted, paddingVertical: 8 }]}
                         >
                           {savingManual === bt ? (
                             <ActivityIndicator color="#FFF" />
@@ -683,7 +684,7 @@ function BillQuickScreen() {
 
         {/* Bills grouped sections — identical to BillsSection */}
         {loading && (
-          <ActivityIndicator style={{ marginTop: 20 }} color={theme.color.brandPrimary} />
+          <ActivityIndicator style={{ marginTop: 20 }} color={HT.brand} />
         )}
         {!loading && (Object.keys(SECTION_META) as BillType[]).map((bt) => {
           const meta = SECTION_META[bt];
@@ -753,7 +754,7 @@ function BillQuickScreen() {
                         >
                           <Ionicons name="trash-outline" size={18} color="#DC2626" />
                         </Pressable>
-                        <Ionicons name={isOpen ? "chevron-up" : "chevron-down"} size={18} color={theme.color.muted} />
+                        <Ionicons name={isOpen ? "chevron-up" : "chevron-down"} size={18} color={HT.muted} />
                       </Pressable>
 
                       {isOpen && (
@@ -800,24 +801,24 @@ function BillQuickScreen() {
                           )}
 
                           <View style={styles.actionsRow}>
-                            <Pressable testID={`draft-view-${d.draft_id}`} onPress={() => openBillPdf(d.draft_id)} style={[styles.actBtn, { backgroundColor: "#F1F5F9" }]}>
-                              <Ionicons name="eye-outline" size={14} color={theme.color.onSurface} />
+                            <Pressable testID={`draft-view-${d.draft_id}`} onPress={() => openBillPdf(d.draft_id)} style={[styles.actBtn, { backgroundColor: HT.card2 }]}>
+                              <Ionicons name="eye-outline" size={14} color={HT.text} />
                               <Text style={styles.actBtnTxt}>Apri PDF</Text>
                             </Pressable>
                             {(d.status === "pending" || d.status === "analyzing") && (
                               <Pressable
                                 testID={`draft-cancel-${d.draft_id}`}
                                 onPress={() => cancelDraft(d.draft_id)}
-                                style={[styles.actBtn, { backgroundColor: "#FEF3C7" }]}
+                                style={[styles.actBtn, { backgroundColor: HT.warningTint }]}
                               >
-                                <Ionicons name="stop-circle-outline" size={14} color="#B45309" />
-                                <Text style={[styles.actBtnTxt, { color: "#B45309" }]}>Annulla analisi</Text>
+                                <Ionicons name="stop-circle-outline" size={14} color={HT.warning} />
+                                <Text style={[styles.actBtnTxt, { color: HT.warning }]}>Annulla analisi</Text>
                               </Pressable>
                             )}
                             {(d.status === "error" || d.status === "done" || d.status === "cancelled") && (
-                              <Pressable testID={`draft-reanalyze-${d.draft_id}`} onPress={() => reanalyze(d.draft_id)} style={[styles.actBtn, { backgroundColor: "#DBEAFE" }]}>
-                                <Ionicons name="refresh" size={14} color="#1D4ED8" />
-                                <Text style={[styles.actBtnTxt, { color: "#1D4ED8" }]}>Ri-analizza</Text>
+                              <Pressable testID={`draft-reanalyze-${d.draft_id}`} onPress={() => reanalyze(d.draft_id)} style={[styles.actBtn, { backgroundColor: HT.axonTint }]}>
+                                <Ionicons name="refresh" size={14} color={HT.axon} />
+                                <Text style={[styles.actBtnTxt, { color: HT.axon }]}>Ri-analizza</Text>
                               </Pressable>
                             )}
                             {d.status === "done" && (
@@ -825,27 +826,27 @@ function BillQuickScreen() {
                                 <Pressable
                                   testID={`draft-associate-${d.draft_id}`}
                                   onPress={() => openAssociate(d)}
-                                  style={[styles.actBtn, { backgroundColor: "#DCFCE7" }]}
+                                  style={[styles.actBtn, { backgroundColor: HT.successTint }]}
                                 >
-                                  <Ionicons name="link" size={14} color="#166534" />
-                                  <Text style={[styles.actBtnTxt, { color: "#166534" }]}>Associa a cliente</Text>
+                                  <Ionicons name="link" size={14} color={HT.success} />
+                                  <Text style={[styles.actBtnTxt, { color: HT.success }]}>Associa a cliente</Text>
                                 </Pressable>
                                 <Pressable
                                   testID={`draft-create-contact-${d.draft_id}`}
                                   onPress={() => createContactFromDraft(d)}
                                   disabled={busyAction === `create-${d.draft_id}`}
-                                  style={[styles.actBtn, { backgroundColor: "#E0E7FF" }]}
+                                  style={[styles.actBtn, { backgroundColor: HT.violetTint }]}
                                 >
                                   {busyAction === `create-${d.draft_id}` ? (
-                                    <ActivityIndicator size="small" color="#3730A3" />
+                                    <ActivityIndicator size="small" color={HT.axon} />
                                   ) : (
-                                    <Ionicons name="person-add" size={14} color="#3730A3" />
+                                    <Ionicons name="person-add" size={14} color={HT.axon} />
                                   )}
-                                  <Text style={[styles.actBtnTxt, { color: "#3730A3" }]}>Crea cliente</Text>
+                                  <Text style={[styles.actBtnTxt, { color: HT.axon }]}>Crea cliente</Text>
                                 </Pressable>
                               </>
                             )}
-                            <Pressable testID={`draft-delete-${d.draft_id}`} onPress={() => deleteDraft(d.draft_id)} style={[styles.actBtn, { backgroundColor: "#FEE2E2" }]}>
+                            <Pressable testID={`draft-delete-${d.draft_id}`} onPress={() => deleteDraft(d.draft_id)} style={[styles.actBtn, { backgroundColor: HT.dangerTint }]}>
                               <Ionicons name="trash-outline" size={14} color="#DC2626" />
                               <Text style={[styles.actBtnTxt, { color: "#DC2626" }]}>Elimina</Text>
                             </Pressable>
@@ -868,7 +869,7 @@ function BillQuickScreen() {
               testID="master-report-btn"
               onPress={generateReport}
               disabled={reportBusy}
-              style={[styles.reportBtnRow, { backgroundColor: "#6366F1" }, reportBusy && { opacity: 0.6 }]}
+              style={[styles.reportBtnRow, { backgroundColor: '#6366F1' }, reportBusy && { opacity: 0.6 }]}
             >
               {reportBusy ? <ActivityIndicator color="#FFF" /> : (
                 <>
@@ -883,7 +884,7 @@ function BillQuickScreen() {
               disabled={comparisonBusy || offers.filter((o) => o.status === "done").length === 0}
               style={[
                 styles.reportBtnRow,
-                { backgroundColor: "#7C3AED" },
+                { backgroundColor: '#7C3AED' },
                 (comparisonBusy || offers.filter((o) => o.status === "done").length === 0) && { opacity: 0.5 },
               ]}
             >
@@ -902,7 +903,7 @@ function BillQuickScreen() {
               testID="master-cte-btn"
               onPress={generateCTE}
               disabled={cteBusy || totalDone < 2}
-              style={[styles.reportBtnRow, { backgroundColor: "#059669" }, (cteBusy || totalDone < 2) && { opacity: 0.5 }]}
+              style={[styles.reportBtnRow, { backgroundColor: '#059669' }, (cteBusy || totalDone < 2) && { opacity: 0.5 }]}
             >
               {cteBusy ? <ActivityIndicator color="#FFF" /> : (
                 <>
@@ -934,29 +935,29 @@ function BillQuickScreen() {
       {/* Params modal — mirrors BillsSection */}
       <Modal visible={!!pendingUpload} animationType="slide" transparent onRequestClose={cancelPendingUpload}>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }}>
-          <View style={{ backgroundColor: theme.color.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "90%" }}>
+          <View style={{ backgroundColor: HT.card2, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "90%" }}>
             {pendingUpload && (() => {
               const bt = pendingUpload.bill_type;
               const meta = SECTION_META[bt];
               const defs = DEFAULT_PARAMS[bt];
               return (
                 <>
-                  <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: theme.color.border }}>
+                  <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: HT.border }}>
                     <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                         <Text style={{ fontSize: 20 }}>{meta.emoji}</Text>
                         <View>
-                          <Text style={{ fontSize: 15, fontWeight: "800", color: theme.color.onSurface }}>Parametri da estrarre</Text>
-                          <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 1 }} numberOfLines={1}>
+                          <Text style={{ fontSize: 15, fontWeight: "800", color: HT.text }}>Parametri da estrarre</Text>
+                          <Text style={{ fontSize: 11, color: HT.muted, marginTop: 1 }} numberOfLines={1}>
                             {pendingUpload.asset.name || `fattura-${bt}.pdf`}
                           </Text>
                         </View>
                       </View>
                       <Pressable onPress={cancelPendingUpload} hitSlop={8} testID="bill-config-close">
-                        <Ionicons name="close" size={22} color={theme.color.onSurface} />
+                        <Ionicons name="close" size={22} color={HT.text} />
                       </Pressable>
                     </View>
-                    <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 8, lineHeight: 15 }}>
+                    <Text style={{ fontSize: 11, color: HT.muted, marginTop: 8, lineHeight: 15 }}>
                       Scegli quali parametri vuoi che l&apos;AI estragga con priorità. Puoi anche aggiungerne di personalizzati.
                     </Text>
                   </View>
@@ -967,7 +968,7 @@ function BillQuickScreen() {
                       value={labelInput}
                       onChangeText={setLabelInput}
                       placeholder="Etichetta (facoltativa, es. 'Prospect Via Roma')"
-                      placeholderTextColor="#94A3B8"
+                      placeholderTextColor={HT.muted}
                       style={styles.labelInput}
                     />
 
@@ -979,7 +980,7 @@ function BillQuickScreen() {
                         onApply={(sel) => { setSelectedParams(new Set(sel.labels)); setCustomParams(sel.custom); }}
                       />
                     </View>
-                    <Text style={{ fontSize: 12, fontWeight: "700", color: theme.color.muted, marginBottom: 6 }}>PARAMETRI STANDARD</Text>
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: HT.muted, marginBottom: 6 }}>PARAMETRI STANDARD</Text>
                     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
                       {defs.map((p) => {
                         const on = selectedParams.has(p.label);
@@ -996,12 +997,12 @@ function BillQuickScreen() {
                               paddingVertical: 6,
                               borderRadius: 20,
                               borderWidth: 1,
-                              borderColor: on ? meta.color : theme.color.border,
+                              borderColor: on ? meta.color : HT.border,
                               backgroundColor: on ? meta.color + "18" : "#FFF",
                             }}
                           >
-                            <Ionicons name={on ? "checkbox" : "square-outline"} size={16} color={on ? meta.color : theme.color.muted} />
-                            <Text style={{ fontSize: 12, color: on ? meta.color : theme.color.onSurface, fontWeight: on ? "700" : "500" }}>{p.label}</Text>
+                            <Ionicons name={on ? "checkbox" : "square-outline"} size={16} color={on ? meta.color : HT.muted} />
+                            <Text style={{ fontSize: 12, color: on ? meta.color : HT.text, fontWeight: on ? "700" : "500" }}>{p.label}</Text>
                           </Pressable>
                         );
                       })}
@@ -1009,12 +1010,12 @@ function BillQuickScreen() {
 
                     {customParams.length > 0 && (
                       <>
-                        <Text style={{ fontSize: 12, fontWeight: "700", color: theme.color.muted, marginTop: 14, marginBottom: 6 }}>PARAMETRI PERSONALIZZATI</Text>
+                        <Text style={{ fontSize: 12, fontWeight: "700", color: HT.muted, marginTop: 14, marginBottom: 6 }}>PARAMETRI PERSONALIZZATI</Text>
                         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
                           {customParams.map((p) => (
-                            <View key={p} style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, backgroundColor: "#F3E8FF", borderWidth: 1, borderColor: "#7C3AED" }}>
+                            <View key={p} style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, backgroundColor: '#F3E8FF', borderWidth: 1, borderColor: '#7C3AED' }}>
                               <Ionicons name="sparkles" size={13} color="#7C3AED" />
-                              <Text style={{ fontSize: 12, color: "#5B21B6", fontWeight: "700" }}>{p}</Text>
+                              <Text style={{ fontSize: 12, color: HT.violet, fontWeight: "700" }}>{p}</Text>
                               <Pressable onPress={() => removeCustomParam(p)} hitSlop={6}>
                                 <Ionicons name="close-circle" size={14} color="#7C3AED" />
                               </Pressable>
@@ -1024,7 +1025,7 @@ function BillQuickScreen() {
                       </>
                     )}
 
-                    <Text style={{ fontSize: 12, fontWeight: "700", color: theme.color.muted, marginTop: 14, marginBottom: 6 }}>AGGIUNGI PARAMETRO PERSONALIZZATO</Text>
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: HT.muted, marginTop: 14, marginBottom: 6 }}>AGGIUNGI PARAMETRO PERSONALIZZATO</Text>
                     <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
                       <TextInput
                         testID="bill-config-custom-input"
@@ -1032,8 +1033,8 @@ function BillQuickScreen() {
                         onChangeText={setCustomParam}
                         onSubmitEditing={addCustomParam}
                         placeholder="Es. Bonus sociale, Rateizzazione, IVA agevolata…"
-                        placeholderTextColor={theme.color.muted}
-                        style={{ flex: 1, backgroundColor: "#FFF", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: theme.color.border, fontSize: 13, color: theme.color.onSurface }}
+                        placeholderTextColor={HT.muted}
+                        style={{ flex: 1, backgroundColor: HT.card, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: HT.border, fontSize: 13, color: HT.text }}
                       />
                       <Pressable
                         onPress={addCustomParam}
@@ -1063,7 +1064,7 @@ function BillQuickScreen() {
                               key={v}
                               testID={`fiscal-iva-${v}`}
                               onPress={() => setFiscalCheck((s) => ({ ...s, verify_iva: active ? null : (v as 10 | 22) }))}
-                              style={[styles.fiscalOpt, active && { backgroundColor: "#059669", borderColor: "#059669" }]}
+                              style={[styles.fiscalOpt, active && { backgroundColor: '#059669', borderColor: '#059669' }]}
                             >
                               <Ionicons name={active ? "checkbox" : "square-outline"} size={14} color={active ? "#FFF" : "#059669"} />
                               <Text style={[styles.fiscalOptTxt, active && { color: "#FFF" }]}>IVA {v}%</Text>
@@ -1078,7 +1079,7 @@ function BillQuickScreen() {
                           <Pressable
                             testID="fiscal-accise-gas"
                             onPress={() => setFiscalCheck((s) => ({ ...s, verify_accise_gas: !s.verify_accise_gas }))}
-                            style={[styles.fiscalOpt, fiscalCheck.verify_accise_gas && { backgroundColor: "#059669", borderColor: "#059669" }]}
+                            style={[styles.fiscalOpt, fiscalCheck.verify_accise_gas && { backgroundColor: '#059669', borderColor: '#059669' }]}
                           >
                             <Ionicons name={fiscalCheck.verify_accise_gas ? "checkbox" : "square-outline"} size={14} color={fiscalCheck.verify_accise_gas ? "#FFF" : "#059669"} />
                             <Text style={[styles.fiscalOptTxt, fiscalCheck.verify_accise_gas && { color: "#FFF" }]}>Accise agevolate 0,012498 €/Smc</Text>
@@ -1092,7 +1093,7 @@ function BillQuickScreen() {
                           <Pressable
                             testID="fiscal-pcv"
                             onPress={() => setFiscalCheck((s) => ({ ...s, verify_pcv_annullato: !s.verify_pcv_annullato }))}
-                            style={[styles.fiscalOpt, fiscalCheck.verify_pcv_annullato && { backgroundColor: "#059669", borderColor: "#059669" }]}
+                            style={[styles.fiscalOpt, fiscalCheck.verify_pcv_annullato && { backgroundColor: '#059669', borderColor: '#059669' }]}
                           >
                             <Ionicons name={fiscalCheck.verify_pcv_annullato ? "checkbox" : "square-outline"} size={14} color={fiscalCheck.verify_pcv_annullato ? "#FFF" : "#059669"} />
                             <Text style={[styles.fiscalOptTxt, fiscalCheck.verify_pcv_annullato && { color: "#FFF" }]}>PCV annullato nel contratto</Text>
@@ -1102,13 +1103,13 @@ function BillQuickScreen() {
                     </View>
                   </ScrollView>
 
-                  <View style={{ padding: 12, paddingBottom: bottomPad, borderTopWidth: 1, borderTopColor: theme.color.border, backgroundColor: "#FFF", gap: 8 }}>
-                    <Text style={{ fontSize: 11, color: theme.color.muted, textAlign: "center" }}>
+                  <View style={{ padding: 12, paddingBottom: bottomPad, borderTopWidth: 1, borderTopColor: HT.border, backgroundColor: HT.card, gap: 8 }}>
+                    <Text style={{ fontSize: 11, color: HT.muted, textAlign: "center" }}>
                       Selezionati: <Text style={{ fontWeight: "800", color: meta.color }}>{selectedParams.size}</Text> parametri
                     </Text>
                     <View style={{ flexDirection: "row", gap: 8 }}>
-                      <Pressable onPress={cancelPendingUpload} style={{ flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: "#F1F5F9", alignItems: "center" }} testID="bill-config-cancel">
-                        <Text style={{ color: theme.color.onSurface, fontWeight: "700", fontSize: 14 }}>Annulla</Text>
+                      <Pressable onPress={cancelPendingUpload} style={{ flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: HT.card2, alignItems: "center" }} testID="bill-config-cancel">
+                        <Text style={{ color: HT.text, fontWeight: "700", fontSize: 14 }}>Annulla</Text>
                       </Pressable>
                       <Pressable
                         onPress={confirmUploadWithParams}
@@ -1135,7 +1136,7 @@ function BillQuickScreen() {
             <Text style={styles.modalTitle}>Da dove vuoi caricare?</Text>
             <Text style={styles.modalSub}>Puoi scegliere un PDF dal dispositivo, dai file Master oppure scattare foto delle pagine con la fotocamera.</Text>
             <View style={{ gap: 8, marginTop: 14 }}>
-              <Pressable testID="bq-src-device" onPress={pickFromDevice} style={[styles.srcBtn, { backgroundColor: "#EA580C" }]}>
+              <Pressable testID="bq-src-device" onPress={pickFromDevice} style={[styles.srcBtn, { backgroundColor: '#EA580C' }]}>
                 <Ionicons name="cloud-upload" size={18} color="#FFF" />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.srcTitle}>Da dispositivo</Text>
@@ -1143,7 +1144,7 @@ function BillQuickScreen() {
                 </View>
                 <Ionicons name="chevron-forward" size={18} color="#FFF" />
               </Pressable>
-              <Pressable testID="bq-src-master" onPress={openMasterFilePicker} style={[styles.srcBtn, { backgroundColor: "#0891B2" }]}>
+              <Pressable testID="bq-src-master" onPress={openMasterFilePicker} style={[styles.srcBtn, { backgroundColor: '#0891B2' }]}>
                 <Ionicons name="folder-open" size={18} color="#FFF" />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.srcTitle}>Dai file Master</Text>
@@ -1152,7 +1153,7 @@ function BillQuickScreen() {
                 <Ionicons name="chevron-forward" size={18} color="#FFF" />
               </Pressable>
               {/* V28.s — Terza opzione: scanner multi-pagina */}
-              <Pressable testID="bq-src-scanner" onPress={openScanner} style={[styles.srcBtn, { backgroundColor: "#7C3AED" }]}>
+              <Pressable testID="bq-src-scanner" onPress={openScanner} style={[styles.srcBtn, { backgroundColor: '#7C3AED' }]}>
                 <Ionicons name="camera" size={18} color="#FFF" />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.srcTitle}>Scatta foto / Scanner</Text>
@@ -1160,8 +1161,8 @@ function BillQuickScreen() {
                 </View>
                 <Ionicons name="chevron-forward" size={18} color="#FFF" />
               </Pressable>
-              <Pressable onPress={() => setSourcePickerFor(null)} style={[styles.modalBtn, { backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border, marginTop: 6 }]}>
-                <Text style={{ color: theme.color.onSurface, fontWeight: "700" }}>Annulla</Text>
+              <Pressable onPress={() => setSourcePickerFor(null)} style={[styles.modalBtn, { backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border, marginTop: 6 }]}>
+                <Text style={{ color: HT.text, fontWeight: "700" }}>Annulla</Text>
               </Pressable>
             </View>
           </Pressable>
@@ -1176,9 +1177,9 @@ function BillQuickScreen() {
             <Text style={styles.modalSub}>Sono elencati i PDF salvati nelle sezioni Fatture e File del Master.</Text>
             <ScrollView style={{ maxHeight: 380, marginTop: 12 }}>
               {loadingMasterFiles ? (
-                <ActivityIndicator style={{ marginTop: 20 }} color={theme.color.brandPrimary} />
+                <ActivityIndicator style={{ marginTop: 20 }} color={HT.brand} />
               ) : masterFiles.length === 0 ? (
-                <Text style={{ color: theme.color.muted, textAlign: "center", padding: 20, fontStyle: "italic" }}>
+                <Text style={{ color: HT.muted, textAlign: "center", padding: 20, fontStyle: "italic" }}>
                   Nessun PDF salvato. Aggiungi fatture in &lsquo;I miei file&rsquo;.
                 </Text>
               ) : (
@@ -1189,7 +1190,7 @@ function BillQuickScreen() {
                     onPress={() => pickFromMaster(mf)}
                     style={styles.assocRow}
                   >
-                    <View style={[styles.assocAvatar, { backgroundColor: "#FED7AA" }]}>
+                    <View style={[styles.assocAvatar, { backgroundColor: HT.brandLine }]}>
                       <Ionicons name="document" size={18} color="#EA580C" />
                     </View>
                     <View style={{ flex: 1 }}>
@@ -1198,13 +1199,13 @@ function BillQuickScreen() {
                         {(mf.size / 1024).toFixed(0)} KB · {new Date(mf.created_at).toLocaleDateString("it-IT")}
                       </Text>
                     </View>
-                    <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+                    <Ionicons name="chevron-forward" size={18} color={HT.muted} />
                   </Pressable>
                 ))
               )}
             </ScrollView>
-            <Pressable onPress={() => setMasterFilePicker(null)} style={[styles.modalBtn, { backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border, marginTop: 8 }]}>
-              <Text style={{ color: theme.color.onSurface, fontWeight: "700" }}>Chiudi</Text>
+            <Pressable onPress={() => setMasterFilePicker(null)} style={[styles.modalBtn, { backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border, marginTop: 8 }]}>
+              <Text style={{ color: HT.text, fontWeight: "700" }}>Chiudi</Text>
             </Pressable>
           </View>
         </View>
@@ -1231,12 +1232,12 @@ function BillQuickScreen() {
               value={contactSearch}
               onChangeText={setContactSearch}
               placeholder="Cerca per nome, telefono o email…"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={HT.muted}
               style={[styles.labelInput, { marginTop: 10 }]}
             />
             <ScrollView style={{ maxHeight: 340, marginVertical: 10 }}>
               {filteredContacts.length === 0 && (
-                <Text style={{ color: theme.color.muted, textAlign: "center", padding: 16, fontStyle: "italic" }}>
+                <Text style={{ color: HT.muted, textAlign: "center", padding: 16, fontStyle: "italic" }}>
                   Nessun cliente trovato.
                 </Text>
               )}
@@ -1249,22 +1250,22 @@ function BillQuickScreen() {
                   style={styles.assocRow}
                 >
                   <View style={styles.assocAvatar}>
-                    <Text style={{ color: theme.color.brandPrimary, fontWeight: "800" }}>{(c.first_name?.[0] || "?").toUpperCase()}</Text>
+                    <Text style={{ color: HT.brand, fontWeight: "800" }}>{(c.first_name?.[0] || "?").toUpperCase()}</Text>
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.assocName} numberOfLines={1}>{`${c.first_name} ${c.last_name}`.trim() || "(senza nome)"}</Text>
                     <Text style={styles.assocSub} numberOfLines={1}>{c.phone || c.email || ""}</Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+                  <Ionicons name="chevron-forward" size={18} color={HT.muted} />
                 </Pressable>
               ))}
             </ScrollView>
             <Pressable
               testID="quick-assoc-cancel"
               onPress={() => setAssociateTarget(null)}
-              style={[styles.modalBtn, { backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border }]}
+              style={[styles.modalBtn, { backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border }]}
             >
-              <Text style={{ color: theme.color.onSurface, fontWeight: "700" }}>Chiudi</Text>
+              <Text style={{ color: HT.text, fontWeight: "700" }}>Chiudi</Text>
             </Pressable>
           </View>
         </View>
@@ -1288,11 +1289,11 @@ function BillQuickScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.color.bg },
   // V50.z76 — Master reports block
-  masterReportsBlock: { marginTop: 12, padding: 14, borderRadius: 14, backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: theme.color.border, gap: 10 },
-  masterReportsTitle: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface, marginBottom: 4 },
+  masterReportsBlock: { marginTop: 12, padding: 14, borderRadius: 14, backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border, gap: 10 },
+  masterReportsTitle: { fontSize: 14, fontWeight: "800", color: HT.text, marginBottom: 4 },
   reportBtnRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 10 },
   reportBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
-  reportHint: { fontSize: 11, color: theme.color.muted, fontStyle: "italic", marginTop: 4 },
+  reportHint: { fontSize: 11, color: HT.muted, fontStyle: "italic", marginTop: 4 },
 
   header: {
     flexDirection: "row",
@@ -1301,22 +1302,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: theme.color.border,
-    backgroundColor: theme.color.surface,
+    borderBottomColor: HT.border,
+    backgroundColor: HT.card2,
   },
-  title: { fontSize: 18, fontWeight: "800", color: theme.color.onSurface },
+  title: { fontSize: 18, fontWeight: "800", color: HT.text },
 
   // Intro (mirror BillsSection)
   introCard: {
     flexDirection: "row",
-    backgroundColor: "#EEF2FF",
+    backgroundColor: HT.violetTint,
     borderRadius: 12,
     padding: 12,
     marginBottom: 16,
     alignItems: "flex-start",
   },
-  introTitle: { fontSize: 13, fontWeight: "800", color: theme.color.brandPrimary },
-  introTxt: { fontSize: 11, color: theme.color.muted, marginTop: 2, lineHeight: 15 },
+  introTitle: { fontSize: 13, fontWeight: "800", color: HT.brand },
+  introTxt: { fontSize: 11, color: HT.muted, marginTop: 2, lineHeight: 15 },
 
   // Sections
   section: { marginBottom: 20 },
@@ -1345,79 +1346,79 @@ const styles = StyleSheet.create({
   },
   uploadTxt: { fontWeight: "700", fontSize: 13 },
 
-  emptyTxt: { fontSize: 12, color: theme.color.muted, fontStyle: "italic", textAlign: "center", paddingVertical: 8 },
+  emptyTxt: { fontSize: 12, color: HT.muted, fontStyle: "italic", textAlign: "center", paddingVertical: 8 },
 
   billCard: {
-    backgroundColor: theme.color.surface,
+    backgroundColor: HT.card2,
     borderRadius: 10,
     marginTop: 8,
     borderWidth: 1,
-    borderColor: theme.color.border,
+    borderColor: HT.border,
     overflow: "hidden",
   },
   billHeader: { flexDirection: "row", alignItems: "center", padding: 12 },
-  billName: { fontSize: 13, fontWeight: "700", color: theme.color.onSurface },
+  billName: { fontSize: 13, fontWeight: "700", color: HT.text },
   statusRow: { flexDirection: "row", alignItems: "center", marginTop: 2, gap: 3 },
   statusTxt: { fontSize: 11, fontWeight: "600" },
-  metaTxt: { fontSize: 11, color: theme.color.muted },
-  billBody: { paddingHorizontal: 12, paddingBottom: 12, borderTopWidth: 1, borderTopColor: theme.color.border },
+  metaTxt: { fontSize: 11, color: HT.muted },
+  billBody: { paddingHorizontal: 12, paddingBottom: 12, borderTopWidth: 1, borderTopColor: HT.border },
 
-  errorBox: { backgroundColor: "#FEE2E2", borderRadius: 8, padding: 10, marginTop: 10 },
-  errorTxt: { color: "#991B1B", fontSize: 12 },
-  dataBox: { marginTop: 8, backgroundColor: "#FAFBFF", borderRadius: 8, padding: 8, overflow: "hidden" },
-  kvRow: { flexDirection: "row", paddingVertical: 3, borderBottomWidth: 1, borderBottomColor: "#EEF2FF", alignItems: "flex-start" },
-  kvKey: { fontSize: 11, fontWeight: "700", color: theme.color.muted, width: 110, paddingRight: 6 },
-  kvVal: { fontSize: 11, color: theme.color.onSurface, flex: 1, flexShrink: 1, flexWrap: "wrap" },
+  errorBox: { backgroundColor: HT.dangerTint, borderRadius: 8, padding: 10, marginTop: 10 },
+  errorTxt: { color: HT.danger, fontSize: 12 },
+  dataBox: { marginTop: 8, backgroundColor: '#FAFBFF', borderRadius: 8, padding: 8, overflow: "hidden" },
+  kvRow: { flexDirection: "row", paddingVertical: 3, borderBottomWidth: 1, borderBottomColor: HT.violetTint, alignItems: "flex-start" },
+  kvKey: { fontSize: 11, fontWeight: "700", color: HT.muted, width: 110, paddingRight: 6 },
+  kvVal: { fontSize: 11, color: HT.text, flex: 1, flexShrink: 1, flexWrap: "wrap" },
 
   actionsRow: { flexDirection: "row", gap: 6, marginTop: 10, flexWrap: "wrap" },
   actBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
-  actBtnTxt: { fontSize: 11, fontWeight: "700", color: theme.color.onSurface },
+  actBtnTxt: { fontSize: 11, fontWeight: "700", color: HT.text },
 
   // Offers (mirror BillsSection)
   offersCard: {
-    backgroundColor: "#F5F3FF",
+    backgroundColor: HT.violetTint,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#DDD6FE",
+    borderColor: HT.violet + '66',
     marginBottom: 16,
     overflow: "hidden",
   },
   offersHeader: { flexDirection: "row", alignItems: "center", padding: 12 },
   offersTitle: { fontSize: 13, fontWeight: "800", color: "#7C3AED" },
-  offersSub: { fontSize: 11, color: theme.color.muted, marginTop: 2, lineHeight: 14 },
+  offersSub: { fontSize: 11, color: HT.muted, marginTop: 2, lineHeight: 14 },
   offerCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderRadius: 8,
     padding: 8,
     marginTop: 6,
     borderWidth: 1,
-    borderColor: "#EDE9FE",
+    borderColor: HT.violetTint,
   },
-  offerCardTitle: { fontSize: 12, fontWeight: "700", color: theme.color.onSurface },
+  offerCardTitle: { fontSize: 12, fontWeight: "700", color: HT.text },
 
   // Modals
   modalBack: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
-  modalCard: { backgroundColor: theme.color.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: "88%" },
-  modalTitle: { fontSize: 18, fontWeight: "800", color: theme.color.onSurface },
-  modalSub: { fontSize: 12, color: theme.color.muted, marginTop: 4 },
+  modalCard: { backgroundColor: HT.card2, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: "88%" },
+  modalTitle: { fontSize: 18, fontWeight: "800", color: HT.text },
+  modalSub: { fontSize: 12, color: HT.muted, marginTop: 4 },
   modalBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: "center" },
-  labelInput: { backgroundColor: "#F1F5F9", borderRadius: 8, paddingHorizontal: 10, paddingVertical: Platform.OS === "ios" ? 10 : 8, fontSize: 13, color: theme.color.onSurface },
+  labelInput: { backgroundColor: HT.card2, borderRadius: 8, paddingHorizontal: 10, paddingVertical: Platform.OS === "ios" ? 10 : 8, fontSize: 13, color: HT.text },
 
   // Fiscal
-  fiscalBox: { marginTop: 16, padding: 12, borderRadius: 10, backgroundColor: "#ECFDF5", borderWidth: 1, borderColor: "#A7F3D0" },
-  fiscalTitle: { fontSize: 13, fontWeight: "800", color: "#065F46" },
-  fiscalHint: { fontSize: 11, color: "#047857", marginBottom: 8, lineHeight: 15 },
-  fiscalLbl: { fontSize: 11, fontWeight: "700", color: "#065F46", textTransform: "uppercase", letterSpacing: 0.4, marginTop: 10 },
-  fiscalOpt: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: "#059669", backgroundColor: "#FFF", marginTop: 4, alignSelf: "flex-start" },
-  fiscalOptTxt: { fontSize: 12, fontWeight: "700", color: "#065F46" },
+  fiscalBox: { marginTop: 16, padding: 12, borderRadius: 10, backgroundColor: HT.successTint, borderWidth: 1, borderColor: '#A7F3D0' },
+  fiscalTitle: { fontSize: 13, fontWeight: "800", color: HT.success },
+  fiscalHint: { fontSize: 11, color: HT.success, marginBottom: 8, lineHeight: 15 },
+  fiscalLbl: { fontSize: 11, fontWeight: "700", color: HT.success, textTransform: "uppercase", letterSpacing: 0.4, marginTop: 10 },
+  fiscalOpt: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: '#059669', backgroundColor: HT.card, marginTop: 4, alignSelf: "flex-start" },
+  fiscalOptTxt: { fontSize: 12, fontWeight: "700", color: HT.success },
 
   // Associate rows
-  assocRow: { flexDirection: "row", alignItems: "center", padding: 10, borderRadius: 10, backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: theme.color.border, gap: 10, marginBottom: 6 },
-  assocAvatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: theme.color.brandTertiary, justifyContent: "center", alignItems: "center" },
-  assocName: { fontSize: 14, fontWeight: "700", color: theme.color.onSurface },
-  assocSub: { fontSize: 11, color: theme.color.muted },
+  assocRow: { flexDirection: "row", alignItems: "center", padding: 10, borderRadius: 10, backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border, gap: 10, marginBottom: 6 },
+  assocAvatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: HT.brandTint, justifyContent: "center", alignItems: "center" },
+  assocName: { fontSize: 14, fontWeight: "700", color: HT.text },
+  assocSub: { fontSize: 11, color: HT.muted },
   srcBtn: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 14, borderRadius: 10 },
   srcTitle: { color: "#FFF", fontWeight: "800", fontSize: 15 },
   srcSub: { color: "#FFFFFFCC", fontSize: 11, marginTop: 2 },

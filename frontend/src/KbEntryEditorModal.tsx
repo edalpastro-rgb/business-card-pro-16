@@ -14,6 +14,7 @@ import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
 import { openInAppLink } from "@/src/utils/openInAppLink";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type KbDocLink = { name: string; mime: string; url: string; download_url: string };
 type KbDocText = { name: string; has_file: boolean; pages: { page: number; text: string }[] };
@@ -163,7 +164,7 @@ export function KbEntryEditorModal({ visible, doc, onClose, onSaved }: Props) {
               <Text style={styles.sub}>{textView ? `${textView.pages.length} pagine · quello che Axon legge` : isPdf ? "Apri il PDF, rinomina o cambia categoria" : "Axon la caricherà nel contesto quando la domanda è pertinente"}</Text>
             </View>
             <Pressable onPress={() => !saving && onClose()} hitSlop={10} testID="kb-editor-close">
-              <Ionicons name="close" size={22} color="#1B2B4B" />
+              <Ionicons name="close" size={22} color={HT.text} />
             </Pressable>
           </View>
 
@@ -208,7 +209,7 @@ export function KbEntryEditorModal({ visible, doc, onClose, onSaved }: Props) {
                 value={name}
                 onChangeText={setName}
                 placeholder={isPdf ? "Nome documento" : "Es. Costi di attivazione gas / Orari servizio clienti"}
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={HT.muted}
                 style={styles.input}
                 maxLength={200}
                 editable={!saving}
@@ -242,7 +243,7 @@ export function KbEntryEditorModal({ visible, doc, onClose, onSaved }: Props) {
                     multiline
                     textAlignVertical="top"
                     placeholder={"D: Quanto costa l'attivazione?\nR: 23,50 € una tantum in prima bolletta.\n\nSepara le voci con una riga vuota."}
-                    placeholderTextColor="#94A3B8"
+                    placeholderTextColor={HT.muted}
                     style={[styles.input, styles.textarea]}
                     editable={!saving}
                   />
@@ -255,14 +256,14 @@ export function KbEntryEditorModal({ visible, doc, onClose, onSaved }: Props) {
 
           <View style={styles.footer}>
             {textView ? (
-              <Pressable onPress={() => setTextView(null)} style={[styles.btn, { backgroundColor: "#F1F5F9" }]} testID="kb-editor-text-back">
-                <Ionicons name="arrow-back" size={16} color="#1B2B4B" />
-                <Text style={{ color: "#1B2B4B", fontWeight: "700" }}>Torna alla modifica</Text>
+              <Pressable onPress={() => setTextView(null)} style={[styles.btn, { backgroundColor: HT.card2 }]} testID="kb-editor-text-back">
+                <Ionicons name="arrow-back" size={16} color={HT.text} />
+                <Text style={{ color: HT.text, fontWeight: "700" }}>Torna alla modifica</Text>
               </Pressable>
             ) : (
               <>
-                <Pressable onPress={() => !saving && onClose()} style={[styles.btn, { backgroundColor: "#F1F5F9" }]} testID="kb-editor-cancel">
-                  <Text style={{ color: "#1B2B4B", fontWeight: "700" }}>Annulla</Text>
+                <Pressable onPress={() => !saving && onClose()} style={[styles.btn, { backgroundColor: HT.card2 }]} testID="kb-editor-cancel">
+                  <Text style={{ color: HT.text, fontWeight: "700" }}>Annulla</Text>
                 </Pressable>
                 <Pressable onPress={save} disabled={!canSave} style={[styles.btn, { backgroundColor: canSave ? PURPLE : "#C4B5FD", flex: 2 }]} testID="kb-editor-save">
                   {saving ? <ActivityIndicator color="#FFF" size="small" /> : <Ionicons name="checkmark" size={18} color="#FFF" />}
@@ -279,22 +280,22 @@ export function KbEntryEditorModal({ visible, doc, onClose, onSaved }: Props) {
 
 const styles = StyleSheet.create({
   back: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
-  card: { backgroundColor: "#FFF", borderTopLeftRadius: 22, borderTopRightRadius: 22, overflow: "hidden" },
-  hdr: { flexDirection: "row", alignItems: "center", gap: 10, padding: 16, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  card: { backgroundColor: HT.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, overflow: "hidden" },
+  hdr: { flexDirection: "row", alignItems: "center", gap: 10, padding: 16, borderBottomWidth: 1, borderBottomColor: HT.border },
   hdrIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: PURPLE, alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 16, fontWeight: "800", color: "#1B2B4B" },
-  sub: { fontSize: 11, color: "#64748B", marginTop: 2 },
-  label: { fontSize: 12, fontWeight: "800", color: "#475569", marginBottom: 6 },
-  input: { backgroundColor: "#F8FAFC", borderRadius: 12, borderWidth: 1, borderColor: "#E5E7EB", paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: "#1B2B4B", minHeight: 44 },
+  title: { fontSize: 16, fontWeight: "800", color: HT.text },
+  sub: { fontSize: 11, color: HT.muted, marginTop: 2 },
+  label: { fontSize: 12, fontWeight: "800", color: HT.text2, marginBottom: 6 },
+  input: { backgroundColor: HT.card2, borderRadius: 12, borderWidth: 1, borderColor: HT.border, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: HT.text, minHeight: 44 },
   textarea: { minHeight: 170, maxHeight: 280, lineHeight: 20, paddingTop: 10 },
   chip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1.5, borderColor: PURPLE, minHeight: 36 },
   chipOn: { backgroundColor: PURPLE },
   chipTxt: { fontSize: 12, fontWeight: "800", color: PURPLE },
-  hint: { fontSize: 11, color: "#94A3B8", fontStyle: "italic", marginTop: 6 },
-  footer: { flexDirection: "row", gap: 8, padding: 12, borderTopWidth: 1, borderTopColor: "#E5E7EB" },
-  pdfBox: { backgroundColor: "#F5F3FF", borderRadius: 12, borderWidth: 1, borderColor: "#DDD6FE", padding: 12, gap: 10 },
+  hint: { fontSize: 11, color: HT.muted, fontStyle: "italic", marginTop: 6 },
+  footer: { flexDirection: "row", gap: 8, padding: 12, borderTopWidth: 1, borderTopColor: HT.border },
+  pdfBox: { backgroundColor: HT.violetTint, borderRadius: 12, borderWidth: 1, borderColor: HT.violet + '66', padding: 12, gap: 10 },
   pageLabel: { fontSize: 11, fontWeight: "800", color: PURPLE, marginBottom: 4 },
-  pageText: { fontSize: 13, lineHeight: 19, color: "#1B2B4B" },
+  pageText: { fontSize: 13, lineHeight: 19, color: HT.text },
   btn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 46, borderRadius: 12 },
   btnTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
 });

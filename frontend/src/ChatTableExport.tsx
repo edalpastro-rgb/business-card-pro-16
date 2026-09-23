@@ -27,6 +27,7 @@ import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
 import { useAuth } from "@/src/auth";
 import { tryParseChart, type ChartSpec } from "@/src/ChatChartExport";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 export type ParsedTable = {
   headers: string[];
@@ -118,9 +119,9 @@ function splitRow(line: string): string[] {
 /** V50.z245 — Tinta riga dal marcatore nella prima cella: 🟡 previsione (giallo) · 🔴 massimo · 🟢 minimo. */
 function rowTint(r: string[]): { backgroundColor: string } | null {
   const c0 = (r[0] || "").trimStart();
-  if (c0.startsWith("🟡")) return { backgroundColor: "#FEF9C3" };
-  if (c0.startsWith("🔴")) return { backgroundColor: "#FEE2E2" };
-  if (c0.startsWith("🟢")) return { backgroundColor: "#DCFCE7" };
+  if (c0.startsWith("🟡")) return { backgroundColor: HT.warningTint };
+  if (c0.startsWith("🔴")) return { backgroundColor: HT.dangerTint };
+  if (c0.startsWith("🟢")) return { backgroundColor: HT.successTint };
   return null;
 }
 
@@ -440,7 +441,7 @@ export function ChatTableExport({ table, assistantColor = "#8B5CF6" }: { table: 
           V50.z140: un tap apre la tabella a schermo intero. */}
       <Pressable onPress={() => setFull(true)} testID="table-open-fullscreen" accessibilityRole="button" accessibilityLabel="Apri tabella a schermo intero">
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tableScroll}>
-          <View ref={captureRefEl} collapsable={false} style={[styles.table, { backgroundColor: "#FFF" }]}>
+          <View ref={captureRefEl} collapsable={false} style={[styles.table, { backgroundColor: HT.card }]}>
             <BrandHeaderRow brand={brand} />
             <View style={[styles.row, styles.headerRow, { backgroundColor: assistantColor }]}>
               {table.headers.map((h, i) => (
@@ -450,7 +451,7 @@ export function ChatTableExport({ table, assistantColor = "#8B5CF6" }: { table: 
               ))}
             </View>
             {previewRows.map((r, ri) => (
-              <View key={ri} style={[styles.row, ri % 2 === 1 && { backgroundColor: "#F8FAFC" }, rowTint(r)]}>
+              <View key={ri} style={[styles.row, ri % 2 === 1 && { backgroundColor: HT.card2 }, rowTint(r)]}>
                 {r.map((c, ci) => (
                   <View key={ci} style={[styles.cell, ci === r.length - 1 && styles.cellLast]}>
                     <Text style={styles.cellTxt} numberOfLines={3}>{c}</Text>
@@ -463,7 +464,7 @@ export function ChatTableExport({ table, assistantColor = "#8B5CF6" }: { table: 
       </Pressable>
       <View style={styles.underRow}>
         <Text style={styles.tapHint}>
-          <Ionicons name="expand-outline" size={10} color="#94A3B8" /> Tocca la tabella per lo schermo intero
+          <Ionicons name="expand-outline" size={10} color={HT.muted} /> Tocca la tabella per lo schermo intero
         </Text>
         {table.rows.length > previewRows.length ? (
           <Text style={styles.moreRowsTxt}>… e altre {table.rows.length - previewRows.length} righe (incluse nell&apos;export)</Text>
@@ -499,7 +500,7 @@ export function ChatTableExport({ table, assistantColor = "#8B5CF6" }: { table: 
               <Text style={styles.fullSub}>{table.rows.length} righe · {table.headers.length} colonne · scorri in ogni direzione</Text>
             </View>
             <Pressable onPress={() => !busyFormat && setFull(false)} hitSlop={12} style={styles.fullClose} testID="table-fullscreen-close">
-              <Ionicons name="close" size={22} color="#1B2B4B" />
+              <Ionicons name="close" size={22} color={HT.text} />
             </Pressable>
           </View>
           <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.fullScrollV} showsVerticalScrollIndicator>
@@ -514,7 +515,7 @@ export function ChatTableExport({ table, assistantColor = "#8B5CF6" }: { table: 
                   ))}
                 </View>
                 {table.rows.map((r, ri) => (
-                  <View key={ri} style={[styles.row, ri % 2 === 1 && { backgroundColor: "#F8FAFC" }, rowTint(r)]} testID={`table-full-row-${ri}`}>
+                  <View key={ri} style={[styles.row, ri % 2 === 1 && { backgroundColor: HT.card2 }, rowTint(r)]} testID={`table-full-row-${ri}`}>
                     {table.headers.map((_, ci) => (
                       <View key={ci} style={[styles.cellFull, { width: fullColWidths[ci] }, ci === table.headers.length - 1 && styles.cellLast]}>
                         <Text style={styles.cellTxtFull}>{r[ci] ?? ""}</Text>
@@ -530,7 +531,7 @@ export function ChatTableExport({ table, assistantColor = "#8B5CF6" }: { table: 
               testID="table-full-export-pdf"
               onPress={() => doExport("pdf", "full")}
               disabled={!!busyFormat}
-              style={[styles.fullBtn, { backgroundColor: "#DC2626" }, !!busyFormat && { opacity: 0.6 }]}
+              style={[styles.fullBtn, { backgroundColor: '#DC2626' }, !!busyFormat && { opacity: 0.6 }]}
             >
               {busyFormat === "pdf" ? <ActivityIndicator color="#FFF" size="small" /> : <Ionicons name="document" size={16} color="#FFF" />}
               <Text style={styles.fullBtnTxt}>PDF</Text>
@@ -539,7 +540,7 @@ export function ChatTableExport({ table, assistantColor = "#8B5CF6" }: { table: 
               testID="table-full-export-png"
               onPress={() => doExport("png", "full")}
               disabled={!!busyFormat}
-              style={[styles.fullBtn, { backgroundColor: "#0891B2" }, !!busyFormat && { opacity: 0.6 }]}
+              style={[styles.fullBtn, { backgroundColor: '#0891B2' }, !!busyFormat && { opacity: 0.6 }]}
             >
               {busyFormat === "png" ? <ActivityIndicator color="#FFF" size="small" /> : <Ionicons name="image" size={16} color="#FFF" />}
               <Text style={styles.fullBtnTxt}>Immagine</Text>
@@ -547,7 +548,7 @@ export function ChatTableExport({ table, assistantColor = "#8B5CF6" }: { table: 
             <Pressable
               testID="table-full-close-btn"
               onPress={() => !busyFormat && setFull(false)}
-              style={[styles.fullBtn, { backgroundColor: "#1B2B4B", flex: 1.2 }]}
+              style={[styles.fullBtn, { backgroundColor: '#1B2B4B', flex: 1.2 }]}
             >
               <Ionicons name="checkmark" size={16} color="#FFF" />
               <Text style={styles.fullBtnTxt}>Chiudi</Text>
@@ -562,7 +563,7 @@ export function ChatTableExport({ table, assistantColor = "#8B5CF6" }: { table: 
             <View style={styles.sheetHdr}>
               <Text style={styles.sheetTitle}>Esporta tabella</Text>
               <Pressable onPress={() => !busyFormat && setOpen(false)} hitSlop={10}>
-                <Ionicons name="close" size={22} color="#1B2B4B" />
+                <Ionicons name="close" size={22} color={HT.text} />
               </Pressable>
             </View>
             <View style={styles.optionsRow}>
@@ -684,7 +685,7 @@ async function drawTableToPngWeb(table: ParsedTable, brand?: TableBrandHeader | 
       ctx.fillStyle = "#F8FAFC";
       ctx.fillRect(0, y, totalW, rowH);
     }
-    ctx.fillStyle = "#1B2B4B";
+    ctx.fillStyle = HT.text;
     let cx = 0;
     r.forEach((c, ci) => {
       // Clip text to column width
@@ -704,7 +705,7 @@ async function drawTableToPngWeb(table: ParsedTable, brand?: TableBrandHeader | 
     ctx.stroke();
   });
   // Footer meta
-  ctx.fillStyle = "#94A3B8";
+  ctx.fillStyle = HT.muted;
   ctx.font = `10px -apple-system, Segoe UI, Roboto, sans-serif`;
   ctx.fillText(`AdvisorOS · ${new Date().toLocaleString("it-IT")}`, cellPadding, headerH + table.rows.length * rowH + 20);
   const dataUri = canvas.toDataURL("image/png");
@@ -732,7 +733,7 @@ function FormatOption({ testID, icon, label, sub, color, busy, disabled, onPress
 
 const styles = StyleSheet.create({
   wrap: { marginTop: 8, gap: 6 },
-  tableScroll: { borderRadius: 8, borderWidth: 1, borderColor: "#E5E7EB", backgroundColor: "#FFF" },
+  tableScroll: { borderRadius: 8, borderWidth: 1, borderColor: HT.border, backgroundColor: HT.card },
   // V49.m — Larghezza uniforme e testo centrato per tutte le celle.
   // Su mobile la ScrollView orizzontale mostra ogni colonna senza tagli.
   table: { minWidth: "100%" },
@@ -745,46 +746,46 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderRightWidth: 1,
-    borderRightColor: "#E5E7EB",
+    borderRightColor: HT.border,
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
+    borderBottomColor: HT.border,
   },
   cellLast: { borderRightWidth: 0 },
   headerCellTxt: { color: "#FFF", fontSize: 11, fontWeight: "800", letterSpacing: 0.2, textAlign: "center" },
-  cellTxt: { fontSize: 12, color: "#1B2B4B", textAlign: "center" },
-  moreRowsTxt: { fontSize: 10, color: "#94A3B8", fontStyle: "italic", textAlign: "right" },
+  cellTxt: { fontSize: 12, color: HT.text, textAlign: "center" },
+  moreRowsTxt: { fontSize: 10, color: HT.muted, fontStyle: "italic", textAlign: "right" },
   underRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" },
-  tapHint: { fontSize: 10, color: "#94A3B8" },
+  tapHint: { fontSize: 10, color: HT.muted },
   // V50.z140 — Header tabella (logo + nome azienda)
-  brandRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 10, paddingVertical: 6, borderBottomWidth: 2, borderBottomColor: "#7C3AED", backgroundColor: "#FFF" },
+  brandRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 10, paddingVertical: 6, borderBottomWidth: 2, borderBottomColor: '#7C3AED', backgroundColor: HT.card },
   brandRowLarge: { gap: 12, paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 3 },
   brandLogo: { width: 28, height: 22 },
   brandLogoLarge: { width: 72, height: 44 },
   brandName: { fontSize: 12, fontWeight: "800", color: "#1E3A5F", flexShrink: 1 },
   brandNameLarge: { fontSize: 18 },
   // V50.z140 — Modal schermo intero
-  fullRoot: { flex: 1, backgroundColor: "#F8FAFC" },
-  fullHdr: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 12, backgroundColor: "#FFF", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  fullTitle: { fontSize: 17, fontWeight: "800", color: "#1B2B4B" },
-  fullSub: { fontSize: 11, color: "#94A3B8", marginTop: 2 },
-  fullClose: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: "#F1F5F9" },
+  fullRoot: { flex: 1, backgroundColor: HT.card2 },
+  fullHdr: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 12, backgroundColor: HT.card, borderBottomWidth: 1, borderBottomColor: HT.border },
+  fullTitle: { fontSize: 17, fontWeight: "800", color: HT.text },
+  fullSub: { fontSize: 11, color: HT.muted, marginTop: 2 },
+  fullClose: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: HT.card2 },
   fullScrollV: { padding: 12, paddingBottom: 24 },
-  fullTable: { backgroundColor: "#FFF", borderRadius: 10, borderWidth: 1, borderColor: "#E5E7EB", overflow: "hidden" },
-  cellFull: { paddingVertical: 10, paddingHorizontal: 10, justifyContent: "center", borderRightWidth: 1, borderRightColor: "#E5E7EB", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  fullTable: { backgroundColor: HT.card, borderRadius: 10, borderWidth: 1, borderColor: HT.border, overflow: "hidden" },
+  cellFull: { paddingVertical: 10, paddingHorizontal: 10, justifyContent: "center", borderRightWidth: 1, borderRightColor: HT.border, borderBottomWidth: 1, borderBottomColor: HT.border },
   headerCellTxtFull: { color: "#FFF", fontSize: 13, fontWeight: "800" },
-  cellTxtFull: { fontSize: 14, color: "#1B2B4B", lineHeight: 20 },
-  fullFooter: { flexDirection: "row", gap: 8, paddingHorizontal: 12, paddingTop: 10, backgroundColor: "#FFF", borderTopWidth: 1, borderTopColor: "#E5E7EB" },
+  cellTxtFull: { fontSize: 14, color: HT.text, lineHeight: 20 },
+  fullFooter: { flexDirection: "row", gap: 8, paddingHorizontal: 12, paddingTop: 10, backgroundColor: HT.card, borderTopWidth: 1, borderTopColor: HT.border },
   fullBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 46, borderRadius: 12 },
   fullBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
   exportBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1.5, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12, alignSelf: "flex-start" },
   exportBtnTxt: { fontSize: 12, fontWeight: "800" },
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", alignItems: "center", padding: 20 },
-  sheet: { backgroundColor: "#FFF", borderRadius: 18, padding: 18, width: "100%", maxWidth: 420, gap: 12 },
+  sheet: { backgroundColor: HT.card, borderRadius: 18, padding: 18, width: "100%", maxWidth: 420, gap: 12 },
   sheetHdr: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  sheetTitle: { fontSize: 16, fontWeight: "800", color: "#1B2B4B" },
+  sheetTitle: { fontSize: 16, fontWeight: "800", color: HT.text },
   optionsRow: { flexDirection: "row", gap: 10 },
-  optCard: { flex: 1, alignItems: "center", justifyContent: "center", padding: 16, borderRadius: 12, borderWidth: 1.5, gap: 4, backgroundColor: "#FFF" },
+  optCard: { flex: 1, alignItems: "center", justifyContent: "center", padding: 16, borderRadius: 12, borderWidth: 1.5, gap: 4, backgroundColor: HT.card },
   optLbl: { fontSize: 14, fontWeight: "800", textAlign: "center" },
-  optSub: { fontSize: 10, color: "#94A3B8", fontWeight: "600", textAlign: "center" },
-  hint: { fontSize: 11, color: "#64748B", fontStyle: "italic", textAlign: "center", marginTop: 2 },
+  optSub: { fontSize: 10, color: HT.muted, fontWeight: "600", textAlign: "center" },
+  hint: { fontSize: 11, color: HT.muted, fontStyle: "italic", textAlign: "center", marginTop: 2 },
 });

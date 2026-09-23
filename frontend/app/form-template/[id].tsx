@@ -6,10 +6,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { FormPageView, PageInfo } from "@/src/FormPageView";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Field = { id: string; key: string; label: string; kind: "text" | "checkbox" | "date"; page: number; bbox: number[]; font_size?: number | null; order: number; acro_name?: string | null; example_value?: string };
 type Template = { template_id: string; name: string; notes?: string; page_count: number; pages: { index: number; width: number; height: number }[]; fields: Field[]; semantic_keys: Record<string, string>; field_source: string };
@@ -49,12 +49,12 @@ export default function FormTemplateEditor() {
     catch (e: any) { notify("Modello", e?.message || "Salvataggio non riuscito"); } finally { setSaving(false); }
   };
 
-  if (!t) return <SafeAreaView style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.color.surface }}><ActivityIndicator color="#7C3AED" /></SafeAreaView>;
+  if (!t) return <SafeAreaView style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: HT.card2 }}><ActivityIndicator color="#7C3AED" /></SafeAreaView>;
   const keys = t.semantic_keys || {};
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.surface }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: HT.card2 }}>
       <View style={s.header}>
-        <Pressable onPress={() => router.back()} hitSlop={10} style={s.hBtn}><Ionicons name="chevron-back" size={24} color={theme.color.onSurface} /></Pressable>
+        <Pressable onPress={() => router.back()} hitSlop={10} style={s.hBtn}><Ionicons name="chevron-back" size={24} color={HT.text} /></Pressable>
         <View style={{ flex: 1 }}><Text style={s.title} numberOfLines={1}>{t.name}</Text><Text style={s.sub}>{fields.length} campi · {t.page_count} pagine · {t.field_source === "acroform" ? "campi PDF nativi" : "rilevati da Axon"}</Text></View>
         <Pressable onPress={save} disabled={saving || !dirty} style={[s.saveBtn, (!dirty || saving) && { opacity: 0.5 }]} testID="fte-save">{saving ? <ActivityIndicator color="#FFF" size="small" /> : <Text style={s.saveTxt}>Salva</Text>}</Pressable>
       </View>
@@ -70,15 +70,15 @@ export default function FormTemplateEditor() {
         {selected ? (
           <View style={s.card} testID="fte-field-editor">
             <Text style={s.section}>Campo</Text>
-            <Pressable onPress={() => setKeyPicker(true)} style={s.input} testID="fte-key"><Text style={{ color: theme.color.onSurface, fontWeight: "700" }}>{keys[selected.key] || selected.key}</Text><Text style={s.hint}>Dato del cliente da inserire · tocca per cambiare</Text></Pressable>
-            <TextInput value={selected.label} onChangeText={(v) => upd(selected.id, { label: v })} placeholder="Etichetta stampata sul modulo" placeholderTextColor={theme.color.muted} style={s.input} testID="fte-label" />
+            <Pressable onPress={() => setKeyPicker(true)} style={s.input} testID="fte-key"><Text style={{ color: HT.text, fontWeight: "700" }}>{keys[selected.key] || selected.key}</Text><Text style={s.hint}>Dato del cliente da inserire · tocca per cambiare</Text></Pressable>
+            <TextInput value={selected.label} onChangeText={(v) => upd(selected.id, { label: v })} placeholder="Etichetta stampata sul modulo" placeholderTextColor={HT.muted} style={s.input} testID="fte-label" />
             <View style={{ flexDirection: "row", gap: 6 }}>
               {(["text", "date", "checkbox"] as const).map((k) => <Pressable key={k} onPress={() => upd(selected.id, { kind: k })} style={[s.pageChip, selected.kind === k && s.pageChipOn]}><Text style={[s.pageChipTxt, selected.kind === k && { color: "#FFF" }]}>{k === "text" ? "Testo" : k === "date" ? "Data" : "Casella ✓"}</Text></Pressable>)}
               <View style={{ flex: 1 }} />
-              <TextInput value={selected.font_size ? String(selected.font_size) : ""} onChangeText={(v) => upd(selected.id, { font_size: v ? parseFloat(v.replace(",", ".")) || null : null })} placeholder="pt auto" placeholderTextColor={theme.color.muted} keyboardType="decimal-pad" style={[s.input, { width: 78, textAlign: "center" }]} testID="fte-font" />
+              <TextInput value={selected.font_size ? String(selected.font_size) : ""} onChangeText={(v) => upd(selected.id, { font_size: v ? parseFloat(v.replace(",", ".")) || null : null })} placeholder="pt auto" placeholderTextColor={HT.muted} keyboardType="decimal-pad" style={[s.input, { width: 78, textAlign: "center" }]} testID="fte-font" />
             </View>
             <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>
-              <Pressable onPress={() => setMoving(true)} style={[s.tool, moving && { backgroundColor: "#7C3AED" }]} testID="fte-move"><Ionicons name="move" size={16} color={moving ? "#FFF" : "#7C3AED"} /><Text style={[s.toolTxt, moving && { color: "#FFF" }]}>Sposta</Text></Pressable>
+              <Pressable onPress={() => setMoving(true)} style={[s.tool, moving && { backgroundColor: '#7C3AED' }]} testID="fte-move"><Ionicons name="move" size={16} color={moving ? "#FFF" : "#7C3AED"} /><Text style={[s.toolTxt, moving && { color: "#FFF" }]}>Sposta</Text></Pressable>
               <Pressable onPress={() => nudge(-5, 0)} style={s.tool}><Ionicons name="arrow-back" size={16} color="#7C3AED" /></Pressable>
               <Pressable onPress={() => nudge(5, 0)} style={s.tool}><Ionicons name="arrow-forward" size={16} color="#7C3AED" /></Pressable>
               <Pressable onPress={() => nudge(0, -4)} style={s.tool}><Ionicons name="arrow-up" size={16} color="#7C3AED" /></Pressable>
@@ -92,14 +92,14 @@ export default function FormTemplateEditor() {
               <Pressable onPress={() => move(-1)} style={s.tool}><Ionicons name="chevron-up" size={16} color="#7C3AED" /><Text style={s.toolTxt}>Ordine su</Text></Pressable>
               <Pressable onPress={() => move(1)} style={s.tool}><Ionicons name="chevron-down" size={16} color="#7C3AED" /><Text style={s.toolTxt}>Ordine giù</Text></Pressable>
               <View style={{ flex: 1 }} />
-              <Pressable onPress={remove} style={[s.tool, { borderColor: "#FCA5A5" }]} testID="fte-delete"><Ionicons name="trash-outline" size={16} color="#DC2626" /><Text style={[s.toolTxt, { color: "#DC2626" }]}>Elimina</Text></Pressable>
+              <Pressable onPress={remove} style={[s.tool, { borderColor: '#FCA5A5' }]} testID="fte-delete"><Ionicons name="trash-outline" size={16} color="#DC2626" /><Text style={[s.toolTxt, { color: "#DC2626" }]}>Elimina</Text></Pressable>
             </View>
           </View>
         ) : null}
 
         <Text style={s.section}>Ordine di compilazione ({fields.length})</Text>
         {fields.map((f, i) => (
-          <Pressable key={f.id} onPress={() => { setSel(f.id); setPageIdx(f.page); setMoving(false); }} style={[s.row, f.id === sel && { borderColor: "#7C3AED", backgroundColor: "#FAF5FF" }]} testID={`fte-row-${f.id}`}>
+          <Pressable key={f.id} onPress={() => { setSel(f.id); setPageIdx(f.page); setMoving(false); }} style={[s.row, f.id === sel && { borderColor: '#7C3AED', backgroundColor: '#FAF5FF' }]} testID={`fte-row-${f.id}`}>
             <Text style={s.rowNum}>{i + 1}</Text>
             <View style={{ flex: 1 }}><Text style={s.rowTitle}>{keys[f.key] || f.key}</Text><Text style={s.rowMeta} numberOfLines={1}>{f.label || "—"} · pag. {f.page + 1}{f.example_value ? ` · es. «${f.example_value}»` : ""}</Text></View>
             {f.key === "other" ? <Ionicons name="help-circle" size={18} color="#F59E0B" /> : <Ionicons name="checkmark-circle" size={18} color="#10B981" />}
@@ -113,8 +113,8 @@ export default function FormTemplateEditor() {
             <Text style={s.section}>Quale dato del cliente va in questo campo?</Text>
             <ScrollView style={{ maxHeight: 420 }}>
               {Object.entries(keys).map(([k, l]) => (
-                <Pressable key={k} onPress={() => { if (selected) upd(selected.id, { key: k, label: selected.label || l }); setKeyPicker(false); }} style={[s.keyRow, selected?.key === k && { backgroundColor: "#FAF5FF" }]} testID={`fte-key-${k}`}>
-                  <Text style={{ flex: 1, color: theme.color.onSurface, fontWeight: selected?.key === k ? "900" : "600" }}>{l}</Text><Text style={s.rowMeta}>{k}</Text>
+                <Pressable key={k} onPress={() => { if (selected) upd(selected.id, { key: k, label: selected.label || l }); setKeyPicker(false); }} style={[s.keyRow, selected?.key === k && { backgroundColor: '#FAF5FF' }]} testID={`fte-key-${k}`}>
+                  <Text style={{ flex: 1, color: HT.text, fontWeight: selected?.key === k ? "900" : "600" }}>{l}</Text><Text style={s.rowMeta}>{k}</Text>
                 </Pressable>
               ))}
             </ScrollView>
@@ -126,20 +126,20 @@ export default function FormTemplateEditor() {
 }
 
 const s = StyleSheet.create({
-  header: { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, borderBottomWidth: 1, borderBottomColor: theme.color.border },
+  header: { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, borderBottomWidth: 1, borderBottomColor: HT.border },
   hBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 16, fontWeight: "900", color: theme.color.onSurface }, sub: { fontSize: 11, color: theme.color.muted },
-  saveBtn: { backgroundColor: "#7C3AED", borderRadius: 10, paddingHorizontal: 14, minHeight: 40, alignItems: "center", justifyContent: "center" }, saveTxt: { color: "#FFF", fontWeight: "900" },
-  pageChip: { paddingHorizontal: 12, minHeight: 36, borderRadius: 18, borderWidth: 1, borderColor: theme.color.border, alignItems: "center", justifyContent: "center", backgroundColor: "#FFF" },
-  pageChipOn: { backgroundColor: "#7C3AED", borderColor: "#7C3AED" }, pageChipTxt: { fontSize: 12, fontWeight: "800", color: theme.color.onSurface },
-  hint: { fontSize: 12, color: theme.color.muted, lineHeight: 17 },
-  card: { backgroundColor: "#FFF", borderRadius: 14, borderWidth: 1, borderColor: "#E9D5FF", padding: 12, gap: 8 },
-  section: { fontSize: 14, fontWeight: "900", color: theme.color.onSurface },
-  input: { backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, paddingHorizontal: 12, minHeight: 44, justifyContent: "center", fontSize: 14, color: theme.color.onSurface },
-  tool: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, minHeight: 38, borderRadius: 10, borderWidth: 1, borderColor: "#E9D5FF", backgroundColor: "#FFF" }, toolTxt: { fontSize: 12, fontWeight: "800", color: "#7C3AED" },
-  row: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 12, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, minHeight: 52 },
-  rowNum: { width: 24, textAlign: "center", fontWeight: "900", color: "#7C3AED" }, rowTitle: { fontSize: 13, fontWeight: "800", color: theme.color.onSurface }, rowMeta: { fontSize: 11, color: theme.color.muted },
+  title: { fontSize: 16, fontWeight: "900", color: HT.text }, sub: { fontSize: 11, color: HT.muted },
+  saveBtn: { backgroundColor: '#7C3AED', borderRadius: 10, paddingHorizontal: 14, minHeight: 40, alignItems: "center", justifyContent: "center" }, saveTxt: { color: "#FFF", fontWeight: "900" },
+  pageChip: { paddingHorizontal: 12, minHeight: 36, borderRadius: 18, borderWidth: 1, borderColor: HT.border, alignItems: "center", justifyContent: "center", backgroundColor: HT.card },
+  pageChipOn: { backgroundColor: '#7C3AED', borderColor: '#7C3AED' }, pageChipTxt: { fontSize: 12, fontWeight: "800", color: HT.text },
+  hint: { fontSize: 12, color: HT.muted, lineHeight: 17 },
+  card: { backgroundColor: HT.card, borderRadius: 14, borderWidth: 1, borderColor: '#E9D5FF', padding: 12, gap: 8 },
+  section: { fontSize: 14, fontWeight: "900", color: HT.text },
+  input: { backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border, borderRadius: 10, paddingHorizontal: 12, minHeight: 44, justifyContent: "center", fontSize: 14, color: HT.text },
+  tool: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, minHeight: 38, borderRadius: 10, borderWidth: 1, borderColor: '#E9D5FF', backgroundColor: HT.card }, toolTxt: { fontSize: 12, fontWeight: "800", color: "#7C3AED" },
+  row: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 12, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, minHeight: 52 },
+  rowNum: { width: 24, textAlign: "center", fontWeight: "900", color: "#7C3AED" }, rowTitle: { fontSize: 13, fontWeight: "800", color: HT.text }, rowMeta: { fontSize: 11, color: HT.muted },
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: "#FFF", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16, paddingBottom: 30, gap: 10 },
-  keyRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 12, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: theme.color.border, minHeight: 44 },
+  sheet: { backgroundColor: HT.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16, paddingBottom: 30, gap: 10 },
+  keyRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 12, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: HT.border, minHeight: 44 },
 });

@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { View, Text, StyleSheet, Pressable, TextInput, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 export type QueueItem = { draft_id: string; content: string; status: "pending" | "processing" | "done" | "failed"; priority: "URGENT" | "HIGH" | "NORMAL"; position_in_queue?: number; estimated_time?: string; session_id?: string | null; created_at?: string; error?: string; retry_count?: number };
 export type ChatTab = { session_id: string; title: string; count: number; queued: number };
@@ -25,7 +26,7 @@ export function ChatQueuePanel({ items, recentDone, failed, onChanged, onSendNow
       {failed.length > 0 && (
         <View style={styles.failedBox} testID="queue-failed-section">
           <View style={[styles.row, { alignItems: "center" }]}>
-            <Text style={[styles.h, { color: "#B91C1C", flex: 1 }]}>🔴 Non riuscite ({failed.length})</Text>
+            <Text style={[styles.h, { color: HT.danger, flex: 1 }]}>🔴 Non riuscite ({failed.length})</Text>
             {failed.length > 1 && <Btn icon="refresh" label="Riprova tutte" onPress={() => void retryAll()} primary testID="queue-retry-all" />}
           </View>
           <Text style={styles.muted}>Axon non è riuscito a rispondere a queste domande. Nessuna è andata persa: riprova quando vuoi.</Text>
@@ -35,7 +36,7 @@ export function ChatQueuePanel({ items, recentDone, failed, onChanged, onSendNow
                 <Text style={styles.icon}>{STATUS_ICON.failed}</Text>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.txt} numberOfLines={3}>{it.content}</Text>
-                  <Text style={[styles.meta, { color: "#B91C1C" }]} numberOfLines={2}>{it.error ? `Errore: ${it.error}` : "Errore sconosciuto"}{it.retry_count ? ` · tentativi: ${it.retry_count}` : ""}</Text>
+                  <Text style={[styles.meta, { color: HT.danger }]} numberOfLines={2}>{it.error ? `Errore: ${it.error}` : "Errore sconosciuto"}{it.retry_count ? ` · tentativi: ${it.retry_count}` : ""}</Text>
                 </View>
               </View>
               <View style={styles.actions}>
@@ -84,8 +85,8 @@ export function ChatQueuePanel({ items, recentDone, failed, onChanged, onSendNow
           {recentDone.slice(0, 5).map((it) => (
             <View key={it.draft_id} style={styles.doneRow} testID={`queue-done-${it.draft_id}`}>
               <Text style={styles.icon}>{STATUS_ICON[it.status]}</Text>
-              <Text style={[styles.txt, { flex: 1, color: "#64748B" }]} numberOfLines={1}>{it.content}</Text>
-              <Pressable onPress={() => void del(it.draft_id)} hitSlop={8} testID={`queue-done-del-${it.draft_id}`}><Ionicons name="close" size={16} color="#94A3B8" /></Pressable>
+              <Text style={[styles.txt, { flex: 1, color: HT.muted }]} numberOfLines={1}>{it.content}</Text>
+              <Pressable onPress={() => void del(it.draft_id)} hitSlop={8} testID={`queue-done-del-${it.draft_id}`}><Ionicons name="close" size={16} color={HT.muted} /></Pressable>
             </View>
           ))}
         </>
@@ -97,8 +98,8 @@ export function ChatQueuePanel({ items, recentDone, failed, onChanged, onSendNow
 function Btn({ icon, label, onPress, primary, danger, testID }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void; primary?: boolean; danger?: boolean; testID: string }) {
   return (
     <Pressable onPress={onPress} style={[styles.btn, primary && styles.btnPrimary, danger && styles.btnDanger]} testID={testID}>
-      <Ionicons name={icon} size={14} color={primary ? "#FFF" : danger ? "#B91C1C" : PURPLE} />
-      <Text style={[styles.btnTxt, primary && { color: "#FFF" }, danger && { color: "#B91C1C" }]}>{label}</Text>
+      <Ionicons name={icon} size={14} color={primary ? "#FFF" : danger ? HT.danger : PURPLE} />
+      <Text style={[styles.btnTxt, primary && { color: "#FFF" }, danger && { color: HT.danger }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -122,29 +123,29 @@ export function ChatTabsBar({ tabs, current, onSelect, onNew }: { tabs: ChatTab[
 }
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: "#FAF5FF" },
-  h: { fontSize: 13, fontWeight: "900", color: "#4C1D95" },
-  muted: { fontSize: 12.5, color: "#64748B", lineHeight: 17 },
-  card: { backgroundColor: "#FFF", borderRadius: 14, padding: 10, gap: 8, borderWidth: 1, borderColor: "#EDE9FE" },
-  cardActive: { borderColor: PURPLE, backgroundColor: "#F5F3FF" },
-  cardFailed: { borderColor: "#FECACA", backgroundColor: "#FFF7F7" },
-  failedBox: { gap: 8, padding: 10, borderRadius: 14, backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FECACA" },
+  wrap: { flex: 1, backgroundColor: '#FAF5FF' },
+  h: { fontSize: 13, fontWeight: "900", color: HT.violet },
+  muted: { fontSize: 12.5, color: HT.muted, lineHeight: 17 },
+  card: { backgroundColor: HT.card, borderRadius: 14, padding: 10, gap: 8, borderWidth: 1, borderColor: HT.violetTint },
+  cardActive: { borderColor: PURPLE, backgroundColor: HT.violetTint },
+  cardFailed: { borderColor: HT.danger + '66', backgroundColor: '#FFF7F7' },
+  failedBox: { gap: 8, padding: 10, borderRadius: 14, backgroundColor: HT.dangerTint, borderWidth: 1, borderColor: HT.danger + '66' },
   row: { flexDirection: "row", gap: 8, alignItems: "flex-start" },
   icon: { fontSize: 16, marginTop: 1 },
-  txt: { fontSize: 13.5, color: "#1B2B4B", fontWeight: "600", lineHeight: 18 },
-  meta: { fontSize: 11, color: "#64748B", marginTop: 3 },
-  input: { borderWidth: 1, borderColor: PURPLE, borderRadius: 10, padding: 8, fontSize: 13.5, color: "#1B2B4B", minHeight: 60, backgroundColor: "#FFF" },
+  txt: { fontSize: 13.5, color: HT.text, fontWeight: "600", lineHeight: 18 },
+  meta: { fontSize: 11, color: HT.muted, marginTop: 3 },
+  input: { borderWidth: 1, borderColor: PURPLE, borderRadius: 10, padding: 8, fontSize: 13.5, color: HT.text, minHeight: 60, backgroundColor: HT.card },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  btn: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 36, paddingHorizontal: 10, borderRadius: 999, borderWidth: 1, borderColor: "#DDD6FE", backgroundColor: "#FFF" },
+  btn: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 36, paddingHorizontal: 10, borderRadius: 999, borderWidth: 1, borderColor: HT.violet + '66', backgroundColor: HT.card },
   btnPrimary: { backgroundColor: PURPLE, borderColor: PURPLE },
-  btnDanger: { borderColor: "#FECACA", backgroundColor: "#FEF2F2" },
+  btnDanger: { borderColor: HT.danger + '66', backgroundColor: HT.dangerTint },
   btnTxt: { fontSize: 12, fontWeight: "800", color: PURPLE },
   doneRow: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 36, paddingHorizontal: 6 },
   tabs: { flexDirection: "row", gap: 6, paddingLeft: 10, paddingRight: 100, paddingVertical: 6, alignItems: "center" },
-  tab: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 32, paddingHorizontal: 12, borderRadius: 999, backgroundColor: "#F1EEFF", maxWidth: 160 },
+  tab: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 32, paddingHorizontal: 12, borderRadius: 999, backgroundColor: '#F1EEFF', maxWidth: 160 },
   tabOn: { backgroundColor: PURPLE },
-  tabNew: { backgroundColor: "#FFF", borderWidth: 1, borderColor: "#DDD6FE" },
-  tabTxt: { fontSize: 12, fontWeight: "800", color: "#4C1D95" },
-  tabBadge: { backgroundColor: "#F97316", borderRadius: 999, minWidth: 16, height: 16, alignItems: "center", justifyContent: "center", paddingHorizontal: 4 },
+  tabNew: { backgroundColor: HT.card, borderWidth: 1, borderColor: HT.violet + '66' },
+  tabTxt: { fontSize: 12, fontWeight: "800", color: HT.violet },
+  tabBadge: { backgroundColor: '#F97316', borderRadius: 999, minWidth: 16, height: 16, alignItems: "center", justifyContent: "center", paddingHorizontal: 4 },
   tabBadgeTxt: { color: "#FFF", fontSize: 9.5, fontWeight: "900" },
 });

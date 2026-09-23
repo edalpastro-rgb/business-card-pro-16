@@ -6,8 +6,8 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 // V50.z153 — Azioni su una singola scadenza (bolletta):
 //   1. Disattiva avviso → sparisce da Home / Scadenze / conteggi (salvato sul server)
@@ -33,13 +33,13 @@ type Props = {
 
 const C = {
   primary: "#FF6B35",
-  navy: "#1B2B4B",
+  navy: HT.text,
   danger: "#DC2626",
   dangerSoft: "#FEE2E2",
   success: "#16A34A",
   successSoft: "#DCFCE7",
   infoSoft: "#DBEAFE",
-  info: "#0369A1",
+  info: HT.axon,
 };
 
 function isoToIt(s?: string): string {
@@ -127,7 +127,7 @@ export function DeadlineActionsSheet({ item, onClose, onChanged }: Props) {
               </Text>
             </View>
             <Pressable onPress={onClose} hitSlop={10} testID="deadline-actions-close" style={styles.closeBtn}>
-              <Ionicons name="close" size={20} color={theme.color.onSurface} />
+              <Ionicons name="close" size={20} color={HT.text} />
             </Pressable>
           </View>
 
@@ -161,7 +161,7 @@ export function DeadlineActionsSheet({ item, onClose, onChanged }: Props) {
                   <Text style={styles.actionTitle}>Nuova data scadenza</Text>
                   <Text style={styles.actionSub}>Imposta manualmente la scadenza del contratto e riattiva l&apos;avviso.</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+                <Ionicons name="chevron-forward" size={18} color={HT.muted} />
               </Pressable>
 
               <Pressable
@@ -177,7 +177,7 @@ export function DeadlineActionsSheet({ item, onClose, onChanged }: Props) {
                   <Text style={styles.actionTitle}>Sostituisci bolletta</Text>
                   <Text style={styles.actionSub}>Apri la scheda contatto: caricando una nuova bolletta l&apos;avviso si aggiorna da solo.</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+                <Ionicons name="chevron-forward" size={18} color={HT.muted} />
               </Pressable>
             </View>
           ) : (
@@ -188,7 +188,7 @@ export function DeadlineActionsSheet({ item, onClose, onChanged }: Props) {
                 value={date}
                 onChangeText={(t) => setDate(maskDate(t))}
                 placeholder="GG/MM/AAAA"
-                placeholderTextColor={theme.color.muted}
+                placeholderTextColor={HT.muted}
                 keyboardType="number-pad"
                 maxLength={10}
                 autoFocus
@@ -199,7 +199,7 @@ export function DeadlineActionsSheet({ item, onClose, onChanged }: Props) {
               <Text style={styles.hint}>Data attuale: {isoToIt(item.expiry_date) || "—"}</Text>
               <View style={{ flexDirection: "row", gap: 10 }}>
                 <Pressable testID="deadline-newdate-back" onPress={() => setMode("menu")} style={[styles.btn, styles.btnGhost]} disabled={!!busy}>
-                  <Text style={[styles.btnTxt, { color: theme.color.onSurface }]}>Indietro</Text>
+                  <Text style={[styles.btnTxt, { color: HT.text }]}>Indietro</Text>
                 </Pressable>
                 <Pressable testID="deadline-newdate-save" onPress={saveExpiry} style={[styles.btn, styles.btnPrimary]} disabled={!!busy}>
                   {busy === "expiry" ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={[styles.btnTxt, { color: "#FFF" }]}>Salva e riattiva</Text>}
@@ -216,35 +216,35 @@ export function DeadlineActionsSheet({ item, onClose, onChanged }: Props) {
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: "rgba(15,23,42,0.45)", justifyContent: "flex-end" },
   sheet: {
-    backgroundColor: theme.color.surface,
+    backgroundColor: HT.card2,
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,
     paddingHorizontal: 16,
     paddingTop: 8,
   },
-  handle: { alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: theme.color.border, marginBottom: 10 },
+  handle: { alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: HT.border, marginBottom: 10 },
   hdrRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 14 },
-  hdrTitle: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface },
-  hdrSub: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
-  closeBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: theme.color.surfaceSecondary, borderWidth: 1, borderColor: theme.color.border },
+  hdrTitle: { fontSize: 16, fontWeight: "800", color: HT.text },
+  hdrSub: { fontSize: 12, color: HT.muted, marginTop: 2 },
+  closeBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border },
   action: {
     flexDirection: "row", alignItems: "center", gap: 12,
     padding: 12, borderRadius: 14, minHeight: 56,
-    backgroundColor: theme.color.surfaceSecondary, borderWidth: 1, borderColor: theme.color.border,
+    backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border,
   },
   pressed: { opacity: 0.85 },
   actionIcon: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  actionTitle: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface },
-  actionSub: { fontSize: 11.5, color: theme.color.muted, marginTop: 2, lineHeight: 15 },
+  actionTitle: { fontSize: 14, fontWeight: "800", color: HT.text },
+  actionSub: { fontSize: 11.5, color: HT.muted, marginTop: 2, lineHeight: 15 },
   label: { fontSize: 13, fontWeight: "800", color: C.navy },
   input: {
-    borderWidth: 1, borderColor: theme.color.border, borderRadius: 12,
+    borderWidth: 1, borderColor: HT.border, borderRadius: 12,
     paddingHorizontal: 14, paddingVertical: 12, fontSize: 18, fontWeight: "700",
-    letterSpacing: 1, color: theme.color.onSurface, backgroundColor: theme.color.surfaceSecondary,
+    letterSpacing: 1, color: HT.text, backgroundColor: HT.card2,
   },
-  hint: { fontSize: 12, color: theme.color.muted },
+  hint: { fontSize: 12, color: HT.muted },
   btn: { flex: 1, minHeight: 46, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  btnGhost: { backgroundColor: theme.color.surfaceSecondary, borderWidth: 1, borderColor: theme.color.border },
+  btnGhost: { backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border },
   btnPrimary: { backgroundColor: C.primary },
   btnTxt: { fontSize: 14, fontWeight: "800" },
 });

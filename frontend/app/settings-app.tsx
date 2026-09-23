@@ -6,6 +6,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Settings = { theme?: string; accent_color?: string; banner_image_url?: string };
 
@@ -17,7 +18,7 @@ const ACCENTS = [
   { color: "#F59E0B", name: "Ambra" },
   { color: "#DC2626", name: "Rosso" },
   { color: "#6366F1", name: "Indaco" },
-  { color: "#0F172A", name: "Notte" },
+  { color: HT.text, name: "Notte" },
 ];
 
 export default function SettingsAppScreen() {
@@ -46,18 +47,18 @@ export default function SettingsAppScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.background }} edges={["top"]}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.headerBtn}><Ionicons name="chevron-back" size={22} color={theme.color.onSurface} /></Pressable>
+        <Pressable onPress={() => router.back()} style={styles.headerBtn}><Ionicons name="chevron-back" size={22} color={HT.text} /></Pressable>
         <Text style={styles.headerTitle}>Setting App</Text>
-        {saving && <ActivityIndicator color={theme.color.brandPrimary} />}
+        {saving && <ActivityIndicator color={HT.brand} />}
       </View>
 
-      {loading ? <ActivityIndicator style={{ marginTop: 40 }} color={theme.color.brandPrimary} /> : (
+      {loading ? <ActivityIndicator style={{ marginTop: 40 }} color={HT.brand} /> : (
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
           <Text style={styles.section}>Tema</Text>
           <View style={styles.row}>
             {(["light","dark","auto"] as const).map((t) => (
               <Pressable key={t} onPress={() => save({ theme: t })} testID={`theme-${t}`} style={[styles.themeOpt, settings.theme === t && styles.themeOptActive]}>
-                <Ionicons name={t === "light" ? "sunny" : t === "dark" ? "moon" : "contrast"} size={22} color={settings.theme === t ? "#FFF" : theme.color.onSurface} />
+                <Ionicons name={t === "light" ? "sunny" : t === "dark" ? "moon" : "contrast"} size={22} color={settings.theme === t ? "#FFF" : HT.text} />
                 <Text style={[styles.themeLabel, settings.theme === t && { color: "#FFF" }]}>{t === "light" ? "Chiaro" : t === "dark" ? "Scuro" : "Auto"}</Text>
               </Pressable>
             ))}
@@ -87,13 +88,13 @@ export default function SettingsAppScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: "row", alignItems: "center", padding: 14, gap: 10, borderBottomWidth: 1, borderBottomColor: theme.color.border, backgroundColor: theme.color.surface },
+  header: { flexDirection: "row", alignItems: "center", padding: 14, gap: 10, borderBottomWidth: 1, borderBottomColor: HT.border, backgroundColor: HT.card2 },
   // V29.bc — Stile Optima
   headerBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: HT.card2,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
@@ -104,18 +105,18 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     elevation: 4,
   },
-  headerTitle: { flex: 1, fontSize: 16, fontWeight: "800", color: theme.color.onSurface },
-  section: { fontSize: 13, fontWeight: "800", color: theme.color.muted, textTransform: "uppercase", marginTop: 16, marginBottom: 8, letterSpacing: 1 },
+  headerTitle: { flex: 1, fontSize: 16, fontWeight: "800", color: HT.text },
+  section: { fontSize: 13, fontWeight: "800", color: HT.muted, textTransform: "uppercase", marginTop: 16, marginBottom: 8, letterSpacing: 1 },
   row: { flexDirection: "row", gap: 10 },
-  themeOpt: { flex: 1, backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border, padding: 14, borderRadius: 12, alignItems: "center", gap: 4 },
-  themeOptActive: { backgroundColor: "#7C3AED", borderColor: "#7C3AED" },
-  themeLabel: { fontSize: 12, fontWeight: "700", color: theme.color.onSurface },
+  themeOpt: { flex: 1, backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border, padding: 14, borderRadius: 12, alignItems: "center", gap: 4 },
+  themeOptActive: { backgroundColor: '#7C3AED', borderColor: '#7C3AED' },
+  themeLabel: { fontSize: 12, fontWeight: "700", color: HT.text },
   accentGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
   accentCell: { width: 60, height: 60, borderRadius: 30, alignItems: "center", justifyContent: "center" },
-  accentCellActive: { borderWidth: 3, borderColor: "#0F172A" },
-  hint: { fontSize: 11, color: theme.color.muted, marginTop: 10 },
-  previewCard: { flexDirection: "row", alignItems: "center", padding: 14, backgroundColor: theme.color.surface, borderRadius: 12, borderWidth: 1, borderColor: theme.color.border, marginTop: 20 },
+  accentCellActive: { borderWidth: 3, borderColor: '#0F172A' },
+  hint: { fontSize: 11, color: HT.muted, marginTop: 10 },
+  previewCard: { flexDirection: "row", alignItems: "center", padding: 14, backgroundColor: HT.card2, borderRadius: 12, borderWidth: 1, borderColor: HT.border, marginTop: 20 },
   previewCircle: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
-  previewTitle: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface },
-  previewSub: { fontSize: 11, color: theme.color.muted, marginTop: 2 },
+  previewTitle: { fontSize: 14, fontWeight: "800", color: HT.text },
+  previewSub: { fontSize: 11, color: HT.muted, marginTop: 2 },
 });

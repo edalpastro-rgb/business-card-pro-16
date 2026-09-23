@@ -15,6 +15,7 @@ import { launchLibraryUniversal } from "@/src/utils/imagePickerCompat";
 import { ModuleErrorBoundary } from "@/src/shared";
 
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 // ---------- Types ----------
 type EventBanner = {
   event_id: string;
@@ -475,11 +476,11 @@ function EventBannersScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable testID="back-btn" onPress={() => router.back()} hitSlop={10}>
-          <Ionicons name="chevron-back" size={26} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={26} color={HT.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Banner Evento</Text>
         <Pressable testID="event-add-btn" onPress={openCreate} hitSlop={10}>
-          <Ionicons name="add-circle" size={26} color={theme.color.brandPrimary} />
+          <Ionicons name="add-circle" size={26} color={HT.brand} />
         </Pressable>
       </View>
 
@@ -493,10 +494,10 @@ function EventBannersScreen() {
         </View>
 
         {loading ? (
-          <ActivityIndicator style={{ marginTop: 20 }} color={theme.color.brandPrimary} />
+          <ActivityIndicator style={{ marginTop: 20 }} color={HT.brand} />
         ) : items.length === 0 ? (
           <View style={styles.emptyCard}>
-            <Ionicons name="calendar-outline" size={40} color={theme.color.muted} />
+            <Ionicons name="calendar-outline" size={40} color={HT.muted} />
             <Text style={styles.emptyTxt}>Nessun evento creato. Tocca + in alto a destra per iniziare.</Text>
           </View>
         ) : (
@@ -511,13 +512,13 @@ function EventBannersScreen() {
                     {when.toLocaleString("it-IT", { day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                   </Text>
                   <View style={{ flexDirection: "row", gap: 6, marginTop: 6 }}>
-                    <View style={[styles.pill, past ? { backgroundColor: "#FEE2E2" } : { backgroundColor: "#DCFCE7" }]}>
-                      <Text style={[styles.pillTxt, past ? { color: "#991B1B" } : { color: "#166534" }]}>
+                    <View style={[styles.pill, past ? { backgroundColor: HT.dangerTint } : { backgroundColor: HT.successTint }]}>
+                      <Text style={[styles.pillTxt, past ? { color: HT.danger } : { color: HT.success }]}>
                         {past ? "Passato" : "Prossimo"}
                       </Text>
                     </View>
-                    <View style={[styles.pill, { backgroundColor: "#EEF2FF" }]}>
-                      <Text style={[styles.pillTxt, { color: "#3730A3" }]}>
+                    <View style={[styles.pill, { backgroundColor: HT.violetTint }]}>
+                      <Text style={[styles.pillTxt, { color: HT.axon }]}>
                         {b.visibility_kind === "all" ? "Tutti" : "Selezione"}
                       </Text>
                     </View>
@@ -525,7 +526,7 @@ function EventBannersScreen() {
                 </View>
                 <View style={{ flexDirection: "row", gap: 6 }}>
                   <Pressable testID={`event-edit-${b.event_id}`} onPress={() => openEdit(b)} style={styles.iconBtn}>
-                    <Ionicons name="pencil" size={16} color={theme.color.brandPrimary} />
+                    <Ionicons name="pencil" size={16} color={HT.brand} />
                   </Pressable>
                   <Pressable testID={`event-del-${b.event_id}`} onPress={() => del(b)} style={styles.iconBtn}>
                     <Ionicons name="trash" size={16} color="#DC2626" />
@@ -544,7 +545,7 @@ function EventBannersScreen() {
             <View style={styles.modalHead}>
               <Text style={styles.modalTitle}>{editing?.event_id ? "Modifica evento" : "Nuovo evento"}</Text>
               <Pressable onPress={() => setEditing(null)} hitSlop={8}>
-                <Ionicons name="close" size={22} color={theme.color.onSurface} />
+                <Ionicons name="close" size={22} color={HT.text} />
               </Pressable>
             </View>
 
@@ -560,8 +561,8 @@ function EventBannersScreen() {
                   />
                 ) : (
                   <View style={styles.coverEmpty}>
-                    <Ionicons name="image-outline" size={30} color={theme.color.muted} />
-                    <Text style={{ color: theme.color.muted, fontSize: 12, marginTop: 4 }}>Tocca per scegliere</Text>
+                    <Ionicons name="image-outline" size={30} color={HT.muted} />
+                    <Text style={{ color: HT.muted, fontSize: 12, marginTop: 4 }}>Tocca per scegliere</Text>
                   </View>
                 )}
               </Pressable>
@@ -573,7 +574,7 @@ function EventBannersScreen() {
                 value={title}
                 onChangeText={setTitle}
                 placeholder="Es. Convention 2026, Aperitivo Rete…"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={HT.muted}
                 style={styles.input}
               />
 
@@ -586,10 +587,10 @@ function EventBannersScreen() {
                     onPress={() => openDtPicker("start-date")}
                     style={[styles.input, { flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}
                   >
-                    <Text style={{ color: dateStr ? theme.color.onSurface : "#94A3B8", fontSize: 13 }}>
+                    <Text style={{ color: dateStr ? HT.text : HT.muted, fontSize: 13 }}>
                       {dateStr || "GG.MM.AAAA"}
                     </Text>
-                    <Ionicons name="calendar-outline" size={16} color={theme.color.muted} />
+                    <Ionicons name="calendar-outline" size={16} color={HT.muted} />
                   </Pressable>
                   {Platform.OS === "web" && (
                     <TextInput
@@ -597,7 +598,7 @@ function EventBannersScreen() {
                       value={dateStr}
                       onChangeText={setDateStr}
                       placeholder="GG.MM.AAAA"
-                      placeholderTextColor="#94A3B8"
+                      placeholderTextColor={HT.muted}
                       style={[styles.input, { marginTop: 4 }]}
                     />
                   )}
@@ -608,10 +609,10 @@ function EventBannersScreen() {
                     onPress={() => openDtPicker("start-time")}
                     style={[styles.input, { flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}
                   >
-                    <Text style={{ color: timeStr ? theme.color.onSurface : "#94A3B8", fontSize: 13 }}>
+                    <Text style={{ color: timeStr ? HT.text : HT.muted, fontSize: 13 }}>
                       {timeStr || "HH:MM"}
                     </Text>
-                    <Ionicons name="time-outline" size={16} color={theme.color.muted} />
+                    <Ionicons name="time-outline" size={16} color={HT.muted} />
                   </Pressable>
                   {Platform.OS === "web" && (
                     <TextInput
@@ -619,7 +620,7 @@ function EventBannersScreen() {
                       value={timeStr}
                       onChangeText={setTimeStr}
                       placeholder="HH:MM"
-                      placeholderTextColor="#94A3B8"
+                      placeholderTextColor={HT.muted}
                       style={[styles.input, { marginTop: 4 }]}
                     />
                   )}
@@ -634,10 +635,10 @@ function EventBannersScreen() {
                     onPress={() => openDtPicker("end-date")}
                     style={[styles.input, { flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}
                   >
-                    <Text style={{ color: endDateStr ? theme.color.onSurface : "#94A3B8", fontSize: 13 }}>
+                    <Text style={{ color: endDateStr ? HT.text : HT.muted, fontSize: 13 }}>
                       {endDateStr || "GG.MM.AAAA"}
                     </Text>
-                    <Ionicons name="calendar-outline" size={16} color={theme.color.muted} />
+                    <Ionicons name="calendar-outline" size={16} color={HT.muted} />
                   </Pressable>
                   {Platform.OS === "web" && (
                     <TextInput
@@ -645,7 +646,7 @@ function EventBannersScreen() {
                       value={endDateStr}
                       onChangeText={setEndDateStr}
                       placeholder="GG.MM.AAAA"
-                      placeholderTextColor="#94A3B8"
+                      placeholderTextColor={HT.muted}
                       style={[styles.input, { marginTop: 4 }]}
                     />
                   )}
@@ -656,10 +657,10 @@ function EventBannersScreen() {
                     onPress={() => openDtPicker("end-time")}
                     style={[styles.input, { flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}
                   >
-                    <Text style={{ color: endTimeStr ? theme.color.onSurface : "#94A3B8", fontSize: 13 }}>
+                    <Text style={{ color: endTimeStr ? HT.text : HT.muted, fontSize: 13 }}>
                       {endTimeStr || "HH:MM"}
                     </Text>
-                    <Ionicons name="time-outline" size={16} color={theme.color.muted} />
+                    <Ionicons name="time-outline" size={16} color={HT.muted} />
                   </Pressable>
                   {Platform.OS === "web" && (
                     <TextInput
@@ -667,7 +668,7 @@ function EventBannersScreen() {
                       value={endTimeStr}
                       onChangeText={setEndTimeStr}
                       placeholder="HH:MM"
-                      placeholderTextColor="#94A3B8"
+                      placeholderTextColor={HT.muted}
                       style={[styles.input, { marginTop: 4 }]}
                     />
                   )}
@@ -690,7 +691,7 @@ function EventBannersScreen() {
                 value={description}
                 onChangeText={setDescription}
                 placeholder="Aggiungi dettagli, temi, relatori, dress code o istruzioni…"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={HT.muted}
                 style={[styles.input, { minHeight: 80, textAlignVertical: "top" }]}
                 multiline
                 maxLength={1000}
@@ -699,18 +700,18 @@ function EventBannersScreen() {
               {/* v2.18 — Audio attachment */}
               <Text style={styles.lbl}>Audio evento (opzionale — condivisibile con la locandina)</Text>
               {audio ? (
-                <View style={{ backgroundColor: "#F1F5F9", borderRadius: 10, padding: 10, borderWidth: 1, borderColor: theme.color.border }}>
+                <View style={{ backgroundColor: HT.card2, borderRadius: 10, padding: 10, borderWidth: 1, borderColor: HT.border }}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                     <Pressable
                       testID="event-audio-play"
                       onPress={togglePlayAudio}
-                      style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: theme.color.brandPrimary, alignItems: "center", justifyContent: "center" }}
+                      style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: HT.brand, alignItems: "center", justifyContent: "center" }}
                     >
                       <Ionicons name={audioPlayer?.playing ? "pause" : "play"} size={16} color="#FFF" />
                     </Pressable>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 13, fontWeight: "700", color: theme.color.onSurface }} numberOfLines={1}>{audio.name}</Text>
-                      <Text style={{ fontSize: 11, color: theme.color.muted }}>{Math.round((audio.base64.length * 3) / 4 / 1024)} KB · {audio.mime}</Text>
+                      <Text style={{ fontSize: 13, fontWeight: "700", color: HT.text }} numberOfLines={1}>{audio.name}</Text>
+                      <Text style={{ fontSize: 11, color: HT.muted }}>{Math.round((audio.base64.length * 3) / 4 / 1024)} KB · {audio.mime}</Text>
                     </View>
                     <Pressable testID="event-audio-clear" onPress={clearAudio} style={{ padding: 6 }}>
                       <Ionicons name="trash-outline" size={18} color="#DC2626" />
@@ -723,7 +724,7 @@ function EventBannersScreen() {
                     <Pressable
                       testID="event-audio-stop"
                       onPress={stopRec}
-                      style={[styles.uploadBtn, { flex: 1, borderColor: "#DC2626", backgroundColor: "#FEE2E2" }]}
+                      style={[styles.uploadBtn, { flex: 1, borderColor: '#DC2626', backgroundColor: HT.dangerTint }]}
                     >
                       <Ionicons name="stop-circle" size={18} color="#DC2626" />
                       <Text style={[styles.uploadTxt, { color: "#DC2626" }]}>Registrando… {Math.floor(recordSeconds / 60).toString().padStart(2, "0")}:{(recordSeconds % 60).toString().padStart(2, "0")} · Tocca per fermare</Text>
@@ -731,12 +732,12 @@ function EventBannersScreen() {
                   ) : (
                     <>
                       {Platform.OS !== "web" && (
-                        <Pressable testID="event-audio-record" onPress={startRec} style={[styles.uploadBtn, { flex: 1, borderColor: "#DC2626" }]}>
+                        <Pressable testID="event-audio-record" onPress={startRec} style={[styles.uploadBtn, { flex: 1, borderColor: '#DC2626' }]}>
                           <Ionicons name="mic" size={16} color="#DC2626" />
                           <Text style={[styles.uploadTxt, { color: "#DC2626" }]}>Registra audio</Text>
                         </Pressable>
                       )}
-                      <Pressable testID="event-audio-upload" onPress={pickAudioFile} style={[styles.uploadBtn, { flex: 1, borderColor: "#0891B2" }]}>
+                      <Pressable testID="event-audio-upload" onPress={pickAudioFile} style={[styles.uploadBtn, { flex: 1, borderColor: '#0891B2' }]}>
                         <Ionicons name="cloud-upload-outline" size={16} color="#0891B2" />
                         <Text style={[styles.uploadTxt, { color: "#0891B2" }]}>Carica audio</Text>
                       </Pressable>
@@ -820,7 +821,7 @@ function EventBannersScreen() {
 
               {/* Program */}
               <Text style={styles.lbl}>Programma evento</Text>
-              <Pressable testID="event-program-pick" onPress={pickProgramPdf} style={[styles.uploadBtn, { borderColor: "#7C3AED" }]}>
+              <Pressable testID="event-program-pick" onPress={pickProgramPdf} style={[styles.uploadBtn, { borderColor: '#7C3AED' }]}>
                 <Ionicons name="cloud-upload-outline" size={16} color="#7C3AED" />
                 <Text style={[styles.uploadTxt, { color: "#7C3AED" }]}>
                   {programPdf ? `PDF: ${programPdf.name}` : "Carica PDF del programma"}
@@ -830,10 +831,10 @@ function EventBannersScreen() {
                 <Pressable
                   testID="event-extract-cover-btn"
                   onPress={extractCoverFromPdfNow}
-                  style={[styles.uploadBtn, { borderColor: "#F59E0B", backgroundColor: "#FFF7ED", paddingVertical: 8 }]}
+                  style={[styles.uploadBtn, { borderColor: '#F59E0B', backgroundColor: HT.brandTint, paddingVertical: 8 }]}
                 >
                   <Ionicons name="sparkles" size={14} color="#F59E0B" />
-                  <Text style={[styles.uploadTxt, { color: "#B45309", fontSize: 12 }]}>
+                  <Text style={[styles.uploadTxt, { color: HT.warning, fontSize: 12 }]}>
                     Estrai copertina dal PDF con AI
                   </Text>
                 </Pressable>
@@ -845,7 +846,7 @@ function EventBannersScreen() {
                 value={aiDesc}
                 onChangeText={setAiDesc}
                 placeholder="Descrizione libera (es. workshop energie rinnovabili + aperitivo networking)"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={HT.muted}
                 multiline
                 style={[styles.input, { minHeight: 60, textAlignVertical: "top" }]}
               />
@@ -854,14 +855,14 @@ function EventBannersScreen() {
                 value={aiDuration}
                 onChangeText={setAiDuration}
                 placeholder="Durata (es. mezza giornata, sera, weekend)"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={HT.muted}
                 style={styles.input}
               />
               <Pressable
                 testID="event-ai-generate"
                 onPress={runAiProgram}
                 disabled={aiBusy || !editing?.event_id}
-                style={[styles.uploadBtn, { borderColor: "#059669", backgroundColor: editing?.event_id ? "#ECFDF5" : "#F1F5F9", opacity: (!editing?.event_id || aiBusy) ? 0.6 : 1 }]}
+                style={[styles.uploadBtn, { borderColor: '#059669', backgroundColor: editing?.event_id ? "#ECFDF5" : "#F1F5F9", opacity: (!editing?.event_id || aiBusy) ? 0.6 : 1 }]}
               >
                 {aiBusy ? (
                   <ActivityIndicator color="#059669" />
@@ -873,21 +874,21 @@ function EventBannersScreen() {
                 )}
               </Pressable>
               {!editing?.event_id && (
-                <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 4, fontStyle: "italic" }}>
+                <Text style={{ fontSize: 11, color: HT.muted, marginTop: 4, fontStyle: "italic" }}>
                   Salva prima l&apos;evento per abilitare la generazione AI.
                 </Text>
               )}
             </ScrollView>
 
             <View style={styles.modalFooter}>
-              <Pressable onPress={() => setEditing(null)} style={[styles.btn, { backgroundColor: "#F1F5F9" }]}>
-                <Text style={{ color: theme.color.onSurface, fontWeight: "700" }}>Chiudi</Text>
+              <Pressable onPress={() => setEditing(null)} style={[styles.btn, { backgroundColor: HT.card2 }]}>
+                <Text style={{ color: HT.text, fontWeight: "700" }}>Chiudi</Text>
               </Pressable>
               <Pressable
                 testID="event-save-btn"
                 onPress={save}
                 disabled={saving}
-                style={[styles.btn, { backgroundColor: theme.color.brandPrimary, flex: 2 }]}
+                style={[styles.btn, { backgroundColor: HT.brand, flex: 2 }]}
               >
                 {saving ? (
                   <ActivityIndicator color="#FFF" />
@@ -918,7 +919,7 @@ function EventBannersScreen() {
 function VisibilityChip({ active, label, onPress, testID }: { active: boolean; label: string; onPress: () => void; testID?: string }) {
   return (
     <Pressable testID={testID} onPress={onPress} style={[styles.visChip, active && styles.visChipOn]}>
-      <Ionicons name={active ? "checkbox" : "square-outline"} size={16} color={active ? "#FFF" : theme.color.muted} />
+      <Ionicons name={active ? "checkbox" : "square-outline"} size={16} color={active ? "#FFF" : HT.muted} />
       <Text style={[styles.visChipTxt, active && { color: "#FFF" }]}>{label}</Text>
     </Pressable>
   );
@@ -926,38 +927,38 @@ function VisibilityChip({ active, label, onPress, testID }: { active: boolean; l
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.color.bg },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.color.border, backgroundColor: theme.color.surface },
-  headerTitle: { fontSize: 18, fontWeight: "800", color: theme.color.onSurface },
-  introCard: { flexDirection: "row", backgroundColor: "#FFF7ED", borderRadius: 12, padding: 12, borderWidth: 1, borderColor: "#FED7AA", marginBottom: 16 },
-  introTitle: { fontSize: 14, fontWeight: "800", color: "#9A3412" },
-  introTxt: { fontSize: 12, color: "#9A3412", marginTop: 4, lineHeight: 17 },
-  emptyCard: { alignItems: "center", padding: 30, backgroundColor: theme.color.surface, borderRadius: 12, borderWidth: 1, borderColor: theme.color.border, borderStyle: "dashed" },
-  emptyTxt: { color: theme.color.muted, fontSize: 13, textAlign: "center", marginTop: 10, maxWidth: 300 },
-  card: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, backgroundColor: theme.color.surface, borderRadius: 12, borderWidth: 1, borderColor: theme.color.border, marginBottom: 8 },
-  cardTitle: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface },
-  cardWhen: { fontSize: 11, color: theme.color.muted, marginTop: 2 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: HT.border, backgroundColor: HT.card2 },
+  headerTitle: { fontSize: 18, fontWeight: "800", color: HT.text },
+  introCard: { flexDirection: "row", backgroundColor: HT.brandTint, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: HT.brandLine, marginBottom: 16 },
+  introTitle: { fontSize: 14, fontWeight: "800", color: "#FDBA74" },
+  introTxt: { fontSize: 12, color: "#FDBA74", marginTop: 4, lineHeight: 17 },
+  emptyCard: { alignItems: "center", padding: 30, backgroundColor: HT.card2, borderRadius: 12, borderWidth: 1, borderColor: HT.border, borderStyle: "dashed" },
+  emptyTxt: { color: HT.muted, fontSize: 13, textAlign: "center", marginTop: 10, maxWidth: 300 },
+  card: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, backgroundColor: HT.card2, borderRadius: 12, borderWidth: 1, borderColor: HT.border, marginBottom: 8 },
+  cardTitle: { fontSize: 14, fontWeight: "800", color: HT.text },
+  cardWhen: { fontSize: 11, color: HT.muted, marginTop: 2 },
   pill: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
   pillTxt: { fontSize: 10, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.4 },
-  iconBtn: { padding: 8, backgroundColor: "#F1F5F9", borderRadius: 8 },
+  iconBtn: { padding: 8, backgroundColor: HT.card2, borderRadius: 8 },
   modalBack: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  modalCard: { backgroundColor: theme.color.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "94%" },
-  modalHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: theme.color.border },
-  modalTitle: { fontSize: 17, fontWeight: "800", color: theme.color.onSurface },
-  modalFooter: { flexDirection: "row", gap: 8, padding: 12, borderTopWidth: 1, borderTopColor: theme.color.border },
+  modalCard: { backgroundColor: HT.card2, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "94%" },
+  modalHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: HT.border },
+  modalTitle: { fontSize: 17, fontWeight: "800", color: HT.text },
+  modalFooter: { flexDirection: "row", gap: 8, padding: 12, borderTopWidth: 1, borderTopColor: HT.border },
   btn: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: "center", justifyContent: "center", flexDirection: "row" },
-  lbl: { fontSize: 12, fontWeight: "700", color: theme.color.muted, textTransform: "uppercase", letterSpacing: 0.4, marginTop: 12, marginBottom: 4 },
-  subLbl: { fontSize: 11, fontWeight: "700", color: theme.color.muted, marginTop: 10, marginBottom: 4 },
-  input: { backgroundColor: "#F1F5F9", borderRadius: 8, paddingHorizontal: 10, paddingVertical: Platform.OS === "ios" ? 10 : 8, fontSize: 13, color: theme.color.onSurface },
-  coverBox: { height: 140, borderRadius: 10, overflow: "hidden", backgroundColor: "#F1F5F9", borderWidth: 2, borderColor: theme.color.border, borderStyle: "dashed" },
+  lbl: { fontSize: 12, fontWeight: "700", color: HT.muted, textTransform: "uppercase", letterSpacing: 0.4, marginTop: 12, marginBottom: 4 },
+  subLbl: { fontSize: 11, fontWeight: "700", color: HT.muted, marginTop: 10, marginBottom: 4 },
+  input: { backgroundColor: HT.card2, borderRadius: 8, paddingHorizontal: 10, paddingVertical: Platform.OS === "ios" ? 10 : 8, fontSize: 13, color: HT.text },
+  coverBox: { height: 140, borderRadius: 10, overflow: "hidden", backgroundColor: HT.card2, borderWidth: 2, borderColor: HT.border, borderStyle: "dashed" },
   coverEmpty: { flex: 1, alignItems: "center", justifyContent: "center" },
-  visChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: theme.color.border, backgroundColor: "#FFF" },
-  visChipOn: { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary },
-  visChipTxt: { fontSize: 12, fontWeight: "700", color: theme.color.onSurface },
+  visChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: HT.border, backgroundColor: HT.card },
+  visChipOn: { backgroundColor: HT.brand, borderColor: HT.brand },
+  visChipTxt: { fontSize: 12, fontWeight: "700", color: HT.text },
   pillRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 },
-  chip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, borderWidth: 1, borderColor: theme.color.border, backgroundColor: "#FFF" },
-  chipOn: { backgroundColor: "#EEF2FF", borderColor: theme.color.brandPrimary },
-  chipTxt: { fontSize: 11, color: theme.color.onSurface, fontWeight: "600" },
-  chipTxtOn: { color: theme.color.brandPrimary, fontWeight: "800" },
+  chip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, borderWidth: 1, borderColor: HT.border, backgroundColor: HT.card },
+  chipOn: { backgroundColor: HT.violetTint, borderColor: HT.brand },
+  chipTxt: { fontSize: 11, color: HT.text, fontWeight: "600" },
+  chipTxtOn: { color: HT.brand, fontWeight: "800" },
   uploadBtn: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 8, borderWidth: 2, borderStyle: "dashed", borderRadius: 10, padding: 12, marginBottom: 8 },
   uploadTxt: { fontWeight: "700", fontSize: 13 },
 });

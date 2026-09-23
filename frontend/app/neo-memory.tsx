@@ -4,7 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Memory = {
   memory_id: string;
@@ -15,7 +15,7 @@ type Memory = {
 };
 
 const NEO_COLOR = "#8B5CF6";
-const NEO_COLOR_DARK = "#6D28D9";
+const NEO_COLOR_DARK = HT.violet;
 
 /**
  * V38T — Neo persistent memory management screen. Lists all memories
@@ -100,7 +100,7 @@ export default function NeoMemoryScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#F8FAFC" }} edges={["top"]}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: HT.card2 }} edges={["top"]}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} testID="neo-memory-back" hitSlop={8}>
           <Ionicons name="chevron-back" size={26} color="#FFF" />
@@ -124,7 +124,7 @@ export default function NeoMemoryScreen() {
           </View>
         ) : items.length === 0 ? (
           <View style={styles.emptyBox}>
-            <Ionicons name="cloud-offline" size={48} color={theme.color.muted} />
+            <Ionicons name="cloud-offline" size={48} color={HT.muted} />
             <Text style={styles.emptyTxt}>Nessuna memoria salvata</Text>
             <Text style={styles.emptySub}>Le conversazioni significative verranno distillate qui.</Text>
           </View>
@@ -201,8 +201,8 @@ const styles = StyleSheet.create({
   infoCard: {
     flexDirection: "row",
     gap: 12,
-    backgroundColor: "#F5F3FF",
-    borderColor: "#DDD6FE",
+    backgroundColor: HT.violetTint,
+    borderColor: HT.violet + '66',
     borderWidth: 1,
     borderRadius: 12,
     padding: 12,
@@ -215,15 +215,15 @@ const styles = StyleSheet.create({
     paddingVertical: 60,
     gap: 8,
   },
-  emptyTxt: { fontSize: 15, fontWeight: "700", color: theme.color.onSurface },
-  emptySub: { fontSize: 12, color: theme.color.muted, textAlign: "center", paddingHorizontal: 24 },
-  count: { fontSize: 12, fontWeight: "700", color: theme.color.muted, textTransform: "uppercase", letterSpacing: 0.5 },
+  emptyTxt: { fontSize: 15, fontWeight: "700", color: HT.text },
+  emptySub: { fontSize: 12, color: HT.muted, textAlign: "center", paddingHorizontal: 24 },
+  count: { fontSize: 12, fontWeight: "700", color: HT.muted, textTransform: "uppercase", letterSpacing: 0.5 },
   clearBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    backgroundColor: "#FEE2E2",
-    borderColor: "#FCA5A5",
+    backgroundColor: HT.dangerTint,
+    borderColor: '#FCA5A5',
     borderWidth: 1,
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -231,21 +231,21 @@ const styles = StyleSheet.create({
   },
   clearBtnTxt: { fontSize: 12, color: "#DC2626", fontWeight: "800" },
   memCard: {
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderRadius: 12,
     padding: 14,
     borderWidth: 1,
-    borderColor: theme.color.border,
+    borderColor: HT.border,
     marginTop: 8,
   },
-  memSummary: { fontSize: 14, color: theme.color.onSurface, fontWeight: "700", lineHeight: 19 },
-  memDate: { fontSize: 11, color: theme.color.muted, marginTop: 4 },
+  memSummary: { fontSize: 14, color: HT.text, fontWeight: "700", lineHeight: 19 },
+  memDate: { fontSize: 11, color: HT.muted, marginTop: 4 },
   // V29.bc — Stile Optima
   delBtn: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "#FEE2E2",
+    backgroundColor: HT.dangerTint,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1.5,
@@ -259,5 +259,5 @@ const styles = StyleSheet.create({
   factList: { marginTop: 10, gap: 4 },
   factRow: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
   factDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: NEO_COLOR, marginTop: 7 },
-  factTxt: { flex: 1, fontSize: 12, color: theme.color.onSurface, lineHeight: 17 },
+  factTxt: { flex: 1, fontSize: 12, color: HT.text, lineHeight: 17 },
 });

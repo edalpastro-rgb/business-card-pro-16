@@ -4,6 +4,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import * as LocalAuthentication from "expo-local-authentication";
 import { useAuth, biometricEnabled, hasPin, verifyPin } from "@/src/auth";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 /**
  * Full-screen overlay shown when `locked = true` in AuthContext.
@@ -72,7 +73,7 @@ export function AppLockOverlay() {
 
   return (
     <View style={styles.root}>
-      <LinearGradient colors={["#0F2438", "#1C4869", "#3A739C"]} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={[HT.text, "#1C4869", "#3A739C"]} style={StyleSheet.absoluteFill} />
       <View style={styles.body}>
         <View style={styles.iconRing}>
           <Ionicons name="lock-closed" size={44} color="#FFF" />
@@ -96,7 +97,7 @@ export function AppLockOverlay() {
               onSubmitEditing={trySubmit}
             />
             <Pressable testID="lock-unlock-btn" onPress={trySubmit} disabled={busy || pin.length !== 6} style={[styles.primaryBtn, (busy || pin.length !== 6) && { opacity: 0.5 }]}>
-              {busy ? <ActivityIndicator color="#0F2438" /> : <Text style={styles.primaryBtnTxt}>Sblocca</Text>}
+              {busy ? <ActivityIndicator color={HT.text} /> : <Text style={styles.primaryBtnTxt}>Sblocca</Text>}
             </Pressable>
           </>
         )}
@@ -125,8 +126,8 @@ const styles = StyleSheet.create({
   title: { color: "#FFF", fontSize: 24, fontWeight: "800" },
   subtitle: { color: "#CFE1EE", fontSize: 14, marginBottom: 12 },
   pinInput: { width: 220, backgroundColor: "rgba(255,255,255,0.15)", borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, textAlign: "center", color: "#FFF", fontSize: 28, letterSpacing: 12, borderWidth: 1, borderColor: "rgba(255,255,255,0.25)" },
-  primaryBtn: { width: 220, backgroundColor: "#FFF", borderRadius: 12, paddingVertical: 12, alignItems: "center" },
-  primaryBtnTxt: { color: "#0F2438", fontWeight: "800", fontSize: 15 },
+  primaryBtn: { width: 220, backgroundColor: HT.card, borderRadius: 12, paddingVertical: 12, alignItems: "center" },
+  primaryBtnTxt: { color: HT.text, fontWeight: "800", fontSize: 15 },
   bioBtn: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 10, paddingHorizontal: 16, borderWidth: 1, borderColor: "rgba(255,255,255,0.3)", borderRadius: 12 },
   bioBtnTxt: { color: "#FFF", fontWeight: "700" },
   err: { color: "#FCA5A5", fontSize: 13 },

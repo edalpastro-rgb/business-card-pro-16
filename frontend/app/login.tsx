@@ -8,6 +8,7 @@ import { PENDING_REFERRAL_KEY } from "@/src/PromoCodeField"; // V50.z322 — lin
 import { QuickUnlockCard, maybeOfferQuickUnlock } from "@/src/quickUnlock/QuickUnlockCard"; // V50.z187 — accesso rapido (isolato)
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 // V29.j — Logo AdvisorOS trasparente (senza card bianca): asset locale con
 // alpha channel, aspect ratio 4.6:1 (compass + testo).
@@ -84,7 +85,7 @@ export default function LoginScreen() {
   if (twoFAToken) {
     return (
       <View style={styles.root}>
-        <LinearGradient colors={["#0F2438", "#1C4869", "#3A739C"]} style={styles.hero}>
+        <LinearGradient colors={[HT.text, "#1C4869", "#3A739C"]} style={styles.hero}>
           <View style={styles.heroContent}>
             <Ionicons name="shield-checkmark" size={44} color="#FFF" />
             <Text style={styles.title}>Verifica in 2 passaggi</Text>
@@ -102,7 +103,7 @@ export default function LoginScreen() {
                 autoCapitalize="characters"
                 keyboardType="default"
                 placeholder="123456 o XXXXX-XXXXX"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={HT.muted}
                 style={[styles.input, { textAlign: "center", fontSize: 20, letterSpacing: 3 }]}
                 maxLength={20}
                 autoFocus
@@ -123,7 +124,7 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.root}>
-      <LinearGradient colors={["#0F2438", "#1C4869", "#3A739C"]} style={StyleSheet.absoluteFillObject as any} />
+      <LinearGradient colors={[HT.text, "#1C4869", "#3A739C"]} style={StyleSheet.absoluteFillObject as any} />
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.pageWrap}>
         <ScrollView
           contentContainerStyle={[styles.pageScroll, isWide && styles.pageScrollCentered]}
@@ -167,7 +168,7 @@ export default function LoginScreen() {
                 value={name}
                 onChangeText={setName}
                 placeholder="Il tuo nome"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={HT.muted}
                 style={styles.input}
               />
             </View>
@@ -181,7 +182,7 @@ export default function LoginScreen() {
               autoCapitalize="none"
               keyboardType="email-address"
               placeholder="tu@email.it"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={HT.muted}
               style={styles.input}
             />
           </View>
@@ -193,7 +194,7 @@ export default function LoginScreen() {
               onChangeText={setPassword}
               secureTextEntry
               placeholder="Almeno 6 caratteri"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={HT.muted}
               style={styles.input}
             />
           </View>
@@ -216,7 +217,7 @@ export default function LoginScreen() {
             catch (e: any) { setErr(e.message || "Errore Google"); }
             finally { setBusy(false); }
           }} style={styles.googleBtn} disabled={busy}>
-            <Ionicons name="logo-google" size={20} color={theme.color.brandPrimary} />
+            <Ionicons name="logo-google" size={20} color={HT.brand} />
             <Text style={styles.googleBtnText}>Accedi con Google</Text>
           </Pressable>
             </View>
@@ -228,7 +229,7 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#0F2438" },
+  root: { flex: 1, backgroundColor: '#0F2438' },
   pageWrap: { flex: 1 },
   pageScroll: {
     flexGrow: 1,
@@ -258,7 +259,7 @@ const styles = StyleSheet.create({
   title: { color: "#FFFFFF", fontSize: 22, fontWeight: "800", textAlign: "center" },
   subtitle: { color: "rgba(255,255,255,0.85)", fontSize: 14, textAlign: "center" },
   formCard: {
-    backgroundColor: theme.color.surface,
+    backgroundColor: HT.card2,
     borderRadius: 20,
     padding: 20,
     gap: 14,
@@ -270,22 +271,22 @@ const styles = StyleSheet.create({
   },
   formWrap: { flex: 1 },
   form: { padding: 20, gap: 14 },
-  segment: { flexDirection: "row", backgroundColor: theme.color.surfaceTertiary, borderRadius: theme.radius.pill, padding: 4, marginBottom: 6 },
+  segment: { flexDirection: "row", backgroundColor: HT.card2, borderRadius: theme.radius.pill, padding: 4, marginBottom: 6 },
   segItem: { flex: 1, paddingVertical: 10, alignItems: "center", borderRadius: theme.radius.pill },
-  segItemActive: { backgroundColor: "#FFF", shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } },
-  segText: { color: theme.color.onSurfaceTertiary, fontWeight: "600" },
-  segTextActive: { color: theme.color.brandPrimary },
+  segItemActive: { backgroundColor: HT.card, shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } },
+  segText: { color: HT.text2, fontWeight: "600" },
+  segTextActive: { color: HT.brand },
   field: { gap: 6 },
-  label: { color: theme.color.onSurfaceTertiary, fontSize: 13, fontWeight: "600" },
-  input: { backgroundColor: "#FFF", borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, color: theme.color.onSurface },
-  primaryBtn: { backgroundColor: theme.color.brandPrimary, borderRadius: theme.radius.md, paddingVertical: 14, alignItems: "center", marginTop: 6 },
+  label: { color: HT.text2, fontSize: 13, fontWeight: "600" },
+  input: { backgroundColor: HT.card, borderRadius: theme.radius.md, borderWidth: 1, borderColor: HT.border, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, color: HT.text },
+  primaryBtn: { backgroundColor: HT.brand, borderRadius: theme.radius.md, paddingVertical: 14, alignItems: "center", marginTop: 6 },
   primaryBtnText: { color: "#FFF", fontWeight: "700", fontSize: 16 },
   divider: { flexDirection: "row", alignItems: "center", gap: 10, marginVertical: 10 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: theme.color.border },
-  dividerText: { color: theme.color.muted, fontSize: 12 },
-  googleBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, backgroundColor: "#FFF", borderRadius: theme.radius.md, paddingVertical: 12, borderWidth: 1, borderColor: theme.color.border },
-  googleBtnText: { color: theme.color.brandPrimary, fontWeight: "700" },
-  err: { color: theme.color.error, fontSize: 13 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: HT.border },
+  dividerText: { color: HT.muted, fontSize: 12 },
+  googleBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, backgroundColor: HT.card, borderRadius: theme.radius.md, paddingVertical: 12, borderWidth: 1, borderColor: HT.border },
+  googleBtnText: { color: HT.brand, fontWeight: "700" },
+  err: { color: HT.danger, fontSize: 13 },
   linkBtn: { alignItems: "center", paddingVertical: 12 },
-  linkBtnTxt: { color: theme.color.brandPrimary, fontWeight: "600", fontSize: 13 },
+  linkBtnTxt: { color: HT.brand, fontWeight: "600", fontSize: 13 },
 });

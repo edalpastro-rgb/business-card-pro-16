@@ -8,6 +8,7 @@ import { theme } from "@/src/theme";
 import { confirmAsync, notify } from "@/src/utils/notify";
 
 import { useBottomSheetPadding, usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 type Member = { user_id: string; email: string; name: string; role: string; areas: string[]; agent_code?: string | null; created_at?: string };
 
 // V28.z — Sotto-componente per i campi Master-only: codice agente + password dati sensibili.
@@ -63,8 +64,8 @@ function MasterOnlyFields({ member, onUpdated }: { member: Member; onUpdated: ()
   return (
     <View style={{ gap: 8, marginTop: 8 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-        <Ionicons name="pricetag" size={14} color={theme.color.muted} />
-        <Text style={{ fontSize: 11, fontWeight: "800", color: theme.color.muted, textTransform: "uppercase", letterSpacing: 0.5 }}>Codice agente</Text>
+        <Ionicons name="pricetag" size={14} color={HT.muted} />
+        <Text style={{ fontSize: 11, fontWeight: "800", color: HT.muted, textTransform: "uppercase", letterSpacing: 0.5 }}>Codice agente</Text>
       </View>
       <View style={{ flexDirection: "row", gap: 6 }}>
         <TextInput
@@ -74,17 +75,17 @@ function MasterOnlyFields({ member, onUpdated }: { member: Member; onUpdated: ()
           onBlur={saveAgentCode}
           onSubmitEditing={saveAgentCode}
           placeholder="Es. AG-001-DP"
-          placeholderTextColor="#94A3B8"
-          style={{ flex: 1, backgroundColor: "#F1F5F9", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, color: theme.color.onSurface }}
+          placeholderTextColor={HT.muted}
+          style={{ flex: 1, backgroundColor: HT.card2, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, color: HT.text }}
         />
-        <Pressable onPress={saveAgentCode} disabled={savingCode} hitSlop={6} style={{ paddingHorizontal: 10, paddingVertical: 8, backgroundColor: theme.color.brandPrimary, borderRadius: 8, alignItems: "center", justifyContent: "center" }}>
+        <Pressable onPress={saveAgentCode} disabled={savingCode} hitSlop={6} style={{ paddingHorizontal: 10, paddingVertical: 8, backgroundColor: HT.brand, borderRadius: 8, alignItems: "center", justifyContent: "center" }}>
           {savingCode ? <ActivityIndicator color="#FFF" size="small" /> : <Ionicons name="save" size={14} color="#FFF" />}
         </Pressable>
       </View>
 
       <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 }}>
-        <Ionicons name="lock-closed" size={14} color={theme.color.muted} />
-        <Text style={{ fontSize: 11, fontWeight: "800", color: theme.color.muted, textTransform: "uppercase", letterSpacing: 0.5 }}>Password dati sensibili</Text>
+        <Ionicons name="lock-closed" size={14} color={HT.muted} />
+        <Text style={{ fontSize: 11, fontWeight: "800", color: HT.muted, textTransform: "uppercase", letterSpacing: 0.5 }}>Password dati sensibili</Text>
       </View>
       <View style={{ flexDirection: "row", gap: 6 }}>
         <TextInput
@@ -94,17 +95,17 @@ function MasterOnlyFields({ member, onUpdated }: { member: Member; onUpdated: ()
           onFocus={loadSensitive}
           secureTextEntry={!sensReveal}
           placeholder={sensLoading ? "Caricamento…" : "Non impostata"}
-          placeholderTextColor="#94A3B8"
-          style={{ flex: 1, backgroundColor: "#F1F5F9", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, color: theme.color.onSurface }}
+          placeholderTextColor={HT.muted}
+          style={{ flex: 1, backgroundColor: HT.card2, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, color: HT.text }}
         />
-        <Pressable onPress={toggleReveal} disabled={sensLoading} hitSlop={6} style={{ width: 36, alignItems: "center", justifyContent: "center", backgroundColor: "#F1F5F9", borderRadius: 8 }}>
-          {sensLoading ? <ActivityIndicator size="small" /> : <Ionicons name={sensReveal ? "eye-off" : "eye"} size={16} color={theme.color.muted} />}
+        <Pressable onPress={toggleReveal} disabled={sensLoading} hitSlop={6} style={{ width: 36, alignItems: "center", justifyContent: "center", backgroundColor: HT.card2, borderRadius: 8 }}>
+          {sensLoading ? <ActivityIndicator size="small" /> : <Ionicons name={sensReveal ? "eye-off" : "eye"} size={16} color={HT.muted} />}
         </Pressable>
-        <Pressable onPress={saveSensitive} disabled={sensSaving || !sensLoaded} hitSlop={6} style={{ paddingHorizontal: 10, paddingVertical: 8, backgroundColor: sensLoaded ? theme.color.brandPrimary : "#94A3B8", borderRadius: 8, alignItems: "center", justifyContent: "center" }}>
+        <Pressable onPress={saveSensitive} disabled={sensSaving || !sensLoaded} hitSlop={6} style={{ paddingHorizontal: 10, paddingVertical: 8, backgroundColor: sensLoaded ? HT.brand : HT.muted, borderRadius: 8, alignItems: "center", justifyContent: "center" }}>
           {sensSaving ? <ActivityIndicator color="#FFF" size="small" /> : <Ionicons name="save" size={14} color="#FFF" />}
         </Pressable>
       </View>
-      <Text style={{ fontSize: 10, color: theme.color.muted, fontStyle: "italic" }}>Cifrata a riposo (Fernet). Visibile solo a Master e diretto interessato.</Text>
+      <Text style={{ fontSize: 10, color: HT.muted, fontStyle: "italic" }}>Cifrata a riposo (Fernet). Visibile solo a Master e diretto interessato.</Text>
     </View>
   );
 }
@@ -181,18 +182,18 @@ export default function TeamScreen() {
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
-        <Pressable testID="back-btn" onPress={() => router.back()}><Ionicons name="chevron-back" size={26} color={theme.color.onSurface} /></Pressable>
+        <Pressable testID="back-btn" onPress={() => router.back()}><Ionicons name="chevron-back" size={26} color={HT.text} /></Pressable>
         <Text style={styles.title}>Team</Text>
         <Pressable testID="invite-open-btn" onPress={() => setShowInvite(true)} style={styles.headerBtn}>
           <Ionicons name="person-add" size={20} color="#FFF" />
         </Pressable>
       </View>
 
-      {loading ? <ActivityIndicator style={{ marginTop: 40 }} color={theme.color.brandPrimary} /> : (
+      {loading ? <ActivityIndicator style={{ marginTop: 40 }} color={HT.brand} /> : (
         <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: pagePad }}>
           {items.length === 0 ? (
             <View style={styles.empty}>
-              <Ionicons name="people-outline" size={40} color={theme.color.muted} />
+              <Ionicons name="people-outline" size={40} color={HT.muted} />
               <Text style={styles.emptyTxt}>Nessun membro. Invita il tuo primo collaboratore.</Text>
             </View>
           ) : items.map((m) => (
@@ -216,10 +217,10 @@ export default function TeamScreen() {
                   onPress={() => toggleAdmin(m)}
                   style={styles.roleBtn}
                 >
-                  <Ionicons name={m.role === "admin" ? "star" : "star-outline"} size={18} color={m.role === "admin" ? "#F59E0B" : theme.color.muted} />
+                  <Ionicons name={m.role === "admin" ? "star" : "star-outline"} size={18} color={m.role === "admin" ? "#F59E0B" : HT.muted} />
                 </Pressable>
                 <Pressable testID={`member-del-${m.user_id}`} onPress={() => remove(m)}>
-                  <Ionicons name="trash-outline" size={20} color={theme.color.error} />
+                  <Ionicons name="trash-outline" size={20} color={HT.danger} />
                 </Pressable>
               </View>
               <View style={styles.areasRow}>
@@ -243,14 +244,14 @@ export default function TeamScreen() {
           <View style={[styles.modal, { paddingBottom: bottomPad }]}>
             <View style={styles.modalHead}>
               <Text style={styles.modalTitle}>Invita membro</Text>
-              <Pressable testID="invite-close" onPress={() => setShowInvite(false)}><Ionicons name="close" size={24} color={theme.color.onSurface} /></Pressable>
+              <Pressable testID="invite-close" onPress={() => setShowInvite(false)}><Ionicons name="close" size={24} color={HT.text} /></Pressable>
             </View>
             <Text style={styles.lbl}>Nome</Text>
-            <TextInput testID="invite-name" value={form.name} onChangeText={(t) => setForm({ ...form, name: t })} style={styles.input} placeholder="Es. Anna Rossi" placeholderTextColor="#94A3B8" />
+            <TextInput testID="invite-name" value={form.name} onChangeText={(t) => setForm({ ...form, name: t })} style={styles.input} placeholder="Es. Anna Rossi" placeholderTextColor={HT.muted} />
             <Text style={styles.lbl}>Email</Text>
-            <TextInput testID="invite-email" value={form.email} onChangeText={(t) => setForm({ ...form, email: t })} style={styles.input} placeholder="anna@email.it" placeholderTextColor="#94A3B8" autoCapitalize="none" keyboardType="email-address" />
+            <TextInput testID="invite-email" value={form.email} onChangeText={(t) => setForm({ ...form, email: t })} style={styles.input} placeholder="anna@email.it" placeholderTextColor={HT.muted} autoCapitalize="none" keyboardType="email-address" />
             <Text style={styles.lbl}>Password iniziale</Text>
-            <TextInput testID="invite-password" value={form.password} onChangeText={(t) => setForm({ ...form, password: t })} style={styles.input} placeholder="Almeno 6 caratteri" placeholderTextColor="#94A3B8" secureTextEntry />
+            <TextInput testID="invite-password" value={form.password} onChangeText={(t) => setForm({ ...form, password: t })} style={styles.input} placeholder="Almeno 6 caratteri" placeholderTextColor={HT.muted} secureTextEntry />
             <Text style={styles.lbl}>Aree assegnate</Text>
             <View style={styles.rowChips}>
               <Pressable testID="invite-area-e" onPress={() => setForm({ ...form, energy: !form.energy })} style={[styles.chip, form.energy && { backgroundColor: theme.color.energy, borderColor: theme.color.energy }]}>
@@ -273,15 +274,15 @@ export default function TeamScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
+  root: { flex: 1, backgroundColor: HT.card2 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12 },
-  title: { fontSize: 20, fontWeight: "700", color: theme.color.onSurface },
+  title: { fontSize: 20, fontWeight: "700", color: HT.text },
   // V29.bc — Stile Optima
   headerBtn: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: theme.color.brandPrimary,
+    backgroundColor: HT.brand,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
@@ -293,31 +294,31 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   empty: { alignItems: "center", padding: 40, gap: 12 },
-  emptyTxt: { color: theme.color.muted, textAlign: "center" },
-  card: { backgroundColor: "#FFF", borderRadius: theme.radius.md, padding: 14, borderWidth: 1, borderColor: theme.color.border, gap: 12 },
-  adminBadge: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#F59E0B", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 },
+  emptyTxt: { color: HT.muted, textAlign: "center" },
+  card: { backgroundColor: HT.card, borderRadius: theme.radius.md, padding: 14, borderWidth: 1, borderColor: HT.border, gap: 12 },
+  adminBadge: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: '#F59E0B', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 },
   adminBadgeTxt: { color: "#FFF", fontWeight: "800", fontSize: 10 },
   roleBtn: { padding: 4 },
   rowHead: { flexDirection: "row", alignItems: "center", gap: 12 },
-  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: theme.color.brandTertiary, alignItems: "center", justifyContent: "center" },
-  avatarTxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 18 },
-  name: { fontSize: 15, fontWeight: "700", color: theme.color.onSurface },
-  email: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
+  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: HT.brandTint, alignItems: "center", justifyContent: "center" },
+  avatarTxt: { color: HT.brand, fontWeight: "700", fontSize: 18 },
+  name: { fontSize: 15, fontWeight: "700", color: HT.text },
+  email: { fontSize: 12, color: HT.muted, marginTop: 2 },
   areasRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 },
-  areasLbl: { fontSize: 12, color: theme.color.muted },
-  areaChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: theme.radius.pill, borderWidth: 1, borderColor: theme.color.border },
-  areaTxt: { fontSize: 12, fontWeight: "600", color: theme.color.onSurfaceTertiary },
+  areasLbl: { fontSize: 12, color: HT.muted },
+  areaChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: theme.radius.pill, borderWidth: 1, borderColor: HT.border },
+  areaTxt: { fontSize: 12, fontWeight: "600", color: HT.text2 },
   modalBg: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  modal: { backgroundColor: "#FFF", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, gap: 6 },
+  modal: { backgroundColor: HT.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, gap: 6 },
   modalHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
-  modalTitle: { fontSize: 18, fontWeight: "700", color: theme.color.onSurface },
-  lbl: { fontSize: 12, fontWeight: "600", color: theme.color.onSurfaceTertiary, marginTop: 10, marginBottom: 4 },
-  input: { backgroundColor: theme.color.surface, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border, padding: 12, color: theme.color.onSurface },
+  modalTitle: { fontSize: 18, fontWeight: "700", color: HT.text },
+  lbl: { fontSize: 12, fontWeight: "600", color: HT.text2, marginTop: 10, marginBottom: 4 },
+  input: { backgroundColor: HT.card2, borderRadius: theme.radius.md, borderWidth: 1, borderColor: HT.border, padding: 12, color: HT.text },
   rowChips: { flexDirection: "row", gap: 8, marginTop: 4 },
-  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: theme.radius.pill, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border },
-  chipTxt: { color: theme.color.onSurfaceTertiary, fontWeight: "600", fontSize: 13 },
-  sendBtn: { backgroundColor: theme.color.brandPrimary, padding: 14, borderRadius: theme.radius.md, alignItems: "center", marginTop: 16 },
+  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: theme.radius.pill, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border },
+  chipTxt: { color: HT.text2, fontWeight: "600", fontSize: 13 },
+  sendBtn: { backgroundColor: HT.brand, padding: 14, borderRadius: theme.radius.md, alignItems: "center", marginTop: 16 },
   sendBtnTxt: { color: "#FFF", fontWeight: "700" },
-  err: { color: theme.color.error, fontSize: 13, marginTop: 8 },
-  hint: { fontSize: 11, color: theme.color.muted, textAlign: "center", marginTop: 10 },
+  err: { color: HT.danger, fontSize: 13, marginTop: 8 },
+  hint: { fontSize: 11, color: HT.muted, textAlign: "center", marginTop: 10 },
 });

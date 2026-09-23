@@ -2,11 +2,11 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { View, Text, StyleSheet, Modal, Pressable, Platform, ActivityIndicator, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { theme } from "@/src/theme";
 import { WebView } from "react-native-webview";
 import { CalculatorFAB } from "@/src/CalculatorFAB";
 import { api } from "@/src/api";
 import { PdfPagesZoom } from "@/src/PdfPagesZoom";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Props = {
   visible: boolean;
@@ -215,7 +215,7 @@ export function FileViewer({ visible, fileName, mime, dataBase64, onClose, onSha
               // Zero dipendenze CDN → niente "schermo nero" quando pdf.js è bloccato.
               webBlobUrl ? (
                 // @ts-expect-error web only
-                <iframe src={webBlobUrl} title={fileName} style={{ width: "100%", height: "100%", border: "none", backgroundColor: "#FFF" }} />
+                <iframe src={webBlobUrl} title={fileName} style={{ width: "100%", height: "100%", border: "none", backgroundColor: HT.card }} />
               ) : (
                 <View style={styles.loading}>
                   <ActivityIndicator size="large" color="#FFF" />
@@ -224,14 +224,14 @@ export function FileViewer({ visible, fileName, mime, dataBase64, onClose, onSha
               )
             ) : isHtml ? (
               // @ts-expect-error web only
-              <iframe srcDoc={htmlDecoded} title={fileName} style={{ width: "100%", height: "100%", border: "none", backgroundColor: "#FFF" }} />
+              <iframe srcDoc={htmlDecoded} title={fileName} style={{ width: "100%", height: "100%", border: "none", backgroundColor: HT.card }} />
             ) : (
               <UnsupportedType />
             )
           ) : isImg ? (
             <WebView
               source={{ uri: dataUri }}
-              style={{ flex: 1, backgroundColor: "#111" }}
+              style={{ flex: 1, backgroundColor: '#111' }}
               originWhitelist={["*"]}
               scalesPageToFit
             />
@@ -256,7 +256,7 @@ export function FileViewer({ visible, fileName, mime, dataBase64, onClose, onSha
           ) : isHtml ? (
             <WebView
               source={{ html: htmlDecoded }}
-              style={{ flex: 1, backgroundColor: "#FFF" }}
+              style={{ flex: 1, backgroundColor: HT.card }}
               originWhitelist={["*"]}
               javaScriptEnabled
             />
@@ -285,7 +285,7 @@ function escape(s: string): string {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#000" },
+  container: { flex: 1, backgroundColor: '#000' },
   retryBtn: { alignSelf: "center", marginTop: 12, backgroundColor: "rgba(255,255,255,0.14)", borderRadius: 999, paddingHorizontal: 18, minHeight: 40, justifyContent: "center" },
   retryTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
   header: {
@@ -295,10 +295,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingTop: 12, // V50.z251 — sovrascritto inline con useSafeAreaInsets().top
     paddingBottom: 10,
-    backgroundColor: theme.color.brandPrimary,
+    backgroundColor: HT.brand,
   },
   title: { color: "#FFF", fontSize: 15, fontWeight: "700", flex: 1, marginHorizontal: 12, textAlign: "center" },
-  body: { flex: 1, backgroundColor: "#111", justifyContent: "center", alignItems: "center" },
+  body: { flex: 1, backgroundColor: '#111', justifyContent: "center", alignItems: "center" },
   loading: { justifyContent: "center", alignItems: "center", gap: 10 },
   loadingTxt: { color: "#FFF", fontSize: 13, textAlign: "center" },
 });

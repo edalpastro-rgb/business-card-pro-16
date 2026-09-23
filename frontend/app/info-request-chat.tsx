@@ -9,9 +9,9 @@ import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { api, apiUpload, buildFileUrl } from "@/src/api";
 import { useAuth } from "@/src/auth";
-import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { InAppWebViewer } from "@/src/InAppWebViewer";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 /**
  * V50.z83 — Chat thread di una richiesta info (Master ↔ Collaboratore).
@@ -178,7 +178,7 @@ export default function InfoRequestChatScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={12} testID="ireqchat-back">
-          <Ionicons name="chevron-back" size={24} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={24} color={HT.text} />
         </Pressable>
         <View style={{ flex: 1, marginHorizontal: 8 }}>
           <Text style={styles.title} numberOfLines={1}>{detail?.subject || "Conversazione"}</Text>
@@ -199,14 +199,14 @@ export default function InfoRequestChatScreen() {
 
       {contact ? (
         <Pressable onPress={() => router.push(`/contact/${contact.contact_id}` as any)} style={styles.contactStrip} testID="ireqchat-open-contact">
-          <Ionicons name="person" size={14} color={theme.color.brandPrimary} />
+          <Ionicons name="person" size={14} color={HT.brand} />
           <Text style={styles.contactStripTxt}>Apri scheda cliente: {contactName}</Text>
-          <Ionicons name="chevron-forward" size={14} color={theme.color.muted} />
+          <Ionicons name="chevron-forward" size={14} color={HT.muted} />
         </Pressable>
       ) : null}
 
       {loading || !detail ? (
-        <ActivityIndicator style={{ marginTop: 40 }} color={theme.color.brandPrimary} />
+        <ActivityIndicator style={{ marginTop: 40 }} color={HT.brand} />
       ) : (
         <KeyboardAwareScrollView
           bottomOffset={20}
@@ -238,16 +238,16 @@ export default function InfoRequestChatScreen() {
 
       <View style={[styles.inputBar, { paddingBottom: 8 + (Platform.OS === "web" ? 60 : insets.bottom) }]}>
         <Pressable onPress={() => pickAndUpload("gallery")} disabled={uploading} hitSlop={6} style={styles.attachBtn} testID="ireqchat-attach-img">
-          {uploading ? <ActivityIndicator size="small" color={theme.color.brandPrimary} /> : <Ionicons name="image" size={20} color={theme.color.brandPrimary} />}
+          {uploading ? <ActivityIndicator size="small" color={HT.brand} /> : <Ionicons name="image" size={20} color={HT.brand} />}
         </Pressable>
         <Pressable onPress={() => pickAndUpload("file")} disabled={uploading} hitSlop={6} style={styles.attachBtn} testID="ireqchat-attach-file">
-          <Ionicons name="document" size={20} color={theme.color.brandPrimary} />
+          <Ionicons name="document" size={20} color={HT.brand} />
         </Pressable>
         <TextInput
           value={text}
           onChangeText={setText}
           placeholder="Scrivi una risposta…"
-          placeholderTextColor="#94A3B8"
+          placeholderTextColor={HT.muted}
           style={styles.input}
           multiline
           maxLength={4000}
@@ -288,12 +288,12 @@ function MessageBubble({ role, author, text, at, isOriginal, attachment, onOpenA
         {text ? <Text style={[styles.bubbleText, role === "self" && { color: "#FFF" }]}>{text}</Text> : null}
         {attachment ? (
           <Pressable onPress={() => onOpenAttachment && onOpenAttachment(attachment)} style={styles.attachCard}>
-            <Ionicons name={isImgAttach ? "image" : "document"} size={22} color={role === "self" ? "#FFF" : theme.color.brandPrimary} />
+            <Ionicons name={isImgAttach ? "image" : "document"} size={22} color={role === "self" ? "#FFF" : HT.brand} />
             <View style={{ flex: 1 }}>
               <Text style={[styles.attachName, role === "self" && { color: "#FFF" }]} numberOfLines={1}>{attachment.filename}</Text>
               <Text style={[styles.attachMeta, role === "self" && { color: "#E2E8F0" }]}>{formatSize(attachment.size)}</Text>
             </View>
-            <Ionicons name="open-outline" size={16} color={role === "self" ? "#FFF" : theme.color.muted} />
+            <Ionicons name="open-outline" size={16} color={role === "self" ? "#FFF" : HT.muted} />
           </Pressable>
         ) : null}
         <Text style={[styles.bubbleTime, role === "self" && { color: "#E2E8F0" }]}>{formatTime(at)}</Text>
@@ -315,32 +315,32 @@ function formatTime(iso: string): string {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
-  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.color.border, backgroundColor: "#FFF" },
-  title: { fontSize: 15, fontWeight: "800", color: theme.color.onSurface },
-  subtitle: { fontSize: 11, color: theme.color.muted, marginTop: 2 },
+  root: { flex: 1, backgroundColor: HT.card2 },
+  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: HT.border, backgroundColor: HT.card },
+  title: { fontSize: 15, fontWeight: "800", color: HT.text },
+  subtitle: { fontSize: 11, color: HT.muted, marginTop: 2 },
   statusBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 },
-  pillPending: { backgroundColor: "#FEF3C7" },
-  pillResolved: { backgroundColor: "#DCFCE7" },
-  statusTxt: { fontSize: 10, fontWeight: "800", color: theme.color.onSurface, textTransform: "uppercase", letterSpacing: 0.4 },
-  contactStrip: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: theme.color.brandPrimary + "10", borderBottomWidth: 1, borderBottomColor: theme.color.border },
-  contactStripTxt: { flex: 1, fontSize: 12, fontWeight: "700", color: theme.color.brandPrimary },
+  pillPending: { backgroundColor: HT.warningTint },
+  pillResolved: { backgroundColor: HT.successTint },
+  statusTxt: { fontSize: 10, fontWeight: "800", color: HT.text, textTransform: "uppercase", letterSpacing: 0.4 },
+  contactStrip: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: HT.brand + "10", borderBottomWidth: 1, borderBottomColor: HT.border },
+  contactStripTxt: { flex: 1, fontSize: 12, fontWeight: "700", color: HT.brand },
   bubbleRow: { flexDirection: "row" },
   bubble: { maxWidth: "80%", padding: 10, borderRadius: 14 },
-  bubbleSelf: { backgroundColor: theme.color.brandPrimary, borderBottomRightRadius: 4 },
-  bubbleOther: { backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, borderBottomLeftRadius: 4 },
-  bubbleOriginal: { borderWidth: 1, borderColor: "#F59E0B" },
-  bubbleTag: { fontSize: 9, fontWeight: "900", color: "#B45309", marginBottom: 4, letterSpacing: 0.6 },
-  bubbleAuthor: { fontSize: 11, fontWeight: "800", color: theme.color.brandPrimary, marginBottom: 2 },
-  bubbleText: { fontSize: 14, color: theme.color.onSurface, lineHeight: 19 },
-  bubbleTime: { fontSize: 10, color: theme.color.muted, marginTop: 4, textAlign: "right" },
-  inputBar: { flexDirection: "row", alignItems: "flex-end", gap: 8, padding: 10, borderTopWidth: 1, borderTopColor: theme.color.border, backgroundColor: "#FFF" },
-  input: { flex: 1, minHeight: 40, maxHeight: 120, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: "#F1F5F9", borderRadius: 20, fontSize: 14, color: theme.color.onSurface },
-  sendBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.color.brandPrimary, alignItems: "center", justifyContent: "center" },
-  attachBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: theme.color.brandPrimary + "18" },
+  bubbleSelf: { backgroundColor: HT.brand, borderBottomRightRadius: 4 },
+  bubbleOther: { backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, borderBottomLeftRadius: 4 },
+  bubbleOriginal: { borderWidth: 1, borderColor: '#F59E0B' },
+  bubbleTag: { fontSize: 9, fontWeight: "900", color: HT.warning, marginBottom: 4, letterSpacing: 0.6 },
+  bubbleAuthor: { fontSize: 11, fontWeight: "800", color: HT.brand, marginBottom: 2 },
+  bubbleText: { fontSize: 14, color: HT.text, lineHeight: 19 },
+  bubbleTime: { fontSize: 10, color: HT.muted, marginTop: 4, textAlign: "right" },
+  inputBar: { flexDirection: "row", alignItems: "flex-end", gap: 8, padding: 10, borderTopWidth: 1, borderTopColor: HT.border, backgroundColor: HT.card },
+  input: { flex: 1, minHeight: 40, maxHeight: 120, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: HT.card2, borderRadius: 20, fontSize: 14, color: HT.text },
+  sendBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: HT.brand, alignItems: "center", justifyContent: "center" },
+  attachBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: HT.brand + "18" },
   attachCard: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6, paddingVertical: 8, paddingHorizontal: 10, backgroundColor: "rgba(255,255,255,0.15)", borderRadius: 10, borderWidth: 1, borderColor: "rgba(0,0,0,0.1)" },
-  attachName: { fontSize: 12, fontWeight: "700", color: theme.color.onSurface },
-  attachMeta: { fontSize: 10, color: theme.color.muted, marginTop: 1 },
+  attachName: { fontSize: 12, fontWeight: "700", color: HT.text },
+  attachMeta: { fontSize: 10, color: HT.muted, marginTop: 1 },
   viewerOverlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.92)", zIndex: 999, alignItems: "center", justifyContent: "center" },
   viewerHead: { position: "absolute", top: 0, left: 0, right: 0, flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, paddingTop: 40 },
   viewerName: { flex: 1, color: "#FFF", fontSize: 14, fontWeight: "700", marginRight: 12 },

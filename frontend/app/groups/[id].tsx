@@ -7,6 +7,7 @@ import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { sendTelegramMessage } from "@/src/utils/telegram";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Contact = { contact_id: string; first_name: string; last_name: string; phone?: string; email?: string; whatsapp?: string; telegram?: string; area: string };
 type BulkPreviewItem = { contact_id: string; name: string; target: string; skip: boolean };
@@ -131,7 +132,7 @@ export default function GroupDetailScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={10}>
-          <Ionicons name="chevron-back" size={26} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={26} color={HT.text} />
         </Pressable>
         <Text style={styles.title}>Membri gruppo</Text>
         <View style={{ width: 26 }} />
@@ -141,7 +142,7 @@ export default function GroupDetailScreen() {
         <View style={styles.actionsCard}>
           <Text style={styles.actionsTitle}>Invia a tutti i {members.length} membri</Text>
           <View style={styles.actionsGrid}>
-            <BulkBtn testID="bulk-email-btn" icon="mail" label="Email" color="#0F2438" onPress={() => { setResult(null); setEmailModalOpen(true); }} />
+            <BulkBtn testID="bulk-email-btn" icon="mail" label="Email" color={HT.text} onPress={() => { setResult(null); setEmailModalOpen(true); }} />
             <BulkBtn testID="bulk-wa-btn" icon="logo-whatsapp" label="WhatsApp" color="#25D366" onPress={() => startSequential("whatsapp")} />
             <BulkBtn testID="bulk-tg-btn" icon="paper-plane" label="Telegram" color="#0088CC" onPress={() => startSequential("telegram")} />
             <BulkBtn testID="bulk-sms-btn" icon="chatbubble-ellipses" label="SMS" color={theme.color.brandSecondary} onPress={() => startSequential("sms")} />
@@ -151,7 +152,7 @@ export default function GroupDetailScreen() {
 
         <Text style={styles.sectionTitle}>Contatti nel gruppo</Text>
         {loading ? (
-          <ActivityIndicator style={{ marginTop: 20 }} color={theme.color.brandPrimary} />
+          <ActivityIndicator style={{ marginTop: 20 }} color={HT.brand} />
         ) : members.length === 0 ? (
           <Text style={styles.emptyTxt}>Nessun contatto associato a questo gruppo. Assegnalo dalla scheda contatto.</Text>
         ) : (
@@ -166,7 +167,7 @@ export default function GroupDetailScreen() {
                   <Text style={styles.memberName}>{item.first_name} {item.last_name}</Text>
                   <Text style={styles.memberSub}>{item.phone || item.email || "—"}</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+                <Ionicons name="chevron-forward" size={18} color={HT.muted} />
               </Pressable>
             )}
           />
@@ -184,7 +185,7 @@ export default function GroupDetailScreen() {
               value={emailSubject}
               onChangeText={setEmailSubject}
               placeholder="Oggetto"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={HT.muted}
               style={styles.input}
             />
             <TextInput
@@ -192,20 +193,20 @@ export default function GroupDetailScreen() {
               value={emailBody}
               onChangeText={setEmailBody}
               placeholder="Corpo del messaggio..."
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={HT.muted}
               style={[styles.input, { minHeight: 140, textAlignVertical: "top", marginTop: 8 }]}
               multiline
             />
             {result && (
-              <Text style={{ marginTop: 10, color: result.failed === 0 ? theme.color.success : theme.color.warning, fontWeight: "700" }}>
+              <Text style={{ marginTop: 10, color: result.failed === 0 ? HT.success : HT.warning, fontWeight: "700" }}>
                 ✓ Inviate: {result.sent} · Fallite: {result.failed}
               </Text>
             )}
             <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
-              <Pressable onPress={() => setEmailModalOpen(false)} style={[styles.modalBtn, { backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border }]}>
-                <Text style={{ color: theme.color.onSurface, fontWeight: "700" }}>Chiudi</Text>
+              <Pressable onPress={() => setEmailModalOpen(false)} style={[styles.modalBtn, { backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border }]}>
+                <Text style={{ color: HT.text, fontWeight: "700" }}>Chiudi</Text>
               </Pressable>
-              <Pressable testID="bulk-email-send" onPress={sendBulkEmail} disabled={sending || !emailSubject.trim() || !emailBody.trim()} style={[styles.modalBtn, { backgroundColor: theme.color.brandPrimary, opacity: (sending || !emailSubject.trim() || !emailBody.trim()) ? 0.5 : 1 }]}>
+              <Pressable testID="bulk-email-send" onPress={sendBulkEmail} disabled={sending || !emailSubject.trim() || !emailBody.trim()} style={[styles.modalBtn, { backgroundColor: HT.brand, opacity: (sending || !emailSubject.trim() || !emailBody.trim()) ? 0.5 : 1 }]}>
                 {sending ? <ActivityIndicator color="#FFF" /> : <Text style={{ color: "#FFF", fontWeight: "700" }}>Invia</Text>}
               </Pressable>
             </View>
@@ -223,8 +224,8 @@ export default function GroupDetailScreen() {
               <Text style={styles.next}>{seqModal.items[seqModal.idx]?.name}</Text>
               <Text style={styles.nextTarget}>{seqModal.items[seqModal.idx]?.target}</Text>
               <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
-                <Pressable onPress={() => setSeqModal(null)} style={[styles.modalBtn, { backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border }]}>
-                  <Text style={{ color: theme.color.onSurface, fontWeight: "700" }}>Interrompi</Text>
+                <Pressable onPress={() => setSeqModal(null)} style={[styles.modalBtn, { backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border }]}>
+                  <Text style={{ color: HT.text, fontWeight: "700" }}>Interrompi</Text>
                 </Pressable>
                 <Pressable
                   testID="seq-next-btn"
@@ -235,11 +236,11 @@ export default function GroupDetailScreen() {
                       setSeqModal({ ...seqModal, idx: seqModal.idx + 1 });
                     }
                   }}
-                  style={[styles.modalBtn, { backgroundColor: theme.color.warning }]}
+                  style={[styles.modalBtn, { backgroundColor: HT.warning }]}
                 >
                   <Text style={{ color: "#FFF", fontWeight: "700" }}>Salta</Text>
                 </Pressable>
-                <Pressable testID="seq-open-btn" onPress={openNext} disabled={seqBusy} style={[styles.modalBtn, { backgroundColor: theme.color.brandPrimary }]}>
+                <Pressable testID="seq-open-btn" onPress={openNext} disabled={seqBusy} style={[styles.modalBtn, { backgroundColor: HT.brand }]}>
                   {seqBusy ? <ActivityIndicator color="#FFF" /> : <Text style={{ color: "#FFF", fontWeight: "700" }}>Apri e prossimo</Text>}
                 </Pressable>
               </View>
@@ -266,25 +267,25 @@ const bulkStyles = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
+  root: { flex: 1, backgroundColor: HT.card2 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12 },
-  title: { fontSize: 20, fontWeight: "700", color: theme.color.onSurface },
-  actionsCard: { backgroundColor: "#FFF", borderRadius: theme.radius.md, padding: 14, borderWidth: 1, borderColor: theme.color.border, marginBottom: 16 },
-  actionsTitle: { fontSize: 14, fontWeight: "700", color: theme.color.onSurface, marginBottom: 10 },
+  title: { fontSize: 20, fontWeight: "700", color: HT.text },
+  actionsCard: { backgroundColor: HT.card, borderRadius: theme.radius.md, padding: 14, borderWidth: 1, borderColor: HT.border, marginBottom: 16 },
+  actionsTitle: { fontSize: 14, fontWeight: "700", color: HT.text, marginBottom: 10 },
   actionsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  hint: { color: theme.color.muted, fontSize: 11, marginTop: 8, fontStyle: "italic" },
-  sectionTitle: { fontSize: 13, fontWeight: "700", color: theme.color.onSurfaceTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 },
-  memberCard: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#FFF", padding: 12, borderRadius: theme.radius.md, marginBottom: 8, borderWidth: 1, borderColor: theme.color.border },
-  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.color.brandTertiary, alignItems: "center", justifyContent: "center" },
-  avatarTxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 14 },
-  memberName: { fontSize: 15, fontWeight: "700", color: theme.color.onSurface },
-  memberSub: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
-  emptyTxt: { color: theme.color.muted, textAlign: "center", marginTop: 20, fontStyle: "italic" },
+  hint: { color: HT.muted, fontSize: 11, marginTop: 8, fontStyle: "italic" },
+  sectionTitle: { fontSize: 13, fontWeight: "700", color: HT.text2, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 },
+  memberCard: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: HT.card, padding: 12, borderRadius: theme.radius.md, marginBottom: 8, borderWidth: 1, borderColor: HT.border },
+  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: HT.brandTint, alignItems: "center", justifyContent: "center" },
+  avatarTxt: { color: HT.brand, fontWeight: "700", fontSize: 14 },
+  memberName: { fontSize: 15, fontWeight: "700", color: HT.text },
+  memberSub: { fontSize: 12, color: HT.muted, marginTop: 2 },
+  emptyTxt: { color: HT.muted, textAlign: "center", marginTop: 20, fontStyle: "italic" },
   modalBack: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: 20 },
-  modalCard: { backgroundColor: "#FFF", borderRadius: theme.radius.md, padding: 18, maxWidth: 480, width: "100%", alignSelf: "center" },
-  modalTitle: { fontSize: 18, fontWeight: "700", color: theme.color.onSurface, marginBottom: 6 },
-  input: { backgroundColor: theme.color.surface, borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: theme.color.border, color: theme.color.onSurface, marginTop: 8 },
+  modalCard: { backgroundColor: HT.card, borderRadius: theme.radius.md, padding: 18, maxWidth: 480, width: "100%", alignSelf: "center" },
+  modalTitle: { fontSize: 18, fontWeight: "700", color: HT.text, marginBottom: 6 },
+  input: { backgroundColor: HT.card2, borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: HT.border, color: HT.text, marginTop: 8 },
   modalBtn: { flex: 1, paddingVertical: 12, borderRadius: theme.radius.md, alignItems: "center" },
-  next: { fontSize: 20, fontWeight: "700", color: theme.color.onSurface, marginTop: 10 },
-  nextTarget: { fontSize: 14, color: theme.color.muted, marginTop: 4 },
+  next: { fontSize: 20, fontWeight: "700", color: HT.text, marginTop: 10 },
+  nextTarget: { fontSize: 14, color: HT.muted, marginTop: 4 },
 });

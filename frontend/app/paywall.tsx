@@ -12,6 +12,7 @@ import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { PromoCodeField } from "@/src/PromoCodeField";
 import type { SubscriptionState } from "@/src/paywall";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Plan = { id: "mensile" | "annuale"; label: string; amount: number; currency: string; days: number; desc: string; badge?: string };
 type PlansResp = { plans: Plan[]; state: SubscriptionState; is_owner: boolean; support_email: string; stripe_enabled: boolean };
@@ -107,7 +108,7 @@ export default function PaywallScreen() {
           {checking ? <View style={s.checking}><ActivityIndicator color={theme.color.onBrandPrimary} /><Text style={s.checkingTxt}>{checking}</Text></View> : null}
         </View>
 
-        {!data ? <ActivityIndicator style={{ marginTop: 24 }} color={theme.color.brandPrimary} /> : (
+        {!data ? <ActivityIndicator style={{ marginTop: 24 }} color={HT.brand} /> : (
           <>
             <Text style={s.section}>Scegli un piano</Text>
             {!data.is_owner ? <Text style={s.hint}>L&apos;abbonamento è gestito dal titolare dell&apos;account ({user?.email ? "chiedi a chi ti ha invitato" : ""}). Puoi comunque inviare la richiesta qui sotto.</Text> : null}
@@ -119,8 +120,8 @@ export default function PaywallScreen() {
                   <Text style={[s.planPrice, p.id === "annuale" && { color: theme.color.onBrandPrimary }]}>{money(p)}</Text>
                   <Text style={[s.planDesc, p.id === "annuale" && { color: theme.color.onBrandPrimary, opacity: 0.9 }]}>{p.desc}</Text>
                   <View style={[s.planBtn, p.id === "annuale" && { backgroundColor: theme.color.onBrandPrimary }]}>
-                    {busyPlan === p.id ? <ActivityIndicator color={p.id === "annuale" ? theme.color.brandPrimary : theme.color.onBrandPrimary} /> : (
-                      <Text style={[s.planBtnTxt, p.id === "annuale" && { color: theme.color.brandPrimary }]}>Paga con carta</Text>
+                    {busyPlan === p.id ? <ActivityIndicator color={p.id === "annuale" ? HT.brand : theme.color.onBrandPrimary} /> : (
+                      <Text style={[s.planBtnTxt, p.id === "annuale" && { color: HT.brand }]}>Paga con carta</Text>
                     )}
                   </View>
                 </Pressable>
@@ -134,13 +135,13 @@ export default function PaywallScreen() {
             <Text style={s.section}>Preferisci essere attivato da noi?</Text>
             <View style={s.card} testID="paywall-request">
               {reqDone ? (
-                <View style={s.okRow}><Ionicons name="checkmark-circle" size={20} color={theme.color.success} /><Text style={s.okTxt}>{reqDone}</Text></View>
+                <View style={s.okRow}><Ionicons name="checkmark-circle" size={20} color={HT.success} /><Text style={s.okTxt}>{reqDone}</Text></View>
               ) : (
                 <>
                   <Text style={s.cardTxt}>Inviamo una richiesta al team AdvisorOS: ti ricontattiamo e attiviamo l&apos;account per te.</Text>
-                  <TextInput value={note} onChangeText={setNote} placeholder="Nota (facoltativa): azienda, piano desiderato, telefono…" placeholderTextColor={theme.color.muted} style={s.input} multiline testID="paywall-request-note" />
+                  <TextInput value={note} onChangeText={setNote} placeholder="Nota (facoltativa): azienda, piano desiderato, telefono…" placeholderTextColor={HT.muted} style={s.input} multiline testID="paywall-request-note" />
                   <Pressable onPress={sendRequest} disabled={reqBusy} style={s.secondaryBtn} testID="paywall-request-send">
-                    {reqBusy ? <ActivityIndicator color={theme.color.brandPrimary} /> : <><Ionicons name="paper-plane-outline" size={18} color={theme.color.brandPrimary} /><Text style={s.secondaryTxt}>Richiedi attivazione</Text></>}
+                    {reqBusy ? <ActivityIndicator color={HT.brand} /> : <><Ionicons name="paper-plane-outline" size={18} color={HT.brand} /><Text style={s.secondaryTxt}>Richiedi attivazione</Text></>}
                   </Pressable>
                 </>
               )}
@@ -150,8 +151,8 @@ export default function PaywallScreen() {
             </View>
 
             <View style={s.footerRow}>
-              <Pressable onPress={recheck} style={s.ghostBtn} testID="paywall-recheck"><Ionicons name="refresh" size={16} color={theme.color.onSurfaceTertiary} /><Text style={s.ghostTxt}>Ricontrolla</Text></Pressable>
-              <Pressable onPress={() => { void logout().then(() => router.replace("/login" as any)); }} style={s.ghostBtn} testID="paywall-logout"><Ionicons name="log-out-outline" size={16} color={theme.color.onSurfaceTertiary} /><Text style={s.ghostTxt}>Esci</Text></Pressable>
+              <Pressable onPress={recheck} style={s.ghostBtn} testID="paywall-recheck"><Ionicons name="refresh" size={16} color={HT.text2} /><Text style={s.ghostTxt}>Ricontrolla</Text></Pressable>
+              <Pressable onPress={() => { void logout().then(() => router.replace("/login" as any)); }} style={s.ghostBtn} testID="paywall-logout"><Ionicons name="log-out-outline" size={16} color={HT.text2} /><Text style={s.ghostTxt}>Esci</Text></Pressable>
             </View>
           </>
         )}
@@ -161,36 +162,36 @@ export default function PaywallScreen() {
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
+  root: { flex: 1, backgroundColor: HT.card2 },
   body: { padding: 16, paddingBottom: 40, gap: 10 },
-  hero: { backgroundColor: theme.color.brandPrimary, borderRadius: 20, padding: 22, alignItems: "center", gap: 10 },
+  hero: { backgroundColor: HT.brand, borderRadius: 20, padding: 22, alignItems: "center", gap: 10 },
   heroIcon: { width: 60, height: 60, borderRadius: 30, backgroundColor: "rgba(255,255,255,0.16)", alignItems: "center", justifyContent: "center" },
   h1: { color: theme.color.onBrandPrimary, fontSize: 22, fontWeight: "800", textAlign: "center" },
   sub: { color: theme.color.onBrandPrimary, opacity: 0.9, fontSize: 14, lineHeight: 20, textAlign: "center" },
   checking: { flexDirection: "row", gap: 8, alignItems: "center", marginTop: 4 },
   checkingTxt: { color: theme.color.onBrandPrimary, fontWeight: "700" },
-  section: { fontSize: 15, fontWeight: "800", color: theme.color.onSurface, marginTop: 10 },
-  hint: { fontSize: 12, color: theme.color.muted, textAlign: "center" },
+  section: { fontSize: 15, fontWeight: "800", color: HT.text, marginTop: 10 },
+  hint: { fontSize: 12, color: HT.muted, textAlign: "center" },
   plans: { flexDirection: "row", gap: 10 },
-  plan: { flex: 1, backgroundColor: theme.color.surfaceSecondary, borderRadius: 16, borderWidth: 1, borderColor: theme.color.border, padding: 14, gap: 6, minHeight: 190, justifyContent: "space-between" },
-  planBest: { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary },
-  badge: { alignSelf: "flex-start", backgroundColor: theme.color.warning, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
+  plan: { flex: 1, backgroundColor: HT.card2, borderRadius: 16, borderWidth: 1, borderColor: HT.border, padding: 14, gap: 6, minHeight: 190, justifyContent: "space-between" },
+  planBest: { backgroundColor: HT.brand, borderColor: HT.brand },
+  badge: { alignSelf: "flex-start", backgroundColor: HT.warning, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
   badgeTxt: { color: theme.color.onBrandPrimary, fontSize: 11, fontWeight: "800" },
-  planLabel: { fontSize: 14, fontWeight: "700", color: theme.color.onSurfaceTertiary },
-  planPrice: { fontSize: 28, fontWeight: "800", color: theme.color.onSurface },
-  planDesc: { fontSize: 12, color: theme.color.muted, lineHeight: 16 },
-  planBtn: { backgroundColor: theme.color.brandPrimary, borderRadius: 12, minHeight: 44, alignItems: "center", justifyContent: "center", marginTop: 6 },
+  planLabel: { fontSize: 14, fontWeight: "700", color: HT.text2 },
+  planPrice: { fontSize: 28, fontWeight: "800", color: HT.text },
+  planDesc: { fontSize: 12, color: HT.muted, lineHeight: 16 },
+  planBtn: { backgroundColor: HT.brand, borderRadius: 12, minHeight: 44, alignItems: "center", justifyContent: "center", marginTop: 6 },
   planBtnTxt: { color: theme.color.onBrandPrimary, fontWeight: "800" },
-  card: { backgroundColor: theme.color.surfaceSecondary, borderRadius: 16, borderWidth: 1, borderColor: theme.color.border, padding: 14, gap: 10 },
-  cardTxt: { fontSize: 13, color: theme.color.onSurfaceTertiary, lineHeight: 19 },
-  input: { borderWidth: 1, borderColor: theme.color.border, borderRadius: 12, padding: 12, minHeight: 64, color: theme.color.onSurface, backgroundColor: theme.color.surface, textAlignVertical: "top" },
-  secondaryBtn: { flexDirection: "row", gap: 8, alignItems: "center", justifyContent: "center", minHeight: 46, borderRadius: 12, borderWidth: 1.5, borderColor: theme.color.brandPrimary },
-  secondaryTxt: { color: theme.color.brandPrimary, fontWeight: "800" },
+  card: { backgroundColor: HT.card2, borderRadius: 16, borderWidth: 1, borderColor: HT.border, padding: 14, gap: 10 },
+  cardTxt: { fontSize: 13, color: HT.text2, lineHeight: 19 },
+  input: { borderWidth: 1, borderColor: HT.border, borderRadius: 12, padding: 12, minHeight: 64, color: HT.text, backgroundColor: HT.card2, textAlignVertical: "top" },
+  secondaryBtn: { flexDirection: "row", gap: 8, alignItems: "center", justifyContent: "center", minHeight: 46, borderRadius: 12, borderWidth: 1.5, borderColor: HT.brand },
+  secondaryTxt: { color: HT.brand, fontWeight: "800" },
   okRow: { flexDirection: "row", gap: 8, alignItems: "center" },
-  okTxt: { flex: 1, color: theme.color.success, fontWeight: "700" },
+  okTxt: { flex: 1, color: HT.success, fontWeight: "700" },
   linkRow: { flexDirection: "row", gap: 6, alignItems: "center", justifyContent: "center", minHeight: 36 },
   link: { color: theme.color.brandSecondary, fontWeight: "700" },
   footerRow: { flexDirection: "row", justifyContent: "center", gap: 18, marginTop: 8 },
   ghostBtn: { flexDirection: "row", gap: 6, alignItems: "center", minHeight: 44, paddingHorizontal: 12 },
-  ghostTxt: { color: theme.color.onSurfaceTertiary, fontWeight: "700" },
+  ghostTxt: { color: HT.text2, fontWeight: "700" },
 });

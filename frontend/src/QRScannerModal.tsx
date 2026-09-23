@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, Modal, Pressable, Platform, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { theme } from "@/src/theme";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
@@ -9,6 +8,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import jsQR from "jsqr";
 import jpeg from "jpeg-js";
 import { useSafeBottom } from "@/src/hooks/useSafeBottom";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Props = {
   visible: boolean;
@@ -411,7 +411,7 @@ export function QRScannerModal({ visible, onClose, onScanned }: Props) {
         </View>
 
         {Platform.OS === "web" ? (
-          <View style={{ flex: 1, backgroundColor: "#000", justifyContent: "center", alignItems: "center" }}>
+          <View style={{ flex: 1, backgroundColor: '#000', justifyContent: "center", alignItems: "center" }}>
             {/* @ts-expect-error web-only */}
             <video ref={videoRef} style={{ width: "100%", height: "100%", objectFit: "cover" }} muted playsInline />
             {webError && (
@@ -422,14 +422,14 @@ export function QRScannerModal({ visible, onClose, onScanned }: Props) {
             )}
           </View>
         ) : !permission?.granted ? (
-          <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: "#000" }}>
+          <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: '#000' }}>
             <Ionicons name="camera-outline" size={44} color="#FFF" />
             <Text style={{ color: "#FFF", textAlign: "center", marginTop: 12, fontSize: 15 }}>
               Serve il permesso della fotocamera per scansionare i QR code.
             </Text>
             <Pressable
               onPress={requestPermission}
-              style={{ marginTop: 16, backgroundColor: theme.color.brandPrimary, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 10 }}
+              style={{ marginTop: 16, backgroundColor: HT.brand, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 10 }}
             >
               <Text style={{ color: "#FFF", fontWeight: "700" }}>Concedi permesso</Text>
             </Pressable>
@@ -454,7 +454,7 @@ export function QRScannerModal({ visible, onClose, onScanned }: Props) {
           </Text>
           {galleryHint && (
             <View style={[styles.errorBox, { position: "relative", marginTop: 12 }]}>
-              <Ionicons name="information-circle" size={18} color="#B45309" />
+              <Ionicons name="information-circle" size={18} color={HT.warning} />
               <Text style={styles.errorTxt}>{galleryHint}</Text>
             </View>
           )}
@@ -500,7 +500,7 @@ function base64ToUint8(b64: string): Uint8Array {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#000" },
+  container: { flex: 1, backgroundColor: '#000' },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -514,10 +514,10 @@ const styles = StyleSheet.create({
   title: { color: "#FFF", fontSize: 15, fontWeight: "700" },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
   overlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 90, justifyContent: "center", alignItems: "center" },
-  frame: { width: 260, height: 260, borderRadius: 24, borderWidth: 3, borderColor: "#FFF", backgroundColor: "transparent", shadowColor: "#000", shadowOpacity: 0.4, shadowRadius: 10 },
+  frame: { width: 260, height: 260, borderRadius: 24, borderWidth: 3, borderColor: HT.card, backgroundColor: "transparent", shadowColor: "#000", shadowOpacity: 0.4, shadowRadius: 10 },
   hint: { color: "#FFF", fontSize: 12, marginTop: 16, backgroundColor: "rgba(0,0,0,0.5)", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, textAlign: "center", maxWidth: 320 },
-  errorBox: { position: "absolute", bottom: 90, backgroundColor: "#FFF", padding: 14, borderRadius: 12, flexDirection: "row", gap: 10, alignItems: "center", maxWidth: 320 },
-  errorTxt: { flex: 1, color: theme.color.onSurface, fontSize: 12 },
+  errorBox: { position: "absolute", bottom: 90, backgroundColor: HT.card, padding: 14, borderRadius: 12, flexDirection: "row", gap: 10, alignItems: "center", maxWidth: 320 },
+  errorTxt: { flex: 1, color: HT.text, fontSize: 12 },
   galleryBar: { position: "absolute", bottom: 24, left: 0, right: 0, flexDirection: "row", alignItems: "center", justifyContent: "center", zIndex: 20 },
   galleryBtn: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 24, backgroundColor: "rgba(37,99,235,0.95)", borderWidth: 1, borderColor: "rgba(255,255,255,0.3)", elevation: 4, shadowColor: "#000", shadowOpacity: 0.3, shadowRadius: 6 },
   galleryTxt: { color: "#FFF", fontWeight: "700", fontSize: 13 },

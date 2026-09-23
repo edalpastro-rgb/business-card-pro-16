@@ -2,6 +2,7 @@
 // brand copy LOCKED «Non aggiungi un'app alla tua vita. Togli il caos.» — DO NOT CHANGE.
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 export const TOUR_CLOSING_LINE = "Non aggiungi un'app alla tua vita. Togli il caos."; // brand copy locked — DO NOT CHANGE
 
@@ -48,14 +49,14 @@ export function TourStories() {
 }
 
 const styles = StyleSheet.create({
-  card: { marginHorizontal: 12, marginTop: 14, backgroundColor: "#FFF", borderRadius: 16, overflow: "hidden", flexDirection: "row", shadowColor: "#0F172A", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 3 },
+  card: { marginHorizontal: 12, marginTop: 14, backgroundColor: HT.card, borderRadius: 16, overflow: "hidden", flexDirection: "row", shadowColor: HT.text, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 3 },
   stripe: { width: 6 },
   body: { flex: 1, padding: 16 },
   head: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 10 },
   emojiWrap: { width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center" },
   emoji: { fontSize: 24 },
   kicker: { fontSize: 11, fontWeight: "800", letterSpacing: 1.2, textTransform: "uppercase" },
-  title: { fontSize: 17, fontWeight: "900", color: "#0F172A", letterSpacing: -0.3, marginTop: 2 },
-  text: { fontSize: 14.5, lineHeight: 23, color: "#1E293B", fontStyle: "italic" },
+  title: { fontSize: 17, fontWeight: "900", color: HT.text, letterSpacing: -0.3, marginTop: 2 },
+  text: { fontSize: 14.5, lineHeight: 23, color: HT.text, fontStyle: "italic" },
   closing: { marginHorizontal: 24, marginTop: 26, marginBottom: 6, color: "#FFF", fontSize: 19, lineHeight: 28, fontWeight: "900", textAlign: "center", letterSpacing: -0.3 },
 });

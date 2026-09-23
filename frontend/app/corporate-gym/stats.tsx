@@ -5,22 +5,22 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import { LineChart, BarChart } from "react-native-chart-kit";
-import { theme } from "@/src/theme";
 import { useAuth } from "@/src/auth";
 import { notify } from "@/src/utils/notify";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { cgymStatsApi, CgymStats, CgymAgentStats, CgymAgentFeedback, CgymWeeklyReport, CgymAiReport, CGYM_ORANGE } from "@/src/corporate-gym/api";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const RANGES = [7, 30, 90];
 
 function chartConfig(color: string) {
   return {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: HT.card,
     backgroundGradientFrom: "#FFFFFF",
     backgroundGradientTo: "#FFFFFF",
     decimalPlaces: 0,
     color: (opacity = 1) => `${color}${Math.round(opacity * 255).toString(16).padStart(2, "0")}`,
-    labelColor: () => "#475569",
+    labelColor: () => HT.text2,
     propsForBackgroundLines: { stroke: "#E5E7EB", strokeDasharray: "3,4" },
     propsForDots: { r: "4", strokeWidth: "2", stroke: "#FFF" },
     barPercentage: 0.6,
@@ -28,8 +28,8 @@ function chartConfig(color: string) {
 }
 
 function scoreColor(s: number | null) {
-  if (s == null) return theme.color.muted;
-  return s >= 75 ? theme.color.success : s >= 50 ? CGYM_ORANGE : theme.color.error;
+  if (s == null) return HT.muted;
+  return s >= 75 ? HT.success : s >= 50 ? CGYM_ORANGE : HT.danger;
 }
 
 function fmtDate(iso?: string) {
@@ -124,7 +124,7 @@ export default function CgymStatsScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable testID="cgym-stats-back" onPress={() => (router.canGoBack() ? router.back() : router.replace("/corporate-gym" as any))} hitSlop={10}>
-          <Ionicons name="chevron-back" size={26} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={26} color={HT.text} />
         </Pressable>
         <Text style={styles.title}>Statistiche team</Text>
         <View style={{ width: 26 }} />
@@ -147,7 +147,7 @@ export default function CgymStatsScreen() {
               <View style={styles.kpi}><Text style={[styles.kpiNum, { color: scoreColor(t.avg_score) }]}>{t.avg_score ?? "—"}</Text><Text style={styles.kpiLbl}>Media score</Text></View>
               <View style={styles.kpi}><Text style={styles.kpiNum}>{t.assigned_done}/{t.assigned_total}</Text><Text style={styles.kpiLbl}>Assegnate completate</Text></View>
               <View style={styles.kpi}><Text style={styles.kpiNum}>{t.completed_total}</Text><Text style={styles.kpiLbl}>Sessioni completate</Text></View>
-              <View style={styles.kpi}><Text style={[styles.kpiNum, t.overdue > 0 && { color: theme.color.error }]}>{t.overdue}</Text><Text style={styles.kpiLbl}>In ritardo</Text></View>
+              <View style={styles.kpi}><Text style={[styles.kpiNum, t.overdue > 0 && { color: HT.danger }]}>{t.overdue}</Text><Text style={styles.kpiLbl}>In ritardo</Text></View>
             </View>
             {t.assigned_total > 0 && (
               <View style={styles.barBg}><View style={[styles.barFill, { width: `${Math.round((t.assigned_done / t.assigned_total) * 100)}%` }]} /></View>
@@ -165,7 +165,7 @@ export default function CgymStatsScreen() {
                 ))}
               </ScrollView>
               {lineData ? (
-                <LineChart data={lineData} width={chartW} height={180} chartConfig={chartConfig(theme.color.brandPrimary)} bezier fromZero withInnerLines segments={4} style={{ borderRadius: 12, marginLeft: -8 }} />
+                <LineChart data={lineData} width={chartW} height={180} chartConfig={chartConfig(HT.brand)} bezier fromZero withInnerLines segments={4} style={{ borderRadius: 12, marginLeft: -8 }} />
               ) : (
                 <Text style={styles.emptyTxt}>Ancora nessuno score nel periodo</Text>
               )}
@@ -181,7 +181,7 @@ export default function CgymStatsScreen() {
               )}
               <View style={{ flexDirection: "row", gap: 12, marginTop: 6, flexWrap: "wrap" }}>
                 <View style={{ flex: 1, minWidth: 140 }}>
-                  <Text style={[styles.miniHead, { color: theme.color.success }]}>Forze del team</Text>
+                  <Text style={[styles.miniHead, { color: HT.success }]}>Forze del team</Text>
                   {t.strengths.length ? t.strengths.map((c) => <Text key={c.key} style={styles.miniTxt}>• {c.label} <Text style={styles.miniN}>×{c.count}</Text></Text>) : <Text style={styles.miniTxt}>—</Text>}
                 </View>
                 <View style={{ flex: 1, minWidth: 140 }}>
@@ -207,11 +207,11 @@ export default function CgymStatsScreen() {
                   <Text style={styles.headline}>{weekly.content.headline}</Text>
                   <Text style={styles.meta}>Settimana {weekly.week} · {fmtDate(weekly.generated_at)}</Text>
                   <Section title="Lacune del team" icon="alert-circle" color={CGYM_ORANGE} items={weekly.content.team_gaps} />
-                  <Section title="Cosa va bene" icon="thumbs-up" color={theme.color.success} items={weekly.content.highlights} />
-                  <Section title="Agenti da seguire" icon="eye" color={theme.color.brandPrimary} items={weekly.content.agents_to_watch} />
+                  <Section title="Cosa va bene" icon="thumbs-up" color={HT.success} items={weekly.content.highlights} />
+                  <Section title="Agenti da seguire" icon="eye" color={HT.brand} items={weekly.content.agents_to_watch} />
                   {!!weekly.content.new_scenarios?.length && (
                     <View>
-                      <Text style={[styles.miniHead, { color: theme.color.brandPrimary }]}>Nuovi scenari proposti</Text>
+                      <Text style={[styles.miniHead, { color: HT.brand }]}>Nuovi scenari proposti</Text>
                       {weekly.content.new_scenarios.map((s, i) => (
                         <View key={i} style={styles.scenario}>
                           <Text style={styles.scenarioTitle}>{s.title}</Text>
@@ -221,9 +221,9 @@ export default function CgymStatsScreen() {
                       ))}
                     </View>
                   )}
-                  <Section title="Aggiornamenti al manuale vendite" icon="book" color={theme.color.onSurface} items={weekly.content.manual_updates} />
+                  <Section title="Aggiornamenti al manuale vendite" icon="book" color={HT.text} items={weekly.content.manual_updates} />
                   {!!weekly.content.next_week_plan && (
-                    <View style={styles.planBox}><Ionicons name="calendar" size={14} color={theme.color.brandPrimary} /><Text style={styles.planTxt}>{weekly.content.next_week_plan}</Text></View>
+                    <View style={styles.planBox}><Ionicons name="calendar" size={14} color={HT.brand} /><Text style={styles.planTxt}>{weekly.content.next_week_plan}</Text></View>
                   )}
                 </View>
               ) : (
@@ -239,7 +239,7 @@ export default function CgymStatsScreen() {
               return (
                 <View key={a.user_id} style={styles.agent} testID={`cgym-stats-agentcard-${a.user_id}`}>
                   <Pressable style={styles.rowBetween} onPress={() => toggleAgent(a)} testID={`cgym-stats-agent-toggle-${a.user_id}`}>
-                    <View style={[styles.rankBadge, { backgroundColor: a.rank === 1 && a.avg_score != null ? "#EAB308" : theme.color.surfaceTertiary }]}>
+                    <View style={[styles.rankBadge, { backgroundColor: a.rank === 1 && a.avg_score != null ? "#EAB308" : HT.card2 }]}>
                       <Text style={[styles.rankTxt, a.rank === 1 && a.avg_score != null && { color: "#FFF" }]}>{a.rank}</Text>
                     </View>
                     <View style={{ flex: 1 }}>
@@ -252,16 +252,16 @@ export default function CgymStatsScreen() {
                       <Text style={[styles.agentScore, { color: scoreColor(a.avg_score) }]}>{a.avg_score ?? "—"}</Text>
                       {a.trend != null && (
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 2 }}>
-                          <Ionicons name={a.trend > 0 ? "trending-up" : a.trend < 0 ? "trending-down" : "remove"} size={12} color={a.trend > 0 ? theme.color.success : a.trend < 0 ? theme.color.error : theme.color.muted} />
-                          <Text style={[styles.trendTxt, { color: a.trend > 0 ? theme.color.success : a.trend < 0 ? theme.color.error : theme.color.muted }]}>{a.trend > 0 ? "+" : ""}{a.trend}</Text>
+                          <Ionicons name={a.trend > 0 ? "trending-up" : a.trend < 0 ? "trending-down" : "remove"} size={12} color={a.trend > 0 ? HT.success : a.trend < 0 ? HT.danger : HT.muted} />
+                          <Text style={[styles.trendTxt, { color: a.trend > 0 ? HT.success : a.trend < 0 ? HT.danger : HT.muted }]}>{a.trend > 0 ? "+" : ""}{a.trend}</Text>
                         </View>
                       )}
                     </View>
-                    <Ionicons name={open ? "chevron-up" : "chevron-down"} size={16} color={theme.color.muted} />
+                    <Ionicons name={open ? "chevron-up" : "chevron-down"} size={16} color={HT.muted} />
                   </Pressable>
                   {(a.strengths.length > 0 || a.weaknesses.length > 0) && (
                     <View style={styles.tagRow}>
-                      {a.strengths.map((c) => <View key={"s" + c.key} style={[styles.tag, { backgroundColor: theme.color.success + "22" }]}><Ionicons name="arrow-up" size={10} color={theme.color.success} /><Text style={[styles.tagTxt, { color: theme.color.success }]}>{c.label}</Text></View>)}
+                      {a.strengths.map((c) => <View key={"s" + c.key} style={[styles.tag, { backgroundColor: HT.success + "22" }]}><Ionicons name="arrow-up" size={10} color={HT.success} /><Text style={[styles.tagTxt, { color: HT.success }]}>{c.label}</Text></View>)}
                       {a.weaknesses.map((c) => <View key={"w" + c.key} style={[styles.tag, { backgroundColor: CGYM_ORANGE + "22" }]}><Ionicons name="arrow-down" size={10} color={CGYM_ORANGE} /><Text style={[styles.tagTxt, { color: CGYM_ORANGE }]}>{c.label}</Text></View>)}
                     </View>
                   )}
@@ -276,11 +276,11 @@ export default function CgymStatsScreen() {
                       {fb?.content ? (
                         <View style={{ gap: 8 }} testID={`cgym-stats-fb-${a.user_id}`}>
                           <Text style={styles.meta}>{fmtDate(fb.generated_at)}</Text>
-                          {!!fb.content.character && (<View style={styles.charBox}><Ionicons name="person" size={14} color={theme.color.brandPrimary} /><Text style={styles.charTxt}>{fb.content.character}</Text></View>)}
+                          {!!fb.content.character && (<View style={styles.charBox}><Ionicons name="person" size={14} color={HT.brand} /><Text style={styles.charTxt}>{fb.content.character}</Text></View>)}
                           <Section title="Dove migliorare" icon="arrow-up-circle" color={CGYM_ORANGE} items={fb.content.where_to_improve} />
-                          <Section title="Azioni correttive" icon="construct" color={theme.color.brandPrimary} items={fb.content.corrective_actions} />
-                          <Section title="Punti di forza" icon="checkmark-circle" color={theme.color.success} items={fb.content.strengths} />
-                          {!!fb.content.encouragement && (<View style={styles.encBox}><Ionicons name="heart" size={14} color={theme.color.success} /><Text style={styles.encTxt}>{fb.content.encouragement}</Text></View>)}
+                          <Section title="Azioni correttive" icon="construct" color={HT.brand} items={fb.content.corrective_actions} />
+                          <Section title="Punti di forza" icon="checkmark-circle" color={HT.success} items={fb.content.strengths} />
+                          {!!fb.content.encouragement && (<View style={styles.encBox}><Ionicons name="heart" size={14} color={HT.success} /><Text style={styles.encTxt}>{fb.content.encouragement}</Text></View>)}
                         </View>
                       ) : (
                         <Text style={styles.emptyTxt}>{a.completed_total > 0 ? "Genera il feedback personale: dove migliorare, azioni correttive, punti di forza e incoraggiamento." : "Nessuna sessione completata nel periodo: assegna sessioni per ottenere un feedback."}</Text>
@@ -311,52 +311,52 @@ function Section({ title, icon, color, items }: { title: string; icon: any; colo
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.color.border, backgroundColor: theme.color.surfaceSecondary },
-  title: { fontSize: 18, fontWeight: "800", color: theme.color.onSurface },
-  segment: { flexDirection: "row", backgroundColor: theme.color.surfaceTertiary, borderRadius: 999, padding: 3, marginBottom: 12 },
+  root: { flex: 1, backgroundColor: HT.card2 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: HT.border, backgroundColor: HT.card2 },
+  title: { fontSize: 18, fontWeight: "800", color: HT.text },
+  segment: { flexDirection: "row", backgroundColor: HT.card2, borderRadius: 999, padding: 3, marginBottom: 12 },
   segBtn: { flex: 1, paddingVertical: 8, borderRadius: 999, alignItems: "center", minHeight: 36 },
-  segBtnOn: { backgroundColor: theme.color.surfaceSecondary },
-  segTxt: { fontSize: 12, fontWeight: "700", color: theme.color.muted },
-  segTxtOn: { color: theme.color.onSurface },
+  segBtnOn: { backgroundColor: HT.card2 },
+  segTxt: { fontSize: 12, fontWeight: "700", color: HT.muted },
+  segTxtOn: { color: HT.text },
   kpiRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  kpi: { flexBasis: "47%", flexGrow: 1, backgroundColor: theme.color.surfaceSecondary, borderRadius: 14, borderWidth: 1, borderColor: theme.color.border, padding: 12, alignItems: "center" },
-  kpiNum: { fontSize: 22, fontWeight: "900", color: theme.color.onSurface },
-  kpiLbl: { fontSize: 11, color: theme.color.muted, fontWeight: "700", marginTop: 2, textAlign: "center" },
-  barBg: { height: 6, borderRadius: 3, backgroundColor: theme.color.surfaceTertiary, marginTop: 8, overflow: "hidden" },
-  barFill: { height: 6, borderRadius: 3, backgroundColor: theme.color.brandPrimary },
-  card: { backgroundColor: theme.color.surfaceSecondary, borderRadius: 16, borderWidth: 1, borderColor: theme.color.border, padding: 12, marginTop: 12 },
-  cardTitle: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface },
-  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: theme.color.border, backgroundColor: theme.color.surface, minHeight: 32, justifyContent: "center" },
-  chipOn: { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary },
-  chipTxt: { fontSize: 12, fontWeight: "700", color: theme.color.onSurface },
-  emptyTxt: { fontSize: 12, color: theme.color.muted, paddingVertical: 8, lineHeight: 17 },
+  kpi: { flexBasis: "47%", flexGrow: 1, backgroundColor: HT.card2, borderRadius: 14, borderWidth: 1, borderColor: HT.border, padding: 12, alignItems: "center" },
+  kpiNum: { fontSize: 22, fontWeight: "900", color: HT.text },
+  kpiLbl: { fontSize: 11, color: HT.muted, fontWeight: "700", marginTop: 2, textAlign: "center" },
+  barBg: { height: 6, borderRadius: 3, backgroundColor: HT.card2, marginTop: 8, overflow: "hidden" },
+  barFill: { height: 6, borderRadius: 3, backgroundColor: HT.brand },
+  card: { backgroundColor: HT.card2, borderRadius: 16, borderWidth: 1, borderColor: HT.border, padding: 12, marginTop: 12 },
+  cardTitle: { fontSize: 14, fontWeight: "800", color: HT.text },
+  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: HT.border, backgroundColor: HT.card2, minHeight: 32, justifyContent: "center" },
+  chipOn: { backgroundColor: HT.brand, borderColor: HT.brand },
+  chipTxt: { fontSize: 12, fontWeight: "700", color: HT.text },
+  emptyTxt: { fontSize: 12, color: HT.muted, paddingVertical: 8, lineHeight: 17 },
   miniHead: { fontSize: 12, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 2 },
-  miniTxt: { fontSize: 13, color: theme.color.onSurface, lineHeight: 19 },
-  miniTxtMuted: { fontSize: 12, color: theme.color.muted, lineHeight: 17 },
-  miniN: { color: theme.color.muted, fontWeight: "800" },
+  miniTxt: { fontSize: 13, color: HT.text, lineHeight: 19 },
+  miniTxtMuted: { fontSize: 12, color: HT.muted, lineHeight: 17 },
+  miniN: { color: HT.muted, fontWeight: "800" },
   rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
   genBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: CGYM_ORANGE, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, minHeight: 36 },
   genTxt: { color: "#FFF", fontWeight: "800", fontSize: 12 },
-  headline: { fontSize: 15, fontWeight: "800", color: theme.color.onSurface, lineHeight: 21 },
-  meta: { fontSize: 11, color: theme.color.muted },
-  scenario: { backgroundColor: theme.color.surface, borderRadius: 10, padding: 10, marginTop: 6, borderWidth: 1, borderColor: theme.color.border },
-  scenarioTitle: { fontSize: 13, fontWeight: "800", color: theme.color.onSurface },
-  planBox: { flexDirection: "row", gap: 8, backgroundColor: theme.color.brandTertiary, borderRadius: 10, padding: 10 },
-  planTxt: { flex: 1, fontSize: 13, color: theme.color.brandPrimary, fontWeight: "700", lineHeight: 19 },
-  sectionTitle: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface, marginTop: 18, marginBottom: 8 },
-  agent: { backgroundColor: theme.color.surfaceSecondary, borderRadius: 14, borderWidth: 1, borderColor: theme.color.border, padding: 12, marginBottom: 10 },
+  headline: { fontSize: 15, fontWeight: "800", color: HT.text, lineHeight: 21 },
+  meta: { fontSize: 11, color: HT.muted },
+  scenario: { backgroundColor: HT.card2, borderRadius: 10, padding: 10, marginTop: 6, borderWidth: 1, borderColor: HT.border },
+  scenarioTitle: { fontSize: 13, fontWeight: "800", color: HT.text },
+  planBox: { flexDirection: "row", gap: 8, backgroundColor: HT.brandTint, borderRadius: 10, padding: 10 },
+  planTxt: { flex: 1, fontSize: 13, color: HT.brand, fontWeight: "700", lineHeight: 19 },
+  sectionTitle: { fontSize: 16, fontWeight: "800", color: HT.text, marginTop: 18, marginBottom: 8 },
+  agent: { backgroundColor: HT.card2, borderRadius: 14, borderWidth: 1, borderColor: HT.border, padding: 12, marginBottom: 10 },
   rankBadge: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  rankTxt: { fontSize: 13, fontWeight: "900", color: theme.color.onSurface },
-  agentName: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface },
-  agentSub: { fontSize: 11, color: theme.color.muted, marginTop: 2 },
+  rankTxt: { fontSize: 13, fontWeight: "900", color: HT.text },
+  agentName: { fontSize: 14, fontWeight: "800", color: HT.text },
+  agentSub: { fontSize: 11, color: HT.muted, marginTop: 2 },
   agentScore: { fontSize: 20, fontWeight: "900" },
   trendTxt: { fontSize: 11, fontWeight: "800" },
   tagRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 },
   tag: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
   tagTxt: { fontSize: 11, fontWeight: "800" },
-  charBox: { flexDirection: "row", gap: 8, backgroundColor: theme.color.brandTertiary, borderRadius: 10, padding: 10 },
-  charTxt: { flex: 1, fontSize: 13, color: theme.color.brandPrimary, fontWeight: "600", lineHeight: 19, fontStyle: "italic" },
-  encBox: { flexDirection: "row", gap: 8, backgroundColor: theme.color.success + "18", borderRadius: 10, padding: 10 },
-  encTxt: { flex: 1, fontSize: 13, color: theme.color.onSurface, lineHeight: 19 },
+  charBox: { flexDirection: "row", gap: 8, backgroundColor: HT.brandTint, borderRadius: 10, padding: 10 },
+  charTxt: { flex: 1, fontSize: 13, color: HT.brand, fontWeight: "600", lineHeight: 19, fontStyle: "italic" },
+  encBox: { flexDirection: "row", gap: 8, backgroundColor: HT.success + "18", borderRadius: 10, padding: 10 },
+  encTxt: { flex: 1, fontSize: 13, color: HT.text, lineHeight: 19 },
 });

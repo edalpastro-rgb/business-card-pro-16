@@ -8,9 +8,9 @@ import { View, Text, StyleSheet, Pressable, Modal, TextInput, ScrollView, Activi
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type DbxEntry = {
   ".tag"?: string;
@@ -29,7 +29,7 @@ function mimeIcon(name?: string): { name: any; color: string } {
   if (n.endsWith(".pptx") || n.endsWith(".ppt")) return { name: "easel", color: "#EA580C" };
   if (n.endsWith(".docx") || n.endsWith(".doc") || n.endsWith(".txt")) return { name: "document-text", color: "#2563EB" };
   if (/\.(png|jpg|jpeg|gif|webp|heic)$/i.test(n)) return { name: "image", color: "#7C3AED" };
-  return { name: "document-outline", color: "#94A3B8" };
+  return { name: "document-outline", color: HT.muted };
 }
 
 function extFromName(n: string): string {
@@ -117,7 +117,7 @@ export function DropboxPickerModal({
                 <Text style={styles.sub}>Fonte file cloud per Axon</Text>
               )}
             </View>
-            <Pressable onPress={onClose} hitSlop={10}><Ionicons name="close" size={22} color={theme.color.onSurface} /></Pressable>
+            <Pressable onPress={onClose} hitSlop={10}><Ionicons name="close" size={22} color={HT.text} /></Pressable>
           </View>
 
           {!status.configured ? (
@@ -127,25 +127,25 @@ export function DropboxPickerModal({
             </View>
           ) : !status.connected ? (
             <View style={styles.empty}>
-              <Ionicons name="link-outline" size={30} color={theme.color.muted} />
+              <Ionicons name="link-outline" size={30} color={HT.muted} />
               <Text style={styles.emptyTxt}>Dropbox non collegato. Vai in Impostazioni → Dropbox per collegarlo.</Text>
             </View>
           ) : (
             <>
               <View style={styles.searchBox}>
-                <Ionicons name="search" size={16} color="#94A3B8" />
+                <Ionicons name="search" size={16} color={HT.muted} />
                 <TextInput
                   value={q}
                   onChangeText={setQ}
                   onSubmitEditing={() => setSearchTick((t) => t + 1)}
                   placeholder="Cerca nel tuo Dropbox…"
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={HT.muted}
                   style={styles.searchInput}
                   autoCapitalize="none"
                 />
                 {q ? (
                   <Pressable onPress={() => { setQ(""); setSearchTick((t) => t + 1); }} hitSlop={6}>
-                    <Ionicons name="close-circle" size={16} color="#94A3B8" />
+                    <Ionicons name="close-circle" size={16} color={HT.muted} />
                   </Pressable>
                 ) : null}
               </View>
@@ -154,7 +154,7 @@ export function DropboxPickerModal({
                 <ActivityIndicator color="#0061FF" style={{ marginTop: 20 }} />
               ) : entries.length === 0 ? (
                 <View style={styles.empty}>
-                  <Ionicons name="cloud-outline" size={30} color={theme.color.muted} />
+                  <Ionicons name="cloud-outline" size={30} color={HT.muted} />
                   <Text style={styles.emptyTxt}>Nessun file trovato.</Text>
                 </View>
               ) : (
@@ -183,9 +183,9 @@ export function DropboxPickerModal({
                         {isDownloading ? (
                           <ActivityIndicator color="#0061FF" />
                         ) : isFile ? (
-                          <Ionicons name="download-outline" size={18} color={theme.color.brandPrimary} />
+                          <Ionicons name="download-outline" size={18} color={HT.brand} />
                         ) : (
-                          <Ionicons name="chevron-forward" size={16} color={theme.color.muted} />
+                          <Ionicons name="chevron-forward" size={16} color={HT.muted} />
                         )}
                       </Pressable>
                     );
@@ -202,16 +202,16 @@ export function DropboxPickerModal({
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: "#FFF", borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 16, paddingBottom: 30, maxHeight: "80%" },
+  sheet: { backgroundColor: HT.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 16, paddingBottom: 30, maxHeight: "80%" },
   hdr: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 },
-  badge: { width: 32, height: 32, borderRadius: 10, backgroundColor: "#0061FF", alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 17, fontWeight: "800", color: theme.color.onSurface },
-  sub: { fontSize: 11, color: theme.color.muted, fontWeight: "600" },
-  searchBox: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#F1F5F9", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 8 },
-  searchInput: { flex: 1, fontSize: 14, color: theme.color.onSurface, padding: 0 },
+  badge: { width: 32, height: 32, borderRadius: 10, backgroundColor: '#0061FF', alignItems: "center", justifyContent: "center" },
+  title: { fontSize: 17, fontWeight: "800", color: HT.text },
+  sub: { fontSize: 11, color: HT.muted, fontWeight: "600" },
+  searchBox: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: HT.card2, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 8 },
+  searchInput: { flex: 1, fontSize: 14, color: HT.text, padding: 0 },
   empty: { alignItems: "center", padding: 30, gap: 8 },
-  emptyTxt: { color: theme.color.muted, textAlign: "center", fontSize: 13, fontWeight: "600" },
-  row: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
-  rowName: { fontSize: 14, fontWeight: "700", color: theme.color.onSurface },
-  rowMeta: { fontSize: 11, color: theme.color.muted, fontWeight: "600" },
+  emptyTxt: { color: HT.muted, textAlign: "center", fontSize: 13, fontWeight: "600" },
+  row: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: HT.card2 },
+  rowName: { fontSize: 14, fontWeight: "700", color: HT.text },
+  rowMeta: { fontSize: 11, color: HT.muted, fontWeight: "600" },
 });

@@ -20,6 +20,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type BrainFact = { fact_id: string; fact: string; category?: string; importance?: number };
 type BrainProfile = {
@@ -33,10 +34,10 @@ type BrainProfile = {
 const CATEGORY_COLOR: Record<string, string> = {
   preferenze: "#7C3AED",
   specializzazione: "#0F9D58",
-  clienti: "#1D4ED8",
+  clienti: HT.axon,
   processo: "#EA580C",
   obiezioni: "#DC2626",
-  altro: "#64748B",
+  altro: HT.muted,
 };
 
 export default function AxonBrainScreen() {
@@ -172,7 +173,7 @@ export default function AxonBrainScreen() {
               {enabled ? "Axon apprende dalle tue conversazioni ogni ~8 messaggi" : "Axon NON apprenderà nulla di nuovo"}
             </Text>
           </View>
-          <Switch value={enabled} onValueChange={toggleLearning} trackColor={{ true: "#7C3AED", false: "#334155" }} />
+          <Switch value={enabled} onValueChange={toggleLearning} trackColor={{ true: "#7C3AED", false: HT.text2 }} />
         </View>
 
         {/* Profilo comportamentale */}
@@ -183,7 +184,7 @@ export default function AxonBrainScreen() {
             value={editSpec}
             onChangeText={setEditSpec}
             placeholder="Es. Fotovoltaico residenziale, PMI, telco B2B…"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={HT.muted}
             style={styles.input}
           />
           <Text style={styles.formLabel}>Tono preferito</Text>
@@ -191,7 +192,7 @@ export default function AxonBrainScreen() {
             value={editTone}
             onChangeText={setEditTone}
             placeholder="Es. amichevole ma preciso, breve e diretto…"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={HT.muted}
             style={styles.input}
           />
           <Text style={styles.formLabel}>Preferenze (come vuoi le risposte)</Text>
@@ -199,13 +200,13 @@ export default function AxonBrainScreen() {
             value={editPref}
             onChangeText={setEditPref}
             placeholder="Es. sempre elenchi puntati, esempi numerici, saluto 'Buonasera'…"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={HT.muted}
             style={[styles.input, { minHeight: 60, textAlignVertical: "top" }]}
             multiline
           />
           <Pressable onPress={saveProfile} disabled={saving} style={[styles.saveBtn, saving && { opacity: 0.6 }]}>
-            {saving ? <ActivityIndicator color="#0F172A" /> : (
-              <><Ionicons name="save" size={16} color="#0F172A" /><Text style={styles.saveBtnTxt}>Salva profilo</Text></>
+            {saving ? <ActivityIndicator color={HT.text} /> : (
+              <><Ionicons name="save" size={16} color={HT.text} /><Text style={styles.saveBtnTxt}>Salva profilo</Text></>
             )}
           </Pressable>
           {profile.jargon ? (
@@ -230,7 +231,7 @@ export default function AxonBrainScreen() {
         <Text style={styles.groupTitle}>Fatti memorizzati ({facts.length})</Text>
         {facts.length === 0 ? (
           <View style={styles.emptyBox}>
-            <Ionicons name="bulb-outline" size={30} color="#64748B" />
+            <Ionicons name="bulb-outline" size={30} color={HT.muted} />
             <Text style={styles.emptyTxt}>
               Nessun fatto ancora. Continua a chattare con Axon: dopo alcune conversazioni imparerà le tue preferenze automaticamente.
             </Text>
@@ -263,7 +264,7 @@ export default function AxonBrainScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#0F2438" },
+  root: { flex: 1, backgroundColor: '#0F2438' },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   header: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
@@ -282,28 +283,28 @@ const styles = StyleSheet.create({
   cardSub: { color: "rgba(255,255,255,0.7)", fontSize: 12, marginTop: 2 },
   formCard: { backgroundColor: "rgba(255,255,255,0.06)", padding: 12, borderRadius: 12, gap: 6 },
   formLabel: { color: "rgba(255,255,255,0.85)", fontSize: 11, fontWeight: "800", textTransform: "uppercase", marginTop: 6 },
-  input: { backgroundColor: "#FFF", borderRadius: 10, padding: 10, color: "#0F172A", fontSize: 14 },
+  input: { backgroundColor: HT.card, borderRadius: 10, padding: 10, color: HT.text, fontSize: 14 },
   saveBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
-    backgroundColor: "#FBBF24", paddingVertical: 10, borderRadius: 999, marginTop: 8,
+    backgroundColor: '#FBBF24', paddingVertical: 10, borderRadius: 999, marginTop: 8,
   },
-  saveBtnTxt: { color: "#0F172A", fontWeight: "900", fontSize: 13 },
+  saveBtnTxt: { color: HT.text, fontWeight: "900", fontSize: 13 },
   autoTxt: { color: "rgba(255,255,255,0.6)", fontSize: 11, marginTop: 6 },
   refreshBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
-    backgroundColor: "#7C3AED", paddingVertical: 12, borderRadius: 999, marginTop: 10,
+    backgroundColor: '#7C3AED', paddingVertical: 12, borderRadius: 999, marginTop: 10,
   },
   refreshTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
   emptyBox: { alignItems: "center", justifyContent: "center", padding: 24, backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 12, gap: 8 },
   emptyTxt: { color: "rgba(255,255,255,0.7)", fontSize: 12, textAlign: "center", lineHeight: 17 },
   factRow: {
     flexDirection: "row", alignItems: "center", gap: 10,
-    backgroundColor: "#FFF", padding: 10, borderRadius: 10, marginBottom: 6,
+    backgroundColor: HT.card, padding: 10, borderRadius: 10, marginBottom: 6,
   },
   catDot: { width: 8, height: 8, borderRadius: 4 },
-  factTxt: { color: "#0F172A", fontSize: 13, fontWeight: "600" },
-  factCat: { color: "#64748B", fontSize: 10, marginTop: 2, textTransform: "uppercase", letterSpacing: 0.5 },
-  trashBtn: { width: 30, height: 30, alignItems: "center", justifyContent: "center", borderRadius: 6, backgroundColor: "#FEE2E2" },
+  factTxt: { color: HT.text, fontSize: 13, fontWeight: "600" },
+  factCat: { color: HT.muted, fontSize: 10, marginTop: 2, textTransform: "uppercase", letterSpacing: 0.5 },
+  trashBtn: { width: 30, height: 30, alignItems: "center", justifyContent: "center", borderRadius: 6, backgroundColor: HT.dangerTint },
   resetBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
     marginTop: 20, paddingVertical: 10, borderRadius: 8,

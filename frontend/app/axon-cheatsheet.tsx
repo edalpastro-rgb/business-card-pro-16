@@ -12,6 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type CheatRow = {
   supplier: string;
@@ -85,7 +86,7 @@ export default function AxonCheatsheetScreen() {
         </Pressable>
         <Text style={styles.hTitle}>📊 Cheat Sheet Fornitori</Text>
         <Pressable onPress={resetAll} hitSlop={10} style={styles.hBtn}>
-          <Ionicons name="refresh" size={20} color="#94A3B8" />
+          <Ionicons name="refresh" size={20} color={HT.muted} />
         </Pressable>
       </View>
 
@@ -99,13 +100,13 @@ export default function AxonCheatsheetScreen() {
 
         {rows.length === 0 ? (
           <View style={styles.emptyBox}>
-            <Ionicons name="document-text-outline" size={40} color="#64748B" />
+            <Ionicons name="document-text-outline" size={40} color={HT.muted} />
             <Text style={styles.emptyTitle}>Nessun dato ancora</Text>
             <Text style={styles.emptyTxt}>Analizza qualche bolletta dai contatti e questa tabella si popolerà automaticamente.</Text>
           </View>
         ) : (
           Object.entries(groups).map(([bill_type, items]) => {
-            const meta = TYPE_META[bill_type] || { emoji: "📄", color: "#64748B", unit: "€", primary: "avg_price_kwh" };
+            const meta = TYPE_META[bill_type] || { emoji: "📄", color: HT.muted, unit: "€", primary: "avg_price_kwh" };
             return (
               <View key={bill_type} style={{ marginBottom: 20 }}>
                 <View style={styles.groupHead}>
@@ -145,7 +146,7 @@ export default function AxonCheatsheetScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#0F2438" },
+  root: { flex: 1, backgroundColor: '#0F2438' },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   header: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
@@ -164,15 +165,15 @@ const styles = StyleSheet.create({
   groupTitle: { fontSize: 12, fontWeight: "900", letterSpacing: 0.6, textTransform: "uppercase" },
   row: {
     flexDirection: "row", alignItems: "center", gap: 10,
-    backgroundColor: "#FFF", padding: 12, borderRadius: 10, marginBottom: 6,
+    backgroundColor: HT.card, padding: 12, borderRadius: 10, marginBottom: 6,
     borderLeftWidth: 4,
   },
-  rowSupplier: { color: "#0F172A", fontWeight: "900", fontSize: 14, textTransform: "capitalize" },
-  rowCount: { color: "#64748B", fontSize: 11, marginTop: 2 },
-  rowPrice: { color: "#0F172A", fontWeight: "900", fontSize: 15 },
-  rowUnit: { color: "#64748B", fontSize: 10, fontWeight: "600" },
-  rowNA: { color: "#94A3B8", fontSize: 12, fontStyle: "italic" },
-  rowRange: { color: "#64748B", fontSize: 10, marginTop: 2 },
+  rowSupplier: { color: HT.text, fontWeight: "900", fontSize: 14, textTransform: "capitalize" },
+  rowCount: { color: HT.muted, fontSize: 11, marginTop: 2 },
+  rowPrice: { color: HT.text, fontWeight: "900", fontSize: 15 },
+  rowUnit: { color: HT.muted, fontSize: 10, fontWeight: "600" },
+  rowNA: { color: HT.muted, fontSize: 12, fontStyle: "italic" },
+  rowRange: { color: HT.muted, fontSize: 10, marginTop: 2 },
   rowExtra: { color: "#0F9D58", fontSize: 10, marginTop: 2, fontWeight: "700" },
   emptyBox: { alignItems: "center", padding: 30, gap: 10 },
   emptyTitle: { color: "#FFF", fontSize: 16, fontWeight: "900" },

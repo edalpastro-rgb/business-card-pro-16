@@ -5,7 +5,7 @@ import { Modal, View, Text, Pressable, StyleSheet, AppState } from "react-native
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Item = { doc_id: string; doc_type_label: string; document_number?: string; expiry_date?: string; days_left: number | null; subject_label: string; deeplink: string };
 
@@ -43,11 +43,11 @@ export function IdDocExpiryPopup() {
 
 const s = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", alignItems: "center", justifyContent: "center", padding: 24 },
-  card: { width: "100%", maxWidth: 380, backgroundColor: theme.color.surface, borderRadius: 20, padding: 22, alignItems: "center", gap: 10 },
-  iconWrap: { width: 56, height: 56, borderRadius: 28, backgroundColor: "#FEE2E2", alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 18, fontWeight: "900", color: theme.color.onSurface },
-  body: { fontSize: 14, color: theme.color.onSurface, textAlign: "center", lineHeight: 21 },
-  primary: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: "#DC2626", borderRadius: 12, minHeight: 46, width: "100%", marginTop: 6 },
+  card: { width: "100%", maxWidth: 380, backgroundColor: HT.card2, borderRadius: 20, padding: 22, alignItems: "center", gap: 10 },
+  iconWrap: { width: 56, height: 56, borderRadius: 28, backgroundColor: HT.dangerTint, alignItems: "center", justifyContent: "center" },
+  title: { fontSize: 18, fontWeight: "900", color: HT.text },
+  body: { fontSize: 14, color: HT.text, textAlign: "center", lineHeight: 21 },
+  primary: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: '#DC2626', borderRadius: 12, minHeight: 46, width: "100%", marginTop: 6 },
   primaryTxt: { color: "#FFF", fontWeight: "900", fontSize: 14 },
-  secondary: { minHeight: 44, justifyContent: "center" }, secondaryTxt: { color: theme.color.muted, fontWeight: "700", fontSize: 13 },
+  secondary: { minHeight: 44, justifyContent: "center" }, secondaryTxt: { color: HT.muted, fontWeight: "700", fontSize: 13 },
 });

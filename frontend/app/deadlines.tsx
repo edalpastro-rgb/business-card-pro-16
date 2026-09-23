@@ -4,17 +4,17 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 import { ModuleErrorBoundary } from "@/src/shared";
 import { DeadlineActionsSheet, DeadlineItem } from "@/src/DeadlineActionsSheet";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const WINDOWS = [30, 60, 90, 180];
 const TYPE = { luce: { i: "flash", c: "#F59E0B" }, gas: { i: "flame", c: "#EA580C" }, telco: { i: "wifi", c: "#0891B2" } } as const;
 const STATUS: Record<string, { l: string; fg: string; bg: string }> = {
-  expired: { l: "Scaduta", fg: "#DC2626", bg: "#FEE2E2" },
-  critical: { l: "Urgente", fg: "#B45309", bg: "#FEF3C7" },
-  warning: { l: "In arrivo", fg: "#0369A1", bg: "#DBEAFE" },
-  ok: { l: "OK", fg: "#16A34A", bg: "#DCFCE7" },
+  expired: { l: "Scaduta", fg: "#DC2626", bg: HT.dangerTint },
+  critical: { l: "Urgente", fg: HT.warning, bg: HT.warningTint },
+  warning: { l: "In arrivo", fg: HT.axon, bg: HT.axonTint },
+  ok: { l: "OK", fg: "#16A34A", bg: HT.successTint },
 };
 
 export default function DeadlinesScreen() {
@@ -74,7 +74,7 @@ function DeadlinesInner() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable testID="back-btn" onPress={() => router.back()} hitSlop={10}>
-          <Ionicons name="chevron-back" size={26} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={26} color={HT.text} />
         </Pressable>
         <Text style={styles.title}>Scadenze</Text>
         <View style={{ width: 26 }} />
@@ -97,7 +97,7 @@ function DeadlinesInner() {
       >
         {loading ? (
           <View style={[styles.card, { alignItems: "center", paddingVertical: 22 }]}>
-            <ActivityIndicator color={theme.color.brandPrimary} />
+            <ActivityIndicator color={HT.brand} />
           </View>
         ) : items.length === 0 ? (
           <View style={[styles.card, { flexDirection: "row", alignItems: "center", gap: 10 }]}>
@@ -148,7 +148,7 @@ function DeadlinesInner() {
                     accessibilityLabel="Azioni scadenza"
                     style={({ pressed }) => [styles.moreBtn, pressed && { opacity: 0.6 }]}
                   >
-                    <Ionicons name="ellipsis-vertical" size={18} color={theme.color.muted} />
+                    <Ionicons name="ellipsis-vertical" size={18} color={HT.muted} />
                   </Pressable>
                 </Pressable>
               );
@@ -162,21 +162,21 @@ function DeadlinesInner() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.color.border, backgroundColor: theme.color.surface },
-  title: { fontSize: 18, fontWeight: "800", color: theme.color.onSurface },
+  root: { flex: 1, backgroundColor: HT.card2 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: HT.border, backgroundColor: HT.card2 },
+  title: { fontSize: 18, fontWeight: "800", color: HT.text },
   chipsRow: { flexDirection: "row", gap: 8, justifyContent: "center", alignItems: "center", flexWrap: "wrap", paddingHorizontal: 16, paddingTop: 14 },
-  chip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: theme.color.surfaceSecondary, borderWidth: 1, borderColor: theme.color.border },
-  chipActive: { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary },
-  chipTxt: { fontSize: 12, fontWeight: "800", color: theme.color.onSurface },
+  chip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border },
+  chipActive: { backgroundColor: HT.brand, borderColor: HT.brand },
+  chipTxt: { fontSize: 12, fontWeight: "800", color: HT.text },
   chipTxtActive: { color: "#FFF" },
-  count: { fontSize: 12, color: theme.color.muted, marginBottom: 10, textAlign: "center" },
-  card: { backgroundColor: theme.color.surfaceSecondary, borderRadius: 18, padding: 14, borderWidth: 1, borderColor: theme.color.border },
+  count: { fontSize: 12, color: HT.muted, marginBottom: 10, textAlign: "center" },
+  card: { backgroundColor: HT.card2, borderRadius: 18, padding: 14, borderWidth: 1, borderColor: HT.border },
   okBadge: { width: 34, height: 34, borderRadius: 17, backgroundColor: STATUS.ok.bg, alignItems: "center", justifyContent: "center" },
-  row: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: theme.color.surfaceSecondary, borderWidth: 1, borderColor: theme.color.border, borderRadius: 14, padding: 12, marginBottom: 8 },
+  row: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border, borderRadius: 14, padding: 12, marginBottom: 8 },
   icon: { width: 36, height: 36, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  name: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface },
-  meta: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
+  name: { fontSize: 14, fontWeight: "800", color: HT.text },
+  meta: { fontSize: 12, color: HT.muted, marginTop: 2 },
   pill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
   pillTxt: { fontSize: 10.5, fontWeight: "800", letterSpacing: 0.2 },
   days: { fontSize: 11.5, fontWeight: "700", marginTop: 4 },

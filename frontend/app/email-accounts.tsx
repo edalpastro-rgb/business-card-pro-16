@@ -14,6 +14,7 @@ import { api, getAuthHeader } from "@/src/api";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Preset = { id: string; label: string; host?: string; port?: number; ssl?: boolean; note?: string };
 type MailAccount = {
@@ -98,7 +99,7 @@ export default function EmailAccountsScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={10} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={24} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={24} color={HT.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Caselle Email</Text>
         <View style={{ width: 30 }} />
@@ -122,10 +123,10 @@ export default function EmailAccountsScreen() {
           onPress={() => setTab("accounts")}
           style={[styles.tabBtn, tab === "accounts" && styles.tabBtnOn]}
         >
-          <Ionicons name="folder" size={16} color={tab === "accounts" ? "#FFF" : theme.color.onSurface} />
+          <Ionicons name="folder" size={16} color={tab === "accounts" ? "#FFF" : HT.text} />
           <Text style={[styles.tabTxt, tab === "accounts" && styles.tabTxtOn]}>Le mie caselle</Text>
           {accounts.length > 0 ? (
-            <View style={[styles.tabBadge, tab === "accounts" && { backgroundColor: "#FFF" }]}>
+            <View style={[styles.tabBadge, tab === "accounts" && { backgroundColor: HT.card }]}>
               <Text style={[styles.tabBadgeTxt, tab === "accounts" && { color: "#0EA5E9" }]}>{accounts.length}</Text>
             </View>
           ) : null}
@@ -134,7 +135,7 @@ export default function EmailAccountsScreen() {
           onPress={() => setTab("inbox")}
           style={[styles.tabBtn, tab === "inbox" && styles.tabBtnOn]}
         >
-          <Ionicons name="mail-unread" size={16} color={tab === "inbox" ? "#FFF" : theme.color.onSurface} />
+          <Ionicons name="mail-unread" size={16} color={tab === "inbox" ? "#FFF" : HT.text} />
           <Text style={[styles.tabTxt, tab === "inbox" && styles.tabTxtOn]}>Inbox unificata</Text>
         </Pressable>
       </View>
@@ -161,7 +162,7 @@ export default function EmailAccountsScreen() {
           <View style={styles.empty}><ActivityIndicator size="large" color="#0EA5E9" /></View>
         ) : accounts.length === 0 ? (
           <View style={styles.empty}>
-            <Ionicons name="mail-open-outline" size={48} color={theme.color.muted} />
+            <Ionicons name="mail-open-outline" size={48} color={HT.muted} />
             <Text style={styles.emptyTxt}>Nessuna casella collegata</Text>
             <Text style={styles.emptyHint}>Tocca il ➕ in alto per aggiungerne una</Text>
           </View>
@@ -376,7 +377,7 @@ function CombinedInbox() {
         <View style={styles.empty}><ActivityIndicator size="large" color="#0EA5E9" /></View>
       ) : msgs.length === 0 ? (
         <View style={styles.empty}>
-          <Ionicons name="mail-open-outline" size={40} color={theme.color.muted} />
+          <Ionicons name="mail-open-outline" size={40} color={HT.muted} />
           <Text style={styles.emptyTxt}>
             {stats.total === 0 ? "Nessuna casella collegata" :
              unreadOnly ? "Nessuna mail non letta 🎉" : "Nessuna mail nelle Inbox"}
@@ -477,7 +478,7 @@ function CombinedInbox() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.detailMetaVal} numberOfLines={2}>
                       {detail.from_name ? `${detail.from_name}  ` : ""}
-                      <Text style={{ color: "#64748B" }}>{detail.from_email ? `<${detail.from_email}>` : ""}</Text>
+                      <Text style={{ color: HT.muted }}>{detail.from_email ? `<${detail.from_email}>` : ""}</Text>
                     </Text>
                   </View>
                 </View>
@@ -524,14 +525,14 @@ function CombinedInbox() {
                   {detailLoading && !detail.text && !detail.html ? (
                     <View style={{ padding: 30, alignItems: "center" }}>
                       <ActivityIndicator size="large" color="#0EA5E9" />
-                      <Text style={{ marginTop: 10, color: "#64748B" }}>Caricamento messaggio…</Text>
+                      <Text style={{ marginTop: 10, color: HT.muted }}>Caricamento messaggio…</Text>
                     </View>
                   ) : detail.html ? (
                     Platform.OS === "web" ? (
                       // @ts-expect-error web only
                       <iframe
                         srcDoc={`<style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;color:#0F172A;margin:0;padding:12px;line-height:1.5;}img{max-width:100%;height:auto;}a{color:#0EA5E9;}</style>${detail.html}`}
-                        style={{ width: "100%", minHeight: 380, border: "none", backgroundColor: "#FFF" }}
+                        style={{ width: "100%", minHeight: 380, border: "none", backgroundColor: HT.card }}
                         title="Corpo email"
                       />
                     ) : (
@@ -542,7 +543,7 @@ function CombinedInbox() {
                   ) : detail.text ? (
                     <Text style={styles.detailBodyText} selectable>{detail.text}</Text>
                   ) : (
-                    <Text style={{ color: "#94A3B8", fontStyle: "italic" }}>(nessun contenuto testuale)</Text>
+                    <Text style={{ color: HT.muted, fontStyle: "italic" }}>(nessun contenuto testuale)</Text>
                   )}
                 </View>
               </ScrollView>
@@ -709,7 +710,7 @@ function AddAccountModal({ onClose, onAdded }: { onClose: () => void; onAdded: (
           <View style={styles.mHeader}>
             <Text style={styles.mTitle}>Aggiungi casella email</Text>
             <Pressable onPress={onClose} hitSlop={10}>
-              <Ionicons name="close" size={24} color={theme.color.onSurface} />
+              <Ionicons name="close" size={24} color={HT.text} />
             </Pressable>
           </View>
           <ScrollView contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: 140 }}>
@@ -727,7 +728,7 @@ function AddAccountModal({ onClose, onAdded }: { onClose: () => void; onAdded: (
             </View>
             {currentPreset?.note ? (
               <View style={styles.noteBox}>
-                <Ionicons name="information-circle" size={16} color="#B45309" />
+                <Ionicons name="information-circle" size={16} color={HT.warning} />
                 <Text style={styles.noteTxt}>{currentPreset.note}</Text>
               </View>
             ) : null}
@@ -737,7 +738,7 @@ function AddAccountModal({ onClose, onAdded }: { onClose: () => void; onAdded: (
               value={email}
               onChangeText={setEmail}
               placeholder="mario@example.com"
-              placeholderTextColor={theme.color.muted}
+              placeholderTextColor={HT.muted}
               autoCapitalize="none"
               keyboardType="email-address"
               style={styles.input}
@@ -749,7 +750,7 @@ function AddAccountModal({ onClose, onAdded }: { onClose: () => void; onAdded: (
                 value={password}
                 onChangeText={setPassword}
                 placeholder={currentPreset?.note?.includes("App Password") ? "App Password (16 caratteri)" : "Password della casella"}
-                placeholderTextColor={theme.color.muted}
+                placeholderTextColor={HT.muted}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -765,7 +766,7 @@ function AddAccountModal({ onClose, onAdded }: { onClose: () => void; onAdded: (
                 <Ionicons
                   name={showPassword ? "eye-off" : "eye"}
                   size={20}
-                  color={theme.color.muted}
+                  color={HT.muted}
                 />
               </Pressable>
             </View>
@@ -774,7 +775,7 @@ function AddAccountModal({ onClose, onAdded }: { onClose: () => void; onAdded: (
               value={label}
               onChangeText={setLabel}
               placeholder="Es. Lavoro, Personale"
-              placeholderTextColor={theme.color.muted}
+              placeholderTextColor={HT.muted}
               style={styles.input}
             />
 
@@ -785,7 +786,7 @@ function AddAccountModal({ onClose, onAdded }: { onClose: () => void; onAdded: (
                   value={host}
                   onChangeText={setHost}
                   placeholder="es. imaps.miodominio.it"
-                  placeholderTextColor={theme.color.muted}
+                  placeholderTextColor={HT.muted}
                   autoCapitalize="none"
                   style={styles.input}
                 />
@@ -796,7 +797,7 @@ function AddAccountModal({ onClose, onAdded }: { onClose: () => void; onAdded: (
                       value={port}
                       onChangeText={setPort}
                       placeholder="993"
-                      placeholderTextColor={theme.color.muted}
+                      placeholderTextColor={HT.muted}
                       keyboardType="number-pad"
                       style={styles.input}
                     />
@@ -805,7 +806,7 @@ function AddAccountModal({ onClose, onAdded }: { onClose: () => void; onAdded: (
                     <Text style={styles.sectionLabel}>SSL/TLS</Text>
                     <View style={styles.sslRow}>
                       <Switch value={ssl} onValueChange={setSsl} />
-                      <Text style={{ marginLeft: 8, color: theme.color.onSurface }}>{ssl ? "Attivo" : "Disattivo"}</Text>
+                      <Text style={{ marginLeft: 8, color: HT.text }}>{ssl ? "Attivo" : "Disattivo"}</Text>
                     </View>
                   </View>
                 </View>
@@ -907,7 +908,7 @@ function MessagesModal({ account, onClose }: { account: MailAccount; onClose: ()
               <Text style={styles.mSub}>{account.email}</Text>
             </View>
             <Pressable onPress={onClose} hitSlop={10}>
-              <Ionicons name="close" size={24} color={theme.color.onSurface} />
+              <Ionicons name="close" size={24} color={HT.text} />
             </Pressable>
           </View>
 
@@ -929,7 +930,7 @@ function MessagesModal({ account, onClose }: { account: MailAccount; onClose: ()
               <View style={styles.empty}><ActivityIndicator size="large" color="#0EA5E9" /></View>
             ) : messages.length === 0 ? (
               <View style={styles.empty}>
-                <Ionicons name="mail-open-outline" size={40} color={theme.color.muted} />
+                <Ionicons name="mail-open-outline" size={40} color={HT.muted} />
                 <Text style={styles.emptyTxt}>{unreadOnly ? "Nessuna mail non letta 🎉" : "Nessuna mail nella Inbox"}</Text>
               </View>
             ) : (
@@ -947,7 +948,7 @@ function MessagesModal({ account, onClose }: { account: MailAccount; onClose: ()
                         </Text>
                       ) : null}
                       <View style={styles.msgFlags}>
-                        {m.has_attachments ? <Ionicons name="attach" size={14} color={theme.color.muted} /> : null}
+                        {m.has_attachments ? <Ionicons name="attach" size={14} color={HT.muted} /> : null}
                         {!m.is_read ? <View style={styles.unreadDot} /> : null}
                       </View>
                     </View>
@@ -998,21 +999,21 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.color.background },
   header: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: 12, paddingVertical: 10, backgroundColor: "#FFF",
-    borderBottomWidth: 1, borderBottomColor: theme.color.border,
+    paddingHorizontal: 12, paddingVertical: 10, backgroundColor: HT.card,
+    borderBottomWidth: 1, borderBottomColor: HT.border,
   },
   backBtn: { width: 30, height: 30, alignItems: "center", justifyContent: "center" },
   addHeaderBtn: { width: 30, height: 30, alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontSize: 17, fontWeight: "800", color: theme.color.onSurface },
+  headerTitle: { fontSize: 17, fontWeight: "800", color: HT.text },
 
   // V50.z21b — Bottone AGGIUNGI MAIL prominente
   addBarWrap: {
-    paddingHorizontal: 14, paddingTop: 12, paddingBottom: 6, backgroundColor: "#FFF",
+    paddingHorizontal: 14, paddingTop: 12, paddingBottom: 6, backgroundColor: HT.card,
   },
   addBigBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
     paddingVertical: 14, borderRadius: 12,
-    backgroundColor: "#0EA5E9",
+    backgroundColor: '#0EA5E9',
     shadowColor: "#0EA5E9", shadowOpacity: 0.35, shadowRadius: 10,
     shadowOffset: { width: 0, height: 3 }, elevation: 4,
   },
@@ -1021,105 +1022,105 @@ const styles = StyleSheet.create({
   // V50.z21 — Tab bar + combined inbox
   tabBar: {
     flexDirection: "row", gap: 6, padding: 8,
-    borderBottomWidth: 1, borderBottomColor: theme.color.border, backgroundColor: "#FFF",
+    borderBottomWidth: 1, borderBottomColor: HT.border, backgroundColor: HT.card,
   },
   tabBtn: {
     flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F1F5F9",
+    gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: HT.card2,
   },
-  tabBtnOn: { backgroundColor: "#0EA5E9" },
-  tabTxt: { fontSize: 13, fontWeight: "800", color: theme.color.onSurface },
+  tabBtnOn: { backgroundColor: '#0EA5E9' },
+  tabTxt: { fontSize: 13, fontWeight: "800", color: HT.text },
   tabTxtOn: { color: "#FFF" },
   tabBadge: {
-    minWidth: 20, height: 20, borderRadius: 10, backgroundColor: "#0EA5E9",
+    minWidth: 20, height: 20, borderRadius: 10, backgroundColor: '#0EA5E9',
     paddingHorizontal: 6, alignItems: "center", justifyContent: "center",
   },
   tabBadgeTxt: { color: "#FFF", fontSize: 10, fontWeight: "900" },
   combinedStats: {
     flexDirection: "row", alignItems: "center", gap: 8,
-    padding: 10, backgroundColor: "#F0F9FF", borderRadius: 10,
-    borderWidth: 1, borderColor: "#BAE6FD",
+    padding: 10, backgroundColor: HT.axonTint, borderRadius: 10,
+    borderWidth: 1, borderColor: HT.axonLine,
   },
-  combinedStatsTxt: { flex: 1, fontSize: 12, fontWeight: "700", color: "#075985" },
+  combinedStatsTxt: { flex: 1, fontSize: 12, fontWeight: "700", color: HT.axon },
   errorPill: {
     flexDirection: "row", alignItems: "center", gap: 4,
-    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: "#DC2626",
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: '#DC2626',
   },
   errorPillTxt: { color: "#FFF", fontSize: 10, fontWeight: "800" },
   errorsBox: {
-    padding: 10, backgroundColor: "#FEF2F2", borderRadius: 10,
-    borderWidth: 1, borderColor: "#FCA5A5", gap: 4,
+    padding: 10, backgroundColor: HT.dangerTint, borderRadius: 10,
+    borderWidth: 1, borderColor: '#FCA5A5', gap: 4,
   },
-  errorsTitle: { fontSize: 12, fontWeight: "800", color: "#991B1B" },
-  errorsLine: { fontSize: 11, color: "#991B1B", lineHeight: 15 },
+  errorsTitle: { fontSize: 12, fontWeight: "800", color: HT.danger },
+  errorsLine: { fontSize: 11, color: HT.danger, lineHeight: 15 },
   acctPill: {
     alignSelf: "flex-start", paddingHorizontal: 6, paddingVertical: 2,
-    borderRadius: 4, backgroundColor: "#DBEAFE", marginBottom: 2,
+    borderRadius: 4, backgroundColor: HT.axonTint, marginBottom: 2,
   },
-  acctPillTxt: { fontSize: 10, fontWeight: "800", color: "#0369A1", letterSpacing: 0.3 },
+  acctPillTxt: { fontSize: 10, fontWeight: "800", color: HT.axon, letterSpacing: 0.3 },
 
   introBox: {
     flexDirection: "row", alignItems: "center", gap: 12,
-    backgroundColor: "#F0F9FF", borderWidth: 1, borderColor: "#BAE6FD",
+    backgroundColor: HT.axonTint, borderWidth: 1, borderColor: HT.axonLine,
     borderRadius: 12, padding: 12,
   },
-  introTitle: { fontSize: 14, fontWeight: "800", color: "#0369A1" },
-  introSub: { fontSize: 12, color: "#075985", marginTop: 3, lineHeight: 17 },
+  introTitle: { fontSize: 14, fontWeight: "800", color: HT.axon },
+  introSub: { fontSize: 12, color: HT.axon, marginTop: 3, lineHeight: 17 },
 
   empty: { alignItems: "center", justifyContent: "center", gap: 8, padding: 40 },
-  emptyTxt: { color: theme.color.onSurface, fontSize: 15, fontWeight: "700" },
-  emptyHint: { color: theme.color.muted, fontSize: 12, textAlign: "center" },
+  emptyTxt: { color: HT.text, fontSize: 15, fontWeight: "700" },
+  emptyHint: { color: HT.muted, fontSize: 12, textAlign: "center" },
   // V50.z21d — Bottone "Mostra tutte" quando non ci sono non-lette
   switchAllBtn: {
     marginTop: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999,
-    backgroundColor: "#0EA5E9",
+    backgroundColor: '#0EA5E9',
   },
   switchAllTxt: { color: "#FFF", fontSize: 12, fontWeight: "800" },
 
   card: {
     flexDirection: "row", alignItems: "center", gap: 12, padding: 12, borderRadius: 12,
-    backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border,
+    backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border,
   },
-  cardError: { borderLeftWidth: 4, borderLeftColor: "#DC2626", backgroundColor: "#FEF2F2" },
+  cardError: { borderLeftWidth: 4, borderLeftColor: '#DC2626', backgroundColor: HT.dangerTint },
   cardIcon: {
-    width: 40, height: 40, borderRadius: 10, backgroundColor: "#F0F9FF",
+    width: 40, height: 40, borderRadius: 10, backgroundColor: HT.axonTint,
     alignItems: "center", justifyContent: "center",
   },
-  cardTitle: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface },
-  cardSub: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
-  cardMeta: { fontSize: 11, color: theme.color.muted, marginTop: 3 },
+  cardTitle: { fontSize: 14, fontWeight: "800", color: HT.text },
+  cardSub: { fontSize: 12, color: HT.muted, marginTop: 2 },
+  cardMeta: { fontSize: 11, color: HT.muted, marginTop: 3 },
   cardErr: { fontSize: 11, color: "#DC2626", marginTop: 3 },
 
   // MODAL
   mBackdrop: { flex: 1, backgroundColor: "rgba(15,23,42,0.55)", justifyContent: "flex-end" },
-  mBox: { backgroundColor: "#FFF", borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "92%" },
+  mBox: { backgroundColor: HT.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "92%" },
   mHeader: {
     flexDirection: "row", alignItems: "center", gap: 10,
-    padding: 14, borderBottomWidth: 1, borderBottomColor: theme.color.border,
+    padding: 14, borderBottomWidth: 1, borderBottomColor: HT.border,
   },
-  mTitle: { flex: 1, fontSize: 16, fontWeight: "800", color: theme.color.onSurface },
-  mSub: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
+  mTitle: { flex: 1, fontSize: 16, fontWeight: "800", color: HT.text },
+  mSub: { fontSize: 12, color: HT.muted, marginTop: 2 },
 
-  sectionLabel: { fontSize: 12, fontWeight: "700", color: theme.color.muted, letterSpacing: 0.3 },
+  sectionLabel: { fontSize: 12, fontWeight: "700", color: HT.muted, letterSpacing: 0.3 },
   presetGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   presetChip: {
     paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999,
-    backgroundColor: "#F1F5F9", borderWidth: 1, borderColor: theme.color.border,
+    backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border,
   },
-  presetChipOn: { backgroundColor: "#0EA5E9", borderColor: "#0EA5E9" },
-  presetChipTxt: { fontSize: 12, fontWeight: "700", color: theme.color.onSurface },
+  presetChipOn: { backgroundColor: '#0EA5E9', borderColor: '#0EA5E9' },
+  presetChipTxt: { fontSize: 12, fontWeight: "700", color: HT.text },
   presetChipTxtOn: { color: "#FFF" },
 
   noteBox: {
     flexDirection: "row", gap: 6, alignItems: "flex-start",
-    padding: 10, borderRadius: 10, backgroundColor: "#FEF3C7",
-    borderWidth: 1, borderColor: "#FCD34D",
+    padding: 10, borderRadius: 10, backgroundColor: HT.warningTint,
+    borderWidth: 1, borderColor: '#FCD34D',
   },
-  noteTxt: { color: "#92400E", fontSize: 12, flex: 1, lineHeight: 16 },
+  noteTxt: { color: "#FDBA74", fontSize: 12, flex: 1, lineHeight: 16 },
 
   input: {
-    borderWidth: 1, borderColor: theme.color.border, borderRadius: 10,
-    padding: 12, fontSize: 14, color: theme.color.onSurface, backgroundColor: "#F8FAFC",
+    borderWidth: 1, borderColor: HT.border, borderRadius: 10,
+    padding: 12, fontSize: 14, color: HT.text, backgroundColor: HT.card2,
   },
   // V50.z21c — Password toggle 👁
   pwdWrap: { position: "relative" },
@@ -1132,49 +1133,49 @@ const styles = StyleSheet.create({
 
   submitBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    marginTop: 10, paddingVertical: 14, borderRadius: 999, backgroundColor: "#0EA5E9",
+    marginTop: 10, paddingVertical: 14, borderRadius: 999, backgroundColor: '#0EA5E9',
   },
   submitTxt: { color: "#FFF", fontSize: 15, fontWeight: "900", letterSpacing: 0.3 },
   // V50.z21b — Banner errore inline
   errBanner: {
     flexDirection: "row", gap: 8, alignItems: "flex-start",
     marginTop: 10, padding: 10, borderRadius: 10,
-    backgroundColor: "#FEE2E2", borderWidth: 1, borderColor: "#FCA5A5",
+    backgroundColor: HT.dangerTint, borderWidth: 1, borderColor: '#FCA5A5',
   },
-  errBannerTxt: { flex: 1, color: "#991B1B", fontSize: 13, lineHeight: 18, fontWeight: "600" },
+  errBannerTxt: { flex: 1, color: HT.danger, fontSize: 13, lineHeight: 18, fontWeight: "600" },
 
   filterBar: {
     flexDirection: "row", alignItems: "center", gap: 8, padding: 10,
-    borderBottomWidth: 1, borderBottomColor: theme.color.border, backgroundColor: "#FFF",
+    borderBottomWidth: 1, borderBottomColor: HT.border, backgroundColor: HT.card,
   },
   filterChip: {
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: HT.card2,
   },
-  filterChipOn: { backgroundColor: "#0EA5E9" },
-  filterTxt: { color: theme.color.onSurface, fontWeight: "700", fontSize: 12 },
+  filterChipOn: { backgroundColor: '#0EA5E9' },
+  filterTxt: { color: HT.text, fontWeight: "700", fontSize: 12 },
   filterTxtOn: { color: "#FFF" },
   reloadBtn: { padding: 6 },
 
   msgCard: {
-    padding: 12, borderRadius: 12, backgroundColor: "#FFF",
-    borderWidth: 1, borderColor: theme.color.border, gap: 6,
+    padding: 12, borderRadius: 12, backgroundColor: HT.card,
+    borderWidth: 1, borderColor: HT.border, gap: 6,
   },
-  msgUnread: { borderLeftWidth: 3, borderLeftColor: "#0EA5E9" },
+  msgUnread: { borderLeftWidth: 3, borderLeftColor: '#0EA5E9' },
   // V50.z21e — Card mail con allegato molto evidente
   msgHasAtt: {
-    borderWidth: 2, borderColor: "#F59E0B", backgroundColor: "#FFFBEB",
+    borderWidth: 2, borderColor: '#F59E0B', backgroundColor: HT.warningTint,
   },
   attHeader: {
     flexDirection: "row", alignItems: "center", gap: 6,
     alignSelf: "flex-start",
     paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6,
-    backgroundColor: "#F59E0B", marginBottom: 4,
+    backgroundColor: '#F59E0B', marginBottom: 4,
   },
   attHeaderTxt: { color: "#FFF", fontSize: 11, fontWeight: "900", letterSpacing: 0.6 },
   attChipBig: {
     flexDirection: "row", alignItems: "center", gap: 6,
-    backgroundColor: "#0EA5E9",
+    backgroundColor: '#0EA5E9',
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, maxWidth: "100%",
     shadowColor: "#0EA5E9", shadowOpacity: 0.3, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 2,
   },
@@ -1182,57 +1183,57 @@ const styles = StyleSheet.create({
   // V50.z21e — Bottone Carica altre + fine elenco
   loadMoreBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
-    padding: 14, borderRadius: 10, backgroundColor: "#F0F9FF",
-    borderWidth: 1, borderColor: "#BAE6FD",
+    padding: 14, borderRadius: 10, backgroundColor: HT.axonTint,
+    borderWidth: 1, borderColor: HT.axonLine,
   },
-  loadMoreTxt: { color: "#0369A1", fontSize: 13, fontWeight: "800" },
+  loadMoreTxt: { color: HT.axon, fontSize: 13, fontWeight: "800" },
   endHint: { alignItems: "center", padding: 12 },
-  endHintTxt: { color: theme.color.muted, fontSize: 11, fontStyle: "italic" },
+  endHintTxt: { color: HT.muted, fontSize: 11, fontStyle: "italic" },
   msgHead: { flexDirection: "row", gap: 8, alignItems: "flex-start" },
-  msgFrom: { fontSize: 13, fontWeight: "800", color: theme.color.onSurface },
-  msgSubj: { fontSize: 13, color: theme.color.onSurface, marginTop: 2 },
+  msgFrom: { fontSize: 13, fontWeight: "800", color: HT.text },
+  msgSubj: { fontSize: 13, color: HT.text, marginTop: 2 },
   msgMetaCol: { alignItems: "flex-end", gap: 4 },
-  msgDate: { fontSize: 10, color: theme.color.muted },
+  msgDate: { fontSize: 10, color: HT.muted },
   msgFlags: { flexDirection: "row", gap: 4, alignItems: "center" },
-  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#0EA5E9" },
-  msgPreview: { fontSize: 12, color: theme.color.muted, lineHeight: 17 },
+  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#0EA5E9' },
+  msgPreview: { fontSize: 12, color: HT.muted, lineHeight: 17 },
   attRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 },
   attChip: {
     flexDirection: "row", alignItems: "center", gap: 4,
-    backgroundColor: "#F0F9FF", borderWidth: 1, borderColor: "#BAE6FD",
+    backgroundColor: HT.axonTint, borderWidth: 1, borderColor: HT.axonLine,
     paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, maxWidth: 220,
   },
-  attTxt: { fontSize: 11, color: "#0369A1", fontWeight: "600" },
+  attTxt: { fontSize: 11, color: HT.axon, fontWeight: "600" },
 
   // V50.z65 — Modal dettaglio mail
   detailBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
-  detailSheet: { flex: 1, backgroundColor: "#F8FAFC", marginTop: 40, borderTopLeftRadius: 20, borderTopRightRadius: 20, overflow: "hidden" },
+  detailSheet: { flex: 1, backgroundColor: HT.card2, marginTop: 40, borderTopLeftRadius: 20, borderTopRightRadius: 20, overflow: "hidden" },
   detailHeader: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "#0F172A",
+    paddingHorizontal: 14, paddingVertical: 12, backgroundColor: '#0F172A',
   },
   detailHeaderTxt: { color: "#FFF", fontSize: 15, fontWeight: "800", flex: 1, textAlign: "center" },
   detailAcctPill: {
-    alignSelf: "flex-start", backgroundColor: "#0EA5E9",
+    alignSelf: "flex-start", backgroundColor: '#0EA5E9',
     paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, marginBottom: 8,
   },
   detailAcctPillTxt: { color: "#FFF", fontSize: 11, fontWeight: "800" },
-  detailSubject: { fontSize: 18, fontWeight: "900", color: theme.color.onSurface, marginBottom: 12 },
+  detailSubject: { fontSize: 18, fontWeight: "900", color: HT.text, marginBottom: 12 },
   detailMetaRow: { flexDirection: "row", gap: 6, marginBottom: 4 },
-  detailMetaLbl: { fontSize: 12, fontWeight: "800", color: theme.color.muted, width: 40 },
-  detailMetaVal: { fontSize: 12, color: theme.color.onSurface, fontWeight: "600" },
+  detailMetaLbl: { fontSize: 12, fontWeight: "800", color: HT.muted, width: 40 },
+  detailMetaVal: { fontSize: 12, color: HT.text, fontWeight: "600" },
   detailAttSect: { marginTop: 14, gap: 6 },
-  detailAttTitle: { fontSize: 12, fontWeight: "800", color: theme.color.onSurface, marginBottom: 2 },
+  detailAttTitle: { fontSize: 12, fontWeight: "800", color: HT.text, marginBottom: 2 },
   detailAttChip: {
     flexDirection: "row", alignItems: "center", gap: 8,
-    backgroundColor: "#0EA5E9", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8,
+    backgroundColor: '#0EA5E9', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8,
   },
   detailAttChipTxt: { color: "#FFF", fontSize: 12, fontWeight: "700", flex: 1 },
   detailBodyBox: {
-    marginTop: 16, backgroundColor: "#FFF", borderRadius: 12,
-    borderWidth: 1, borderColor: theme.color.border, padding: 14,
+    marginTop: 16, backgroundColor: HT.card, borderRadius: 12,
+    borderWidth: 1, borderColor: HT.border, padding: 14,
   },
-  detailBodyText: { fontSize: 14, color: theme.color.onSurface, lineHeight: 20 },
+  detailBodyText: { fontSize: 14, color: HT.text, lineHeight: 20 },
 });
 
 // V50.z23 — Stili modal anteprima allegato in-app
@@ -1248,6 +1249,6 @@ const attStyles = StyleSheet.create({
   nativeHint: { padding: 24, alignItems: "center", gap: 10 },
   nativeHintTxt: { color: "#FFF", fontSize: 14, fontWeight: "700", textAlign: "center" },
   nativeHintSub: { color: "rgba(255,255,255,0.6)", fontSize: 11, textAlign: "center" },
-  dlBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: "#0EA5E9" },
+  dlBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: '#0EA5E9' },
   dlTxt: { color: "#FFF", fontSize: 12, fontWeight: "800" },
 });

@@ -13,6 +13,7 @@ import { useAuth, setPin, hasPin, clearPin, setBiometricEnabled, biometricEnable
 import { theme } from "@/src/theme";
 import { ModuleErrorBoundary } from "@/src/shared";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Status = {
   enabled: boolean;
@@ -255,7 +256,7 @@ function SecurityScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.root} edges={["top"]}>
-        <ActivityIndicator style={{ marginTop: 40 }} color={theme.color.brandPrimary} />
+        <ActivityIndicator style={{ marginTop: 40 }} color={HT.brand} />
       </SafeAreaView>
     );
   }
@@ -264,7 +265,7 @@ function SecurityScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={22} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={22} color={HT.text} />
         </Pressable>
         <Text style={styles.title}>Sicurezza & 2FA</Text>
         <View style={{ width: 24 }} />
@@ -274,7 +275,7 @@ function SecurityScreen() {
         {/* 2FA CARD */}
         <View style={styles.card}>
           <View style={styles.rowHead}>
-            <Ionicons name="shield-checkmark" size={26} color={theme.color.brandPrimary} />
+            <Ionicons name="shield-checkmark" size={26} color={HT.brand} />
             <View style={{ flex: 1 }}>
               <Text style={styles.cardTitle}>Autenticazione a due fattori</Text>
               <Text style={styles.cardSub}>
@@ -282,7 +283,7 @@ function SecurityScreen() {
               </Text>
             </View>
             <View style={[styles.badge, { backgroundColor: status?.enabled ? "#DCFCE7" : "#F1F5F9" }]}>
-              <Text style={{ color: status?.enabled ? "#166534" : "#64748B", fontWeight: "800", fontSize: 12 }}>
+              <Text style={{ color: status?.enabled ? HT.success : HT.muted, fontWeight: "800", fontSize: 12 }}>
                 {status?.enabled ? "ON" : "OFF"}
               </Text>
             </View>
@@ -291,16 +292,16 @@ function SecurityScreen() {
           {status?.enabled ? (
             <View style={{ gap: 10, marginTop: 12 }}>
               <View style={styles.infoRow}>
-                <Ionicons name="key" size={16} color={theme.color.muted} />
-                <Text style={styles.infoTxt}>Codici di recupero rimasti: <Text style={{ fontWeight: "800", color: theme.color.onSurface }}>{status.backup_codes_remaining}</Text></Text>
+                <Ionicons name="key" size={16} color={HT.muted} />
+                <Text style={styles.infoTxt}>Codici di recupero rimasti: <Text style={{ fontWeight: "800", color: HT.text }}>{status.backup_codes_remaining}</Text></Text>
               </View>
               <Pressable testID="regen-codes-btn" onPress={() => setRegenOpen(true)} style={styles.secondaryBtn}>
-                <Ionicons name="refresh" size={16} color={theme.color.brandPrimary} />
+                <Ionicons name="refresh" size={16} color={HT.brand} />
                 <Text style={styles.secondaryBtnTxt}>Rigenera codici di recupero</Text>
               </Pressable>
-              <Pressable testID="disable-2fa-btn" onPress={() => setDisableOpen(true)} style={[styles.secondaryBtn, { borderColor: theme.color.error }]}>
-                <Ionicons name="close-circle" size={16} color={theme.color.error} />
-                <Text style={[styles.secondaryBtnTxt, { color: theme.color.error }]}>Disattiva 2FA</Text>
+              <Pressable testID="disable-2fa-btn" onPress={() => setDisableOpen(true)} style={[styles.secondaryBtn, { borderColor: HT.danger }]}>
+                <Ionicons name="close-circle" size={16} color={HT.danger} />
+                <Text style={[styles.secondaryBtnTxt, { color: HT.danger }]}>Disattiva 2FA</Text>
               </Pressable>
             </View>
           ) : setupQr ? (
@@ -308,12 +309,12 @@ function SecurityScreen() {
               <Text style={styles.hint}>1. Scarica <Text style={{ fontWeight: "700" }}>Google Authenticator</Text>, <Text style={{ fontWeight: "700" }}>Microsoft Authenticator</Text> o <Text style={{ fontWeight: "700" }}>Authy</Text>.</Text>
               <Text style={styles.hint}>2. Scansiona il QR:</Text>
               <View style={{ alignItems: "center" }}>
-                <Image source={{ uri: setupQr }} style={{ width: 220, height: 220, backgroundColor: "#FFF", borderRadius: 12 }} />
+                <Image source={{ uri: setupQr }} style={{ width: 220, height: 220, backgroundColor: HT.card, borderRadius: 12 }} />
               </View>
               <Text style={styles.hint}>Oppure inserisci manualmente questa chiave:</Text>
               <Pressable onPress={copySecret} style={styles.secretBox}>
                 <Text style={styles.secretText}>{setupSecret}</Text>
-                <Ionicons name="copy-outline" size={16} color={theme.color.brandPrimary} />
+                <Ionicons name="copy-outline" size={16} color={HT.brand} />
               </Pressable>
               <Text style={styles.hint}>3. Inserisci il codice a 6 cifre generato dall&apos;app:</Text>
               <TextInput
@@ -323,7 +324,7 @@ function SecurityScreen() {
                 keyboardType="number-pad"
                 maxLength={6}
                 placeholder="000000"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={HT.muted}
                 style={[styles.input, { textAlign: "center", fontSize: 22, letterSpacing: 6 }]}
               />
               <Pressable testID="2fa-confirm-btn" onPress={confirmSetup} disabled={busy || confirmCode.length !== 6} style={[styles.primaryBtn, (busy || confirmCode.length !== 6) && { opacity: 0.5 }]}>
@@ -342,11 +343,11 @@ function SecurityScreen() {
 
         {/* NEW BACKUP CODES CARD */}
         {newBackupCodes && (
-          <View style={[styles.card, { borderColor: "#F59E0B", borderWidth: 2 }]}>
+          <View style={[styles.card, { borderColor: '#F59E0B', borderWidth: 2 }]}>
             <View style={styles.rowHead}>
-              <Ionicons name="warning" size={22} color="#B45309" />
+              <Ionicons name="warning" size={22} color={HT.warning} />
               <View style={{ flex: 1 }}>
-                <Text style={[styles.cardTitle, { color: "#92400E" }]}>Salva i codici di recupero</Text>
+                <Text style={[styles.cardTitle, { color: "#FDBA74" }]}>Salva i codici di recupero</Text>
                 <Text style={styles.cardSub}>Questi codici NON verranno mostrati di nuovo. Salvali in un luogo sicuro.</Text>
               </View>
             </View>
@@ -357,7 +358,7 @@ function SecurityScreen() {
             </View>
             <View style={{ flexDirection: "row", gap: 8 }}>
               <Pressable onPress={() => copyCodes(newBackupCodes)} style={[styles.secondaryBtn, { flex: 1 }]}>
-                <Ionicons name="copy-outline" size={16} color={theme.color.brandPrimary} />
+                <Ionicons name="copy-outline" size={16} color={HT.brand} />
                 <Text style={styles.secondaryBtnTxt}>Copia tutti</Text>
               </Pressable>
               <Pressable onPress={() => setNewBackupCodes(null)} style={[styles.primaryBtn, { flex: 1, marginTop: 0 }]}>
@@ -370,7 +371,7 @@ function SecurityScreen() {
         {/* APP LOCK CARD */}
         <View style={styles.card}>
           <View style={styles.rowHead}>
-            <Ionicons name="lock-closed" size={26} color={theme.color.brandPrimary} />
+            <Ionicons name="lock-closed" size={26} color={HT.brand} />
             <View style={{ flex: 1 }}>
               <Text style={styles.cardTitle}>Blocco app (sblocco veloce 24h)</Text>
               <Text style={styles.cardSub}>Dopo un accesso 2FA riuscito, l&apos;app resta autorizzata per 24 ore. Nel frattempo puoi sbloccare con impronta o PIN.</Text>
@@ -379,7 +380,7 @@ function SecurityScreen() {
 
           {trustExpiresAt && (
             <View style={styles.trustBox}>
-              <Ionicons name="time" size={14} color={theme.color.brandPrimary} />
+              <Ionicons name="time" size={14} color={HT.brand} />
               <Text style={styles.trustTxt}>Sessione 2FA valida fino al {new Date(trustExpiresAt).toLocaleString("it-IT")}</Text>
             </View>
           )}
@@ -435,7 +436,7 @@ function SecurityScreen() {
                 value={pinDraft}
                 onChangeText={(t) => setPinDraft(t.replace(/[^0-9]/g, "").slice(0, 6))}
                 placeholder="Nuovo PIN (6 cifre)"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={HT.muted}
                 keyboardType="number-pad"
                 secureTextEntry
                 maxLength={6}
@@ -446,7 +447,7 @@ function SecurityScreen() {
                 value={pinConfirmDraft}
                 onChangeText={(t) => setPinConfirmDraft(t.replace(/[^0-9]/g, "").slice(0, 6))}
                 placeholder="Ripeti PIN"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={HT.muted}
                 keyboardType="number-pad"
                 secureTextEntry
                 maxLength={6}
@@ -475,14 +476,14 @@ function SecurityScreen() {
               onChangeText={setDisablePwd}
               secureTextEntry
               placeholder="Password"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={HT.muted}
               style={[styles.input, { marginTop: 8 }]}
             />
             <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
               <Pressable onPress={() => { setDisableOpen(false); setDisablePwd(""); }} style={[styles.secondaryBtn, { flex: 1 }]}>
                 <Text style={styles.secondaryBtnTxt}>Annulla</Text>
               </Pressable>
-              <Pressable onPress={doDisable} disabled={busy || !disablePwd} style={[styles.primaryBtn, { flex: 1, marginTop: 0, backgroundColor: theme.color.error }]}>
+              <Pressable onPress={doDisable} disabled={busy || !disablePwd} style={[styles.primaryBtn, { flex: 1, marginTop: 0, backgroundColor: HT.danger }]}>
                 {busy ? <ActivityIndicator color="#FFF" /> : <Text style={styles.primaryBtnTxt}>Disattiva</Text>}
               </Pressable>
             </View>
@@ -501,7 +502,7 @@ function SecurityScreen() {
               keyboardType="number-pad"
               maxLength={6}
               placeholder="000000"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={HT.muted}
               style={[styles.input, { marginTop: 8, textAlign: "center", fontSize: 20, letterSpacing: 6 }]}
             />
             <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
@@ -543,7 +544,7 @@ function SecurityScreen() {
                 value={deletePwd}
                 onChangeText={setDeletePwd}
                 placeholder="La tua password"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={HT.muted}
                 secureTextEntry
                 style={styles.input}
               />
@@ -555,7 +556,7 @@ function SecurityScreen() {
                 value={deleteConfirm}
                 onChangeText={setDeleteConfirm}
                 placeholder={CONFIRM_PHRASE}
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={HT.muted}
                 autoCapitalize="characters"
                 style={styles.input}
               />
@@ -592,56 +593,56 @@ function SecurityScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
+  root: { flex: 1, backgroundColor: HT.card2 },
   header: { paddingHorizontal: 16, paddingVertical: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   backBtn: { padding: 4 },
-  title: { fontSize: 20, fontWeight: "700", color: theme.color.onSurface },
-  card: { backgroundColor: "#FFF", borderRadius: theme.radius.md, padding: 16, borderWidth: 1, borderColor: theme.color.border },
+  title: { fontSize: 20, fontWeight: "700", color: HT.text },
+  card: { backgroundColor: HT.card, borderRadius: theme.radius.md, padding: 16, borderWidth: 1, borderColor: HT.border },
   rowHead: { flexDirection: "row", alignItems: "center", gap: 12 },
-  cardTitle: { fontSize: 15, fontWeight: "700", color: theme.color.onSurface },
-  cardSub: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
+  cardTitle: { fontSize: 15, fontWeight: "700", color: HT.text },
+  cardSub: { fontSize: 12, color: HT.muted, marginTop: 2 },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   infoRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  infoTxt: { fontSize: 13, color: theme.color.muted },
-  hint: { fontSize: 13, color: theme.color.onSurfaceTertiary },
-  input: { backgroundColor: theme.color.surface, borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: theme.color.border, color: theme.color.onSurface },
-  primaryBtn: { backgroundColor: theme.color.brandPrimary, borderRadius: theme.radius.md, paddingVertical: 12, alignItems: "center" },
+  infoTxt: { fontSize: 13, color: HT.muted },
+  hint: { fontSize: 13, color: HT.text2 },
+  input: { backgroundColor: HT.card2, borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: HT.border, color: HT.text },
+  primaryBtn: { backgroundColor: HT.brand, borderRadius: theme.radius.md, paddingVertical: 12, alignItems: "center" },
   primaryBtnTxt: { color: "#FFF", fontWeight: "700", fontSize: 15 },
-  secondaryBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#FFF", paddingVertical: 10, paddingHorizontal: 12, borderWidth: 1, borderColor: theme.color.brandPrimary, borderRadius: theme.radius.md },
-  secondaryBtnTxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 13 },
+  secondaryBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: HT.card, paddingVertical: 10, paddingHorizontal: 12, borderWidth: 1, borderColor: HT.brand, borderRadius: theme.radius.md },
+  secondaryBtnTxt: { color: HT.brand, fontWeight: "700", fontSize: 13 },
   linkBtn: { alignItems: "center", paddingVertical: 8 },
-  linkBtnTxt: { color: theme.color.brandPrimary, fontWeight: "600", fontSize: 13 },
-  secretBox: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border, borderRadius: 8, padding: 10 },
-  secretText: { fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace", fontSize: 13, color: theme.color.onSurface },
+  linkBtnTxt: { color: HT.brand, fontWeight: "600", fontSize: 13 },
+  secretBox: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border, borderRadius: 8, padding: 10 },
+  secretText: { fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace", fontSize: 13, color: HT.text },
   codeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginVertical: 12 },
-  codeChip: { backgroundColor: "#FEF3C7", borderColor: "#F59E0B", borderWidth: 1, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8 },
-  codeChipTxt: { fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace", fontWeight: "700", color: "#78350F", fontSize: 13 },
-  trustBox: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: theme.color.brandTertiary, padding: 8, borderRadius: 8, marginTop: 8 },
-  trustTxt: { color: theme.color.brandPrimary, fontSize: 12, fontWeight: "600", flex: 1 },
-  toggleRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: theme.color.border, marginTop: 10 },
-  toggleLabel: { fontSize: 14, fontWeight: "600", color: theme.color.onSurface },
-  toggleSub: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
-  toggle: { width: 44, height: 26, borderRadius: 13, backgroundColor: "#E2E8F0", justifyContent: "center", padding: 3 },
-  toggleOn: { backgroundColor: theme.color.brandPrimary },
-  toggleKnob: { width: 20, height: 20, borderRadius: 10, backgroundColor: "#FFF" },
+  codeChip: { backgroundColor: HT.warningTint, borderColor: '#F59E0B', borderWidth: 1, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8 },
+  codeChipTxt: { fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace", fontWeight: "700", color: "#FDBA74", fontSize: 13 },
+  trustBox: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: HT.brandTint, padding: 8, borderRadius: 8, marginTop: 8 },
+  trustTxt: { color: HT.brand, fontSize: 12, fontWeight: "600", flex: 1 },
+  toggleRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: HT.border, marginTop: 10 },
+  toggleLabel: { fontSize: 14, fontWeight: "600", color: HT.text },
+  toggleSub: { fontSize: 12, color: HT.muted, marginTop: 2 },
+  toggle: { width: 44, height: 26, borderRadius: 13, backgroundColor: HT.border, justifyContent: "center", padding: 3 },
+  toggleOn: { backgroundColor: HT.brand },
+  toggleKnob: { width: 20, height: 20, borderRadius: 10, backgroundColor: HT.card },
   toggleKnobOn: { transform: [{ translateX: 18 }] },
-  smallBtn: { backgroundColor: theme.color.brandPrimary, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+  smallBtn: { backgroundColor: HT.brand, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   smallBtnTxt: { color: "#FFF", fontWeight: "700", fontSize: 12 },
-  smallBtnDanger: { backgroundColor: theme.color.error, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+  smallBtnDanger: { backgroundColor: HT.danger, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   smallBtnDangerTxt: { color: "#FFF", fontWeight: "700", fontSize: 12 },
 
   /* V29.b · Danger zone */
   dangerCard: {
-    backgroundColor: "#FEF2F2",
+    backgroundColor: HT.dangerTint,
     borderWidth: 1,
-    borderColor: "#FCA5A5",
+    borderColor: '#FCA5A5',
     borderRadius: 14,
     padding: 16,
     gap: 10,
   },
   dangerHead: { flexDirection: "row", alignItems: "center", gap: 8 },
-  dangerTitle: { fontSize: 15, fontWeight: "800", color: "#991B1B", letterSpacing: -0.2 },
-  dangerDesc: { fontSize: 12.5, color: "#7F1D1D", lineHeight: 18 },
+  dangerTitle: { fontSize: 15, fontWeight: "800", color: HT.danger, letterSpacing: -0.2 },
+  dangerDesc: { fontSize: 12.5, color: HT.danger, lineHeight: 18 },
   deleteBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -650,17 +651,17 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#DC2626",
-    backgroundColor: "#FFF",
+    borderColor: '#DC2626',
+    backgroundColor: HT.card,
   },
   deleteBtnTxt: { color: "#DC2626", fontWeight: "800", fontSize: 14 },
   deleteForm: { gap: 4, marginTop: 4 },
-  deleteLabel: { fontSize: 12, color: "#7F1D1D", fontWeight: "700", marginBottom: 4 },
+  deleteLabel: { fontSize: 12, color: HT.danger, fontWeight: "700", marginBottom: 4 },
   mono: {
     fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }),
     letterSpacing: 0.5,
     fontWeight: "800",
-    color: "#991B1B",
+    color: HT.danger,
   },
   deleteConfirmBtn: {
     flex: 1,
@@ -670,7 +671,7 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 12,
     borderRadius: 12,
-    backgroundColor: "#DC2626",
+    backgroundColor: '#DC2626',
   },
   deleteConfirmBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
 });

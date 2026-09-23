@@ -3,6 +3,7 @@
 // design (termine inventato); "Tutto" in arancione Brain+ per coerenza, resto bianco (o navy su chiaro).
 import React from "react";
 import { View, Text, Image, StyleSheet, type StyleProp, type ViewStyle, type ImageSourcePropType } from "react-native";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 export const TUTTU_ORANGE = "#F97316";
 export const TUTTU_TAGLINE_PLAIN = 'Il tuo "Tuttunizzatore"';
@@ -11,7 +12,7 @@ type TagProps = { dark?: boolean; size?: number; align?: "left" | "center"; styl
 
 /** Il tuo "Tuttunizzatore" — "Tutto" arancione, virgolette sempre presenti. */
 export function TuttunizzatoreTagline({ dark = true, size = 15, align = "center", style, testID }: TagProps) {
-  const base = dark ? "#FFFFFF" : "#1B2B4B";
+  const base = dark ? "#FFFFFF" : HT.text;
   return (
     <View style={[{ alignItems: align === "center" ? "center" : "flex-start" }, style]} testID={testID}>
       <Text style={{ textAlign: align, color: base, fontSize: size, fontWeight: "700", letterSpacing: 0.3 }} accessibilityLabel={TUTTU_TAGLINE_PLAIN}>
@@ -41,7 +42,7 @@ export function BrandLogosBlock({ advisorLogo, axonLogo, width = 150, dark = tru
     <View style={[styles.block, style]} testID={testID}>
       <Image source={advisorLogo} style={{ width, height: h }} resizeMode="contain" accessibilityLabel="AdvisorOS" />
       {/* V50.z228 — nuovo logo AxonOS su pill bianca (sfondo chiaro), sempre più piccolo di AdvisorOS */}
-      <View style={{ backgroundColor: "#E6EBEE", borderRadius: 10, overflow: "hidden", marginTop: 6 }}>
+      <View style={{ backgroundColor: '#E6EBEE', borderRadius: 10, overflow: "hidden", marginTop: 6 }}>
         <Image source={axonLogo} style={{ width: aw, height: Math.round(aw / 2.73) }} resizeMode="contain" accessibilityLabel="AxonOS" />
       </View>
       {tagline ? <TuttunizzatoreTagline dark={dark} size={15} style={{ marginTop: 10 }} /> : null}
@@ -51,7 +52,7 @@ export function BrandLogosBlock({ advisorLogo, axonLogo, width = 150, dark = tru
 
 /** Versione HTML (export PDF del Libretto). */
 export function tuttunizzatoreHtml(opts?: { dark?: boolean; size?: number; align?: "left" | "center" }): string {
-  const base = (opts?.dark ?? true) ? "#FFFFFF" : "#1B2B4B";
+  const base = (opts?.dark ?? true) ? "#FFFFFF" : HT.text;
   const size = opts?.size ?? 16;
   return `<div style="text-align:${opts?.align ?? "center"};color:${base};font-size:${size}px;font-weight:700;letter-spacing:.3px;margin:10px 0 0">` +
     `Il tuo &quot;<span style="color:${TUTTU_ORANGE};font-weight:900">Tutto</span><span style="font-weight:900">nizzatore</span>&quot;</div>`;

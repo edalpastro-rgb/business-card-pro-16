@@ -8,6 +8,7 @@ import * as Application from "expo-application";
 import Constants from "expo-constants";
 import { api } from "@/src/api";
 import { deviceKey } from "@/src/systemHeartbeat";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const PURPLE = "#7C3AED";
 type Info = {
@@ -66,12 +67,12 @@ export function AppInfoCard() {
         </View>
         {!info && !err ? <ActivityIndicator size="small" color={PURPLE} /> : (
           <View style={[styles.badge, status === "ok" ? styles.badgeOk : status === "update" ? styles.badgeUpd : styles.badgeNeutral]} testID="app-info-status">
-            <Text style={[styles.badgeTxt, status === "ok" ? { color: "#065F46" } : status === "update" ? { color: "#9A3412" } : { color: "#475569" }]}>
+            <Text style={[styles.badgeTxt, status === "ok" ? { color: HT.success } : status === "update" ? { color: "#FDBA74" } : { color: HT.text2 }]}>
               {status === "ok" ? "Aggiornata ✓" : status === "update" ? `Nuova v${latest}` : "—"}
             </Text>
           </View>
         )}
-        <Ionicons name={open ? "chevron-up" : "chevron-down"} size={18} color="#94A3B8" />
+        <Ionicons name={open ? "chevron-up" : "chevron-down"} size={18} color={HT.muted} />
       </View>
 
       {open && (
@@ -92,7 +93,7 @@ export function AppInfoCard() {
               ))}
             </View>
           )}
-          <Text style={[styles.hint, status === "update" && { color: "#9A3412", fontWeight: "700" }]}>
+          <Text style={[styles.hint, status === "update" && { color: "#FDBA74", fontWeight: "700" }]}>
             {status === "ok" ? "Hai l'ultima versione disponibile." : status === "update" ? `È disponibile la versione v${latest}: scarica la nuova build dell'app per aggiornare.` : isNative ? "Stato aggiornamento non determinabile." : "In anteprima web/Expo Go la versione APK non è disponibile: qui vedi la versione del codice."}
           </Text>
           {info?.plan_scope === "team" ? <Text style={styles.hint}>Piano gestito dal Master del tuo team.</Text> : null}
@@ -109,24 +110,24 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: "#FFF", borderRadius: 14, borderWidth: 1, borderColor: "#EDE9FE", padding: 12, gap: 10 },
+  card: { backgroundColor: HT.card, borderRadius: 14, borderWidth: 1, borderColor: HT.violetTint, padding: 12, gap: 10 },
   row: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 44 },
-  icon: { width: 36, height: 36, borderRadius: 12, backgroundColor: "#F5F3FF", alignItems: "center", justifyContent: "center" },
-  plan: { fontSize: 15, fontWeight: "800", color: "#1B2B4B" },
-  ver: { fontSize: 12, color: "#64748B", marginTop: 2 },
+  icon: { width: 36, height: 36, borderRadius: 12, backgroundColor: HT.violetTint, alignItems: "center", justifyContent: "center" },
+  plan: { fontSize: 15, fontWeight: "800", color: HT.text },
+  ver: { fontSize: 12, color: HT.muted, marginTop: 2 },
   badge: { borderRadius: 999, paddingHorizontal: 10, minHeight: 28, justifyContent: "center", borderWidth: 1 },
-  badgeOk: { backgroundColor: "#ECFDF5", borderColor: "#A7F3D0" },
-  badgeUpd: { backgroundColor: "#FFF7ED", borderColor: "#FDBA74" },
-  badgeNeutral: { backgroundColor: "#F8FAFC", borderColor: "#E2E8F0" },
+  badgeOk: { backgroundColor: HT.successTint, borderColor: '#A7F3D0' },
+  badgeUpd: { backgroundColor: HT.brandTint, borderColor: '#FDBA74' },
+  badgeNeutral: { backgroundColor: HT.card2, borderColor: HT.border },
   badgeTxt: { fontSize: 11, fontWeight: "800" },
-  details: { borderTopWidth: 1, borderTopColor: "#F1F5F9", paddingTop: 10, gap: 8 },
+  details: { borderTopWidth: 1, borderTopColor: HT.card2, paddingTop: 10, gap: 8 },
   detailRow: { flexDirection: "row", justifyContent: "space-between", gap: 10 },
-  detailLbl: { fontSize: 12.5, color: "#64748B" },
-  detailVal: { fontSize: 12.5, color: "#1B2B4B", fontWeight: "700", textAlign: "right", flexShrink: 1 },
-  hint: { fontSize: 11.5, color: "#64748B", lineHeight: 16 },
-  newsBox: { backgroundColor: "#F8FAFC", borderRadius: 10, padding: 10, gap: 6 },
-  newsTitle: { fontSize: 12, fontWeight: "800", color: "#1B2B4B" },
+  detailLbl: { fontSize: 12.5, color: HT.muted },
+  detailVal: { fontSize: 12.5, color: HT.text, fontWeight: "700", textAlign: "right", flexShrink: 1 },
+  hint: { fontSize: 11.5, color: HT.muted, lineHeight: 16 },
+  newsBox: { backgroundColor: HT.card2, borderRadius: 10, padding: 10, gap: 6 },
+  newsTitle: { fontSize: 12, fontWeight: "800", color: HT.text },
   newsRow: { flexDirection: "row", gap: 8 },
   newsVer: { fontSize: 11, fontWeight: "800", color: PURPLE, width: 62 },
-  newsTxt: { flex: 1, fontSize: 11.5, color: "#475569", lineHeight: 15 },
+  newsTxt: { flex: 1, fontSize: 11.5, color: HT.text2, lineHeight: 15 },
 });

@@ -7,8 +7,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
-import { theme } from "@/src/theme";
 import { useAuth } from "@/src/auth";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Dev = { device_id: string; type: string; type_label: string; name: string; platform?: string; status: string; last_seen_at?: string; last_login_at?: string; last_ip?: string; is_current?: boolean; user_id: string; user_name?: string; user_email?: string };
 type Log = { log_id: string; user_name?: string; device_name?: string; device_type?: string; event: string; ip?: string; note?: string; at: string };
@@ -48,7 +48,7 @@ export default function DevicesScreen() {
 
   const Row = ({ d, scope }: { d: Dev; scope: "mine" | "team" }) => (
     <View style={[s.row, d.status === "suspended" && s.rowSusp]} testID={`device-${d.device_id}`}>
-      <View style={[s.ic, { backgroundColor: d.status === "active" ? "#DCFCE7" : "#FEF3C7" }]}><Ionicons name={(ICON[d.type] || "hardware-chip") as any} size={20} color={d.status === "active" ? "#15803D" : "#B45309"} /></View>
+      <View style={[s.ic, { backgroundColor: d.status === "active" ? "#DCFCE7" : "#FEF3C7" }]}><Ionicons name={(ICON[d.type] || "hardware-chip") as any} size={20} color={d.status === "active" ? HT.success : HT.warning} /></View>
       <View style={{ flex: 1 }}>
         <Text style={s.name} numberOfLines={1}>{d.name} {d.is_current ? <Text style={s.cur}>· questo dispositivo</Text> : null}</Text>
         {scope === "team" ? <Text style={s.sub}>{d.user_name || d.user_email}</Text> : null}
@@ -61,7 +61,7 @@ export default function DevicesScreen() {
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
       <View style={s.header}>
-        <Pressable onPress={() => router.back()} style={s.back} hitSlop={8} testID="devices-back"><Ionicons name="chevron-back" size={24} color={theme.color.onSurface} /></Pressable>
+        <Pressable onPress={() => router.back()} style={s.back} hitSlop={8} testID="devices-back"><Ionicons name="chevron-back" size={24} color={HT.text} /></Pressable>
         <Text style={s.title}>Dispositivi</Text>
       </View>
       <View style={s.tabs}>
@@ -70,13 +70,13 @@ export default function DevicesScreen() {
         {isMaster ? <Pressable onPress={() => setTab("log")} style={[s.tab, tab === "log" && s.tabOn]} testID="devices-tab-log"><Text style={[s.tabTxt, tab === "log" && s.tabTxtOn]}>Log accessi</Text></Pressable> : null}
       </View>
       <ScrollView contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 40 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
-        <View style={s.info}><Ionicons name="shield-checkmark" size={18} color={theme.color.brandPrimary} /><Text style={s.infoTxt}>Ogni account può essere attivo su <Text style={{ fontWeight: "900" }}>1 telefono, 1 tablet e 1 PC</Text>. Il login su un nuovo dispositivo dello stesso tipo disconnette e sospende il precedente; quando il nuovo termina la sessione (esci), il precedente torna attivo.</Text></View>
-        {loading ? <ActivityIndicator color={theme.color.brandPrimary} style={{ marginTop: 20 }} /> : null}
+        <View style={s.info}><Ionicons name="shield-checkmark" size={18} color={HT.brand} /><Text style={s.infoTxt}>Ogni account può essere attivo su <Text style={{ fontWeight: "900" }}>1 telefono, 1 tablet e 1 PC</Text>. Il login su un nuovo dispositivo dello stesso tipo disconnette e sospende il precedente; quando il nuovo termina la sessione (esci), il precedente torna attivo.</Text></View>
+        {loading ? <ActivityIndicator color={HT.brand} style={{ marginTop: 20 }} /> : null}
         {tab === "mine" ? (mine.length ? mine.map((d) => <Row key={d.device_id} d={d} scope="mine" />) : !loading ? <Text style={s.empty}>Nessun dispositivo registrato: rifai il login da questo dispositivo per registrarlo.</Text> : null) : null}
         {tab === "team" ? (team.length ? team.map((d) => <Row key={d.device_id} d={d} scope="team" />) : !loading ? <Text style={s.empty}>Nessun dispositivo del team (i collaboratori devono rifare il login con l’app aggiornata).</Text> : null) : null}
         {tab === "log" ? (log.length ? log.map((l) => (
           <View key={l.log_id} style={s.logRow} testID={`access-log-${l.log_id}`}>
-            <Ionicons name={l.event === "login" ? "log-in-outline" : l.event === "suspended" ? "pause-circle-outline" : l.event === "reactivated" ? "play-circle-outline" : "log-out-outline"} size={18} color={l.event === "suspended" ? "#B45309" : l.event === "revoked" ? "#DC2626" : "#15803D"} />
+            <Ionicons name={l.event === "login" ? "log-in-outline" : l.event === "suspended" ? "pause-circle-outline" : l.event === "reactivated" ? "play-circle-outline" : "log-out-outline"} size={18} color={l.event === "suspended" ? HT.warning : l.event === "revoked" ? "#DC2626" : HT.success} />
             <View style={{ flex: 1 }}>
               <Text style={s.name}>{EVENT[l.event] || l.event} · {l.user_name}</Text>
               <Text style={s.sub}>{l.device_name} ({l.device_type}) · {fmt(l.at)}{l.ip ? ` · ${l.ip}` : ""}{l.note ? ` · ${l.note}` : ""}</Text>
@@ -89,22 +89,22 @@ export default function DevicesScreen() {
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: theme.color.surfaceSecondary },
+  safe: { flex: 1, backgroundColor: HT.card2 },
   header: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 8 },
   back: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 20, fontWeight: "900", color: theme.color.onSurface },
+  title: { fontSize: 20, fontWeight: "900", color: HT.text },
   tabs: { flexDirection: "row", gap: 8, paddingHorizontal: 16 },
-  tab: { paddingHorizontal: 14, minHeight: 40, borderRadius: 20, backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border, justifyContent: "center" },
-  tabOn: { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary },
-  tabTxt: { fontSize: 13, fontWeight: "800", color: theme.color.onSurface }, tabTxtOn: { color: "#FFF" },
-  info: { flexDirection: "row", gap: 10, padding: 12, borderRadius: 14, backgroundColor: "#EEF2FF", alignItems: "flex-start" },
-  infoTxt: { flex: 1, fontSize: 12, lineHeight: 17, color: theme.color.onSurface },
-  row: { flexDirection: "row", alignItems: "center", gap: 12, padding: 12, borderRadius: 14, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border },
-  rowSusp: { borderColor: "#FCD34D", backgroundColor: "#FFFBEB" },
+  tab: { paddingHorizontal: 14, minHeight: 40, borderRadius: 20, backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border, justifyContent: "center" },
+  tabOn: { backgroundColor: HT.brand, borderColor: HT.brand },
+  tabTxt: { fontSize: 13, fontWeight: "800", color: HT.text }, tabTxtOn: { color: "#FFF" },
+  info: { flexDirection: "row", gap: 10, padding: 12, borderRadius: 14, backgroundColor: HT.violetTint, alignItems: "flex-start" },
+  infoTxt: { flex: 1, fontSize: 12, lineHeight: 17, color: HT.text },
+  row: { flexDirection: "row", alignItems: "center", gap: 12, padding: 12, borderRadius: 14, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border },
+  rowSusp: { borderColor: '#FCD34D', backgroundColor: HT.warningTint },
   ic: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  name: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface }, cur: { color: theme.color.brandPrimary, fontSize: 12 },
-  sub: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
+  name: { fontSize: 14, fontWeight: "800", color: HT.text }, cur: { color: HT.brand, fontSize: 12 },
+  sub: { fontSize: 12, color: HT.muted, marginTop: 2 },
   del: { width: 40, height: 44, alignItems: "center", justifyContent: "center" },
-  logRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 12, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border },
-  empty: { textAlign: "center", color: theme.color.muted, fontSize: 13, marginTop: 20 },
+  logRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 12, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border },
+  empty: { textAlign: "center", color: HT.muted, fontSize: 13, marginTop: 20 },
 });

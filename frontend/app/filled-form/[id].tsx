@@ -9,11 +9,11 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Print from "expo-print";
 import * as FileSystem from "expo-file-system/legacy";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { shareDataUri } from "@/src/share";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { FormPageView, PageInfo } from "@/src/FormPageView";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Field = { id: string; key: string; label: string; kind: string; page: number; bbox: number[]; order: number };
 type ExtraText = { id?: string; page: number; x: number; y: number; text: string; font_size: number };
@@ -67,7 +67,7 @@ export default function FilledFormScreen() {
     } catch (e: any) { notify("Email", e?.message || ""); } finally { setBusy(null); }
   };
 
-  if (!f) return <SafeAreaView style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.color.surface }}><ActivityIndicator color="#059669" /></SafeAreaView>;
+  if (!f) return <SafeAreaView style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: HT.card2 }}><ActivityIndicator color="#059669" /></SafeAreaView>;
   const keys = f.semantic_keys || {};
   const ordered = [...f.fields].sort((a, b) => a.order - b.order);
   const missingIds = new Set(ordered.filter((x) => x.key !== "other" && x.key !== "signature" && x.kind !== "checkbox" && !(values[x.id] || "").trim()).map((x) => x.id));
@@ -76,9 +76,9 @@ export default function FilledFormScreen() {
   const srcLabel = (fid: string) => ({ scheda: "scheda cliente", documento: "documento d'identità", fattura: "fattura", allegato: "allegato (visura…)", auto: "automatico" } as Record<string, string>)[f.sources?.[fid] || ""] || "";
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.surface }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: HT.card2 }}>
       <View style={s.header}>
-        <Pressable onPress={() => router.back()} hitSlop={10} style={s.hBtn}><Ionicons name="chevron-back" size={24} color={theme.color.onSurface} /></Pressable>
+        <Pressable onPress={() => router.back()} hitSlop={10} style={s.hBtn}><Ionicons name="chevron-back" size={24} color={HT.text} /></Pressable>
         <View style={{ flex: 1 }}><Text style={s.title} numberOfLines={1}>{f.template_name}</Text><Text style={s.sub}>{f.contact_name} · {missingIds.size === 0 ? "✅ completo" : `${missingIds.size} campi da completare`}</Text></View>
         <Pressable onPress={save} disabled={saving || !dirty} style={[s.saveBtn, (!dirty || saving) && { opacity: 0.5 }]} testID="ff-save">{saving ? <ActivityIndicator color="#FFF" size="small" /> : <Text style={s.saveTxt}>Salva</Text>}</Pressable>
       </View>
@@ -89,13 +89,13 @@ export default function FilledFormScreen() {
           onSelect={(fid) => setEdit({ fieldId: fid })} onTap={(x, y) => setAddText({ x, y, text: "" })} />
 
         {missingIds.size > 0 ? (
-          <View style={[s.card, { borderColor: "#FDE68A", backgroundColor: "#FFFBEB" }]} testID="ff-missing">
+          <View style={[s.card, { borderColor: HT.warning + '66', backgroundColor: HT.warningTint }]} testID="ff-missing">
             <Text style={s.section}>⚠️ Dati mancanti ({missingIds.size})</Text>
             <Text style={s.hint}>Non trovati in scheda, documenti o fatture: inseriscili qui.</Text>
             {ordered.filter((x) => missingIds.has(x.id)).map((x) => (
               <View key={x.id} style={{ gap: 3 }}>
                 <Text style={s.lbl}>{keys[x.key] || x.label}{x.label && keys[x.key] && x.label !== keys[x.key] ? ` · «${x.label}»` : ""}</Text>
-                <TextInput value={values[x.id] || ""} onChangeText={(v) => { setValues((m) => ({ ...m, [x.id]: v })); setDirty(true); }} placeholder={keys[x.key] || x.label} placeholderTextColor={theme.color.muted} style={s.input} testID={`ff-missing-${x.id}`} />
+                <TextInput value={values[x.id] || ""} onChangeText={(v) => { setValues((m) => ({ ...m, [x.id]: v })); setDirty(true); }} placeholder={keys[x.key] || x.label} placeholderTextColor={HT.muted} style={s.input} testID={`ff-missing-${x.id}`} />
               </View>
             ))}
           </View>
@@ -103,11 +103,11 @@ export default function FilledFormScreen() {
 
         <Text style={s.section}>Tutti i campi ({ordered.length})</Text>
         {ordered.map((x, i) => (
-          <Pressable key={x.id} onPress={() => setEdit({ fieldId: x.id })} style={[s.row, missingIds.has(x.id) && { borderColor: "#FDE68A" }]} testID={`ff-row-${x.id}`}>
+          <Pressable key={x.id} onPress={() => setEdit({ fieldId: x.id })} style={[s.row, missingIds.has(x.id) && { borderColor: HT.warning + '66' }]} testID={`ff-row-${x.id}`}>
             <Text style={s.rowNum}>{i + 1}</Text>
             <View style={{ flex: 1 }}>
               <Text style={s.rowMeta}>{keys[x.key] || x.label} · pag. {x.page + 1}{srcLabel(x.id) ? ` · da ${srcLabel(x.id)}` : ""}</Text>
-              <Text style={[s.rowVal, !(values[x.id] || "").trim() && { color: theme.color.muted, fontStyle: "italic" }]}>{x.kind === "checkbox" ? ((values[x.id] || "").trim() ? "☑ selezionato" : "☐ non selezionato") : (values[x.id] || "").trim() || "— vuoto —"}</Text>
+              <Text style={[s.rowVal, !(values[x.id] || "").trim() && { color: HT.muted, fontStyle: "italic" }]}>{x.kind === "checkbox" ? ((values[x.id] || "").trim() ? "☑ selezionato" : "☐ non selezionato") : (values[x.id] || "").trim() || "— vuoto —"}</Text>
             </View>
             <Ionicons name="create-outline" size={18} color="#059669" />
           </Pressable>
@@ -117,7 +117,7 @@ export default function FilledFormScreen() {
           {extras.map((e, i) => (
             <View key={e.id || i} style={s.row}>
               <Ionicons name="text" size={16} color="#7C3AED" />
-              <Text style={{ flex: 1, color: theme.color.onSurface }} numberOfLines={2}>{e.text} <Text style={s.rowMeta}>(pag. {e.page + 1})</Text></Text>
+              <Text style={{ flex: 1, color: HT.text }} numberOfLines={2}>{e.text} <Text style={s.rowMeta}>(pag. {e.page + 1})</Text></Text>
               <Pressable onPress={() => { setExtras((l) => l.filter((_, k) => k !== i)); setDirty(true); }} hitSlop={8}><Ionicons name="trash-outline" size={18} color="#DC2626" /></Pressable>
             </View>
           ))}
@@ -139,9 +139,9 @@ export default function FilledFormScreen() {
               <Text style={s.section}>{keys[editField.key] || editField.label}</Text>
               {editField.label ? <Text style={s.hint}>Etichetta sul modulo: «{editField.label}»</Text> : null}
               {editField.kind === "checkbox" ? (
-                <Pressable onPress={() => { setValues((m) => ({ ...m, [editField.id]: (m[editField.id] || "").trim() ? "" : "X" })); setDirty(true); }} style={s.input} testID="ff-edit-check"><Text style={{ color: theme.color.onSurface, fontWeight: "800" }}>{(values[editField.id] || "").trim() ? "☑ Selezionato (tocca per togliere)" : "☐ Non selezionato (tocca per selezionare)"}</Text></Pressable>
+                <Pressable onPress={() => { setValues((m) => ({ ...m, [editField.id]: (m[editField.id] || "").trim() ? "" : "X" })); setDirty(true); }} style={s.input} testID="ff-edit-check"><Text style={{ color: HT.text, fontWeight: "800" }}>{(values[editField.id] || "").trim() ? "☑ Selezionato (tocca per togliere)" : "☐ Non selezionato (tocca per selezionare)"}</Text></Pressable>
               ) : (
-                <TextInput autoFocus value={values[editField.id] || ""} onChangeText={(v) => { setValues((m) => ({ ...m, [editField.id]: v })); setDirty(true); }} style={s.input} placeholder="Valore" placeholderTextColor={theme.color.muted} testID="ff-edit-input" />
+                <TextInput autoFocus value={values[editField.id] || ""} onChangeText={(v) => { setValues((m) => ({ ...m, [editField.id]: v })); setDirty(true); }} style={s.input} placeholder="Valore" placeholderTextColor={HT.muted} testID="ff-edit-input" />
               )}
               <Pressable onPress={() => setEdit(null)} style={s.primary} testID="ff-edit-done"><Text style={s.primaryTxt}>Fatto</Text></Pressable>
             </>) : null}
@@ -153,7 +153,7 @@ export default function FilledFormScreen() {
         <Pressable style={s.backdrop} onPress={() => setAddText(null)}>
           <View style={s.sheet} onStartShouldSetResponder={() => true}>
             <Text style={s.section}>Aggiungi testo sulla pagina {pageIdx + 1}</Text>
-            <TextInput autoFocus value={addText?.text || ""} onChangeText={(v) => setAddText((a) => (a ? { ...a, text: v } : a))} style={s.input} placeholder="Testo da scrivere nel punto toccato" placeholderTextColor={theme.color.muted} testID="ff-extra-input" />
+            <TextInput autoFocus value={addText?.text || ""} onChangeText={(v) => setAddText((a) => (a ? { ...a, text: v } : a))} style={s.input} placeholder="Testo da scrivere nel punto toccato" placeholderTextColor={HT.muted} testID="ff-extra-input" />
             <Pressable onPress={() => { if (addText?.text.trim()) { setExtras((l) => [...l, { page: pageIdx, x: addText.x, y: addText.y, text: addText.text.trim(), font_size: 10 }]); setDirty(true); } setAddText(null); }} style={s.primary} testID="ff-extra-add"><Text style={s.primaryTxt}>Aggiungi</Text></Pressable>
           </View>
         </Pressable>
@@ -163,22 +163,22 @@ export default function FilledFormScreen() {
 }
 
 const s = StyleSheet.create({
-  header: { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, borderBottomWidth: 1, borderBottomColor: theme.color.border },
+  header: { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, borderBottomWidth: 1, borderBottomColor: HT.border },
   hBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 16, fontWeight: "900", color: theme.color.onSurface }, sub: { fontSize: 11, color: theme.color.muted },
-  saveBtn: { backgroundColor: "#059669", borderRadius: 10, paddingHorizontal: 14, minHeight: 40, alignItems: "center", justifyContent: "center" }, saveTxt: { color: "#FFF", fontWeight: "900" },
-  chip: { paddingHorizontal: 12, minHeight: 36, borderRadius: 18, borderWidth: 1, borderColor: theme.color.border, alignItems: "center", justifyContent: "center", backgroundColor: "#FFF" },
-  chipOn: { backgroundColor: "#059669", borderColor: "#059669" }, chipTxt: { fontSize: 12, fontWeight: "800", color: theme.color.onSurface },
-  hint: { fontSize: 12, color: theme.color.muted, lineHeight: 17 },
-  card: { backgroundColor: "#FFF", borderRadius: 14, borderWidth: 1, borderColor: theme.color.border, padding: 12, gap: 8 },
-  section: { fontSize: 14, fontWeight: "900", color: theme.color.onSurface },
-  lbl: { fontSize: 12, fontWeight: "700", color: theme.color.muted },
-  input: { backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, paddingHorizontal: 12, minHeight: 44, justifyContent: "center", fontSize: 14, color: theme.color.onSurface },
-  row: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 12, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, minHeight: 52 },
-  rowNum: { width: 24, textAlign: "center", fontWeight: "900", color: "#059669" }, rowMeta: { fontSize: 11, color: theme.color.muted }, rowVal: { fontSize: 14, fontWeight: "700", color: theme.color.onSurface, marginTop: 2 },
-  actions: { position: "absolute", left: 0, right: 0, bottom: 0, flexDirection: "row", gap: 8, padding: 10, backgroundColor: theme.color.surface, borderTopWidth: 1, borderTopColor: theme.color.border },
-  act: { flex: 1, alignItems: "center", justifyContent: "center", gap: 2, minHeight: 52, borderRadius: 12, backgroundColor: "#ECFDF5", borderWidth: 1, borderColor: "#A7F3D0" }, actTxt: { fontSize: 11, fontWeight: "900", color: "#059669" },
+  title: { fontSize: 16, fontWeight: "900", color: HT.text }, sub: { fontSize: 11, color: HT.muted },
+  saveBtn: { backgroundColor: '#059669', borderRadius: 10, paddingHorizontal: 14, minHeight: 40, alignItems: "center", justifyContent: "center" }, saveTxt: { color: "#FFF", fontWeight: "900" },
+  chip: { paddingHorizontal: 12, minHeight: 36, borderRadius: 18, borderWidth: 1, borderColor: HT.border, alignItems: "center", justifyContent: "center", backgroundColor: HT.card },
+  chipOn: { backgroundColor: '#059669', borderColor: '#059669' }, chipTxt: { fontSize: 12, fontWeight: "800", color: HT.text },
+  hint: { fontSize: 12, color: HT.muted, lineHeight: 17 },
+  card: { backgroundColor: HT.card, borderRadius: 14, borderWidth: 1, borderColor: HT.border, padding: 12, gap: 8 },
+  section: { fontSize: 14, fontWeight: "900", color: HT.text },
+  lbl: { fontSize: 12, fontWeight: "700", color: HT.muted },
+  input: { backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border, borderRadius: 10, paddingHorizontal: 12, minHeight: 44, justifyContent: "center", fontSize: 14, color: HT.text },
+  row: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 12, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, minHeight: 52 },
+  rowNum: { width: 24, textAlign: "center", fontWeight: "900", color: "#059669" }, rowMeta: { fontSize: 11, color: HT.muted }, rowVal: { fontSize: 14, fontWeight: "700", color: HT.text, marginTop: 2 },
+  actions: { position: "absolute", left: 0, right: 0, bottom: 0, flexDirection: "row", gap: 8, padding: 10, backgroundColor: HT.card2, borderTopWidth: 1, borderTopColor: HT.border },
+  act: { flex: 1, alignItems: "center", justifyContent: "center", gap: 2, minHeight: 52, borderRadius: 12, backgroundColor: HT.successTint, borderWidth: 1, borderColor: '#A7F3D0' }, actTxt: { fontSize: 11, fontWeight: "900", color: "#059669" },
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: "#FFF", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16, paddingBottom: 30, gap: 10 },
-  primary: { backgroundColor: "#059669", borderRadius: 12, minHeight: 46, alignItems: "center", justifyContent: "center" }, primaryTxt: { color: "#FFF", fontWeight: "900" },
+  sheet: { backgroundColor: HT.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16, paddingBottom: 30, gap: 10 },
+  primary: { backgroundColor: '#059669', borderRadius: 12, minHeight: 46, alignItems: "center", justifyContent: "center" }, primaryTxt: { color: "#FFF", fontWeight: "900" },
 });

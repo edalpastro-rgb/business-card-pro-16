@@ -17,6 +17,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const GD_GREEN = "#0F9D58";
 
@@ -121,10 +122,10 @@ export default function AxonScriptsImportScreen() {
           return (
             <React.Fragment key={c.id + i}>
               <Pressable onPress={() => !last && goCrumb(i)} style={[styles.crumb, last && styles.crumbActive]}>
-                {i === 0 ? <Ionicons name="home" size={14} color={last ? "#FFF" : "#94A3B8"} /> : null}
+                {i === 0 ? <Ionicons name="home" size={14} color={last ? "#FFF" : HT.muted} /> : null}
                 <Text style={[styles.crumbTxt, last && styles.crumbTxtActive]} numberOfLines={1}>{c.name}</Text>
               </Pressable>
-              {!last && <Ionicons name="chevron-forward" size={14} color="#64748B" />}
+              {!last && <Ionicons name="chevron-forward" size={14} color={HT.muted} />}
             </React.Fragment>
           );
         })}
@@ -132,19 +133,19 @@ export default function AxonScriptsImportScreen() {
 
       {/* Search */}
       <View style={styles.searchBox}>
-        <Ionicons name="search" size={18} color="#94A3B8" />
+        <Ionicons name="search" size={18} color={HT.muted} />
         <TextInput
           value={query}
           onChangeText={onSearch}
           placeholder="Cerca cartelle in tutto il Drive…"
-          placeholderTextColor="#94A3B8"
+          placeholderTextColor={HT.muted}
           style={styles.searchInput}
           autoCorrect={false}
           autoCapitalize="none"
         />
         {query.length > 0 && (
           <Pressable onPress={() => onSearch("")} hitSlop={10}>
-            <Ionicons name="close-circle" size={18} color="#94A3B8" />
+            <Ionicons name="close-circle" size={18} color={HT.muted} />
           </Pressable>
         )}
       </View>
@@ -171,7 +172,7 @@ export default function AxonScriptsImportScreen() {
           </View>
         ) : folders.length === 0 ? (
           <View style={styles.center}>
-            <Ionicons name="folder-open-outline" size={40} color="#94A3B8" />
+            <Ionicons name="folder-open-outline" size={40} color={HT.muted} />
             <Text style={styles.centerTxt}>{query ? "Nessuna cartella trovata." : "Nessuna sottocartella qui."}</Text>
           </View>
         ) : (
@@ -188,7 +189,7 @@ export default function AxonScriptsImportScreen() {
                     <Text style={styles.rowName} numberOfLines={1}>{item.name}</Text>
                     {!!item.path && <Text style={styles.rowPath} numberOfLines={1}>{item.path}</Text>}
                   </View>
-                  <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
+                  <Ionicons name="chevron-forward" size={20} color={HT.muted} />
                 </Pressable>
                 <Pressable onPress={() => startImport(item)} style={styles.importBtn}>
                   <Ionicons name="cloud-download" size={14} color="#FFF" />
@@ -216,7 +217,7 @@ export default function AxonScriptsImportScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#0F2438" },
+  root: { flex: 1, backgroundColor: '#0F2438' },
   header: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: 10, paddingVertical: 10,
@@ -225,7 +226,7 @@ const styles = StyleSheet.create({
   hBtn: { padding: 6, minWidth: 30 },
   hTitle: { color: "#FFF", fontSize: 16, fontWeight: "900" },
   crumbBar: {
-    maxHeight: 44, backgroundColor: "#0B1B2C",
+    maxHeight: 44, backgroundColor: '#0B1B2C',
     borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)",
   },
   crumb: {
@@ -234,14 +235,14 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.06)",
   },
   crumbActive: { backgroundColor: GD_GREEN },
-  crumbTxt: { color: "#94A3B8", fontSize: 12, fontWeight: "700", maxWidth: 130 },
+  crumbTxt: { color: HT.muted, fontSize: 12, fontWeight: "700", maxWidth: 130 },
   crumbTxtActive: { color: "#FFF" },
   searchBox: {
     flexDirection: "row", alignItems: "center", gap: 8,
     marginHorizontal: 12, marginTop: 10, marginBottom: 6,
-    paddingHorizontal: 12, height: 42, borderRadius: 12, backgroundColor: "#FFF",
+    paddingHorizontal: 12, height: 42, borderRadius: 12, backgroundColor: HT.card,
   },
-  searchInput: { flex: 1, fontSize: 14, color: "#0F172A" },
+  searchInput: { flex: 1, fontSize: 14, color: HT.text },
   globalHint: {
     flexDirection: "row", alignItems: "center", gap: 6,
     paddingHorizontal: 14, paddingVertical: 6,
@@ -259,25 +260,25 @@ const styles = StyleSheet.create({
   centerTxt: { color: "rgba(255,255,255,0.75)", fontSize: 13, textAlign: "center" },
   row: {
     flexDirection: "row", alignItems: "center", gap: 6,
-    paddingHorizontal: 12, paddingVertical: 10, backgroundColor: "#FFF",
+    paddingHorizontal: 12, paddingVertical: 10, backgroundColor: HT.card,
   },
   rowMain: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10 },
-  rowName: { color: "#0F172A", fontWeight: "600", fontSize: 14 },
-  rowPath: { fontSize: 11, color: "#64748B", marginTop: 2 },
+  rowName: { color: HT.text, fontWeight: "600", fontSize: 14 },
+  rowPath: { fontSize: 11, color: HT.muted, marginTop: 2 },
   importBtn: {
     flexDirection: "row", alignItems: "center", gap: 4,
     paddingHorizontal: 10, paddingVertical: 8, borderRadius: 999,
     backgroundColor: GD_GREEN,
   },
   importBtnTxt: { color: "#FFF", fontWeight: "900", fontSize: 11 },
-  sep: { height: 1, backgroundColor: "#E2E8F0", marginLeft: 44 },
+  sep: { height: 1, backgroundColor: HT.border, marginLeft: 44 },
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.7)",
     alignItems: "center", justifyContent: "center", padding: 24,
   },
   overlayCard: {
-    backgroundColor: "#0F2438", padding: 26, borderRadius: 16,
+    backgroundColor: '#0F2438', padding: 26, borderRadius: 16,
     alignItems: "center", gap: 10, maxWidth: 320,
     borderWidth: 1, borderColor: "rgba(15,157,88,0.4)",
   },

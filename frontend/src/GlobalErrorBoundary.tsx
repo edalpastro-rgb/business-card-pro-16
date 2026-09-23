@@ -213,7 +213,7 @@ export class GlobalErrorBoundary extends React.Component<{ children: React.React
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#0F2438" },
+  root: { flex: 1, backgroundColor: '#0F2438' },
   scroll: { padding: 22, paddingTop: 60, paddingBottom: 40, gap: 14 },
   iconWrap: { alignItems: "center", marginBottom: 4 },
   icon: { fontSize: 48 },
@@ -247,7 +247,7 @@ const styles = StyleSheet.create({
     lineHeight: 15,
   },
   btnPrimary: {
-    backgroundColor: "#FF6B35",
+    backgroundColor: '#FF6B35',
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: "center",

@@ -6,6 +6,7 @@ import { View, Text, StyleSheet, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 export const SETUP_NUDGE_PHRASE = "Completa la configurazione così la prossima volta posso esserti davvero utile";
 
@@ -31,10 +32,10 @@ export function SetupNudgeCard({ onOpen }: { onOpen?: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  card: { flexDirection: "row", alignItems: "center", gap: 10, marginLeft: 30, marginTop: 6, backgroundColor: "#FAF5FF", borderRadius: 14, borderWidth: 1, borderColor: "#DDD6FE", padding: 10 },
-  icon: { width: 34, height: 34, borderRadius: 12, backgroundColor: "#EDE9FE", alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 12.5, fontWeight: "800", color: "#4C1D95" },
-  txt: { fontSize: 11.5, color: "#5B21B6", lineHeight: 15, marginTop: 1 },
-  btn: { backgroundColor: "#7C3AED", borderRadius: 999, paddingHorizontal: 12, minHeight: 40, justifyContent: "center" },
+  card: { flexDirection: "row", alignItems: "center", gap: 10, marginLeft: 30, marginTop: 6, backgroundColor: '#FAF5FF', borderRadius: 14, borderWidth: 1, borderColor: HT.violet + '66', padding: 10 },
+  icon: { width: 34, height: 34, borderRadius: 12, backgroundColor: HT.violetTint, alignItems: "center", justifyContent: "center" },
+  title: { fontSize: 12.5, fontWeight: "800", color: HT.violet },
+  txt: { fontSize: 11.5, color: HT.violet, lineHeight: 15, marginTop: 1 },
+  btn: { backgroundColor: '#7C3AED', borderRadius: 999, paddingHorizontal: 12, minHeight: 40, justifyContent: "center" },
   btnTxt: { color: "#FFF", fontWeight: "800", fontSize: 12 },
 });

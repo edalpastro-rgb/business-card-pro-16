@@ -37,6 +37,7 @@ import { FileViewer } from "@/src/FileViewer";
 import { InAppWebViewer } from "@/src/InAppWebViewer";
 import { notify } from "@/src/utils/notify";
 import * as FileSystem from "expo-file-system/legacy";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Phone = { id: string; label: string; number: string };
 
@@ -77,10 +78,10 @@ const genId = () => `p_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
 
 const C = {
   primary: "#FF6B35",
-  navy: "#1B2B4B",
-  muted: "#94A3B8",
+  navy: HT.text,
+  muted: HT.muted,
   border: "#E2E8F0",
-  bg: "#F8FAFC",
+  bg: HT.card2,
   green: "#16A34A",
 };
 
@@ -781,8 +782,8 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
                   onPress={() => { onClose(); setTimeout(() => { try { router.push("/info-requests?mode=compose" as any); } catch { /* ignore */ } }, 100); }}
                   style={infoReqStyles.row}
                 >
-                  <View style={[styles.rowIcon, { backgroundColor: "#FEF3C7" }]}>
-                    <Ionicons name="chatbubble-ellipses" size={18} color="#B45309" />
+                  <View style={[styles.rowIcon, { backgroundColor: HT.warningTint }]}>
+                    <Ionicons name="chatbubble-ellipses" size={18} color={HT.warning} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={infoReqStyles.title}>Invia richiesta info</Text>
@@ -797,8 +798,8 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
                     style={styles.emailRow}
                     testID="company-sheet-email"
                   >
-                    <View style={[styles.rowIcon, { backgroundColor: "#DBEAFE" }]}>
-                      <Ionicons name="mail" size={18} color="#1D4ED8" />
+                    <View style={[styles.rowIcon, { backgroundColor: HT.axonTint }]}>
+                      <Ionicons name="mail" size={18} color={HT.axon} />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.rowLabel}>Email</Text>
@@ -832,7 +833,7 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
                       style={styles.phoneRow}
                       testID={`company-sheet-call-${p.id}`}
                     >
-                      <View style={[styles.rowIcon, { backgroundColor: "#DCFCE7" }]}>
+                      <View style={[styles.rowIcon, { backgroundColor: HT.successTint }]}>
                         <Ionicons name="call" size={18} color={C.green} />
                       </View>
                       <View style={{ flex: 1 }}>
@@ -955,7 +956,7 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
                         style={styles.docTopRow}
                         testID={`company-sheet-doc-${d.doc_id}`}
                       >
-                        <View style={[styles.rowIcon, { backgroundColor: "#FEE2E2" }]}>
+                        <View style={[styles.rowIcon, { backgroundColor: HT.dangerTint }]}>
                           {viewerLoading === d.doc_id ? (
                             <ActivityIndicator size="small" color="#DC2626" />
                           ) : (
@@ -1029,7 +1030,7 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
                       <Pressable
                         onPress={openMyWebPicker}
                         disabled={linkImporting}
-                        style={[styles.addBtn, { backgroundColor: "#7C3AED" }, linkImporting && { opacity: 0.6 }]}
+                        style={[styles.addBtn, { backgroundColor: '#7C3AED' }, linkImporting && { opacity: 0.6 }]}
                         testID="company-sheet-import-my-web"
                       >
                         {linkImporting ? (
@@ -1132,7 +1133,7 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
           <View style={[styles.sheet, { paddingBottom: bottomPad + 12 }]}>
             <View style={styles.handle} />
             <View style={styles.hdrRow}>
-              <View style={[styles.hdrIcon, { backgroundColor: "#7C3AED" }]}>
+              <View style={[styles.hdrIcon, { backgroundColor: '#7C3AED' }]}>
                 <Ionicons name="sparkles" size={20} color="#FFF" />
               </View>
               <View style={{ flex: 1 }}>
@@ -1218,7 +1219,7 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
                 <Pressable
                   onPress={() => setPickerOpen(false)}
                   hitSlop={10}
-                  style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center" }}
+                  style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: HT.card2, alignItems: "center", justifyContent: "center" }}
                   testID="my-web-picker-close"
                 >
                   <Ionicons name="close" size={18} color={C.muted} />
@@ -1420,7 +1421,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   sheet: {
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,
     paddingTop: 8,
@@ -1430,7 +1431,7 @@ const styles = StyleSheet.create({
     width: 42,
     height: 4,
     borderRadius: 2,
-    backgroundColor: "#CBD5E1",
+    backgroundColor: HT.borderStrong,
     marginBottom: 6,
   },
   hdrRow: {
@@ -1441,7 +1442,7 @@ const styles = StyleSheet.create({
     paddingTop: 6,
     paddingBottom: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "#EEF0F4",
+    borderBottomColor: HT.border,
   },
   hdrIcon: {
     width: 32,
@@ -1465,7 +1466,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 10,
-    backgroundColor: "#FFF1E9",
+    backgroundColor: HT.brandTint,
     borderWidth: 1,
     borderColor: C.primary,
   },
@@ -1491,7 +1492,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     padding: 12,
     borderRadius: 14,
     borderWidth: 1,
@@ -1527,7 +1528,7 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 14,
     color: C.navy,
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
   },
   phonesHdr: {
     flexDirection: "row",
@@ -1557,7 +1558,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderStyle: "dashed",
     borderColor: C.primary,
-    backgroundColor: "#FFF7ED",
+    backgroundColor: HT.brandTint,
   },
   addContactTxt: { fontSize: 14, fontWeight: "800", color: C.primary },
   addContactBox: {
@@ -1565,8 +1566,8 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#FED7AA",
-    backgroundColor: "#FFF7ED",
+    borderColor: HT.brandLine,
+    backgroundColor: HT.brandTint,
   },
   phoneEditRow: {
     flexDirection: "row",
@@ -1582,7 +1583,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 10,
-    backgroundColor: "#FEE2E2",
+    backgroundColor: HT.dangerTint,
     alignItems: "center",
     justifyContent: "center",
     marginTop: 4,
@@ -1601,8 +1602,8 @@ const styles = StyleSheet.create({
   emptyTxt: { fontSize: 14, fontWeight: "800", color: C.navy },
   emptySub: { fontSize: 11, color: C.muted, textAlign: "center" },
   actionsRow: { flexDirection: "row", justifyContent: "flex-end", gap: 8, marginTop: 12 },
-  btnGhost: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, backgroundColor: "#F1F5F9" },
-  btnGhostTxt: { fontSize: 13, fontWeight: "800", color: "#64748B" },
+  btnGhost: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, backgroundColor: HT.card2 },
+  btnGhostTxt: { fontSize: 13, fontWeight: "800", color: HT.muted },
   btnSave: {
     flexDirection: "row",
     alignItems: "center",
@@ -1633,7 +1634,7 @@ const styles = StyleSheet.create({
     borderColor: C.border,
   },
   docCard: {
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: C.border,
@@ -1652,7 +1653,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     borderTopWidth: 1,
-    borderTopColor: "#F1F5F9",
+    borderTopColor: HT.card2,
     paddingTop: 8,
   },
   axonBtn: {
@@ -1664,14 +1665,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 10,
-    backgroundColor: "#7C3AED",
+    backgroundColor: '#7C3AED',
   },
   axonBtnTxt: { fontSize: 12, fontWeight: "800", color: "#FFF" },
   trashBtnSmall: {
     width: 34,
     height: 34,
     borderRadius: 10,
-    backgroundColor: "#FEE2E2",
+    backgroundColor: HT.dangerTint,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1680,20 +1681,20 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: C.border,
     padding: 12,
   },
-  extractLine: { fontSize: 12, color: "#334155", marginTop: 2, fontWeight: "600" },
+  extractLine: { fontSize: 12, color: HT.text2, marginTop: 2, fontWeight: "600" },
 
   // V50.z58 — Link utili
   linkRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderWidth: 1,
     borderColor: C.border,
     borderRadius: 14,
@@ -1707,22 +1708,22 @@ const styles = StyleSheet.create({
   linkActions: { flexDirection: "row", gap: 6 },
   linkActionBtn: {
     width: 30, height: 30, borderRadius: 8,
-    backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center",
+    backgroundColor: HT.card2, alignItems: "center", justifyContent: "center",
   },
   // Editor link modal
   linkSheet: {
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderTopLeftRadius: 22, borderTopRightRadius: 22,
     padding: 16, paddingBottom: 30,
   },
   sheetHandle: {
     alignSelf: "center", width: 40, height: 4, borderRadius: 2,
-    backgroundColor: "#CBD5E1", marginBottom: 12,
+    backgroundColor: HT.borderStrong, marginBottom: 12,
   },
   sheetTitle: { fontSize: 16, fontWeight: "800", color: C.navy, marginBottom: 10 },
   iconRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },
-  iconOpt: { padding: 8, borderRadius: 10, backgroundColor: "#F1F5F9" },
-  iconOptActive: { backgroundColor: "#DBEAFE", borderWidth: 2, borderColor: C.primary },
+  iconOpt: { padding: 8, borderRadius: 10, backgroundColor: HT.card2 },
+  iconOptActive: { backgroundColor: HT.axonTint, borderWidth: 2, borderColor: C.primary },
   // V50.z63 — Picker My Web con checkbox
   pickerRow: {
     flexDirection: "row", alignItems: "center", gap: 10,
@@ -1731,21 +1732,21 @@ const styles = StyleSheet.create({
   },
   checkbox: {
     width: 22, height: 22, borderRadius: 6,
-    borderWidth: 2, borderColor: "#CBD5E1",
+    borderWidth: 2, borderColor: HT.borderStrong,
     alignItems: "center", justifyContent: "center",
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
   },
   checkboxOn: { backgroundColor: C.primary, borderColor: C.primary },
   alreadyBadge: {
     paddingHorizontal: 8, paddingVertical: 3,
-    borderRadius: 999, backgroundColor: "#F1F5F9",
+    borderRadius: 999, backgroundColor: HT.card2,
   },
   alreadyBadgeTxt: { fontSize: 10, color: C.muted, fontWeight: "700" },
 });
 
 // V50.z82 — Stili bottone "Invia richiesta info"
 const infoReqStyles = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: "#F59E0B33", backgroundColor: "#FFFBEB" },
+  row: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: "#F59E0B33", backgroundColor: HT.warningTint },
   title: { fontSize: 14, fontWeight: "800", color: C.navy },
   sub: { fontSize: 11, color: C.muted, marginTop: 2 },
 });

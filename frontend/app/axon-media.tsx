@@ -11,6 +11,7 @@ import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { api, buildFileUrl } from "@/src/api";
 import { notify } from "@/src/utils/notify";
 import { MediaVoiceRecorder } from "@/src/MediaVoiceRecorder";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Sphere = "business" | "home" | "unclassified";
 type Kind = "photo" | "audio" | "video";
@@ -21,7 +22,7 @@ type Media = {
 };
 type ListResp = { items: Media[]; counts: Record<Sphere, number>; processing: number };
 
-const COLOR: Record<Sphere, string> = { business: "#2563EB", home: "#059669", unclassified: "#64748B" };
+const COLOR: Record<Sphere, string> = { business: "#2563EB", home: "#059669", unclassified: HT.muted };
 const ICON: Record<Sphere, string> = { business: "🔵", home: "🟢", unclassified: "⚪" };
 const LABEL: Record<Sphere, string> = { business: "Business", home: "Home (privata)", unclassified: "Da classificare" };
 const KIND_ICON: Record<Kind, any> = { photo: "image", audio: "mic", video: "videocam" };
@@ -186,9 +187,9 @@ export default function AxonMediaScreen() {
         <Text style={styles.hint}>Axon trascrive audio e video, descrive le foto e legge il testo che contengono: tutto ricercabile qui sotto. Video max 60 s (25 MB).</Text>
 
         <View style={styles.search}>
-          <Ionicons name="search" size={18} color="#64748B" />
-          <TextInput value={q} onChangeText={setQ} placeholder="Cerca in trascrizioni, descrizioni, testo, tag…" placeholderTextColor="#94A3B8" style={styles.searchInput} returnKeyType="search" testID="axm-search" />
-          {q ? <Pressable onPress={() => setQ("")} hitSlop={8}><Ionicons name="close-circle" size={18} color="#94A3B8" /></Pressable> : null}
+          <Ionicons name="search" size={18} color={HT.muted} />
+          <TextInput value={q} onChangeText={setQ} placeholder="Cerca in trascrizioni, descrizioni, testo, tag…" placeholderTextColor={HT.muted} style={styles.searchInput} returnKeyType="search" testID="axm-search" />
+          {q ? <Pressable onPress={() => setQ("")} hitSlop={8}><Ionicons name="close-circle" size={18} color={HT.muted} /></Pressable> : null}
         </View>
 
         {!data ? <ActivityIndicator color={color} /> : items.length === 0 ? (
@@ -200,7 +201,7 @@ export default function AxonMediaScreen() {
               <Text style={styles.rowTitle} numberOfLines={1}>{m.title}</Text>
               <Text style={styles.rowMeta}>{new Date(m.created_at).toLocaleString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })} · {KIND_LABEL[m.kind]}{m.duration_sec ? ` · ${fmtDur(m.duration_sec)}` : ""} · {ICON[m.sphere]} {m.sphere_label}</Text>
               {m.status === "processing" ? <Text style={[styles.status, { color }]}>⏳ Axon sta {m.kind === "photo" ? "analizzando" : "trascrivendo"}…</Text>
-                : m.status === "error" ? <Text style={[styles.status, { color: "#B45309" }]}>⚠️ Elaborazione non riuscita</Text>
+                : m.status === "error" ? <Text style={[styles.status, { color: HT.warning }]}>⚠️ Elaborazione non riuscita</Text>
                 : (m.summary || m.description || m.transcript) ? <Text style={styles.snippet} numberOfLines={2}>{m.summary || m.description || m.transcript}</Text> : null}
               {!!m.tags?.length && <View style={styles.tags}>{m.tags.slice(0, 4).map((t) => <Text key={t} style={styles.tag}>#{t}</Text>)}</View>}
             </View>
@@ -209,7 +210,7 @@ export default function AxonMediaScreen() {
                 <Pressable onPress={() => void classify(m, "home")} hitSlop={4} style={[styles.miniBtn, { borderColor: COLOR.home }]} testID={`axm-cls-home-${m.media_id}`}><Text style={[styles.miniTxt, { color: COLOR.home }]}>🟢 Privata</Text></Pressable>
                 <Pressable onPress={() => void classify(m, "business")} hitSlop={4} style={[styles.miniBtn, { borderColor: COLOR.business }]} testID={`axm-cls-business-${m.media_id}`}><Text style={[styles.miniTxt, { color: COLOR.business }]}>🔵 Aziendale</Text></Pressable>
               </View>
-            ) : <Ionicons name="chevron-forward" size={16} color="#94A3B8" />}
+            ) : <Ionicons name="chevron-forward" size={16} color={HT.muted} />}
           </Pressable>
         ))}
       </ScrollView>
@@ -239,7 +240,7 @@ export default function AxonMediaScreen() {
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                   <Ionicons name={KIND_ICON[open.kind]} size={20} color={COLOR[open.sphere]} />
                   <Text style={[styles.rowTitle, { flex: 1, fontSize: 16 }]}>{open.title}</Text>
-                  <Pressable onPress={() => { stopAudio(); setOpen(null); }} hitSlop={8} testID="axm-detail-close"><Ionicons name="close" size={22} color="#64748B" /></Pressable>
+                  <Pressable onPress={() => { stopAudio(); setOpen(null); }} hitSlop={8} testID="axm-detail-close"><Ionicons name="close" size={22} color={HT.muted} /></Pressable>
                 </View>
                 <Text style={styles.rowMeta}>{new Date(open.created_at).toLocaleString("it-IT")} · {KIND_LABEL[open.kind]}{open.duration_sec ? ` · ${fmtDur(open.duration_sec)}` : ""} · {open.size >= 1024 * 1024 ? `${(open.size / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(open.size / 1024))} KB`}</Text>
                 <View style={styles.sphereRowSm}>
@@ -258,7 +259,7 @@ export default function AxonMediaScreen() {
                   </View>
                 )}
                 {open.status === "processing" && <View style={styles.progress}><ActivityIndicator color={COLOR[open.sphere]} /><Text style={styles.progressTxt}>Axon sta elaborando… (si aggiorna da solo)</Text></View>}
-                {open.status === "error" && <Pressable onPress={async () => { await api(`/axon/media/${open.media_id}/reprocess`, { method: "POST" }); setOpen({ ...open, status: "processing" }); await load(true); }} style={[styles.pdfBtn, { backgroundColor: "#B45309" }]}><Ionicons name="refresh" size={16} color="#FFF" /><Text style={styles.pdfTxt}>Riprova elaborazione</Text></Pressable>}
+                {open.status === "error" && <Pressable onPress={async () => { await api(`/axon/media/${open.media_id}/reprocess`, { method: "POST" }); setOpen({ ...open, status: "processing" }); await load(true); }} style={[styles.pdfBtn, { backgroundColor: '#B45309' }]}><Ionicons name="refresh" size={16} color="#FFF" /><Text style={styles.pdfTxt}>Riprova elaborazione</Text></Pressable>}
                 {!!(open.summary || open.description) && <View style={styles.card}><Text style={styles.secTitle}>{open.kind === "photo" ? "Descrizione" : "Riassunto di Axon"}</Text><Text style={styles.body}>{open.summary || open.description}</Text></View>}
                 {!!open.actions?.length && <View style={styles.card}><Text style={styles.secTitle}>Cose da fare citate</Text>{open.actions.map((a, i) => <Text key={i} style={styles.body}>• {a}</Text>)}</View>}
                 {!!open.transcript && <View style={styles.card}><Text style={styles.secTitle}>Trascrizione</Text><Text style={styles.body} selectable>{open.transcript}</Text></View>}
@@ -277,40 +278,40 @@ export default function AxonMediaScreen() {
 function fmtDur(s: number) { const m = Math.floor(s / 60), sec = Math.floor(s % 60); return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`; }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F4F5FA" },
+  root: { flex: 1, backgroundColor: '#F4F5FA' },
   header: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 12 },
   title: { color: "#FFF", fontWeight: "800", fontSize: 17 }, sub: { color: "#FFFFFFCC", fontSize: 12 },
   sphereRow: { flexDirection: "row", gap: 8, padding: 12, paddingBottom: 4 },
   sphereRowSm: { flexDirection: "row", gap: 8 },
-  sphereBtn: { flex: 1, minHeight: 44, borderRadius: 12, borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#FFF", alignItems: "center", justifyContent: "center", paddingHorizontal: 6 },
-  sphereTxt: { fontWeight: "800", color: "#1B2B4B", fontSize: 12.5 },
+  sphereBtn: { flex: 1, minHeight: 44, borderRadius: 12, borderWidth: 1.5, borderColor: HT.border, backgroundColor: HT.card, alignItems: "center", justifyContent: "center", paddingHorizontal: 6 },
+  sphereTxt: { fontWeight: "800", color: HT.text, fontSize: 12.5 },
   actions: { flexDirection: "row", gap: 8 },
   big: { flex: 1, minHeight: 64, borderRadius: 16, alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 4 },
-  ghost: { backgroundColor: "#FFF", borderWidth: 1.5 },
+  ghost: { backgroundColor: HT.card, borderWidth: 1.5 },
   bigTxt: { color: "#FFF", fontWeight: "800", fontSize: 12, textAlign: "center" },
-  progress: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#FFF", borderRadius: 12, padding: 12 },
-  progressTxt: { fontSize: 13, color: "#1B2B4B", fontWeight: "600", flex: 1 },
-  hint: { fontSize: 12, color: "#64748B", lineHeight: 17 },
-  search: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF", borderRadius: 12, borderWidth: 1, borderColor: "#E5E7EB", paddingHorizontal: 12, minHeight: 46 },
-  searchInput: { flex: 1, fontSize: 14, color: "#1B2B4B", paddingVertical: 10 },
-  row: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#FFF", borderRadius: 12, borderWidth: 1, borderColor: "#EEF0F6", padding: 10, minHeight: 64 },
+  progress: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: HT.card, borderRadius: 12, padding: 12 },
+  progressTxt: { fontSize: 13, color: HT.text, fontWeight: "600", flex: 1 },
+  hint: { fontSize: 12, color: HT.muted, lineHeight: 17 },
+  search: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: HT.card, borderRadius: 12, borderWidth: 1, borderColor: HT.border, paddingHorizontal: 12, minHeight: 46 },
+  searchInput: { flex: 1, fontSize: 14, color: HT.text, paddingVertical: 10 },
+  row: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: HT.card, borderRadius: 12, borderWidth: 1, borderColor: '#EEF0F6', padding: 10, minHeight: 64 },
   kindIcon: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
-  rowTitle: { fontSize: 14, fontWeight: "700", color: "#1B2B4B" }, rowMeta: { fontSize: 11.5, color: "#64748B", marginTop: 1 },
-  status: { fontSize: 12, fontWeight: "700", marginTop: 3 }, snippet: { fontSize: 12.5, color: "#334155", marginTop: 3, lineHeight: 17 },
-  tags: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 }, tag: { fontSize: 11, color: "#475569", backgroundColor: "#F1F5F9", borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2 },
-  miniBtn: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 8, minHeight: 32, alignItems: "center", justifyContent: "center", backgroundColor: "#FFF" }, miniTxt: { fontSize: 11.5, fontWeight: "800" },
-  empty: { fontSize: 13, color: "#94A3B8", fontStyle: "italic", textAlign: "center", paddingVertical: 12 },
+  rowTitle: { fontSize: 14, fontWeight: "700", color: HT.text }, rowMeta: { fontSize: 11.5, color: HT.muted, marginTop: 1 },
+  status: { fontSize: 12, fontWeight: "700", marginTop: 3 }, snippet: { fontSize: 12.5, color: HT.text2, marginTop: 3, lineHeight: 17 },
+  tags: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 }, tag: { fontSize: 11, color: HT.text2, backgroundColor: HT.card2, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2 },
+  miniBtn: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 8, minHeight: 32, alignItems: "center", justifyContent: "center", backgroundColor: HT.card }, miniTxt: { fontSize: 11.5, fontWeight: "800" },
+  empty: { fontSize: 13, color: HT.muted, fontStyle: "italic", textAlign: "center", paddingVertical: 12 },
   modalRoot: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", padding: 20 },
-  modalBox: { backgroundColor: "#FFF", borderRadius: 18, padding: 18 },
-  modalT: { fontSize: 13, fontWeight: "700", color: "#64748B" }, modalQ: { fontSize: 20, fontWeight: "900", color: "#1B2B4B", marginTop: 6 }, modalHint: { fontSize: 12, color: "#64748B", marginTop: 8, lineHeight: 17 },
+  modalBox: { backgroundColor: HT.card, borderRadius: 18, padding: 18 },
+  modalT: { fontSize: 13, fontWeight: "700", color: HT.muted }, modalQ: { fontSize: 20, fontWeight: "900", color: HT.text, marginTop: 6 }, modalHint: { fontSize: 12, color: HT.muted, marginTop: 8, lineHeight: 17 },
   modalBtn: { flex: 1, minHeight: 48, borderRadius: 12, alignItems: "center", justifyContent: "center" }, modalBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
-  later: { alignItems: "center", marginTop: 12, minHeight: 40, justifyContent: "center" }, laterTxt: { color: "#64748B", fontWeight: "700", fontSize: 13 },
+  later: { alignItems: "center", marginTop: 12, minHeight: 40, justifyContent: "center" }, laterTxt: { color: HT.muted, fontWeight: "700", fontSize: 13 },
   sheetRoot: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: "#F4F5FA", borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 16, maxHeight: "90%" },
-  preview: { width: "100%", height: 260, borderRadius: 12, backgroundColor: "#E2E8F0" },
+  sheet: { backgroundColor: '#F4F5FA', borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 16, maxHeight: "90%" },
+  preview: { width: "100%", height: 260, borderRadius: 12, backgroundColor: HT.border },
   pdfBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 46, borderRadius: 12 }, pdfTxt: { color: "#FFF", fontWeight: "800", fontSize: 13.5 },
-  card: { backgroundColor: "#FFF", borderRadius: 14, borderWidth: 1, borderColor: "#EEF0F6", padding: 12, gap: 6 },
-  secTitle: { fontSize: 12, fontWeight: "800", color: "#64748B", textTransform: "uppercase", letterSpacing: 0.4 },
-  body: { fontSize: 13.5, color: "#1B2B4B", lineHeight: 19 },
+  card: { backgroundColor: HT.card, borderRadius: 14, borderWidth: 1, borderColor: '#EEF0F6', padding: 12, gap: 6 },
+  secTitle: { fontSize: 12, fontWeight: "800", color: HT.muted, textTransform: "uppercase", letterSpacing: 0.4 },
+  body: { fontSize: 13.5, color: HT.text, lineHeight: 19 },
   delBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 44 }, delTxt: { color: "#DC2626", fontWeight: "800", fontSize: 13 },
 });

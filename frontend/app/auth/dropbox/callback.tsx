@@ -9,7 +9,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 export default function DropboxCallbackScreen() {
   const params = useLocalSearchParams<{ code?: string; state?: string; error?: string; error_description?: string }>();
@@ -84,10 +84,10 @@ export default function DropboxCallbackScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface, justifyContent: "center", alignItems: "center" },
+  root: { flex: 1, backgroundColor: HT.card2, justifyContent: "center", alignItems: "center" },
   centerBox: { alignItems: "center", padding: 30, gap: 10, maxWidth: 400 },
-  title: { fontSize: 18, fontWeight: "800", color: theme.color.onSurface, textAlign: "center" },
-  sub: { fontSize: 13, color: theme.color.muted, textAlign: "center" },
-  btn: { marginTop: 12, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, backgroundColor: theme.color.brandPrimary },
+  title: { fontSize: 18, fontWeight: "800", color: HT.text, textAlign: "center" },
+  sub: { fontSize: 13, color: HT.muted, textAlign: "center" },
+  btn: { marginTop: 12, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, backgroundColor: HT.brand },
   btnTxt: { color: "#FFF", fontWeight: "800" },
 });

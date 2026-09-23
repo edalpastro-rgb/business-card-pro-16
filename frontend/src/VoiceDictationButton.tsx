@@ -3,8 +3,8 @@ import { View, Text, StyleSheet, Pressable, ActivityIndicator, Platform, Animate
 import { Ionicons } from "@expo/vector-icons";
 import { transcribeUpload } from "@/src/utils/upload";
 import { notify } from "@/src/utils/notify";
-import { theme } from "@/src/theme";
 import { useAudioRecorder, AudioModule, RecordingPresets } from "expo-audio"; // V50.z247 — dettatura anche su iOS/Android nativi
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Props = {
   onTranscript: (text: string) => void;
@@ -224,7 +224,7 @@ export function VoiceDictationButton({ onTranscript, label = "Dettatura", compac
     else startRecording();
   };
 
-  const btnColor = recording ? "#DC2626" : processing ? "#6B7280" : "#7C3AED";
+  const btnColor = recording ? "#DC2626" : processing ? HT.muted : "#7C3AED";
   const iconName = recording ? "stop" : processing ? "ellipsis-horizontal" : "mic";
 
   return (
@@ -265,12 +265,12 @@ const styles = StyleSheet.create({
   wrap: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F5F3FF",
+    backgroundColor: HT.violetTint,
     borderRadius: 10,
     padding: 10,
     marginTop: 8,
     borderWidth: 1,
-    borderColor: "#DDD6FE",
+    borderColor: HT.violet + '66',
   },
   wrapCompact: { flexDirection: "row", alignItems: "center" },
   btn: {
@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 3,
   },
-  label: { fontSize: 13, fontWeight: "700", color: theme.color.onSurface },
-  hint: { fontSize: 11, color: theme.color.muted, marginTop: 2 },
+  label: { fontSize: 13, fontWeight: "700", color: HT.text },
+  hint: { fontSize: 11, color: HT.muted, marginTop: 2 },
   err: { fontSize: 11, color: "#DC2626", marginTop: 2 },
 });

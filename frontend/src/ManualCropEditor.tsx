@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import Svg, { Polygon, Line } from "react-native-svg";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 /**
  * Ritaglio manuale del documento dopo lo scatto.
@@ -153,11 +154,11 @@ export function ManualCropEditor({ visible, imageBase64, onCancel, onDone, enhan
         </View>
 
         <View style={styles.actions}>
-          <Pressable onPress={onCancel} style={[styles.btn, { backgroundColor: "#334155" }]} testID="crop-back">
+          <Pressable onPress={onCancel} style={[styles.btn, { backgroundColor: '#334155' }]} testID="crop-back">
             <Ionicons name="arrow-back" size={18} color="#FFF" />
             <Text style={styles.btnTxt}>Annulla</Text>
           </Pressable>
-          <Pressable onPress={confirm} disabled={busy} style={[styles.btn, { backgroundColor: "#0F9D58", opacity: busy ? 0.6 : 1 }]} testID="crop-confirm">
+          <Pressable onPress={confirm} disabled={busy} style={[styles.btn, { backgroundColor: '#0F9D58', opacity: busy ? 0.6 : 1 }]} testID="crop-confirm">
             {busy ? <ActivityIndicator color="#FFF" /> : (<><Ionicons name="crop" size={18} color="#FFF" /><Text style={styles.btnTxt}>Applica ritaglio</Text></>)}
           </Pressable>
         </View>
@@ -167,14 +168,14 @@ export function ManualCropEditor({ visible, imageBase64, onCancel, onDone, enhan
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#000" },
+  root: { flex: 1, backgroundColor: '#000' },
   hdr: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 8, paddingVertical: 6 },
   hdrBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   title: { color: "#FFF", fontSize: 16, fontWeight: "900" },
   hint: { color: "#CBD5E1", fontSize: 12, textAlign: "center", paddingHorizontal: 16, marginBottom: 6 },
-  stage: { flex: 1, marginHorizontal: 12, backgroundColor: "#111", borderRadius: 10, overflow: "hidden" },
+  stage: { flex: 1, marginHorizontal: 12, backgroundColor: '#111', borderRadius: 10, overflow: "hidden" },
   handle: { position: "absolute", width: HANDLE, height: HANDLE, borderRadius: HANDLE / 2, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,107,53,0.25)" },
-  handleDot: { width: 18, height: 18, borderRadius: 9, backgroundColor: "#FF6B35", borderWidth: 3, borderColor: "#FFF" },
+  handleDot: { width: 18, height: 18, borderRadius: 9, backgroundColor: '#FF6B35', borderWidth: 3, borderColor: HT.card },
   actions: { flexDirection: "row", gap: 10, padding: 14 },
   btn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 999, minHeight: 48 },
   btnTxt: { color: "#FFF", fontSize: 15, fontWeight: "900" },

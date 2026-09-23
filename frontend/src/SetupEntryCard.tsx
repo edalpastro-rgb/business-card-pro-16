@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import { api } from "@/src/api";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const PURPLE = "#7C3AED";
 type S = { status: "not_started" | "deferred" | "in_progress" | "completed"; mode: "setup" | "full" | null; current_step: number; steps: Record<string, { done: boolean; skipped: boolean }> };
@@ -21,20 +22,20 @@ export function SetupEntryCard() {
 
   return (
     <Pressable onPress={() => router.push((ok ? "/setup-config" : "/setup") as any)} style={[styles.card, !ok && s && styles.cardTodo]} testID="setup-entry-card">
-      <View style={[styles.icon, ok && { backgroundColor: "#ECFDF5" }]}><Ionicons name={ok ? "checkmark-done" : "rocket"} size={20} color={ok ? "#059669" : PURPLE} /></View>
+      <View style={[styles.icon, ok && { backgroundColor: HT.successTint }]}><Ionicons name={ok ? "checkmark-done" : "rocket"} size={20} color={ok ? "#059669" : PURPLE} /></View>
       <View style={{ flex: 1 }}>
         <Text style={styles.label}>{label}</Text>
         <Text style={styles.sub}>{sub}</Text>
       </View>
-      <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+      <Ionicons name="chevron-forward" size={18} color={HT.muted} />
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#FFF", borderRadius: 14, borderWidth: 1, borderColor: "#EDE9FE", padding: 12, minHeight: 64 },
-  cardTodo: { borderColor: "#C4B5FD", backgroundColor: "#FAF5FF" },
-  icon: { width: 40, height: 40, borderRadius: 14, backgroundColor: "#F5F3FF", alignItems: "center", justifyContent: "center" },
-  label: { fontSize: 15, fontWeight: "800", color: "#1B2B4B" },
-  sub: { fontSize: 12, color: "#64748B", marginTop: 2, lineHeight: 16 },
+  card: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: HT.card, borderRadius: 14, borderWidth: 1, borderColor: HT.violetTint, padding: 12, minHeight: 64 },
+  cardTodo: { borderColor: '#C4B5FD', backgroundColor: '#FAF5FF' },
+  icon: { width: 40, height: 40, borderRadius: 14, backgroundColor: HT.violetTint, alignItems: "center", justifyContent: "center" },
+  label: { fontSize: 15, fontWeight: "800", color: HT.text },
+  sub: { fontSize: 12, color: HT.muted, marginTop: 2, lineHeight: 16 },
 });

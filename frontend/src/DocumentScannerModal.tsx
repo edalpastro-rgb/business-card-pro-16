@@ -4,13 +4,13 @@ import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { LiveCameraScanner, type LiveScannedPage } from "@/src/LiveCameraScanner";
 import { isNativeScannerAvailable, scanWithNativeScanner } from "@/src/NativeDocScanner"; // V50.z246 — scanner di sistema (VisionKit / ML Kit)
 import { ManualCropEditor } from "@/src/ManualCropEditor";
 
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 /**
  * V27 — Document Scanner (multi-page + auto-crop + PDF merge).
  *
@@ -303,35 +303,35 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
               {!hintTitle && <Text style={styles.sub}>Acquisisci più pagine, riordinale e crea un PDF.</Text>}
             </View>
             <Pressable onPress={onClose} hitSlop={10} testID="scanner-close">
-              <Ionicons name="close" size={22} color={theme.color.onSurface} />
+              <Ionicons name="close" size={22} color={HT.text} />
             </Pressable>
           </View>
 
           {/* Sources */}
           <View style={styles.sourceRow}>
             <Pressable onPress={() => (nativeScanner ? void openNativeScanner("multi") : setLiveScanOpen("multi"))} style={styles.sourceBtn} testID="scanner-live" disabled={nativeBusy}>
-              <View style={[styles.sourceIcon, { backgroundColor: "#DC2626" }]}>
+              <View style={[styles.sourceIcon, { backgroundColor: '#DC2626' }]}>
                 {nativeBusy ? <ActivityIndicator color="#FFF" size="small" /> : <Ionicons name="scan" size={20} color="#FFF" />}
               </View>
               <Text style={styles.sourceTxt}>{nativeScanner ? "Scanner" : "Scan continuo"}</Text>
             </Pressable>
             <Pressable onPress={addFromCamera} style={styles.sourceBtn} testID="scanner-camera">
-              <View style={[styles.sourceIcon, { backgroundColor: "#FF6B35" }]}><Ionicons name="camera" size={20} color="#FFF" /></View>
+              <View style={[styles.sourceIcon, { backgroundColor: '#FF6B35' }]}><Ionicons name="camera" size={20} color="#FFF" /></View>
               <Text style={styles.sourceTxt}>Foto singola</Text>
             </Pressable>
             <Pressable onPress={addFromGallery} style={styles.sourceBtn} testID="scanner-gallery">
-              <View style={[styles.sourceIcon, { backgroundColor: "#0891B2" }]}><Ionicons name="images" size={20} color="#FFF" /></View>
+              <View style={[styles.sourceIcon, { backgroundColor: '#0891B2' }]}><Ionicons name="images" size={20} color="#FFF" /></View>
               <Text style={styles.sourceTxt}>Galleria</Text>
             </Pressable>
             <Pressable onPress={addFromPdf} style={styles.sourceBtn} testID="scanner-pdf">
-              <View style={[styles.sourceIcon, { backgroundColor: "#7C3AED" }]}><Ionicons name="document" size={20} color="#FFF" /></View>
+              <View style={[styles.sourceIcon, { backgroundColor: '#7C3AED' }]}><Ionicons name="document" size={20} color="#FFF" /></View>
               <Text style={styles.sourceTxt}>PDF / File</Text>
             </Pressable>
           </View>
 
           {nativeScanner ? (
             <View style={styles.nativeBadge} testID="scanner-native-badge">
-              <Ionicons name="flash" size={12} color="#15803D" />
+              <Ionicons name="flash" size={12} color={HT.success} />
               <Text style={styles.nativeBadgeTxt}>Scanner di sistema: bordi in tempo reale, ritaglio e raddrizzamento automatici · OCR locale</Text>
             </View>
           ) : null}
@@ -346,7 +346,7 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
           <ScrollView style={{ maxHeight: keyboardOpen ? 120 : 300 }} contentContainerStyle={{ padding: 12, gap: 8 }} keyboardShouldPersistTaps="handled">
             {pages.length === 0 ? (
               <View style={styles.empty}>
-                <Ionicons name="scan" size={36} color={theme.color.muted} />
+                <Ionicons name="scan" size={36} color={HT.muted} />
                 <Text style={styles.emptyTxt}>Nessuna pagina · usa Fotocamera / Galleria / PDF</Text>
               </View>
             ) : pages.map((p, i) => (
@@ -368,8 +368,8 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
                 {p.mime.startsWith("image/") && (
                   <Pressable onPress={() => setCropIdx(i)} style={styles.iconBtn} testID={`scanner-page-crop-${i}`}><Ionicons name="crop" size={17} color="#FF6B35" /></Pressable>
                 )}
-                <Pressable onPress={() => moveUp(i)} disabled={i === 0} style={[styles.iconBtn, i === 0 && { opacity: 0.3 }]}><Ionicons name="chevron-up" size={18} color={theme.color.onSurface} /></Pressable>
-                <Pressable onPress={() => moveDown(i)} disabled={i === pages.length - 1} style={[styles.iconBtn, i === pages.length - 1 && { opacity: 0.3 }]}><Ionicons name="chevron-down" size={18} color={theme.color.onSurface} /></Pressable>
+                <Pressable onPress={() => moveUp(i)} disabled={i === 0} style={[styles.iconBtn, i === 0 && { opacity: 0.3 }]}><Ionicons name="chevron-up" size={18} color={HT.text} /></Pressable>
+                <Pressable onPress={() => moveDown(i)} disabled={i === pages.length - 1} style={[styles.iconBtn, i === pages.length - 1 && { opacity: 0.3 }]}><Ionicons name="chevron-down" size={18} color={HT.text} /></Pressable>
                 <Pressable onPress={() => removePage(i)} style={styles.iconBtn} testID={`scanner-page-remove-${i}`}><Ionicons name="trash-outline" size={17} color="#DC2626" /></Pressable>
               </View>
             ))}
@@ -383,7 +383,7 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
               value={name}
               onChangeText={setName}
               placeholder="Es. Enel-Luce-Ottobre-2026"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={HT.muted}
               style={styles.input}
               returnKeyType="done"
               onSubmitEditing={() => Keyboard.dismiss()}
@@ -394,13 +394,13 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
 
           {/* Footer */}
           <View style={styles.footer}>
-            <Pressable onPress={onClose} style={[styles.btn, { backgroundColor: "#F1F5F9" }]}>
-              <Text style={{ color: theme.color.onSurface, fontWeight: "700" }}>Annulla</Text>
+            <Pressable onPress={onClose} style={[styles.btn, { backgroundColor: HT.card2 }]}>
+              <Text style={{ color: HT.text, fontWeight: "700" }}>Annulla</Text>
             </Pressable>
             <Pressable
               onPress={doSave}
               disabled={busy || pages.length === 0}
-              style={[styles.btn, { backgroundColor: pages.length && !busy ? "#FF6B35" : "#94A3B8", flex: 2 }]}
+              style={[styles.btn, { backgroundColor: pages.length && !busy ? "#FF6B35" : HT.muted, flex: 2 }]}
               testID="scanner-save"
             >
               {busy ? (
@@ -454,8 +454,8 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
 
 function ToggleChip({ label, active, onToggle, testID }: { label: string; active: boolean; onToggle: () => void; testID?: string }) {
   return (
-    <Pressable onPress={onToggle} testID={testID} style={[styles.tgChip, active && { backgroundColor: "#FF6B35", borderColor: "#FF6B35" }]}>
-      <Ionicons name={active ? "checkmark-circle" : "ellipse-outline"} size={14} color={active ? "#FFF" : theme.color.muted} />
+    <Pressable onPress={onToggle} testID={testID} style={[styles.tgChip, active && { backgroundColor: '#FF6B35', borderColor: '#FF6B35' }]}>
+      <Ionicons name={active ? "checkmark-circle" : "ellipse-outline"} size={14} color={active ? "#FFF" : HT.muted} />
       <Text style={[styles.tgChipTxt, active && { color: "#FFF" }]}>{label}</Text>
     </Pressable>
   );
@@ -476,35 +476,35 @@ export function suggestBillScanName(billType?: "luce" | "gas" | "telco" | string
 }
 
 const styles = StyleSheet.create({
-  nativeBadge: { flexDirection: "row", alignItems: "center", gap: 6, marginHorizontal: 12, marginTop: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, backgroundColor: "#DCFCE7" },
-  nativeBadgeTxt: { flex: 1, fontSize: 11, fontWeight: "700", color: "#15803D" },
+  nativeBadge: { flexDirection: "row", alignItems: "center", gap: 6, marginHorizontal: 12, marginTop: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, backgroundColor: HT.successTint },
+  nativeBadgeTxt: { flex: 1, fontSize: 11, fontWeight: "700", color: HT.success },
 
   back: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
-  card: { backgroundColor: "#FFF", borderTopLeftRadius: 22, borderTopRightRadius: 22, maxHeight: "94%", overflow: "hidden" },
-  hdr: { flexDirection: "row", alignItems: "flex-start", padding: 16, borderBottomWidth: 1, borderBottomColor: theme.color.border },
-  title: { fontSize: 17, fontWeight: "800", color: "#1B2B4B" },
-  sub: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
-  sourceRow: { flexDirection: "row", gap: 8, padding: 12, borderBottomWidth: 1, borderBottomColor: theme.color.border },
-  sourceBtn: { flex: 1, alignItems: "center", gap: 6, paddingVertical: 10, backgroundColor: "#F8FAFC", borderRadius: 12, borderWidth: 1, borderColor: theme.color.border },
+  card: { backgroundColor: HT.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, maxHeight: "94%", overflow: "hidden" },
+  hdr: { flexDirection: "row", alignItems: "flex-start", padding: 16, borderBottomWidth: 1, borderBottomColor: HT.border },
+  title: { fontSize: 17, fontWeight: "800", color: HT.text },
+  sub: { fontSize: 12, color: HT.muted, marginTop: 2 },
+  sourceRow: { flexDirection: "row", gap: 8, padding: 12, borderBottomWidth: 1, borderBottomColor: HT.border },
+  sourceBtn: { flex: 1, alignItems: "center", gap: 6, paddingVertical: 10, backgroundColor: HT.card2, borderRadius: 12, borderWidth: 1, borderColor: HT.border },
   sourceIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  sourceTxt: { fontSize: 11, fontWeight: "700", color: "#1B2B4B" },
+  sourceTxt: { fontSize: 11, fontWeight: "700", color: HT.text },
   togglesRow: { flexDirection: "row", gap: 6, paddingHorizontal: 12, paddingTop: 12, flexWrap: "wrap" },
-  tgChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: "#FFF", borderWidth: 1.5, borderColor: theme.color.border },
-  tgChipTxt: { fontSize: 12, fontWeight: "700", color: theme.color.onSurface },
+  tgChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: HT.card, borderWidth: 1.5, borderColor: HT.border },
+  tgChipTxt: { fontSize: 12, fontWeight: "700", color: HT.text },
   empty: { alignItems: "center", padding: 30, gap: 8 },
-  emptyTxt: { color: theme.color.muted, fontStyle: "italic", textAlign: "center" },
-  pageRow: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#F8FAFC", borderRadius: 12, padding: 8, borderWidth: 1, borderColor: theme.color.border },
-  pageBadge: { width: 24, height: 24, borderRadius: 12, backgroundColor: "#FF6B35", alignItems: "center", justifyContent: "center" },
+  emptyTxt: { color: HT.muted, fontStyle: "italic", textAlign: "center" },
+  pageRow: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: HT.card2, borderRadius: 12, padding: 8, borderWidth: 1, borderColor: HT.border },
+  pageBadge: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#FF6B35', alignItems: "center", justifyContent: "center" },
   pageBadgeTxt: { color: "#FFF", fontWeight: "800", fontSize: 12 },
-  thumb: { width: 48, height: 48, borderRadius: 8, backgroundColor: "#EEF0F4" },
-  thumbPdf: { alignItems: "center", justifyContent: "center", backgroundColor: "#FEE2E2" },
+  thumb: { width: 48, height: 48, borderRadius: 8, backgroundColor: HT.border },
+  thumbPdf: { alignItems: "center", justifyContent: "center", backgroundColor: HT.dangerTint },
   thumbPdfTxt: { fontSize: 9, color: "#DC2626", fontWeight: "800", marginTop: 2 },
-  pageMeta: { fontSize: 12, fontWeight: "700", color: theme.color.onSurface },
+  pageMeta: { fontSize: 12, fontWeight: "700", color: HT.text },
   iconBtn: { padding: 6 },
-  nameWrap: { padding: 12, borderTopWidth: 1, borderTopColor: theme.color.border },
-  lbl: { fontSize: 11, fontWeight: "800", color: theme.color.muted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 },
-  input: { backgroundColor: "#F1F5F9", borderRadius: 10, padding: 12, fontSize: 14, color: theme.color.onSurface },
-  hint: { fontSize: 10, color: theme.color.muted, fontStyle: "italic", marginTop: 4 },
-  footer: { flexDirection: "row", gap: 8, padding: 12, borderTopWidth: 1, borderTopColor: theme.color.border },
+  nameWrap: { padding: 12, borderTopWidth: 1, borderTopColor: HT.border },
+  lbl: { fontSize: 11, fontWeight: "800", color: HT.muted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 },
+  input: { backgroundColor: HT.card2, borderRadius: 10, padding: 12, fontSize: 14, color: HT.text },
+  hint: { fontSize: 10, color: HT.muted, fontStyle: "italic", marginTop: 4 },
+  footer: { flexDirection: "row", gap: 8, padding: 12, borderTopWidth: 1, borderTopColor: HT.border },
   btn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", padding: 12, borderRadius: 10 },
 });

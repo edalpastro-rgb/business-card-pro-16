@@ -31,6 +31,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const GD_GREEN = "#0F9D58";
 
@@ -131,7 +132,7 @@ export default function GoogleDrivePickerNative() {
           <Ionicons
             name={isSelected ? "checkbox" : "square-outline"}
             size={26}
-            color={isSelected ? GD_GREEN : "#94A3B8"}
+            color={isSelected ? GD_GREEN : HT.muted}
           />
         </Pressable>
         {/* Nome + tap = naviga dentro */}
@@ -147,7 +148,7 @@ export default function GoogleDrivePickerNative() {
               </Text>
             )}
           </View>
-          <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
+          <Ionicons name="chevron-forward" size={20} color={HT.muted} />
         </Pressable>
       </View>
     );
@@ -180,13 +181,13 @@ export default function GoogleDrivePickerNative() {
                 style={[styles.crumb, last && styles.crumbActive]}
               >
                 {i === 0 ? (
-                  <Ionicons name="home" size={14} color={last ? "#FFF" : "#94A3B8"} />
+                  <Ionicons name="home" size={14} color={last ? "#FFF" : HT.muted} />
                 ) : null}
                 <Text style={[styles.crumbTxt, last && styles.crumbTxtActive]} numberOfLines={1}>
                   {c.name}
                 </Text>
               </Pressable>
-              {!last && <Ionicons name="chevron-forward" size={14} color="#64748B" />}
+              {!last && <Ionicons name="chevron-forward" size={14} color={HT.muted} />}
             </React.Fragment>
           );
         })}
@@ -194,12 +195,12 @@ export default function GoogleDrivePickerNative() {
 
       {/* Search */}
       <View style={styles.searchBox}>
-        <Ionicons name="search" size={18} color="#94A3B8" />
+        <Ionicons name="search" size={18} color={HT.muted} />
         <TextInput
           value={query}
           onChangeText={onSearchChange}
           placeholder="Cerca cartelle in tutto il Drive…"
-          placeholderTextColor="#94A3B8"
+          placeholderTextColor={HT.muted}
           style={styles.searchInput}
           autoCorrect={false}
           autoCapitalize="none"
@@ -207,7 +208,7 @@ export default function GoogleDrivePickerNative() {
         />
         {query.length > 0 && (
           <Pressable onPress={() => onSearchChange("")} hitSlop={10}>
-            <Ionicons name="close-circle" size={18} color="#94A3B8" />
+            <Ionicons name="close-circle" size={18} color={HT.muted} />
           </Pressable>
         )}
       </View>
@@ -230,12 +231,12 @@ export default function GoogleDrivePickerNative() {
           </View>
         ) : folders.length === 0 ? (
           <View style={styles.center}>
-            <Ionicons name="folder-open-outline" size={40} color="#94A3B8" />
+            <Ionicons name="folder-open-outline" size={40} color={HT.muted} />
             <Text style={styles.centerTxt}>
               {query ? "Nessuna cartella trovata." : "Questa cartella non contiene sottocartelle."}
             </Text>
             {crumbs.length === 1 && (
-              <Text style={[styles.centerTxt, { fontSize: 11, color: "#64748B" }]}>
+              <Text style={[styles.centerTxt, { fontSize: 11, color: HT.muted }]}>
                 Suggerimento: se non vedi cartelle, verifica di aver dato accesso al Drive giusto in Impostazioni → Google Drive.
               </Text>
             )}
@@ -285,7 +286,7 @@ export default function GoogleDrivePickerNative() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#0F2438" },
+  root: { flex: 1, backgroundColor: '#0F2438' },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -298,7 +299,7 @@ const styles = StyleSheet.create({
   headerTitle: { color: "#FFF", fontSize: 16, fontWeight: "900" },
   crumbBar: {
     maxHeight: 44,
-    backgroundColor: "#0B1B2C",
+    backgroundColor: '#0B1B2C',
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255,255,255,0.06)",
   },
@@ -309,32 +310,32 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.06)",
   },
   crumbActive: { backgroundColor: GD_GREEN },
-  crumbTxt: { color: "#94A3B8", fontSize: 12, fontWeight: "700", maxWidth: 130 },
+  crumbTxt: { color: HT.muted, fontSize: 12, fontWeight: "700", maxWidth: 130 },
   crumbTxtActive: { color: "#FFF" },
   searchBox: {
     flexDirection: "row", alignItems: "center", gap: 8,
     marginHorizontal: 12, marginTop: 10, marginBottom: 6,
     paddingHorizontal: 12,
     height: 42, borderRadius: 12,
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
   },
-  searchInput: { flex: 1, fontSize: 14, color: "#0F172A" },
+  searchInput: { flex: 1, fontSize: 14, color: HT.text },
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 30, gap: 8 },
   centerTxt: { color: "rgba(255,255,255,0.75)", fontSize: 13, textAlign: "center" },
   row: {
     flexDirection: "row", alignItems: "center", gap: 6,
     paddingHorizontal: 12, paddingVertical: 12,
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
   },
-  rowSelected: { backgroundColor: "#ECFDF5" },
+  rowSelected: { backgroundColor: HT.successTint },
   checkBox: { padding: 4 },
   rowMain: {
     flex: 1, flexDirection: "row", alignItems: "center", gap: 10,
     paddingVertical: 4,
   },
-  rowName: { flex: 1, fontSize: 14, color: "#0F172A", fontWeight: "600" },
-  rowPath: { fontSize: 11, color: "#64748B", marginTop: 2 },
-  sep: { height: 1, backgroundColor: "#E2E8F0", marginLeft: 44 },
+  rowName: { flex: 1, fontSize: 14, color: HT.text, fontWeight: "600" },
+  rowPath: { fontSize: 11, color: HT.muted, marginTop: 2 },
+  sep: { height: 1, backgroundColor: HT.border, marginLeft: 44 },
   globalHint: {
     flexDirection: "row", alignItems: "center", gap: 6,
     paddingHorizontal: 14, paddingVertical: 6,

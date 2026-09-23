@@ -2,13 +2,13 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, Modal, Pressable, TextInput, ActivityIndicator, ScrollView, Image, Platform, NativeSyntheticEvent, TextInputChangeEventData } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 import { notify, confirmAsync } from "@/src/utils/notify";
 import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 import { pickAvatarBase64 } from "@/src/image-picker";
 import { useAuth } from "@/src/auth";
 
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 /**
  * v2.17 — Reusable "Configura intestazione" modal for Bill Analysis & CTE reports.
  * Wraps the 4 branding fields exposed by `PUT /api/auth/profile`:
@@ -65,7 +65,7 @@ const StableTextInput = React.forwardRef<StableInputHandle, {
       onChange={handleChange}
       onBlur={handleBlur}
       placeholder={placeholder}
-      placeholderTextColor="#94A3B8"
+      placeholderTextColor={HT.muted}
       style={style}
       maxLength={maxLength}
       multiline={multiline}
@@ -164,7 +164,7 @@ export function ReportHeaderConfigModal({ visible, onClose }: Props) {
               <Text style={styles.sub}>Appare in cima ai report fatture e CTE comparativa.</Text>
             </View>
             <Pressable onPress={onClose} hitSlop={8} testID="rhc-close">
-              <Ionicons name="close" size={22} color={theme.color.onSurface} />
+              <Ionicons name="close" size={22} color={HT.text} />
             </Pressable>
           </View>
 
@@ -175,8 +175,8 @@ export function ReportHeaderConfigModal({ visible, onClose }: Props) {
                 {logoUri ? (
                   <Image source={{ uri: logoUri }} style={styles.previewLogo} resizeMode="contain" />
                 ) : (
-                  <View style={[styles.previewLogo, { backgroundColor: "#EEF2FF", alignItems: "center", justifyContent: "center" }]}>
-                    <Ionicons name="business" size={18} color={theme.color.brandPrimary} />
+                  <View style={[styles.previewLogo, { backgroundColor: HT.violetTint, alignItems: "center", justifyContent: "center" }]}>
+                    <Ionicons name="business" size={18} color={HT.brand} />
                   </View>
                 )}
                 <View style={{ flex: 1 }}>
@@ -191,16 +191,16 @@ export function ReportHeaderConfigModal({ visible, onClose }: Props) {
             <View style={{ flexDirection: "row", gap: 8 }}>
               <Pressable testID="rhc-logo-pick" onPress={pickLogo} disabled={logoBusy} style={[styles.uploadBtn, { flex: 1 }]}>
                 {logoBusy ? (
-                  <ActivityIndicator color={theme.color.brandPrimary} />
+                  <ActivityIndicator color={HT.brand} />
                 ) : (
                   <>
-                    <Ionicons name="cloud-upload-outline" size={16} color={theme.color.brandPrimary} />
+                    <Ionicons name="cloud-upload-outline" size={16} color={HT.brand} />
                     <Text style={styles.uploadTxt}>{logoUri ? "Cambia logo" : "Carica logo"}</Text>
                   </>
                 )}
               </Pressable>
               {logoUri && (
-                <Pressable testID="rhc-logo-clear" onPress={clearLogo} style={[styles.uploadBtn, { flex: 0.6, borderColor: "#DC2626" }]}>
+                <Pressable testID="rhc-logo-clear" onPress={clearLogo} style={[styles.uploadBtn, { flex: 0.6, borderColor: '#DC2626' }]}>
                   <Ionicons name="trash-outline" size={16} color="#DC2626" />
                   <Text style={[styles.uploadTxt, { color: "#DC2626" }]}>Rimuovi</Text>
                 </Pressable>
@@ -247,14 +247,14 @@ export function ReportHeaderConfigModal({ visible, onClose }: Props) {
           </ScrollView>
 
           <View style={[styles.footer, { paddingBottom: 14 + safeBottom }]}>
-            <Pressable onPress={onClose} style={[styles.btn, { backgroundColor: "#F1F5F9" }]}>
-              <Text style={{ color: theme.color.onSurface, fontWeight: "700" }}>Annulla</Text>
+            <Pressable onPress={onClose} style={[styles.btn, { backgroundColor: HT.card2 }]}>
+              <Text style={{ color: HT.text, fontWeight: "700" }}>Annulla</Text>
             </Pressable>
             <Pressable
               testID="rhc-save"
               onPress={save}
               disabled={saving}
-              style={[styles.btn, { backgroundColor: theme.color.brandPrimary, flex: 2 }]}
+              style={[styles.btn, { backgroundColor: HT.brand, flex: 2 }]}
             >
               {saving ? (
                 <ActivityIndicator color="#FFF" />
@@ -274,23 +274,23 @@ export function ReportHeaderConfigModal({ visible, onClose }: Props) {
 
 const styles = StyleSheet.create({
   back: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
-  card: { backgroundColor: theme.color.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "94%" },
-  hdr: { flexDirection: "row", alignItems: "center", padding: 16, borderBottomWidth: 1, borderBottomColor: theme.color.border },
-  title: { fontSize: 17, fontWeight: "800", color: theme.color.onSurface },
-  sub: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
+  card: { backgroundColor: HT.card2, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "94%" },
+  hdr: { flexDirection: "row", alignItems: "center", padding: 16, borderBottomWidth: 1, borderBottomColor: HT.border },
+  title: { fontSize: 17, fontWeight: "800", color: HT.text },
+  sub: { fontSize: 12, color: HT.muted, marginTop: 2 },
   preview: {
-    backgroundColor: "#FFF", borderRadius: 12, padding: 12, borderWidth: 1, borderColor: theme.color.border,
-    marginBottom: 4, borderBottomWidth: 3, borderBottomColor: theme.color.brandPrimary,
+    backgroundColor: HT.card, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: HT.border,
+    marginBottom: 4, borderBottomWidth: 3, borderBottomColor: HT.brand,
   },
   previewLogo: { width: 44, height: 44, borderRadius: 8 },
   previewName: { fontSize: 15, fontWeight: "800", color: "#1E3A5F" },
-  previewSlogan: { fontSize: 11, color: theme.color.muted, marginTop: 2, fontStyle: "italic" },
-  previewContacts: { fontSize: 11, color: theme.color.muted, marginTop: 8, lineHeight: 15 },
-  lbl: { fontSize: 12, fontWeight: "700", color: theme.color.muted, textTransform: "uppercase", letterSpacing: 0.4, marginTop: 14, marginBottom: 6 },
-  input: { backgroundColor: "#F1F5F9", borderRadius: 8, paddingHorizontal: 10, paddingVertical: Platform.OS === "ios" ? 10 : 8, fontSize: 13, color: theme.color.onSurface },
-  hint: { fontSize: 11, color: theme.color.muted, marginTop: 4, fontStyle: "italic" },
-  uploadBtn: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 8, borderWidth: 2, borderStyle: "dashed", borderColor: theme.color.brandPrimary, borderRadius: 10, padding: 10 },
-  uploadTxt: { fontWeight: "700", fontSize: 12, color: theme.color.brandPrimary },
-  footer: { flexDirection: "row", gap: 8, padding: 12, borderTopWidth: 1, borderTopColor: theme.color.border },
+  previewSlogan: { fontSize: 11, color: HT.muted, marginTop: 2, fontStyle: "italic" },
+  previewContacts: { fontSize: 11, color: HT.muted, marginTop: 8, lineHeight: 15 },
+  lbl: { fontSize: 12, fontWeight: "700", color: HT.muted, textTransform: "uppercase", letterSpacing: 0.4, marginTop: 14, marginBottom: 6 },
+  input: { backgroundColor: HT.card2, borderRadius: 8, paddingHorizontal: 10, paddingVertical: Platform.OS === "ios" ? 10 : 8, fontSize: 13, color: HT.text },
+  hint: { fontSize: 11, color: HT.muted, marginTop: 4, fontStyle: "italic" },
+  uploadBtn: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 8, borderWidth: 2, borderStyle: "dashed", borderColor: HT.brand, borderRadius: 10, padding: 10 },
+  uploadTxt: { fontWeight: "700", fontSize: 12, color: HT.brand },
+  footer: { flexDirection: "row", gap: 8, padding: 12, borderTopWidth: 1, borderTopColor: HT.border },
   btn: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: "center", justifyContent: "center", flexDirection: "row" },
 });

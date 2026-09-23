@@ -9,6 +9,7 @@
  *  - Salva (PUT /libretto/content) / Reset al default
  */
 import React, { useEffect, useState } from "react";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 import {
   View, Text, StyleSheet, ScrollView, Pressable, TextInput, Image,
   ActivityIndicator, Alert, Modal, KeyboardAvoidingView, Platform,
@@ -28,9 +29,9 @@ import {
 } from "@/src/libretto/libretto-content";
 
 const COLORS_PRESET = [
-  "#1C4869", "#0F766E", "#4C1D95", "#EA580C", "#1D4ED8", "#16A34A",
-  "#DB2777", "#0891B2", "#7C3AED", "#B91C1C", "#0F9D58", "#F59E0B",
-  "#1E40AF", "#A21CAF", "#0EA5E9", "#475569", "#CA8A04", "#64748B",
+  "#1C4869", "#0F766E", HT.violet, "#EA580C", HT.axon, "#16A34A",
+  "#DB2777", "#0891B2", "#7C3AED", HT.danger, "#0F9D58", "#F59E0B",
+  HT.axon, "#A21CAF", "#0EA5E9", HT.text2, "#CA8A04", HT.muted,
 ];
 
 const EMOJI_PRESET = [
@@ -184,7 +185,7 @@ export default function LibrettoEditorScreen() {
         </Pressable>
         <Text style={styles.hTitle}>Editor Libretto</Text>
         <Pressable onPress={resetDefault} hitSlop={10} style={styles.hBtn} testID="reset-libretto-btn">
-          <Ionicons name="refresh" size={20} color="#94A3B8" />
+          <Ionicons name="refresh" size={20} color={HT.muted} />
         </Pressable>
       </View>
 
@@ -197,7 +198,7 @@ export default function LibrettoEditorScreen() {
             <Text style={styles.metaSub}>{meta.subtitle}</Text>
             <Text style={styles.metaVer}>{meta.version}</Text>
           </View>
-          <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
+          <Ionicons name="chevron-forward" size={20} color={HT.muted} />
         </Pressable>
 
         <Text style={styles.groupTitle}>{sections.length} Sezioni</Text>
@@ -218,15 +219,15 @@ export default function LibrettoEditorScreen() {
               </View>
               <View style={styles.rowActions}>
                 <Pressable onPress={() => move(i, -1)} disabled={i === 0} style={[styles.miniBtn, i === 0 && { opacity: 0.3 }]}>
-                  <Ionicons name="chevron-up" size={16} color="#0F172A" />
+                  <Ionicons name="chevron-up" size={16} color={HT.text} />
                 </Pressable>
                 <Pressable onPress={() => move(i, 1)} disabled={i === sections.length - 1} style={[styles.miniBtn, i === sections.length - 1 && { opacity: 0.3 }]}>
-                  <Ionicons name="chevron-down" size={16} color="#0F172A" />
+                  <Ionicons name="chevron-down" size={16} color={HT.text} />
                 </Pressable>
-                <Pressable onPress={() => setEditIdx(i)} style={[styles.miniBtn, { backgroundColor: "#FBBF24" }]}>
-                  <Ionicons name="create-outline" size={16} color="#0F172A" />
+                <Pressable onPress={() => setEditIdx(i)} style={[styles.miniBtn, { backgroundColor: '#FBBF24' }]}>
+                  <Ionicons name="create-outline" size={16} color={HT.text} />
                 </Pressable>
-                <Pressable onPress={() => removeSection(i)} style={[styles.miniBtn, { backgroundColor: "#FEE2E2" }]}>
+                <Pressable onPress={() => removeSection(i)} style={[styles.miniBtn, { backgroundColor: HT.dangerTint }]}>
                   <Ionicons name="trash" size={16} color="#DC2626" />
                 </Pressable>
               </View>
@@ -248,9 +249,9 @@ export default function LibrettoEditorScreen() {
           testID="libretto-save-btn"
           style={[styles.saveBtn, saving && { opacity: 0.6 }]}
         >
-          {saving ? <ActivityIndicator color="#0F172A" /> : (
+          {saving ? <ActivityIndicator color={HT.text} /> : (
             <>
-              <Ionicons name="save" size={18} color="#0F172A" />
+              <Ionicons name="save" size={18} color={HT.text} />
               <Text style={styles.saveBtnTxt}>Salva libretto</Text>
             </>
           )}
@@ -412,13 +413,13 @@ function SectionEditor({ section, onChange, onClose }: {
                 </Pressable>
               </View>
             ) : (
-              <View style={styles.imgEmpty}><Ionicons name="image-outline" size={30} color="#94A3B8" /><Text style={styles.imgEmptyTxt}>Nessuna immagine</Text></View>
+              <View style={styles.imgEmpty}><Ionicons name="image-outline" size={30} color={HT.muted} /><Text style={styles.imgEmptyTxt}>Nessuna immagine</Text></View>
             )}
             <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
               <Pressable onPress={pickImage} disabled={uploading} style={styles.ctaBtn}>
-                {uploading ? <ActivityIndicator color="#0F172A" /> : (
+                {uploading ? <ActivityIndicator color={HT.text} /> : (
                   <>
-                    <Ionicons name="cloud-upload" size={16} color="#0F172A" />
+                    <Ionicons name="cloud-upload" size={16} color={HT.text} />
                     <Text style={styles.ctaBtnTxt}>Carica foto</Text>
                   </>
                 )}
@@ -452,7 +453,7 @@ function SectionEditor({ section, onChange, onClose }: {
                   multiline
                   style={styles.paraInput}
                   placeholder="Testo del paragrafo…"
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={HT.muted}
                 />
                 <Pressable onPress={() => removeParagraph(i)} style={styles.paraRemove}>
                   <Ionicons name="trash" size={16} color="#DC2626" />
@@ -460,7 +461,7 @@ function SectionEditor({ section, onChange, onClose }: {
               </View>
             ))}
             <Pressable onPress={addParagraph} style={styles.smallAddBtn}>
-              <Ionicons name="add" size={16} color="#0F172A" />
+              <Ionicons name="add" size={16} color={HT.text} />
               <Text style={styles.smallAddTxt}>Aggiungi paragrafo</Text>
             </Pressable>
 
@@ -479,7 +480,7 @@ function SectionEditor({ section, onChange, onClose }: {
                   onChangeText={(v) => updateTip(i, { text: v })}
                   style={styles.tipTxtInput}
                   placeholder="Suggerimento…"
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={HT.muted}
                 />
                 <Pressable onPress={() => removeTip(i)} style={styles.paraRemove}>
                   <Ionicons name="trash" size={16} color="#DC2626" />
@@ -487,7 +488,7 @@ function SectionEditor({ section, onChange, onClose }: {
               </View>
             ))}
             <Pressable onPress={addTip} style={styles.smallAddBtn}>
-              <Ionicons name="add" size={16} color="#0F172A" />
+              <Ionicons name="add" size={16} color={HT.text} />
               <Text style={styles.smallAddTxt}>Aggiungi tip</Text>
             </Pressable>
 
@@ -505,7 +506,7 @@ function SectionEditor({ section, onChange, onClose }: {
               "Salva libretto" nel main editor. */}
           <View style={styles.sectionEditorSticky}>
             <Pressable onPress={onClose} style={styles.sectionEditorSaveBtn} testID="section-editor-save">
-              <Ionicons name="save" size={18} color="#0F172A" />
+              <Ionicons name="save" size={18} color={HT.text} />
               <Text style={styles.sectionEditorSaveTxt}>Salva sezione</Text>
             </Pressable>
           </View>
@@ -527,14 +528,14 @@ function Field({ label, value, onChange, multiline }: {
         onChangeText={onChange}
         multiline={multiline}
         style={[styles.textInput, multiline && { minHeight: 68, textAlignVertical: "top" }]}
-        placeholderTextColor="#94A3B8"
+        placeholderTextColor={HT.muted}
       />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#0F2438" },
+  root: { flex: 1, backgroundColor: '#0F2438' },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10 },
   loadingTxt: { color: "#FFF" },
   headerBar: {
@@ -548,27 +549,27 @@ const styles = StyleSheet.create({
   // META card
   metaCard: {
     flexDirection: "row", alignItems: "center",
-    backgroundColor: "#FBBF24", padding: 12, borderRadius: 12, marginBottom: 12, gap: 6,
+    backgroundColor: '#FBBF24', padding: 12, borderRadius: 12, marginBottom: 12, gap: 6,
   },
-  metaLabel: { color: "#78350F", fontSize: 11, fontWeight: "700", letterSpacing: 0.8, textTransform: "uppercase" },
-  metaTitle: { color: "#0F172A", fontSize: 16, fontWeight: "900", marginTop: 2 },
-  metaSub: { color: "#334155", fontSize: 12, marginTop: 2 },
-  metaVer: { color: "#78350F", fontSize: 11, fontWeight: "700", marginTop: 3 },
+  metaLabel: { color: "#FDBA74", fontSize: 11, fontWeight: "700", letterSpacing: 0.8, textTransform: "uppercase" },
+  metaTitle: { color: HT.text, fontSize: 16, fontWeight: "900", marginTop: 2 },
+  metaSub: { color: HT.text2, fontSize: 12, marginTop: 2 },
+  metaVer: { color: "#FDBA74", fontSize: 11, fontWeight: "700", marginTop: 3 },
 
   groupTitle: { color: "rgba(255,255,255,0.9)", fontSize: 13, fontWeight: "800", marginTop: 8, marginBottom: 6, letterSpacing: 0.3, textTransform: "uppercase" },
 
   sectionRow: {
-    backgroundColor: "#FFF", borderRadius: 12, padding: 12, marginBottom: 8,
+    backgroundColor: HT.card, borderRadius: 12, padding: 12, marginBottom: 8,
     borderLeftWidth: 4,
   },
   rowEmoji: { fontSize: 28 },
-  rowTitle: { color: "#0F172A", fontWeight: "800", fontSize: 14 },
-  rowSub: { color: "#64748B", fontSize: 12, marginTop: 2 },
-  rowThumb: { width: 40, height: 40, borderRadius: 6, backgroundColor: "#E2E8F0" },
+  rowTitle: { color: HT.text, fontWeight: "800", fontSize: 14 },
+  rowSub: { color: HT.muted, fontSize: 12, marginTop: 2 },
+  rowThumb: { width: 40, height: 40, borderRadius: 6, backgroundColor: HT.border },
   rowActions: { flexDirection: "row", gap: 6, marginTop: 8, justifyContent: "flex-end" },
   miniBtn: {
     width: 34, height: 30, alignItems: "center", justifyContent: "center",
-    borderRadius: 6, backgroundColor: "#E2E8F0",
+    borderRadius: 6, backgroundColor: HT.border,
   },
 
   addBtn: {
@@ -587,16 +588,16 @@ const styles = StyleSheet.create({
   },
   saveBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    backgroundColor: "#FBBF24", paddingVertical: 14, borderRadius: 999,
+    backgroundColor: '#FBBF24', paddingVertical: 14, borderRadius: 999,
   },
-  saveBtnTxt: { color: "#0F172A", fontWeight: "900", fontSize: 15 },
+  saveBtnTxt: { color: HT.text, fontWeight: "900", fontSize: 15 },
 
   // Field / Input styles
   fieldLabel: { color: "rgba(255,255,255,0.85)", fontSize: 12, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 4 },
   fieldLabelSm: { color: "rgba(255,255,255,0.6)", fontSize: 11, marginTop: 4 },
   textInput: {
-    backgroundColor: "#FFF", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
-    color: "#0F172A", fontSize: 14,
+    backgroundColor: HT.card, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
+    color: HT.text, fontSize: 14,
   },
 
   gridRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
@@ -605,26 +606,26 @@ const styles = StyleSheet.create({
     borderRadius: 8, backgroundColor: "rgba(255,255,255,0.08)",
     borderWidth: 1, borderColor: "transparent",
   },
-  emojiPillActive: { borderColor: "#FBBF24", backgroundColor: "rgba(251,191,36,0.15)" },
+  emojiPillActive: { borderColor: '#FBBF24', backgroundColor: "rgba(251,191,36,0.15)" },
   emojiTxt: { fontSize: 22 },
 
   colorSwatch: { width: 32, height: 32, borderRadius: 16, borderWidth: 2, borderColor: "transparent" },
-  colorSwatchActive: { borderColor: "#FFF" },
+  colorSwatchActive: { borderColor: HT.card },
 
   keyPill: {
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999,
     backgroundColor: "rgba(255,255,255,0.08)",
     borderWidth: 1, borderColor: "transparent",
   },
-  keyPillActive: { borderColor: "#FBBF24", backgroundColor: "rgba(251,191,36,0.15)" },
+  keyPillActive: { borderColor: '#FBBF24', backgroundColor: "rgba(251,191,36,0.15)" },
   keyTxt: { color: "#FFF", fontSize: 12, fontWeight: "700" },
 
   imgPreviewWrap: {
-    backgroundColor: "#FFF", borderRadius: 10, padding: 8, position: "relative",
+    backgroundColor: HT.card, borderRadius: 10, padding: 8, position: "relative",
     alignItems: "center",
   },
   imgPreview: { width: "100%", height: 180 },
-  imgClearBtn: { position: "absolute", top: 6, right: 6, backgroundColor: "#FFF", borderRadius: 12 },
+  imgClearBtn: { position: "absolute", top: 6, right: 6, backgroundColor: HT.card, borderRadius: 12 },
 
   imgEmpty: {
     backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 10,
@@ -635,27 +636,27 @@ const styles = StyleSheet.create({
 
   ctaBtn: {
     flexDirection: "row", alignItems: "center", gap: 6,
-    backgroundColor: "#FBBF24", paddingHorizontal: 12, paddingVertical: 10, borderRadius: 999,
+    backgroundColor: '#FBBF24', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 999,
   },
-  ctaBtnTxt: { color: "#0F172A", fontWeight: "800", fontSize: 13 },
+  ctaBtnTxt: { color: HT.text, fontWeight: "800", fontSize: 13 },
 
   paraRow: { flexDirection: "row", gap: 6, alignItems: "flex-start" },
   paraInput: {
-    flex: 1, backgroundColor: "#FFF", borderRadius: 10, padding: 10,
-    color: "#0F172A", fontSize: 13, minHeight: 60, textAlignVertical: "top",
+    flex: 1, backgroundColor: HT.card, borderRadius: 10, padding: 10,
+    color: HT.text, fontSize: 13, minHeight: 60, textAlignVertical: "top",
   },
   paraRemove: {
     width: 34, height: 34, alignItems: "center", justifyContent: "center",
-    borderRadius: 8, backgroundColor: "#FEE2E2",
+    borderRadius: 8, backgroundColor: HT.dangerTint,
   },
 
   tipRow: { flexDirection: "row", gap: 6, alignItems: "center" },
   tipEmojiInput: {
-    width: 50, backgroundColor: "#FFF", borderRadius: 8, textAlign: "center",
-    paddingVertical: 8, fontSize: 20, color: "#0F172A",
+    width: 50, backgroundColor: HT.card, borderRadius: 8, textAlign: "center",
+    paddingVertical: 8, fontSize: 20, color: HT.text,
   },
   tipTxtInput: {
-    flex: 1, backgroundColor: "#FFF", borderRadius: 10, padding: 10, color: "#0F172A", fontSize: 13,
+    flex: 1, backgroundColor: HT.card, borderRadius: 10, padding: 10, color: HT.text, fontSize: 13,
   },
 
   smallAddBtn: {
@@ -673,9 +674,9 @@ const styles = StyleSheet.create({
   },
   sectionEditorSaveBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    backgroundColor: "#FBBF24", paddingVertical: 14, borderRadius: 999,
+    backgroundColor: '#FBBF24', paddingVertical: 14, borderRadius: 999,
     shadowColor: "#000", shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 3 },
     elevation: 4,
   },
-  sectionEditorSaveTxt: { color: "#0F172A", fontWeight: "900", fontSize: 15, letterSpacing: 0.2 },
+  sectionEditorSaveTxt: { color: HT.text, fontWeight: "900", fontSize: 15, letterSpacing: 0.2 },
 });

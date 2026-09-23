@@ -7,6 +7,7 @@ import * as DocumentPicker from "expo-document-picker";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 /**
  * V50.z66 — Import contatti da CSV/Excel con mappatura colonne.
@@ -112,7 +113,7 @@ export default function ContactsImportScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={10}>
-          <Ionicons name="chevron-back" size={24} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={24} color={HT.text} />
         </Pressable>
         <Text style={styles.title}>Importa Contatti</Text>
         <View style={{ width: 24 }} />
@@ -129,7 +130,7 @@ export default function ContactsImportScreen() {
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
         {step === "upload" && (
           <View style={{ gap: 16, alignItems: "center", padding: 20 }}>
-            <Ionicons name="cloud-upload" size={72} color={theme.color.brandPrimary} />
+            <Ionicons name="cloud-upload" size={72} color={HT.brand} />
             <Text style={styles.uploadTitle}>Carica un file CSV o Excel</Text>
             <Text style={styles.uploadSub}>
               Formati supportati: .csv, .xlsx, .xls · Max 5 MB, 500 righe
@@ -227,7 +228,7 @@ export default function ContactsImportScreen() {
 
         {step === "report" && report && (
           <View style={{ gap: 14 }}>
-            <View style={[styles.reportCard, { backgroundColor: "#DCFCE7", borderColor: "#16A34A" }]}>
+            <View style={[styles.reportCard, { backgroundColor: HT.successTint, borderColor: '#16A34A' }]}>
               <Ionicons name="checkmark-circle" size={32} color="#16A34A" />
               <Text style={styles.reportBig}>{report.imported}</Text>
               <Text style={styles.reportLbl}>Contatti importati su {report.total_rows}</Text>
@@ -245,7 +246,7 @@ export default function ContactsImportScreen() {
               </View>
             )}
             {report.errors.length > 0 && (
-              <View style={[styles.reportRow, { backgroundColor: "#FEF2F2", borderColor: "#FCA5A5" }]}>
+              <View style={[styles.reportRow, { backgroundColor: HT.dangerTint, borderColor: '#FCA5A5' }]}>
                 <Text style={[styles.reportRowLbl, { color: "#DC2626" }]}>Errori ({report.errors.length}):</Text>
                 {report.errors.slice(0, 20).map((e, i) => (
                   <Text key={i} style={styles.reportErr}>Riga {e.row}: {e.error}</Text>
@@ -268,44 +269,44 @@ export default function ContactsImportScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.color.background },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 14, borderBottomWidth: 1, borderBottomColor: theme.color.border },
-  title: { fontSize: 17, fontWeight: "800", color: theme.color.onSurface },
-  stepBar: { flexDirection: "row", gap: 8, padding: 12, backgroundColor: "#F8FAFC" },
-  stepPill: { flex: 1, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 8, backgroundColor: "#E2E8F0", alignItems: "center" },
-  stepPillActive: { backgroundColor: theme.color.brandPrimary },
-  stepTxt: { fontSize: 11, fontWeight: "700", color: theme.color.muted },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 14, borderBottomWidth: 1, borderBottomColor: HT.border },
+  title: { fontSize: 17, fontWeight: "800", color: HT.text },
+  stepBar: { flexDirection: "row", gap: 8, padding: 12, backgroundColor: HT.card2 },
+  stepPill: { flex: 1, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 8, backgroundColor: HT.border, alignItems: "center" },
+  stepPillActive: { backgroundColor: HT.brand },
+  stepTxt: { fontSize: 11, fontWeight: "700", color: HT.muted },
   stepTxtActive: { color: "#FFF" },
-  uploadTitle: { fontSize: 18, fontWeight: "800", color: theme.color.onSurface, marginTop: 12 },
-  uploadSub: { fontSize: 13, color: theme.color.muted, textAlign: "center" },
-  btnPrimary: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: theme.color.brandPrimary, paddingVertical: 14, paddingHorizontal: 20, borderRadius: 12, marginTop: 12 },
+  uploadTitle: { fontSize: 18, fontWeight: "800", color: HT.text, marginTop: 12 },
+  uploadSub: { fontSize: 13, color: HT.muted, textAlign: "center" },
+  btnPrimary: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: HT.brand, paddingVertical: 14, paddingHorizontal: 20, borderRadius: 12, marginTop: 12 },
   btnPrimaryTxt: { color: "#FFF", fontWeight: "800", fontSize: 15 },
   btnGhost: { alignItems: "center", padding: 12 },
-  btnGhostTxt: { color: theme.color.brandPrimary, fontWeight: "700" },
-  infoBox: { backgroundColor: "#EFF6FF", borderRadius: 12, borderWidth: 1, borderColor: "#93C5FD", padding: 12 },
-  infoTxt: { fontSize: 13, color: theme.color.onSurface, lineHeight: 18 },
-  mapRow: { backgroundColor: "#FFF", borderRadius: 12, borderWidth: 1, borderColor: theme.color.border, padding: 12 },
-  mapRowUnmapped: { borderColor: "#FBBF24", backgroundColor: "#FFFBEB" },
-  mapColName: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface, flex: 1 },
+  btnGhostTxt: { color: HT.brand, fontWeight: "700" },
+  infoBox: { backgroundColor: HT.axonTint, borderRadius: 12, borderWidth: 1, borderColor: '#93C5FD', padding: 12 },
+  infoTxt: { fontSize: 13, color: HT.text, lineHeight: 18 },
+  mapRow: { backgroundColor: HT.card, borderRadius: 12, borderWidth: 1, borderColor: HT.border, padding: 12 },
+  mapRowUnmapped: { borderColor: '#FBBF24', backgroundColor: HT.warningTint },
+  mapColName: { fontSize: 14, fontWeight: "800", color: HT.text, flex: 1 },
   mapWarn: { fontSize: 11, color: "#D97706", fontWeight: "700" },
   mapOk: { fontSize: 11, color: "#16A34A", fontWeight: "700" },
-  mapSample: { fontSize: 11, color: theme.color.muted, marginBottom: 8, fontStyle: "italic" },
+  mapSample: { fontSize: 11, color: HT.muted, marginBottom: 8, fontStyle: "italic" },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  chip: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: "#F1F5F9" },
-  chipActive: { backgroundColor: theme.color.brandPrimary },
-  chipIgnore: { backgroundColor: "#E5E7EB" },
-  chipCf: { backgroundColor: "#F5F3FF", borderWidth: 1, borderColor: "#DDD6FE", flexDirection: "row", alignItems: "center", gap: 4 },
-  chipCfActive: { backgroundColor: "#7C3AED", borderColor: "#7C3AED" },
-  chipTxt: { fontSize: 11, fontWeight: "700", color: theme.color.onSurface },
+  chip: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: HT.card2 },
+  chipActive: { backgroundColor: HT.brand },
+  chipIgnore: { backgroundColor: HT.border },
+  chipCf: { backgroundColor: HT.violetTint, borderWidth: 1, borderColor: HT.violet + '66', flexDirection: "row", alignItems: "center", gap: 4 },
+  chipCfActive: { backgroundColor: '#7C3AED', borderColor: '#7C3AED' },
+  chipTxt: { fontSize: 11, fontWeight: "700", color: HT.text },
   chipTxtActive: { color: "#FFF" },
-  customBox: { marginTop: 8, padding: 10, backgroundColor: "#F0F9FF", borderRadius: 8, borderWidth: 1, borderColor: "#7DD3FC" },
-  customLbl: { fontSize: 11, fontWeight: "700", color: "#0369A1" },
-  customVal: { fontSize: 13, fontWeight: "800", color: "#075985", marginTop: 2 },
-  customHint: { fontSize: 10, color: theme.color.muted, marginTop: 2, fontStyle: "italic" },
+  customBox: { marginTop: 8, padding: 10, backgroundColor: HT.axonTint, borderRadius: 8, borderWidth: 1, borderColor: '#7DD3FC' },
+  customLbl: { fontSize: 11, fontWeight: "700", color: HT.axon },
+  customVal: { fontSize: 13, fontWeight: "800", color: HT.axon, marginTop: 2 },
+  customHint: { fontSize: 10, color: HT.muted, marginTop: 2, fontStyle: "italic" },
   reportCard: { alignItems: "center", padding: 20, borderRadius: 14, borderWidth: 2, gap: 6 },
-  reportBig: { fontSize: 42, fontWeight: "900", color: "#166534" },
-  reportLbl: { fontSize: 13, color: "#166534", fontWeight: "700" },
-  reportRow: { backgroundColor: "#F8FAFC", borderRadius: 10, borderWidth: 1, borderColor: theme.color.border, padding: 12, gap: 4 },
-  reportRowLbl: { fontSize: 12, fontWeight: "800", color: theme.color.onSurface },
-  reportRowVal: { fontSize: 12, color: theme.color.muted },
+  reportBig: { fontSize: 42, fontWeight: "900", color: HT.success },
+  reportLbl: { fontSize: 13, color: HT.success, fontWeight: "700" },
+  reportRow: { backgroundColor: HT.card2, borderRadius: 10, borderWidth: 1, borderColor: HT.border, padding: 12, gap: 4 },
+  reportRowLbl: { fontSize: 12, fontWeight: "800", color: HT.text },
+  reportRowVal: { fontSize: 12, color: HT.muted },
   reportErr: { fontSize: 11, color: "#DC2626" },
 });

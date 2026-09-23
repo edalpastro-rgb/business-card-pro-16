@@ -2,7 +2,7 @@ import { View, Text, StyleSheet, Pressable, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { theme } from "@/src/theme";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 /**
  * V27 — Invita hub screen.
@@ -19,7 +19,7 @@ export default function InvitaHubScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={10} testID="invita-back">
-          <Ionicons name="chevron-back" size={26} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={26} color={HT.text} />
         </Pressable>
         <Text style={styles.title}>Invita Prospect o Collaboratore</Text>
         <View style={{ width: 26 }} />
@@ -33,9 +33,9 @@ export default function InvitaHubScreen() {
         <Pressable
           testID="hub-invite-prospect"
           onPress={() => router.push("/invita-pick?intent=prospect" as any)}
-          style={[styles.card, { borderColor: "#0891B2" }]}
+          style={[styles.card, { borderColor: '#0891B2' }]}
         >
-          <View style={[styles.iconBadge, { backgroundColor: "#0891B2" }]}>
+          <View style={[styles.iconBadge, { backgroundColor: '#0891B2' }]}>
             <Ionicons name="person-outline" size={26} color="#FFF" />
           </View>
           <View style={{ flex: 1 }}>
@@ -54,15 +54,15 @@ export default function InvitaHubScreen() {
               <Text style={styles.bulletTxt}>Trial personalizzabile (giorni + estensioni)</Text>
             </View>
           </View>
-          <Ionicons name="chevron-forward" size={22} color={theme.color.muted} />
+          <Ionicons name="chevron-forward" size={22} color={HT.muted} />
         </Pressable>
 
         <Pressable
           testID="hub-invite-collaborator"
           onPress={() => router.push("/invita-pick?intent=collaborator" as any)}
-          style={[styles.card, { borderColor: "#7C3AED" }]}
+          style={[styles.card, { borderColor: '#7C3AED' }]}
         >
-          <View style={[styles.iconBadge, { backgroundColor: "#7C3AED" }]}>
+          <View style={[styles.iconBadge, { backgroundColor: '#7C3AED' }]}>
             <Ionicons name="people" size={26} color="#FFF" />
           </View>
           <View style={{ flex: 1 }}>
@@ -81,7 +81,7 @@ export default function InvitaHubScreen() {
               <Text style={styles.bulletTxt}>Link + QR code condivisibili</Text>
             </View>
           </View>
-          <Ionicons name="chevron-forward" size={22} color={theme.color.muted} />
+          <Ionicons name="chevron-forward" size={22} color={HT.muted} />
         </Pressable>
       </ScrollView>
     </SafeAreaView>
@@ -89,20 +89,20 @@ export default function InvitaHubScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
+  root: { flex: 1, backgroundColor: HT.card2 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12 },
-  title: { fontSize: 17, fontWeight: "800", color: theme.color.onSurface, flex: 1, textAlign: "center" },
-  intro: { fontSize: 13, color: theme.color.onSurfaceTertiary, lineHeight: 19, marginBottom: 4 },
+  title: { fontSize: 17, fontWeight: "800", color: HT.text, flex: 1, textAlign: "center" },
+  intro: { fontSize: 13, color: HT.text2, lineHeight: 19, marginBottom: 4 },
   card: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 14,
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderRadius: 16,
     padding: 16,
     borderWidth: 2,
     ...({
-      shadowColor: "#0F172A",
+      shadowColor: HT.text,
       shadowOpacity: 0.05,
       shadowRadius: 12,
       shadowOffset: { width: 0, height: 4 },
@@ -110,8 +110,8 @@ const styles = StyleSheet.create({
     } as any),
   },
   iconBadge: { width: 52, height: 52, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  cardTitle: { fontSize: 17, fontWeight: "800", color: "#1B2B4B" },
-  cardSub: { fontSize: 12, color: theme.color.muted, marginTop: 2, marginBottom: 8 },
+  cardTitle: { fontSize: 17, fontWeight: "800", color: HT.text },
+  cardSub: { fontSize: 12, color: HT.muted, marginTop: 2, marginBottom: 8 },
   bulletRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 },
-  bulletTxt: { fontSize: 12, color: theme.color.onSurface, flex: 1 },
+  bulletTxt: { fontSize: 12, color: HT.text, flex: 1 },
 });

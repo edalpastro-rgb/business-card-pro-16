@@ -17,9 +17,10 @@ import { exportRoutePdf, estimateTimes } from "@/src/utils/routePdf";
 import { useAuth } from "@/src/auth";
 import { useNavChooser, joinAddr } from "@/src/NavChooser";
 import { KmEntry } from "@/src/utils/kmReportPdf";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const GIRO_KEY = "geo_giro_ids_v1";
-const ORANGE = "#FF6B35"; const NAVY = "#1B2B4B";
+const ORANGE = "#FF6B35"; const NAVY = HT.text;
 type GeoContact = { contact_id: string; name: string; company: string; status: string; phone: string; address: string; city: string; lat: number | null; lon: number | null };
 type Leg = GeoContact & { seq: number; leg_km: number; leg_min: number; cum_km: number; cum_min: number };
 type RouteRes = { route_id: string; origin: { lat: number; lon: number; label: string }; legs: Leg[]; return: { leg_km: number; leg_min: number } | null; skipped: GeoContact[]; total_km: number; drive_min: number; stop_min: number; total_min: number };
@@ -149,7 +150,7 @@ export default function OptimalRouteScreen() {
         {loading ? <ActivityIndicator color={ORANGE} style={{ marginTop: 40 }} /> : null}
 
         {!loading && step === 1 ? (<>
-          <View style={styles.search}><Ionicons name="search" size={16} color="#94A3B8" /><TextInput value={q} onChangeText={setQ} placeholder="Cerca per nome, azienda, città" placeholderTextColor="#94A3B8" style={styles.searchIn} testID="route-search" /></View>
+          <View style={styles.search}><Ionicons name="search" size={16} color={HT.muted} /><TextInput value={q} onChangeText={setQ} placeholder="Cerca per nome, azienda, città" placeholderTextColor={HT.muted} style={styles.searchIn} testID="route-search" /></View>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, alignItems: "center" }} testID="route-notsince-filter">
             <Text style={styles.meta}>Non visitati da:</Text>
             {[{ m: 0, l: "Tutti" }, { m: 1, l: "1 mese" }, { m: 2, l: "2 mesi" }, { m: 3, l: "3 mesi" }, { m: 4, l: "4 mesi+" }].map((f) => (
@@ -161,7 +162,7 @@ export default function OptimalRouteScreen() {
             const on = sel.includes(c.contact_id);
             return (
               <Pressable key={c.contact_id} onPress={() => toggle(c.contact_id)} style={[styles.row, on && styles.rowOn]} testID={`route-pick-${c.contact_id}`}>
-                <Ionicons name={on ? "checkbox" : "square-outline"} size={22} color={on ? ORANGE : "#94A3B8"} />
+                <Ionicons name={on ? "checkbox" : "square-outline"} size={22} color={on ? ORANGE : HT.muted} />
                 <View style={{ flex: 1 }}><Text style={styles.name} numberOfLines={1}>{c.name}{c.company ? ` · ${c.company}` : ""}</Text><Text style={styles.meta} numberOfLines={1}>📍 {c.address}{c.lat == null ? " · ⚠️ indirizzo non localizzato" : ""}</Text></View>
                 {(() => { const ms = monthsSince(c.contact_id); const due = notSince ? true : ms == null || ms >= 1; return due ? <View style={styles.dueDot} testID={`route-due-${c.contact_id}`}><Text style={styles.dueTxt}>{ms == null ? "mai" : `${Math.floor(ms)}m`}</Text></View> : null; })()}
               </Pressable>
@@ -173,12 +174,12 @@ export default function OptimalRouteScreen() {
           <Text style={styles.label}>Punto di partenza</Text>
           {[{ k: "gps", t: "Posizione attuale (GPS)", s: gps ? `${gps.lat.toFixed(4)}, ${gps.lon.toFixed(4)}` : "Rilevamento…" }, { k: "office", t: "Ufficio", s: office?.address || "Imposta l'indirizzo ufficio in Impostazioni" }, { k: "custom", t: "Indirizzo personalizzato", s: "Scrivi via, città" }].map((o) => (
             <Pressable key={o.k} onPress={() => (o.k === "office" && !office ? notify("Ufficio", "Indirizzo ufficio non impostato") : setDep(o.k as any))} style={[styles.row, dep === o.k && styles.rowOn]} testID={`route-dep-${o.k}`}>
-              <Ionicons name={dep === o.k ? "radio-button-on" : "radio-button-off"} size={22} color={dep === o.k ? ORANGE : "#94A3B8"} />
+              <Ionicons name={dep === o.k ? "radio-button-on" : "radio-button-off"} size={22} color={dep === o.k ? ORANGE : HT.muted} />
               <View style={{ flex: 1 }}><Text style={styles.name}>{o.t}</Text><Text style={styles.meta}>{o.s}</Text></View>
             </Pressable>
           ))}
-          {dep === "custom" ? <TextInput value={custom} onChangeText={setCustom} placeholder="Es. Via Giorgione 66, Asolo" placeholderTextColor="#94A3B8" style={styles.input} testID="route-custom-addr" /> : null}
-          <Pressable onPress={() => setBack((v) => !v)} style={styles.row} testID="route-return-toggle"><Ionicons name={back ? "checkbox" : "square-outline"} size={22} color={back ? ORANGE : "#94A3B8"} /><Text style={styles.name}>Ritorno al punto di partenza</Text></Pressable>
+          {dep === "custom" ? <TextInput value={custom} onChangeText={setCustom} placeholder="Es. Via Giorgione 66, Asolo" placeholderTextColor={HT.muted} style={styles.input} testID="route-custom-addr" /> : null}
+          <Pressable onPress={() => setBack((v) => !v)} style={styles.row} testID="route-return-toggle"><Ionicons name={back ? "checkbox" : "square-outline"} size={22} color={back ? ORANGE : HT.muted} /><Text style={styles.name}>Ritorno al punto di partenza</Text></Pressable>
           <Text style={styles.hint}>Tappe: {sel.map((id) => byId(id)?.name).filter(Boolean).join(" · ")}</Text>
         </>) : null}
 
@@ -189,7 +190,7 @@ export default function OptimalRouteScreen() {
             <Text style={styles.sumMeta}>Guida {fmtMin(res.drive_min)} + soste {fmtMin(res.stop_min)} (15 min a cliente) · stima su strada, senza traffico</Text>
             <View style={{ flexDirection: "row", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
               <Pressable onPress={() => navTo(res.legs[0])} style={styles.cta} testID="route-nav-first"><Ionicons name="navigate" size={16} color="#FFF" /><Text style={styles.ctaTxt}>Naviga tappa 1</Text></Pressable>
-              <Pressable onPress={doPdf} disabled={pdfBusy} style={[styles.cta, { backgroundColor: "#7C3AED" }, pdfBusy && { opacity: 0.6 }]} testID="route-export-pdf">{pdfBusy ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="document-text" size={16} color="#FFF" /><Text style={styles.ctaTxt}>Esporta PDF</Text></>}</Pressable>
+              <Pressable onPress={doPdf} disabled={pdfBusy} style={[styles.cta, { backgroundColor: '#7C3AED' }, pdfBusy && { opacity: 0.6 }]} testID="route-export-pdf">{pdfBusy ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="document-text" size={16} color="#FFF" /><Text style={styles.ctaTxt}>Esporta PDF</Text></>}</Pressable>
               <Pressable onPress={() => { setRes(null); setStep(1); }} style={[styles.cta, { backgroundColor: "rgba(255,255,255,0.18)" }]} testID="route-recalc"><Ionicons name="refresh" size={16} color="#FFF" /><Text style={styles.ctaTxt}>Ricalcola</Text></Pressable>
             </View>
           </View>
@@ -214,7 +215,7 @@ export default function OptimalRouteScreen() {
           </Pressable>
           {res.legs.map((l) => (
             <View key={l.contact_id} style={[styles.leg, kmDone[l.seq] && styles.legDone]} testID={`route-leg-${l.seq}`}>
-              <View style={[styles.seq, kmDone[l.seq] && { backgroundColor: "#16A34A" }]}><Text style={styles.seqTxt}>{kmDone[l.seq] ? "✓" : l.seq}</Text></View>
+              <View style={[styles.seq, kmDone[l.seq] && { backgroundColor: '#16A34A' }]}><Text style={styles.seqTxt}>{kmDone[l.seq] ? "✓" : l.seq}</Text></View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.name}>{l.name}{l.company ? ` · ${l.company}` : ""}</Text>
                 <Text style={styles.meta}>📍 {l.address}</Text>
@@ -234,7 +235,7 @@ export default function OptimalRouteScreen() {
           ))}
           {res.return ? (
             <View style={[styles.leg, kmDone[0] && styles.legDone]}>
-              <View style={[styles.seq, { backgroundColor: "#16A34A" }]}><Text style={styles.seqTxt}>🏁</Text></View>
+              <View style={[styles.seq, { backgroundColor: '#16A34A' }]}><Text style={styles.seqTxt}>🏁</Text></View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.name}>Ritorno a {res.origin.label}</Text>
                 <Text style={styles.legKm}>➜ +{res.return.leg_km} km · +{res.return.leg_min} min</Text>
@@ -265,35 +266,35 @@ export default function OptimalRouteScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F8FAFC" },
+  root: { flex: 1, backgroundColor: HT.card2 },
   header: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: NAVY },
   title: { color: "#FFF", fontWeight: "800", fontSize: 17 }, sub: { color: "#CBD5E1", fontSize: 11 },
   headBtn: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.15)" },
-  search: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF", borderRadius: 12, paddingHorizontal: 12, minHeight: 44, borderWidth: 1, borderColor: "#E2E8F0" }, searchIn: { flex: 1, fontSize: 14, color: NAVY },
-  count: { flex: 1, fontSize: 12, fontWeight: "800", color: "#475569" }, clear: { fontSize: 12, fontWeight: "800", color: "#DC2626" },
-  row: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#FFF", borderRadius: 12, padding: 12, borderWidth: 1, borderColor: "#E2E8F0", minHeight: 56 }, rowOn: { borderColor: ORANGE, backgroundColor: "#FFF7ED" },
-  name: { fontSize: 14, fontWeight: "800", color: NAVY }, meta: { fontSize: 12, color: "#64748B", marginTop: 2 },
-  empty: { textAlign: "center", color: "#64748B", padding: 20 }, label: { fontSize: 12, fontWeight: "800", color: "#475569" },
-  input: { backgroundColor: "#FFF", borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 12, minHeight: 46, paddingHorizontal: 12, fontSize: 14, color: NAVY },
-  hint: { fontSize: 12, color: "#64748B", lineHeight: 17 },
+  search: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: HT.card, borderRadius: 12, paddingHorizontal: 12, minHeight: 44, borderWidth: 1, borderColor: HT.border }, searchIn: { flex: 1, fontSize: 14, color: NAVY },
+  count: { flex: 1, fontSize: 12, fontWeight: "800", color: HT.text2 }, clear: { fontSize: 12, fontWeight: "800", color: "#DC2626" },
+  row: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: HT.card, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: HT.border, minHeight: 56 }, rowOn: { borderColor: ORANGE, backgroundColor: HT.brandTint },
+  name: { fontSize: 14, fontWeight: "800", color: NAVY }, meta: { fontSize: 12, color: HT.muted, marginTop: 2 },
+  empty: { textAlign: "center", color: HT.muted, padding: 20 }, label: { fontSize: 12, fontWeight: "800", color: HT.text2 },
+  input: { backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, borderRadius: 12, minHeight: 46, paddingHorizontal: 12, fontSize: 14, color: NAVY },
+  hint: { fontSize: 12, color: HT.muted, lineHeight: 17 },
   summary: { backgroundColor: NAVY, borderRadius: 16, padding: 14, gap: 4 }, sumTitle: { color: "#CBD5E1", fontSize: 12, fontWeight: "700" }, sumBig: { color: "#FFF", fontSize: 18, fontWeight: "900" }, sumMeta: { color: "#CBD5E1", fontSize: 11 },
-  leg: { flexDirection: "row", gap: 10, backgroundColor: "#FFF", borderRadius: 12, padding: 12, borderWidth: 1, borderColor: "#E2E8F0" },
+  leg: { flexDirection: "row", gap: 10, backgroundColor: HT.card, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: HT.border },
   seq: { width: 30, height: 30, borderRadius: 15, backgroundColor: ORANGE, alignItems: "center", justifyContent: "center" }, seqTxt: { color: "#FFF", fontWeight: "900", fontSize: 13 },
   legKm: { fontSize: 12, fontWeight: "800", color: "#0F766E", marginTop: 3 },
-  mini: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, minHeight: 32, borderRadius: 999, backgroundColor: "#FFF1E9" }, miniTxt: { fontSize: 12, fontWeight: "800", color: ORANGE },
+  mini: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, minHeight: 32, borderRadius: 999, backgroundColor: HT.brandTint }, miniTxt: { fontSize: 12, fontWeight: "800", color: ORANGE },
   // V50.z256 — filtro «non visitati da»
-  chip: { paddingHorizontal: 10, minHeight: 30, justifyContent: "center", borderRadius: 15, borderWidth: 1, borderColor: "#FED7AA", backgroundColor: "#FFF7ED" }, chipOn: { backgroundColor: ORANGE, borderColor: ORANGE }, chipTxt: { fontSize: 11, fontWeight: "800", color: ORANGE },
-  dueDot: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#FFEDD5", borderRadius: 10, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: ORANGE }, dueTxt: { fontSize: 10, fontWeight: "900", color: ORANGE },
+  chip: { paddingHorizontal: 10, minHeight: 30, justifyContent: "center", borderRadius: 15, borderWidth: 1, borderColor: HT.brandLine, backgroundColor: HT.brandTint }, chipOn: { backgroundColor: ORANGE, borderColor: ORANGE }, chipTxt: { fontSize: 11, fontWeight: "800", color: ORANGE },
+  dueDot: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: HT.brandTint, borderRadius: 10, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: ORANGE }, dueTxt: { fontSize: 10, fontWeight: "900", color: ORANGE },
   // V50.z253 — Resoconto Km
-  legDone: { borderColor: "#86EFAC", backgroundColor: "#F0FDF4" },
-  visitBtn: { backgroundColor: "#DCFCE7", borderWidth: 1, borderColor: "#86EFAC" }, visitBtnOn: { backgroundColor: "#16A34A", borderColor: "#16A34A" },
-  kmBar: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#E0F2FE", borderRadius: 12, padding: 12, borderWidth: 1, borderColor: "#BAE6FD", minHeight: 48 },
+  legDone: { borderColor: '#86EFAC', backgroundColor: HT.successTint },
+  visitBtn: { backgroundColor: HT.successTint, borderWidth: 1, borderColor: '#86EFAC' }, visitBtnOn: { backgroundColor: '#16A34A', borderColor: '#16A34A' },
+  kmBar: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: HT.axonTint, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: HT.axonLine, minHeight: 48 },
   kmBarTxt: { flex: 1, fontSize: 12, color: NAVY }, kmBarLink: { fontSize: 12, fontWeight: "800", color: "#0EA5E9" },
-  warn: { fontSize: 12, color: "#B45309", fontWeight: "700" },
-  mapBox: { height: 240, borderRadius: 16, overflow: "hidden", borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "#E2E8F0" },
-  timeRow: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF", borderRadius: 12, padding: 10, borderWidth: 1, borderColor: "#E2E8F0" },
-  tBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center" }, timeVal: { fontSize: 16, fontWeight: "900", color: NAVY, minWidth: 48, textAlign: "center" },
-  eta: { fontSize: 12, color: "#475569", marginTop: 2 },
-  footer: { flexDirection: "row", paddingHorizontal: 12, paddingTop: 10, backgroundColor: "#FFF", borderTopWidth: 1, borderTopColor: "#E2E8F0" },
+  warn: { fontSize: 12, color: HT.warning, fontWeight: "700" },
+  mapBox: { height: 240, borderRadius: 16, overflow: "hidden", borderWidth: 1, borderColor: HT.border, backgroundColor: HT.border },
+  timeRow: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: HT.card, borderRadius: 12, padding: 10, borderWidth: 1, borderColor: HT.border },
+  tBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: HT.card2, alignItems: "center", justifyContent: "center" }, timeVal: { fontSize: 16, fontWeight: "900", color: NAVY, minWidth: 48, textAlign: "center" },
+  eta: { fontSize: 12, color: HT.text2, marginTop: 2 },
+  footer: { flexDirection: "row", paddingHorizontal: 12, paddingTop: 10, backgroundColor: HT.card, borderTopWidth: 1, borderTopColor: HT.border },
   cta: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: ORANGE, borderRadius: 999, paddingHorizontal: 14, minHeight: 46 }, ctaTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
 });

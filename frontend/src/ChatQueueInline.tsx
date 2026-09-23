@@ -6,6 +6,7 @@ import { View, Text, StyleSheet, Pressable, TextInput } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import type { QueueItem } from "@/src/ChatQueuePanel";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const ORANGE = "#F97316";
 
@@ -58,9 +59,9 @@ export function ChatQueueInline({ items, onChanged, onSendNow }: { items: QueueI
 }
 
 function Btn({ icon, label, onPress, primary, danger, testID }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void; primary?: boolean; danger?: boolean; testID?: string }) {
-  const color = primary ? "#FFF" : danger ? "#B91C1C" : "#7C2D12";
+  const color = primary ? "#FFF" : danger ? HT.danger : "#7C2D12";
   return (
-    <Pressable onPress={onPress} style={[s.btn, primary && { backgroundColor: ORANGE, borderColor: ORANGE }, danger && { borderColor: "#FECACA" }]} hitSlop={4} testID={testID} accessibilityLabel={label}>
+    <Pressable onPress={onPress} style={[s.btn, primary && { backgroundColor: ORANGE, borderColor: ORANGE }, danger && { borderColor: HT.danger + '66' }]} hitSlop={4} testID={testID} accessibilityLabel={label}>
       <Ionicons name={icon} size={13} color={color} />
       <Text style={[s.btnTxt, { color }]}>{label}</Text>
     </Pressable>
@@ -68,14 +69,14 @@ function Btn({ icon, label, onPress, primary, danger, testID }: { icon: keyof ty
 }
 
 const s = StyleSheet.create({
-  bubble: { alignSelf: "flex-end", maxWidth: "88%", minWidth: "60%", backgroundColor: "#FFF7ED", borderWidth: 1, borderColor: "#FDBA74", borderStyle: "dashed", borderRadius: 16, borderBottomRightRadius: 4, padding: 10, gap: 6 },
-  bubbleProcessing: { borderStyle: "solid", backgroundColor: "#FFEDD5" },
+  bubble: { alignSelf: "flex-end", maxWidth: "88%", minWidth: "60%", backgroundColor: HT.brandTint, borderWidth: 1, borderColor: '#FDBA74', borderStyle: "dashed", borderRadius: 16, borderBottomRightRadius: 4, padding: 10, gap: 6 },
+  bubbleProcessing: { borderStyle: "solid", backgroundColor: HT.brandTint },
   head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
-  status: { fontSize: 11, fontWeight: "800", color: "#C2410C" },
-  prio: { fontSize: 11, fontWeight: "800", color: "#9A3412" },
+  status: { fontSize: 11, fontWeight: "800", color: "#FDBA74" },
+  prio: { fontSize: 11, fontWeight: "800", color: "#FDBA74" },
   txt: { fontSize: 15, color: "#1F2937", lineHeight: 21 },
   row: { flexDirection: "row", gap: 6, flexWrap: "wrap" },
-  btn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, minHeight: 32, borderRadius: 10, borderWidth: 1, borderColor: "#FED7AA", backgroundColor: "#FFF" },
+  btn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, minHeight: 32, borderRadius: 10, borderWidth: 1, borderColor: HT.brandLine, backgroundColor: HT.card },
   btnTxt: { fontSize: 12, fontWeight: "800" },
-  input: { backgroundColor: "#FFF", borderWidth: 1, borderColor: "#FDBA74", borderRadius: 10, padding: 8, fontSize: 15, color: "#1F2937", minHeight: 44 },
+  input: { backgroundColor: HT.card, borderWidth: 1, borderColor: '#FDBA74', borderRadius: 10, padding: 8, fontSize: 15, color: "#1F2937", minHeight: 44 },
 });

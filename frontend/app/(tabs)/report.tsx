@@ -8,6 +8,7 @@ import { theme } from "@/src/theme";
 import { CalculatorFAB } from "@/src/CalculatorFAB";
 import { MetricBoxClickable, MetricDrillModal, MetricKey } from "@/src/StatMetrics";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Outcome = { id: string; name: string; color: string; icon?: string; counts_as?: string };
 type ReportStats = { period: string; start: string; end: string; stats: { energy: any; network: any }; outcomes?: { outcome_id: string; count: number }[] };
@@ -72,17 +73,17 @@ export default function ReportScreen() {
       </View>
 
       {loading ? (
-        <ActivityIndicator style={{ marginTop: 40 }} color={theme.color.brandPrimary} />
+        <ActivityIndicator style={{ marginTop: 40 }} color={HT.brand} />
       ) : (
         <ScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: pagePad }}>
           {/* V50.z198 — Blocco 8 Fase 2: Nota spese ed Estratti conto (sfere Business/Home) */}
           <Pressable onPress={() => router.push("/axon-expenses" as any)} style={[styles.areaCard, { flexDirection: "row", alignItems: "center", gap: 12 }]} testID="report-open-expenses">
-            <Ionicons name="receipt-outline" size={22} color={theme.color.brandPrimary} />
+            <Ionicons name="receipt-outline" size={22} color={HT.brand} />
             <View style={{ flex: 1 }}>
-              <Text style={[styles.areaTitle, { color: theme.color.brandPrimary }]}>Nota spese & Estratti conto</Text>
-              <Text style={{ color: theme.color.muted, fontSize: 12.5 }}>Scontrini fotografati, nota spese mensile per sfera (PDF), estratti conto analizzati da Axon</Text>
+              <Text style={[styles.areaTitle, { color: HT.brand }]}>Nota spese & Estratti conto</Text>
+              <Text style={{ color: HT.muted, fontSize: 12.5 }}>Scontrini fotografati, nota spese mensile per sfera (PDF), estratti conto analizzati da Axon</Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+            <Ionicons name="chevron-forward" size={18} color={HT.muted} />
           </Pressable>
           {renderArea("energy")}
           {renderArea("network")}
@@ -90,14 +91,14 @@ export default function ReportScreen() {
           {/* Outcomes breakdown */}
           {settings?.appointment_outcomes && settings.appointment_outcomes.length > 0 && (
             <View style={styles.areaCard}>
-              <Text style={[styles.areaTitle, { color: theme.color.brandPrimary }]}>Esiti appuntamenti</Text>
+              <Text style={[styles.areaTitle, { color: HT.brand }]}>Esiti appuntamenti</Text>
               {(() => {
                 const outMap: Record<string, number> = {};
                 (data?.outcomes || []).forEach((o) => { outMap[o.outcome_id] = o.count; });
                 const rows = (settings.appointment_outcomes || []).map((o) => ({ ...o, count: outMap[o.id] || 0 })).sort((a, b) => b.count - a.count);
                 const totalMarked = rows.reduce((sum, r) => sum + r.count, 0);
                 if (totalMarked === 0) {
-                  return <Text style={{ color: theme.color.muted, fontStyle: "italic", fontSize: 13 }}>Nessun esito registrato nel periodo selezionato.</Text>;
+                  return <Text style={{ color: HT.muted, fontStyle: "italic", fontSize: 13 }}>Nessun esito registrato nel periodo selezionato.</Text>;
                 }
                 return (
                   <View style={{ gap: 8 }}>
@@ -117,7 +118,7 @@ export default function ReportScreen() {
                         </View>
                       );
                     })}
-                    <Text style={{ color: theme.color.muted, fontSize: 11, marginTop: 6, fontStyle: "italic" }}>
+                    <Text style={{ color: HT.muted, fontSize: 11, marginTop: 6, fontStyle: "italic" }}>
                       Totale esiti registrati: {totalMarked}
                     </Text>
                   </View>
@@ -137,7 +138,7 @@ export default function ReportScreen() {
         area={drill?.area || null}
         startIso={data?.start || ""}
         endIso={data?.end || ""}
-        color={drill?.color || theme.color.brandPrimary}
+        color={drill?.color || HT.brand}
         title={drill?.title || "Dettaglio"}
       />
     </SafeAreaView>
@@ -155,24 +156,24 @@ function _UnusedMetricBox({ label, value, color }: { label: string; value: numbe
 void _UnusedMetricBox;
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
+  root: { flex: 1, backgroundColor: HT.card2 },
   header: { paddingHorizontal: 20, paddingVertical: 12 },
-  title: { fontSize: 24, fontWeight: "700", color: theme.color.onSurface },
-  segments: { flexDirection: "row", gap: 6, backgroundColor: theme.color.surfaceTertiary, marginHorizontal: 16, borderRadius: theme.radius.pill, padding: 4 },
+  title: { fontSize: 24, fontWeight: "700", color: HT.text },
+  segments: { flexDirection: "row", gap: 6, backgroundColor: HT.card2, marginHorizontal: 16, borderRadius: theme.radius.pill, padding: 4 },
   seg: { flex: 1, paddingVertical: 8, alignItems: "center", borderRadius: theme.radius.pill },
-  segActive: { backgroundColor: "#FFF" },
-  segTxt: { color: theme.color.onSurfaceTertiary, fontWeight: "600", fontSize: 12 },
-  segTxtActive: { color: theme.color.brandPrimary },
-  areaCard: { backgroundColor: "#FFF", borderRadius: theme.radius.md, padding: 16, borderTopWidth: 4, gap: 12, borderWidth: 1, borderColor: theme.color.border },
+  segActive: { backgroundColor: HT.card },
+  segTxt: { color: HT.text2, fontWeight: "600", fontSize: 12 },
+  segTxtActive: { color: HT.brand },
+  areaCard: { backgroundColor: HT.card, borderRadius: theme.radius.md, padding: 16, borderTopWidth: 4, gap: 12, borderWidth: 1, borderColor: HT.border },
   areaTitle: { fontSize: 15, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  metric: { width: "48%", backgroundColor: theme.color.surface, borderRadius: theme.radius.md, padding: 12 },
+  metric: { width: "48%", backgroundColor: HT.card2, borderRadius: theme.radius.md, padding: 12 },
   metricVal: { fontSize: 26, fontWeight: "700" },
-  metricLbl: { fontSize: 11, color: theme.color.muted, marginTop: 2 },
+  metricLbl: { fontSize: 11, color: HT.muted, marginTop: 2 },
   outcomeRow: {},
   outDot: { width: 10, height: 10, borderRadius: 5 },
-  outName: { fontSize: 13, fontWeight: "700", color: theme.color.onSurface, flex: 1 },
+  outName: { fontSize: 13, fontWeight: "700", color: HT.text, flex: 1 },
   outCount: { fontSize: 16, fontWeight: "800" },
-  progressTrack: { height: 6, borderRadius: 3, backgroundColor: theme.color.surfaceTertiary, overflow: "hidden" },
+  progressTrack: { height: 6, borderRadius: 3, backgroundColor: HT.card2, overflow: "hidden" },
   progressFill: { height: "100%", borderRadius: 3 },
 });

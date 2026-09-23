@@ -11,6 +11,7 @@ import { api } from "@/src/api";
 import { playAudioBase64 } from "@/src/utils/audioPlayback";
 import { theme } from "@/src/theme";
 import { AXON_ACTIVATION_EVENT, AXON_ACTIVATION_HIDE_EVENT, AXON_FIND_PHONE_EVENT, AXON_FIND_PHONE_STOP_EVENT, stopFindPhone, type ActivationPayload } from "./events";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const C = theme.color;
 const VIOLET = "#8B5CF6"; // identità Axon (uguale in chiaro e scuro)
@@ -67,7 +68,7 @@ function Core({ pulseMs = 900 }: { pulseMs?: number }) {
   return (
     <Animated.View style={[{ width: 130, height: 130, borderRadius: 65, shadowColor: CYAN, shadowRadius: 50, shadowOffset: { width: 0, height: 0 }, elevation: 20 }, st]}>
       <LinearGradient colors={[CYAN, VIOLET, "#1E1B4B"]} start={{ x: 0.2, y: 0 }} end={{ x: 0.9, y: 1 }} style={{ flex: 1, borderRadius: 65, alignItems: "center", justifyContent: "center" }}>
-        <View style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: "#FFFFFF", opacity: 0.95 }} />
+        <View style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: HT.card, opacity: 0.95 }} />
       </LinearGradient>
     </Animated.View>
   );

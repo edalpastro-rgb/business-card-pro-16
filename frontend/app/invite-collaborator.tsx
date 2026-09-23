@@ -9,6 +9,7 @@ import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 type IconName = keyof typeof Ionicons.glyphMap;
 
 type Role = "basic" | "manager" | "master_figlio";
@@ -158,13 +159,13 @@ export default function InviteCollaboratorScreen() {
     if (backendRole === "member") return "#0891B2";
     if (backendRole === "admin") return "#F59E0B";
     if (backendRole === "owner") return "#7C3AED";
-    return "#6B7280";
+    return HT.muted;
   };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.background }} edges={["top"]}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.replace("/(tabs)/home" as any)} style={styles.headerBtn} testID="invite-back-home"><Ionicons name="chevron-back" size={22} color={theme.color.onSurface} /></Pressable>
+        <Pressable onPress={() => router.replace("/(tabs)/home" as any)} style={styles.headerBtn} testID="invite-back-home"><Ionicons name="chevron-back" size={22} color={HT.text} /></Pressable>
         <Text style={styles.headerTitle}>Invita Collaboratore</Text>
       </View>
 
@@ -200,9 +201,9 @@ export default function InviteCollaboratorScreen() {
                 <Pressable
                   onPress={() => setAssignParentId(null)}
                   testID="assign-self"
-                  style={[styles.roleCard, assignParentId === null && { borderColor: "#0891B2", backgroundColor: "#0891B212" }]}
+                  style={[styles.roleCard, assignParentId === null && { borderColor: '#0891B2', backgroundColor: "#0891B212" }]}
                 >
-                  <View style={[styles.roleIcon, { backgroundColor: "#0891B2" }]}><Ionicons name="person-circle" size={22} color="#FFF" /></View>
+                  <View style={[styles.roleIcon, { backgroundColor: '#0891B2' }]}><Ionicons name="person-circle" size={22} color="#FFF" /></View>
                   <View style={{ flex: 1, marginLeft: 12 }}>
                     <Text style={styles.roleTitle}>Direttamente a te (Master)</Text>
                     <Text style={styles.roleDesc}>Il nuovo collaboratore risponde direttamente al tuo account.</Text>
@@ -220,9 +221,9 @@ export default function InviteCollaboratorScreen() {
                           key={tm.user_id}
                           onPress={() => setAssignParentId(tm.user_id)}
                           testID={`assign-parent-${tm.user_id}`}
-                          style={[styles.memberRow, on && { borderColor: "#F59E0B", backgroundColor: "#F59E0B12" }]}
+                          style={[styles.memberRow, on && { borderColor: '#F59E0B', backgroundColor: "#F59E0B12" }]}
                         >
-                          <View style={[styles.avatarSmall, { backgroundColor: on ? "#F59E0B" : "#94A3B8" }]}>
+                          <View style={[styles.avatarSmall, { backgroundColor: on ? "#F59E0B" : HT.muted }]}>
                             <Text style={{ color: "#FFF", fontWeight: "800", fontSize: 12 }}>
                               {(tm.name || tm.email || "?")[0]?.toUpperCase()}
                             </Text>
@@ -252,17 +253,17 @@ export default function InviteCollaboratorScreen() {
             <Text style={styles.resultTitle}>🎉 Invito generato</Text>
             <Text style={styles.resultSub}>Per <Text style={{ fontWeight: "800" }}>{collaboratorName}</Text> · Ruolo <Text style={{ fontWeight: "800" }}>{ROLES.find(r => r.id === role)?.label}</Text></Text>
             <View style={styles.qrWrap}>
-              <QRCode value={inviteUrl} size={200} backgroundColor="#FFF" color="#0F172A" />
+              <QRCode value={inviteUrl} size={200} backgroundColor="#FFF" color={HT.text} />
             </View>
             <View style={styles.linkBox}>
               <Text style={styles.linkTxt} numberOfLines={1} selectable>{inviteUrl}</Text>
             </View>
             <View style={styles.actionsRow}>
-              <Pressable onPress={copy} style={[styles.actBtn, { backgroundColor: "#F1F5F9" }]} testID="copy-link"><Ionicons name="copy-outline" size={18} color={theme.color.onSurface} /><Text style={styles.actTxt}>Copia</Text></Pressable>
-              <Pressable onPress={shareLink} style={[styles.actBtn, { backgroundColor: "#7C3AED" }]} testID="share-link"><Ionicons name="share-social" size={18} color="#FFF" /><Text style={[styles.actTxt, { color: "#FFF" }]}>Condividi</Text></Pressable>
+              <Pressable onPress={copy} style={[styles.actBtn, { backgroundColor: HT.card2 }]} testID="copy-link"><Ionicons name="copy-outline" size={18} color={HT.text} /><Text style={styles.actTxt}>Copia</Text></Pressable>
+              <Pressable onPress={shareLink} style={[styles.actBtn, { backgroundColor: '#7C3AED' }]} testID="share-link"><Ionicons name="share-social" size={18} color="#FFF" /><Text style={[styles.actTxt, { color: "#FFF" }]}>Condividi</Text></Pressable>
             </View>
             <Pressable onPress={() => { setInvite(null); setCollaboratorName(""); setNote(""); }} style={{ marginTop: 16, alignSelf: "center" }}>
-              <Text style={{ color: theme.color.brandPrimary, fontWeight: "700" }}>← Genera un altro invito</Text>
+              <Text style={{ color: HT.brand, fontWeight: "700" }}>← Genera un altro invito</Text>
             </Pressable>
           </View>
         )}
@@ -271,7 +272,7 @@ export default function InviteCollaboratorScreen() {
         <View style={styles.listSection}>
           <Text style={styles.sectionTitle}>Collaboratori invitati ({invites.length})</Text>
           {loadingList ? (
-            <ActivityIndicator style={{ marginTop: 20 }} color={theme.color.brandPrimary} />
+            <ActivityIndicator style={{ marginTop: 20 }} color={HT.brand} />
           ) : invites.length === 0 ? (
             <Text style={styles.emptyTxt}>Nessun invito ancora generato.</Text>
           ) : (
@@ -291,7 +292,7 @@ export default function InviteCollaboratorScreen() {
                         <Text style={[styles.rolePillTxt, { color: rColor }]}>{roleLabel(inv.invite_role)}</Text>
                       </View>
                       <View style={[styles.statusPill, { backgroundColor: active ? "#DCFCE7" : "#FEF3C7" }]}>
-                        <Text style={[styles.statusPillTxt, { color: active ? "#166534" : "#92400E" }]}>{active ? "● Attivo" : "○ In attesa"}</Text>
+                        <Text style={[styles.statusPillTxt, { color: active ? HT.success : "#FDBA74" }]}>{active ? "● Attivo" : "○ In attesa"}</Text>
                       </View>
                     </View>
                     {inv.invited_user?.email && <Text style={styles.inviteEmail}>{inv.invited_user.email}</Text>}
@@ -334,7 +335,7 @@ export default function InviteCollaboratorScreen() {
               );
             })}
             <Pressable onPress={() => setEditRole(null)} style={{ marginTop: 8, alignItems: "center", padding: 10 }} testID="edit-role-cancel">
-              <Text style={{ color: theme.color.muted, fontWeight: "700" }}>Annulla</Text>
+              <Text style={{ color: HT.muted, fontWeight: "700" }}>Annulla</Text>
             </Pressable>
           </View>
         </View>
@@ -351,47 +352,47 @@ function fmtDate(iso?: string) {
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: "row", alignItems: "center", padding: 14, gap: 10, borderBottomWidth: 1, borderBottomColor: theme.color.border, backgroundColor: theme.color.surface },
-  headerBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center" },
-  headerTitle: { flex: 1, fontSize: 16, fontWeight: "800", color: theme.color.onSurface },
-  label: { fontSize: 12, fontWeight: "700", color: theme.color.muted, marginTop: 16, marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 },
-  subLabel: { fontSize: 11, fontWeight: "700", color: theme.color.onSurfaceTertiary, marginTop: 6, marginBottom: 6 },
-  memberRow: { flexDirection: "row", alignItems: "center", padding: 10, borderRadius: 12, borderWidth: 2, borderColor: theme.color.border, backgroundColor: theme.color.surface, marginBottom: 6 },
+  header: { flexDirection: "row", alignItems: "center", padding: 14, gap: 10, borderBottomWidth: 1, borderBottomColor: HT.border, backgroundColor: HT.card2 },
+  headerBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: HT.card2, alignItems: "center", justifyContent: "center" },
+  headerTitle: { flex: 1, fontSize: 16, fontWeight: "800", color: HT.text },
+  label: { fontSize: 12, fontWeight: "700", color: HT.muted, marginTop: 16, marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 },
+  subLabel: { fontSize: 11, fontWeight: "700", color: HT.text2, marginTop: 6, marginBottom: 6 },
+  memberRow: { flexDirection: "row", alignItems: "center", padding: 10, borderRadius: 12, borderWidth: 2, borderColor: HT.border, backgroundColor: HT.card2, marginBottom: 6 },
   avatarSmall: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
-  memberName: { fontSize: 13, fontWeight: "800", color: theme.color.onSurface },
-  memberSub: { fontSize: 11, color: theme.color.muted, marginTop: 2 },
-  roleCard: { flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 12, borderWidth: 2, borderColor: theme.color.border, backgroundColor: theme.color.surface, marginBottom: 8 },
+  memberName: { fontSize: 13, fontWeight: "800", color: HT.text },
+  memberSub: { fontSize: 11, color: HT.muted, marginTop: 2 },
+  roleCard: { flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 12, borderWidth: 2, borderColor: HT.border, backgroundColor: HT.card2, marginBottom: 8 },
   roleIcon: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
-  roleTitle: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface },
-  roleDesc: { fontSize: 11, color: theme.color.muted, marginTop: 2 },
-  input: { borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, padding: 12, fontSize: 14, color: theme.color.onSurface, backgroundColor: theme.color.surface },
-  submitBtn: { marginTop: 24, backgroundColor: "#DB2777", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 14, borderRadius: 12 },
+  roleTitle: { fontSize: 14, fontWeight: "800", color: HT.text },
+  roleDesc: { fontSize: 11, color: HT.muted, marginTop: 2 },
+  input: { borderWidth: 1, borderColor: HT.border, borderRadius: 10, padding: 12, fontSize: 14, color: HT.text, backgroundColor: HT.card2 },
+  submitBtn: { marginTop: 24, backgroundColor: '#DB2777', flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 14, borderRadius: 12 },
   submitTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
-  resultCard: { padding: 20, backgroundColor: theme.color.surface, borderRadius: 16, alignItems: "center", borderWidth: 1, borderColor: theme.color.border },
-  resultTitle: { fontSize: 18, fontWeight: "800", color: theme.color.onSurface, marginBottom: 6 },
-  resultSub: { fontSize: 13, color: theme.color.muted, marginBottom: 12, textAlign: "center" },
-  qrWrap: { padding: 12, backgroundColor: "#FFF", borderRadius: 12, marginBottom: 12 },
-  linkBox: { padding: 10, backgroundColor: "#F1F5F9", borderRadius: 8, width: "100%" },
-  linkTxt: { fontSize: 11, color: theme.color.onSurface, fontFamily: Platform.OS === "web" ? "monospace" : undefined },
+  resultCard: { padding: 20, backgroundColor: HT.card2, borderRadius: 16, alignItems: "center", borderWidth: 1, borderColor: HT.border },
+  resultTitle: { fontSize: 18, fontWeight: "800", color: HT.text, marginBottom: 6 },
+  resultSub: { fontSize: 13, color: HT.muted, marginBottom: 12, textAlign: "center" },
+  qrWrap: { padding: 12, backgroundColor: HT.card, borderRadius: 12, marginBottom: 12 },
+  linkBox: { padding: 10, backgroundColor: HT.card2, borderRadius: 8, width: "100%" },
+  linkTxt: { fontSize: 11, color: HT.text, fontFamily: Platform.OS === "web" ? "monospace" : undefined },
   actionsRow: { flexDirection: "row", gap: 10, marginTop: 14, width: "100%" },
   actBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, padding: 12, borderRadius: 10 },
-  actTxt: { fontWeight: "800", fontSize: 13, color: theme.color.onSurface },
+  actTxt: { fontWeight: "800", fontSize: 13, color: HT.text },
   listSection: { marginTop: 28 },
-  sectionTitle: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface, marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 },
-  emptyTxt: { fontSize: 12, color: theme.color.muted, fontStyle: "italic", textAlign: "center", paddingVertical: 20 },
-  inviteRow: { flexDirection: "row", alignItems: "flex-start", backgroundColor: theme.color.surface, padding: 12, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: theme.color.border },
+  sectionTitle: { fontSize: 14, fontWeight: "800", color: HT.text, marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 },
+  emptyTxt: { fontSize: 12, color: HT.muted, fontStyle: "italic", textAlign: "center", paddingVertical: 20 },
+  inviteRow: { flexDirection: "row", alignItems: "flex-start", backgroundColor: HT.card2, padding: 12, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: HT.border },
   avatar: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
-  inviteName: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface },
+  inviteName: { fontSize: 14, fontWeight: "800", color: HT.text },
   inviteMetaRow: { flexDirection: "row", gap: 6, marginTop: 6, flexWrap: "wrap" },
   rolePill: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
   rolePillTxt: { fontSize: 10, fontWeight: "800" },
   statusPill: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
   statusPillTxt: { fontSize: 10, fontWeight: "800" },
-  inviteEmail: { fontSize: 11, color: theme.color.muted, marginTop: 4 },
-  inviteDate: { fontSize: 10, color: theme.color.muted, marginTop: 2 },
+  inviteEmail: { fontSize: 11, color: HT.muted, marginTop: 4 },
+  inviteDate: { fontSize: 10, color: HT.muted, marginTop: 2 },
   trashBtn: { padding: 6, marginLeft: 4 },
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", padding: 20 },
-  modalBox: { backgroundColor: "#FFF", borderRadius: 18, padding: 18 },
-  modalT: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface, textAlign: "center" },
-  modalSub: { fontSize: 13, color: theme.color.muted, textAlign: "center", marginBottom: 14, marginTop: 4 },
+  modalBox: { backgroundColor: HT.card, borderRadius: 18, padding: 18 },
+  modalT: { fontSize: 16, fontWeight: "800", color: HT.text, textAlign: "center" },
+  modalSub: { fontSize: 13, color: HT.muted, textAlign: "center", marginBottom: 14, marginTop: 4 },
 });

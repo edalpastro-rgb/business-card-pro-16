@@ -12,6 +12,7 @@ import { uploadAreaExtract } from "@/src/utils/upload";
 import { launchCameraUniversal } from "@/src/utils/imagePickerCompat";
 import { notify } from "@/src/utils/notify";
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 export type AreaField = { key: string; label: string; type?: "date" | "text"; deadline?: string };
 export type AreaStep = { id: string; kind: "upload" | "choice" | "link" | "custom"; title: string; hint?: string; extract?: string; fields?: AreaField[]; extra_fields?: AreaField[]; field?: string; options?: { value: string; label: string }[]; route?: string; cta?: string };
@@ -139,7 +140,7 @@ export function AreaMiniWizard({ area, visible, onClose, onDone }: { area: AreaC
               <Text style={styles.hTitle} numberOfLines={1}>{area.title}</Text>
               <Text style={styles.hSub}>Passo {idx + 1} di {steps.length} · {step.title}</Text>
             </View>
-            <Pressable onPress={onClose} hitSlop={10} testID="area-wizard-close"><Ionicons name="close" size={22} color="#1B2B4B" /></Pressable>
+            <Pressable onPress={onClose} hitSlop={10} testID="area-wizard-close"><Ionicons name="close" size={22} color={HT.text} /></Pressable>
           </View>
           <View style={styles.progress}>{steps.map((s, i) => <View key={s.id} style={[styles.bar, i <= idx && { backgroundColor: PURPLE }]} />)}</View>
 
@@ -173,9 +174,9 @@ export function AreaMiniWizard({ area, visible, onClose, onDone }: { area: AreaC
                   const miss = !data[f.key];
                   return (
                     <View key={f.key} style={{ gap: 4 }}>
-                      <Text style={[styles.lbl, miss && { color: "#B45309" }]}>{f.label}{f.type === "date" ? " (AAAA-MM-GG)" : ""}{miss ? " · da completare" : ""}</Text>
-                      <TextInput value={data[f.key] || ""} onChangeText={(t) => setData((d) => ({ ...d, [f.key]: t }))} placeholder={f.type === "date" ? "2026-12-31" : f.label} placeholderTextColor="#94A3B8"
-                        keyboardType={f.type === "date" ? "numbers-and-punctuation" : "default"} style={[styles.input, miss && { borderColor: "#F59E0B" }]} testID={`area-field-${f.key}`} />
+                      <Text style={[styles.lbl, miss && { color: HT.warning }]}>{f.label}{f.type === "date" ? " (AAAA-MM-GG)" : ""}{miss ? " · da completare" : ""}</Text>
+                      <TextInput value={data[f.key] || ""} onChangeText={(t) => setData((d) => ({ ...d, [f.key]: t }))} placeholder={f.type === "date" ? "2026-12-31" : f.label} placeholderTextColor={HT.muted}
+                        keyboardType={f.type === "date" ? "numbers-and-punctuation" : "default"} style={[styles.input, miss && { borderColor: '#F59E0B' }]} testID={`area-field-${f.key}`} />
                       {!!f.deadline && (
                         <View style={styles.switchRow}>
                           <Text style={styles.recTxt}>↻ Ripeti ogni anno · al rinnovo AxonOS ricrea da solo gli avvisi (30, 15, 7 gg e il giorno stesso)</Text>
@@ -214,11 +215,11 @@ export function AreaMiniWizard({ area, visible, onClose, onDone }: { area: AreaC
             {step.kind === "custom" && !busy && (
               <>
                 <Text style={styles.lbl}>Nome area</Text>
-                <TextInput value={cName} onChangeText={setCName} placeholder="Es. Fotovoltaico, Palestra, Condominio…" placeholderTextColor="#94A3B8" style={styles.input} testID="area-custom-name" />
+                <TextInput value={cName} onChangeText={setCName} placeholder="Es. Fotovoltaico, Palestra, Condominio…" placeholderTextColor={HT.muted} style={styles.input} testID="area-custom-name" />
                 <Text style={styles.lbl}>Cosa vuoi che AxonOS sappia su questa area?</Text>
-                <TextInput value={cDesc} onChangeText={setCDesc} multiline placeholder="Descrizione libera…" placeholderTextColor="#94A3B8" style={[styles.input, { minHeight: 90, textAlignVertical: "top" }]} testID="area-custom-desc" />
+                <TextInput value={cDesc} onChangeText={setCDesc} multiline placeholder="Descrizione libera…" placeholderTextColor={HT.muted} style={[styles.input, { minHeight: 90, textAlignVertical: "top" }]} testID="area-custom-desc" />
                 <Text style={styles.lbl}>Siti web di riferimento (max 3) · AxonOS li usa come fonti</Text>
-                {cSites.map((s, i) => <TextInput key={i} value={s} onChangeText={(t) => setCSites((arr) => arr.map((x, j) => (j === i ? t : x)))} placeholder={`https://sito-${i + 1}.it`} placeholderTextColor="#94A3B8" autoCapitalize="none" keyboardType="url" style={styles.input} testID={`area-custom-site-${i}`} />)}
+                {cSites.map((s, i) => <TextInput key={i} value={s} onChangeText={(t) => setCSites((arr) => arr.map((x, j) => (j === i ? t : x)))} placeholder={`https://sito-${i + 1}.it`} placeholderTextColor={HT.muted} autoCapitalize="none" keyboardType="url" style={styles.input} testID={`area-custom-site-${i}`} />)}
                 <View style={styles.switchRow}>
                   <Text style={[styles.lbl, { flex: 1, marginBottom: 0 }]}>Vuoi monitorare scadenze? Avvisi a 30, 15, 7 giorni e il giorno stesso</Text>
                   <Switch value={cTrack} onValueChange={setCTrack} trackColor={{ true: PURPLE, false: "#CBD5E1" }} thumbColor={Platform.OS === "android" ? "#FFF" : undefined} testID="area-custom-track" />
@@ -227,8 +228,8 @@ export function AreaMiniWizard({ area, visible, onClose, onDone }: { area: AreaC
                   <>
                     {cDeadlines.map((d, i) => (
                       <View key={i} style={{ flexDirection: "row", gap: 6 }}>
-                        <TextInput value={d.label} onChangeText={(t) => setCDeadlines((arr) => arr.map((x, j) => (j === i ? { ...x, label: t } : x)))} placeholder="Cosa scade" placeholderTextColor="#94A3B8" style={[styles.input, { flex: 1 }]} testID={`area-custom-dl-label-${i}`} />
-                        <TextInput value={d.date} onChangeText={(t) => setCDeadlines((arr) => arr.map((x, j) => (j === i ? { ...x, date: t } : x)))} placeholder="AAAA-MM-GG" placeholderTextColor="#94A3B8" style={[styles.input, { width: 118 }]} testID={`area-custom-dl-date-${i}`} />
+                        <TextInput value={d.label} onChangeText={(t) => setCDeadlines((arr) => arr.map((x, j) => (j === i ? { ...x, label: t } : x)))} placeholder="Cosa scade" placeholderTextColor={HT.muted} style={[styles.input, { flex: 1 }]} testID={`area-custom-dl-label-${i}`} />
+                        <TextInput value={d.date} onChangeText={(t) => setCDeadlines((arr) => arr.map((x, j) => (j === i ? { ...x, date: t } : x)))} placeholder="AAAA-MM-GG" placeholderTextColor={HT.muted} style={[styles.input, { width: 118 }]} testID={`area-custom-dl-date-${i}`} />
                         <Pressable onPress={() => setCDeadlines((arr) => arr.map((x, j) => (j === i ? { ...x, recurring: !x.recurring } : x)))} style={[styles.recPill, d.recurring && styles.chipOn]} testID={`area-custom-dl-rec-${i}`} accessibilityLabel="Ripeti ogni anno">
                           <Ionicons name="repeat" size={16} color={d.recurring ? "#FFF" : PURPLE} />
                         </Pressable>
@@ -250,35 +251,35 @@ export function AreaMiniWizard({ area, visible, onClose, onDone }: { area: AreaC
 
 const styles = StyleSheet.create({
   back: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
-  card: { backgroundColor: "#FFF", borderTopLeftRadius: 22, borderTopRightRadius: 22, maxHeight: "92%" },
+  card: { backgroundColor: HT.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, maxHeight: "92%" },
   hdr: { flexDirection: "row", alignItems: "center", gap: 10, padding: 16, paddingBottom: 8 },
   hdrIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: PURPLE, alignItems: "center", justifyContent: "center" },
-  hTitle: { fontSize: 16, fontWeight: "900", color: "#1B2B4B" },
-  hSub: { fontSize: 12, color: "#64748B", fontWeight: "700", marginTop: 2 },
+  hTitle: { fontSize: 16, fontWeight: "900", color: HT.text },
+  hSub: { fontSize: 12, color: HT.muted, fontWeight: "700", marginTop: 2 },
   progress: { flexDirection: "row", gap: 4, paddingHorizontal: 16 },
-  bar: { flex: 1, height: 4, borderRadius: 2, backgroundColor: "#E9E5FF" },
-  title: { fontSize: 17, fontWeight: "900", color: "#1B2B4B" },
-  hint: { fontSize: 13, color: "#64748B", lineHeight: 18 },
-  lbl: { fontSize: 11.5, fontWeight: "800", color: "#475569", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 },
+  bar: { flex: 1, height: 4, borderRadius: 2, backgroundColor: '#E9E5FF' },
+  title: { fontSize: 17, fontWeight: "900", color: HT.text },
+  hint: { fontSize: 13, color: HT.muted, lineHeight: 18 },
+  lbl: { fontSize: 11.5, fontWeight: "800", color: HT.text2, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 },
   chips: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
-  chip: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 44, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1.5, borderColor: "#DDD6FE", backgroundColor: "#FAF5FF" },
+  chip: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 44, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1.5, borderColor: HT.violet + '66', backgroundColor: '#FAF5FF' },
   chipOn: { backgroundColor: PURPLE, borderColor: PURPLE },
   chipTxt: { fontSize: 13, fontWeight: "800", color: PURPLE },
-  bigChip: { flex: 1, minWidth: 96, minHeight: 56, alignItems: "center", justifyContent: "center", borderRadius: 14, borderWidth: 1.5, borderColor: "#DDD6FE", backgroundColor: "#FAF5FF" },
+  bigChip: { flex: 1, minWidth: 96, minHeight: 56, alignItems: "center", justifyContent: "center", borderRadius: 14, borderWidth: 1.5, borderColor: HT.violet + '66', backgroundColor: '#FAF5FF' },
   bigChipTxt: { fontSize: 15, fontWeight: "900", color: PURPLE },
   primary: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 52, borderRadius: 14, backgroundColor: PURPLE },
   primaryTxt: { color: "#FFF", fontWeight: "900", fontSize: 15 },
-  secondary: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 48, borderRadius: 14, borderWidth: 1.5, borderColor: "#DDD6FE", backgroundColor: "#FFF" },
+  secondary: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 48, borderRadius: 14, borderWidth: 1.5, borderColor: HT.violet + '66', backgroundColor: HT.card },
   secondaryTxt: { color: PURPLE, fontWeight: "800", fontSize: 14 },
   linkBtn: { minHeight: 40, alignItems: "center", justifyContent: "center" },
-  linkTxt: { color: "#64748B", fontWeight: "700", fontSize: 13 },
-  input: { borderWidth: 1.5, borderColor: "#E2E8F0", borderRadius: 12, padding: 12, fontSize: 14.5, color: "#1B2B4B", backgroundColor: "#F8FAFC" },
-  busyRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 14, borderRadius: 14, backgroundColor: "#FAF5FF" },
+  linkTxt: { color: HT.muted, fontWeight: "700", fontSize: 13 },
+  input: { borderWidth: 1.5, borderColor: HT.border, borderRadius: 12, padding: 12, fontSize: 14.5, color: HT.text, backgroundColor: HT.card2 },
+  busyRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 14, borderRadius: 14, backgroundColor: '#FAF5FF' },
   busyTxt: { color: PURPLE, fontWeight: "800", flex: 1 },
-  fileRow: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#F0FDF4", borderRadius: 10, padding: 8 },
-  fileTxt: { color: "#166534", fontWeight: "700", fontSize: 12.5, flex: 1 },
-  warn: { color: "#B45309", fontWeight: "700", fontSize: 12.5, backgroundColor: "#FFFBEB", borderRadius: 10, padding: 8 },
+  fileRow: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: HT.successTint, borderRadius: 10, padding: 8 },
+  fileTxt: { color: HT.success, fontWeight: "700", fontSize: 12.5, flex: 1 },
+  warn: { color: HT.warning, fontWeight: "700", fontSize: 12.5, backgroundColor: HT.warningTint, borderRadius: 10, padding: 8 },
   switchRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 4 },
-  recTxt: { flex: 1, fontSize: 11.5, color: "#64748B", fontWeight: "700", lineHeight: 15 },
-  recPill: { width: 44, height: 44, borderRadius: 12, borderWidth: 1.5, borderColor: "#DDD6FE", backgroundColor: "#FAF5FF", alignItems: "center", justifyContent: "center" },
+  recTxt: { flex: 1, fontSize: 11.5, color: HT.muted, fontWeight: "700", lineHeight: 15 },
+  recPill: { width: 44, height: 44, borderRadius: 12, borderWidth: 1.5, borderColor: HT.violet + '66', backgroundColor: '#FAF5FF', alignItems: "center", justifyContent: "center" },
 });

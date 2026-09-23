@@ -6,8 +6,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 export type Course = {
   course_id: string; title: string; description?: string; course_date?: string; location?: string; status: string; created_at: string; creator_name?: string;
@@ -33,16 +33,16 @@ export default function CoursesScreen() {
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.surface }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: HT.card2 }}>
       <View style={s.header}>
-        <Pressable onPress={() => router.back()} hitSlop={10} style={s.hBtn}><Ionicons name="chevron-back" size={24} color={theme.color.onSurface} /></Pressable>
+        <Pressable onPress={() => router.back()} hitSlop={10} style={s.hBtn}><Ionicons name="chevron-back" size={24} color={HT.text} /></Pressable>
         <View style={{ flex: 1 }}><Text style={s.title}>Area Corsi</Text><Text style={s.sub}>{canManage ? "Cartelle corsi, lettura e partecipazione del team" : "I corsi assegnati a te"}</Text></View>
         {canManage ? <Pressable onPress={() => router.push("/courses/dashboard" as any)} hitSlop={8} style={s.hBtn} testID="courses-dashboard"><Ionicons name="stats-chart" size={22} color="#7C3AED" /></Pressable> : null}
         {canManage ? <Pressable onPress={() => router.push("/courses/new" as any)} style={s.addBtn} testID="courses-new"><Ionicons name="add" size={18} color="#FFF" /><Text style={s.addTxt}>Nuova</Text></Pressable> : null}
       </View>
       <ScrollView contentContainerStyle={{ padding: 14, gap: 10, paddingBottom: pagePad }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
         {loading ? <ActivityIndicator color="#7C3AED" style={{ marginTop: 30 }} /> : items.length === 0 ? (
-          <View style={s.empty} testID="courses-empty"><Ionicons name="school-outline" size={40} color={theme.color.muted} /><Text style={s.emptyTxt}>{canManage ? "Nessuna cartella corso. Crea la prima con «Nuova»." : "Nessun corso assegnato al momento."}</Text></View>
+          <View style={s.empty} testID="courses-empty"><Ionicons name="school-outline" size={40} color={HT.muted} /><Text style={s.emptyTxt}>{canManage ? "Nessuna cartella corso. Crea la prima con «Nuova»." : "Nessun corso assegnato al momento."}</Text></View>
         ) : items.map((c) => {
           const card = (
             <Pressable key={c.course_id} onPress={() => router.push(`/courses/${c.course_id}` as any)} style={[s.card, c.is_new && s.cardNew]} testID={`course-${c.course_id}`}>
@@ -59,7 +59,7 @@ export default function CoursesScreen() {
                   <Text style={[s.meta, { fontWeight: "800", color: c.my_participation === "yes" ? "#059669" : c.my_participation === "no" ? "#DC2626" : "#D97706" }]}>{c.my_participation === "yes" ? "✅ Partecipo" : c.my_participation === "no" ? "❌ Non partecipo" : "⏳ Indica se partecipi"}</Text>
                 )}
               </View>
-              <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+              <Ionicons name="chevron-forward" size={18} color={HT.muted} />
             </Pressable>
           );
           return c.is_new ? <Blink key={c.course_id}>{card}</Blink> : card;
@@ -70,14 +70,14 @@ export default function CoursesScreen() {
 }
 
 const s = StyleSheet.create({
-  header: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderBottomWidth: 1, borderBottomColor: theme.color.border },
+  header: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderBottomWidth: 1, borderBottomColor: HT.border },
   hBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 18, fontWeight: "900", color: theme.color.onSurface }, sub: { fontSize: 12, color: theme.color.muted },
-  addBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#7C3AED", borderRadius: 10, paddingHorizontal: 12, minHeight: 40 }, addTxt: { color: "#FFF", fontWeight: "900" },
-  card: { flexDirection: "row", alignItems: "center", gap: 12, padding: 12, borderRadius: 14, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, minHeight: 72 },
-  cardNew: { borderColor: "#FCA5A5", borderWidth: 2 },
+  title: { fontSize: 18, fontWeight: "900", color: HT.text }, sub: { fontSize: 12, color: HT.muted },
+  addBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: '#7C3AED', borderRadius: 10, paddingHorizontal: 12, minHeight: 40 }, addTxt: { color: "#FFF", fontWeight: "900" },
+  card: { flexDirection: "row", alignItems: "center", gap: 12, padding: 12, borderRadius: 14, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, minHeight: 72 },
+  cardNew: { borderColor: '#FCA5A5', borderWidth: 2 },
   icon: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  cardTitle: { fontSize: 15, fontWeight: "800", color: theme.color.onSurface, flexShrink: 1 }, meta: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
-  newBadge: { backgroundColor: "#DC2626", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }, newBadgeTxt: { color: "#FFF", fontSize: 9, fontWeight: "900" },
-  empty: { alignItems: "center", gap: 10, padding: 30 }, emptyTxt: { color: theme.color.muted, textAlign: "center", fontSize: 14 },
+  cardTitle: { fontSize: 15, fontWeight: "800", color: HT.text, flexShrink: 1 }, meta: { fontSize: 12, color: HT.muted, marginTop: 2 },
+  newBadge: { backgroundColor: '#DC2626', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }, newBadgeTxt: { color: "#FFF", fontSize: 9, fontWeight: "900" },
+  empty: { alignItems: "center", gap: 10, padding: 30 }, emptyTxt: { color: HT.muted, textAlign: "center", fontSize: 14 },
 });

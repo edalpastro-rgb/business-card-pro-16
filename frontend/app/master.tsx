@@ -21,6 +21,7 @@ import { ModuleErrorBoundary } from "@/src/shared";
 import { HeaderWeatherBadge } from "@/src/WeatherWidget";
 import { BrandHeaderImage } from "@/src/BrandHeaderImage"; // V50.z232
 import { MenuIcon, MenuIconName, LOCK_KEY_ICON } from "@/src/LockKeyIcon"; // V50.z237
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Banner = { item_id: string; kind: string; title?: string; body?: string; image_base64?: string | null; color?: string } | null;
 type MyThingImage = { item_id: string; image_base64?: string | null };
@@ -235,15 +236,15 @@ function MasterScreen() {
     // Comunicazioni (arancione #F97316)
     { label: "Chat Gruppo", icon: "chatbubbles", color: "#F97316", onPress: () => setChatPickerOpen(true) },
     // Amministrazione / utility (grigio #475569)
-    { label: "Calcolatrice", icon: "calculator", color: "#475569", onPress: () => setCalcOpen(true) },
+    { label: "Calcolatrice", icon: "calculator", color: HT.text2, onPress: () => setCalcOpen(true) },
     // AI & Axon (viola #7C3AED)
     { label: "My Web", icon: "globe", color: "#7C3AED", onPress: () => goto("/my-web") },
     // Utility (grigio #475569) — V50.z50 richiesta utente: Sveglia + Scanner
-    { label: "Sveglia", icon: "alarm", color: "#475569", onPress: () => goto("/axon-alarms") },
-    { label: "Scanner", icon: "scan", color: "#475569", onPress: () => goto("/scanner") },
+    { label: "Sveglia", icon: "alarm", color: HT.text2, onPress: () => goto("/axon-alarms") },
+    { label: "Scanner", icon: "scan", color: HT.text2, onPress: () => goto("/scanner") },
     // V50.z157 — Meteo tra le Utility (richiesta utente)
-    { label: "Meteo", icon: "partly-sunny", color: "#475569", onPress: () => goto("/meteo") },
-    { label: "Profilo", icon: "person", color: "#475569", onPress: () => goto("/(tabs)/impostazioni") }, // V50.z287 — mancava nel blocco Utility
+    { label: "Meteo", icon: "partly-sunny", color: HT.text2, onPress: () => goto("/meteo") },
+    { label: "Profilo", icon: "person", color: HT.text2, onPress: () => goto("/(tabs)/impostazioni") }, // V50.z287 — mancava nel blocco Utility
     // CRM Core
     { label: "Autocompilazione CRT", icon: "color-wand", color: "#0EA5E9", onPress: handleNewContract, badge: alerts.unread }, // V50.z287
     { label: "New App", icon: "add-circle", color: "#0EA5E9", onPress: () => goto("/appointment/new") },
@@ -637,7 +638,7 @@ function MasterScreen() {
           <View style={[styles.calcBox, { paddingBottom: bottomPad }]} onStartShouldSetResponder={() => true}>
             <View style={styles.calcHeader}>
               <Text style={styles.calcTitle}>Calcolatrice</Text>
-              <Pressable onPress={() => setCalcOpen(false)}><Ionicons name="close" size={22} color={theme.color.onSurface} /></Pressable>
+              <Pressable onPress={() => setCalcOpen(false)}><Ionicons name="close" size={22} color={HT.text} /></Pressable>
             </View>
             <Calculator />
           </View>
@@ -650,7 +651,7 @@ function MasterScreen() {
         area={drill?.area || null}
         startIso={report?.start || ""}
         endIso={report?.end || ""}
-        color={drill?.color || theme.color.brandPrimary}
+        color={drill?.color || HT.brand}
         title={drill?.title || "Dettaglio"}
       />
       <MasterPromoteModal visible={promoteOpen} onClose={() => setPromoteOpen(false)} />
@@ -703,7 +704,7 @@ function MenuItem({ icon, color, label, hint, onPress, testID }: { icon: keyof t
         <Text style={styles.menuLabel}>{label}</Text>
         <Text style={styles.menuHint}>{hint}</Text>
       </View>
-      <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+      <Ionicons name="chevron-forward" size={18} color={HT.muted} />
     </Pressable>
   );
 }
@@ -815,7 +816,7 @@ function Calculator() {
             const isOp = b.type === "op";
             const isFn = b.type === "fn";
             const bg = isEq ? "#7C3AED" : isOp ? "#F59E0B" : isFn ? "#E5E7EB" : "#F1F5F9";
-            const fg = isEq || isOp ? "#FFF" : theme.color.onSurface;
+            const fg = isEq || isOp ? "#FFF" : HT.text;
             return (
               <Pressable
                 key={b.label}
@@ -923,7 +924,7 @@ function SettingsHubSection({
       ],
     },
     {
-      color: "#475569", label: "Amministrazione", icon: "options",
+      color: HT.text2, label: "Amministrazione", icon: "options",
       items: [
         { icon: "color-palette", label: "Setting App", hint: "Cambia tema e colori", onPress: () => onGoto("/settings-app"), testID: "hub-settings-app" },
         { icon: "ribbon", label: "Branding aziendale", hint: "Logo e nome sui PDF (report, comparazioni)", onPress: () => onGoto("/(tabs)/impostazioni"), ownerOnly: true, testID: "hub-branding" },
@@ -957,9 +958,9 @@ function SettingsHubSection({
     <View style={masterExtraStyles.hubSection} testID="master-settings-hub">
       <View style={masterExtraStyles.hubHeader}>
         <View style={[masterExtraStyles.hubHeaderIcon, { backgroundColor: "#0F172A22" }]}>
-          <Ionicons name="options" size={14} color="#0F172A" />
+          <Ionicons name="options" size={14} color={HT.text} />
         </View>
-        <Text style={[masterExtraStyles.hubHeaderTitle, { color: "#0F172A" }]}>Impostazioni & Configurazioni</Text>
+        <Text style={[masterExtraStyles.hubHeaderTitle, { color: HT.text }]}>Impostazioni & Configurazioni</Text>
         <View style={[masterExtraStyles.hubHeaderLine, { backgroundColor: "#0F172A22" }]} />
       </View>
 
@@ -988,7 +989,7 @@ function SettingsHubSection({
                   <Text style={masterExtraStyles.hubRowTitle} numberOfLines={1}>{it.label}</Text>
                   {!!it.hint && <Text style={masterExtraStyles.hubRowHint} numberOfLines={2}>{it.hint}</Text>}
                 </View>
-                <Ionicons name="chevron-forward" size={16} color={theme.color.muted} />
+                <Ionicons name="chevron-forward" size={16} color={HT.muted} />
               </Pressable>
             ))}
           </View>
@@ -996,7 +997,7 @@ function SettingsHubSection({
       })}
 
       <Pressable onPress={onLogout} style={masterExtraStyles.hubLogoutBtn} testID="hub-logout">
-        <Ionicons name="log-out-outline" size={18} color={theme.color.error} />
+        <Ionicons name="log-out-outline" size={18} color={HT.danger} />
         <Text style={masterExtraStyles.hubLogoutTxt}>Esci</Text>
       </Pressable>
     </View>
@@ -1022,10 +1023,10 @@ const masterExtraStyles = StyleSheet.create({
   },
   hubHeaderLine: { flex: 1, height: 2, borderRadius: 1 },
   hubGroup: {
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: theme.color.border,
+    borderColor: HT.border,
     padding: 4,
     gap: 2,
     overflow: "hidden",
@@ -1033,7 +1034,7 @@ const masterExtraStyles = StyleSheet.create({
   hubGroupBar: {
     flexDirection: "row", alignItems: "center", gap: 6,
     paddingHorizontal: 10, paddingVertical: 8,
-    borderBottomWidth: 1, borderBottomColor: theme.color.border,
+    borderBottomWidth: 1, borderBottomColor: HT.border,
     marginHorizontal: -4, marginTop: -4, marginBottom: 2,
   },
   hubGroupBarIcon: {
@@ -1052,15 +1053,15 @@ const masterExtraStyles = StyleSheet.create({
     width: 34, height: 34, borderRadius: 10,
     alignItems: "center", justifyContent: "center",
   },
-  hubRowTitle: { fontSize: 14, fontWeight: "700", color: theme.color.onSurface },
-  hubRowHint: { fontSize: 11, color: theme.color.muted, marginTop: 1 },
+  hubRowTitle: { fontSize: 14, fontWeight: "700", color: HT.text },
+  hubRowHint: { fontSize: 11, color: HT.muted, marginTop: 1 },
   hubLogoutBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    backgroundColor: "#FFF", padding: 12, borderRadius: 12,
-    borderWidth: 1, borderColor: "#FCA5A5",
+    backgroundColor: HT.card, padding: 12, borderRadius: 12,
+    borderWidth: 1, borderColor: '#FCA5A5',
     marginTop: 4,
   },
-  hubLogoutTxt: { color: theme.color.error, fontWeight: "800", fontSize: 14 },
+  hubLogoutTxt: { color: HT.danger, fontWeight: "800", fontSize: 14 },
   // V50.z41 — Mini-header di categoria nella grid Master
   catHeader: {
     width: "100%", flexDirection: "row", alignItems: "center", gap: 6,
@@ -1076,17 +1077,17 @@ const masterExtraStyles = StyleSheet.create({
     padding: 14,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#FED7AA",
-    backgroundColor: "#FFF7ED",
+    borderColor: HT.brandLine,
+    backgroundColor: HT.brandTint,
     marginTop: 12,
     marginBottom: 4,
   },
   promoteIcon: {
-    width: 40, height: 40, borderRadius: 12, backgroundColor: "#EA580C",
+    width: 40, height: 40, borderRadius: 12, backgroundColor: '#EA580C',
     alignItems: "center", justifyContent: "center",
   },
-  promoteTitle: { fontSize: 14, fontWeight: "800", color: "#9A3412" },
-  promoteSub: { fontSize: 12, color: "#9A3412", opacity: 0.75, marginTop: 2, lineHeight: 16 },
+  promoteTitle: { fontSize: 14, fontWeight: "800", color: "#FDBA74" },
+  promoteSub: { fontSize: 12, color: "#FDBA74", opacity: 0.75, marginTop: 2, lineHeight: 16 },
   // V48 — Reorder mode + assistance-number modal styles
   reorderBar: {
     flexDirection: "row",
@@ -1102,24 +1103,24 @@ const masterExtraStyles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: "#E0F2FE",
+    backgroundColor: HT.axonTint,
     borderWidth: 1,
-    borderColor: "#7DD3FC",
+    borderColor: '#7DD3FC',
   },
-  reorderStartTxt: { fontSize: 11, color: "#0369A1", fontWeight: "800" },
-  reorderTxt: { fontSize: 11, color: "#78350F", fontWeight: "700", flexShrink: 1 },
+  reorderStartTxt: { fontSize: 11, color: HT.axon, fontWeight: "800" },
+  reorderTxt: { fontSize: 11, color: "#FDBA74", fontWeight: "700", flexShrink: 1 },
   reorderResetBtn: {
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: HT.card2,
   },
-  reorderResetTxt: { fontSize: 11, color: "#64748B", fontWeight: "800" },
+  reorderResetTxt: { fontSize: 11, color: HT.muted, fontWeight: "800" },
   reorderDoneBtn: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: "#EA580C",
+    backgroundColor: '#EA580C',
   },
   reorderDoneTxt: { fontSize: 11, color: "#FFF", fontWeight: "800" },
   reorderArrows: {
@@ -1133,11 +1134,11 @@ const masterExtraStyles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: "#0F172A",
+    backgroundColor: '#0F172A',
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
-    borderColor: "#FFF",
+    borderColor: HT.card,
   },
   supportBtnSaveTxt: { fontSize: 13, fontWeight: "700", color: "#FFF" },
 });
@@ -1159,7 +1160,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
   },
   headerDate: {
-    color: theme.color.muted,
+    color: HT.muted,
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 0.2,
@@ -1175,17 +1176,17 @@ const styles = StyleSheet.create({
     height: 30,
     borderRadius: 15,
     borderWidth: 1.5,
-    borderColor: "#FFF1E9",
+    borderColor: HT.brandTint,
   },
   headerAvatarFallback: {
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: "#FF6B35",
+    backgroundColor: '#FF6B35',
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1.5,
-    borderColor: "#FFF1E9",
+    borderColor: HT.brandTint,
   },
   headerAvatarTxt: { color: "#FFF", fontSize: 13, fontWeight: "800" },
   // V49.g — Legacy header brand styles (mantenuti solo per compatibilità in
@@ -1198,7 +1199,7 @@ const styles = StyleSheet.create({
   },
   brandHeaderBox: {
     height: 140,
-    backgroundColor: "#000",
+    backgroundColor: '#000',
     borderWidth: 1,
     borderColor: "rgba(56,189,248,0.35)",
     borderRadius: 12,
@@ -1235,17 +1236,17 @@ const styles = StyleSheet.create({
     height: 26,
     borderRadius: 13,
     borderWidth: 1.5,
-    borderColor: "#FFF1E9",
+    borderColor: HT.brandTint,
   },
   brandHeaderAvatarFallback: {
     width: 26,
     height: 26,
     borderRadius: 13,
-    backgroundColor: "#FF6B35",
+    backgroundColor: '#FF6B35',
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1.5,
-    borderColor: "#FFF1E9",
+    borderColor: HT.brandTint,
   },
   brandHeaderAvatarTxt: { color: "#FFF", fontSize: 11, fontWeight: "800" },
   hero: {
@@ -1255,7 +1256,7 @@ const styles = StyleSheet.create({
     // V29.az — Height fissa uguale all'header Home (140px full-screen) così
     // l'immagine dashboard AdvisorOS/AxonOS è visibile alla stessa dimensione.
     height: 140,
-    backgroundColor: "#0B1E38",
+    backgroundColor: '#0B1E38',
     overflow: "hidden",
     position: "relative",
     justifyContent: "flex-start",
@@ -1305,7 +1306,7 @@ const styles = StyleSheet.create({
     textShadowRadius: 2,
   },
 
-  bannerWrap: { marginTop: 8, height: 100, borderRadius: 12, overflow: "hidden", position: "relative", backgroundColor: "#F1F5F9", zIndex: 1 },
+  bannerWrap: { marginTop: 8, height: 100, borderRadius: 12, overflow: "hidden", position: "relative", backgroundColor: HT.card2, zIndex: 1 },
   bannerImg: { flex: 1 },
   bannerOverlay: { flex: 1, paddingHorizontal: 12, paddingVertical: 8, justifyContent: "center" },
   bannerFallback: { flex: 1, borderRadius: 16, padding: 14, flexDirection: "row", alignItems: "center" },
@@ -1370,46 +1371,46 @@ const styles = StyleSheet.create({
   btnLabel: {
     fontSize: 11,
     fontWeight: "700",
-    color: theme.color.onSurface,
+    color: HT.text,
     textAlign: "center",
     lineHeight: 14,
   },
-  badgeDot: { position: "absolute", top: -4, right: -4, minWidth: 22, height: 22, borderRadius: 11, backgroundColor: "#16A34A", justifyContent: "center", alignItems: "center", paddingHorizontal: 5, borderWidth: 2, borderColor: "#FFF" },
+  badgeDot: { position: "absolute", top: -4, right: -4, minWidth: 22, height: 22, borderRadius: 11, backgroundColor: '#16A34A', justifyContent: "center", alignItems: "center", paddingHorizontal: 5, borderWidth: 2, borderColor: HT.card },
   badgeTxt: { color: "#FFF", fontSize: 10, fontWeight: "800" },
-  myAudiosLink: { flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "center", paddingVertical: 10, paddingHorizontal: 16, backgroundColor: "#F5F3FF", borderRadius: 20, borderWidth: 1, borderColor: "#DDD6FE" },
+  myAudiosLink: { flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "center", paddingVertical: 10, paddingHorizontal: 16, backgroundColor: HT.violetTint, borderRadius: 20, borderWidth: 1, borderColor: HT.violet + '66' },
   myAudiosLinkTxt: { color: "#7C3AED", fontWeight: "800", fontSize: 13 },
   statsSection: { marginTop: 6, marginBottom: 16 },
-  statsHeader: { fontSize: 13, fontWeight: "800", color: theme.color.onSurface, marginBottom: 10, letterSpacing: 0.3, textTransform: "uppercase" },
+  statsHeader: { fontSize: 13, fontWeight: "800", color: HT.text, marginBottom: 10, letterSpacing: 0.3, textTransform: "uppercase" },
   statsRow: { flexDirection: "row", gap: 8 },
-  statCard: { flex: 1, backgroundColor: "#FFF", borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border, borderLeftWidth: 4, padding: 10, gap: 4 },
-  statCardV: { backgroundColor: "#FFF", borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border, borderLeftWidth: 4, padding: 10, marginBottom: 10 },
+  statCard: { flex: 1, backgroundColor: HT.card, borderRadius: theme.radius.md, borderWidth: 1, borderColor: HT.border, borderLeftWidth: 4, padding: 10, gap: 4 },
+  statCardV: { backgroundColor: HT.card, borderRadius: theme.radius.md, borderWidth: 1, borderColor: HT.border, borderLeftWidth: 4, padding: 10, marginBottom: 10 },
   metricsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   statBadge: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", marginBottom: 4 },
   statTitle: { fontSize: 12, fontWeight: "800", marginBottom: 4 },
   statRowLine: { flexDirection: "row", alignItems: "baseline", gap: 4 },
-  statNum: { fontSize: 18, fontWeight: "800", color: theme.color.onSurface, minWidth: 22 },
-  statLbl: { fontSize: 11, color: theme.color.muted },
+  statNum: { fontSize: 18, fontWeight: "800", color: HT.text, minWidth: 22 },
+  statLbl: { fontSize: 11, color: HT.muted },
 
   modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  menuBox: { backgroundColor: "#FFF", borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 12, paddingBottom: 30 },
+  menuBox: { backgroundColor: HT.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 12, paddingBottom: 30 },
   // V50.z34 — Header categoria nel menu 3-dot (grigio muted, 11pt uppercase)
-  menuCatHeader: { fontSize: 11, fontWeight: "800", color: theme.color.muted, letterSpacing: 0.6, textTransform: "uppercase", paddingHorizontal: 4, paddingTop: 10, paddingBottom: 4 },
+  menuCatHeader: { fontSize: 11, fontWeight: "800", color: HT.muted, letterSpacing: 0.6, textTransform: "uppercase", paddingHorizontal: 4, paddingTop: 10, paddingBottom: 4 },
   menuItem: { flexDirection: "row", alignItems: "center", paddingVertical: 12, paddingHorizontal: 10 },
   menuIcon: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
-  menuLabel: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface },
-  menuHint: { fontSize: 11, color: theme.color.muted, marginTop: 1 },
+  menuLabel: { fontSize: 14, fontWeight: "800", color: HT.text },
+  menuHint: { fontSize: 11, color: HT.muted, marginTop: 1 },
 
-  sheetBox: { backgroundColor: "#FFF", borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 12, paddingBottom: 30 },
-  sheetHandle: { alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: "#CBD5E1", marginBottom: 12 },
-  sheetTitle: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface, marginBottom: 8, paddingHorizontal: 10 },
+  sheetBox: { backgroundColor: HT.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 12, paddingBottom: 30 },
+  sheetHandle: { alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: HT.borderStrong, marginBottom: 12 },
+  sheetTitle: { fontSize: 16, fontWeight: "800", color: HT.text, marginBottom: 8, paddingHorizontal: 10 },
   pickerRow: { flexDirection: "row", alignItems: "center", paddingVertical: 12, paddingHorizontal: 10, borderRadius: 10 },
-  sheetCancel: { marginTop: 10, alignItems: "center", padding: 12, backgroundColor: "#F1F5F9", borderRadius: 10 },
-  sheetCancelTxt: { fontWeight: "800", color: theme.color.onSurface },
+  sheetCancel: { marginTop: 10, alignItems: "center", padding: 12, backgroundColor: HT.card2, borderRadius: 10 },
+  sheetCancelTxt: { fontWeight: "800", color: HT.text },
 
-  calcBox: { backgroundColor: "#FFF", borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 14, paddingBottom: 30 },
+  calcBox: { backgroundColor: HT.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 14, paddingBottom: 30 },
   calcHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-  calcTitle: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface },
-  calcDisplay: { backgroundColor: "#0F172A", borderRadius: 12, padding: 18, alignItems: "flex-end" },
+  calcTitle: { fontSize: 16, fontWeight: "800", color: HT.text },
+  calcDisplay: { backgroundColor: '#0F172A', borderRadius: 12, padding: 18, alignItems: "flex-end" },
   calcDisplayTxt: { color: "#FFF", fontSize: 40, fontWeight: "700", fontVariant: ["tabular-nums"] },
   calcOpTxt: { color: "#F59E0B", fontSize: 14, fontWeight: "800" },
   calcBtn: { flex: 1, aspectRatio: 1.15, borderRadius: 14, alignItems: "center", justifyContent: "center", marginLeft: 4 },

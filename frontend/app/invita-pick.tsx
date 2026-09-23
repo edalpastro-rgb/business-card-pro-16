@@ -4,10 +4,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 
 import { useBottomSheetPadding, usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 /**
  * V27 — Pick or quick-create a contact for an invite (prospect | collaborator).
  * Query params:
@@ -108,7 +108,7 @@ export default function InvitaPickContact() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={10} testID="pick-back">
-          <Ionicons name="chevron-back" size={26} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={26} color={HT.text} />
         </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Invita {intentMeta.label}</Text>
@@ -120,13 +120,13 @@ export default function InvitaPickContact() {
       </View>
 
       <View style={styles.searchWrap}>
-        <Ionicons name="search" size={16} color={theme.color.muted} />
+        <Ionicons name="search" size={16} color={HT.muted} />
         <TextInput
           testID="contact-search"
           value={search}
           onChangeText={setSearch}
           placeholder="Cerca per nome, email o telefono…"
-          placeholderTextColor="#94A3B8"
+          placeholderTextColor={HT.muted}
           style={styles.searchInput}
         />
       </View>
@@ -139,16 +139,16 @@ export default function InvitaPickContact() {
           <Text style={styles.createTitle}>Crea nuovo contatto</Text>
           <Text style={styles.createSub}>Aggiungi al volo nome, email e telefono</Text>
         </View>
-        <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+        <Ionicons name="chevron-forward" size={18} color={HT.muted} />
       </Pressable>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: pagePad, gap: 8 }}>
         <Text style={styles.sectionLbl}>Contatti in rubrica ({filtered.length})</Text>
         {loading ? (
-          <ActivityIndicator style={{ marginTop: 20 }} color={theme.color.brandPrimary} />
+          <ActivityIndicator style={{ marginTop: 20 }} color={HT.brand} />
         ) : filtered.length === 0 ? (
           <View style={styles.empty}>
-            <Ionicons name="people-outline" size={30} color={theme.color.muted} />
+            <Ionicons name="people-outline" size={30} color={HT.muted} />
             <Text style={styles.emptyTxt}>{search ? "Nessun contatto trovato." : "La tua rubrica è vuota."}</Text>
           </View>
         ) : (
@@ -175,7 +175,7 @@ export default function InvitaPickContact() {
                   </Text>
                 </View>
               )}
-              <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+              <Ionicons name="chevron-forward" size={18} color={HT.muted} />
             </Pressable>
           ))
         )}
@@ -188,17 +188,17 @@ export default function InvitaPickContact() {
             <View style={styles.sheetHdr}>
               <Text style={styles.sheetTitle}>Nuovo contatto</Text>
               <Pressable onPress={() => setShowCreate(false)} hitSlop={8}>
-                <Ionicons name="close" size={22} color={theme.color.onSurface} />
+                <Ionicons name="close" size={22} color={HT.text} />
               </Pressable>
             </View>
             <Text style={styles.lbl}>Nome</Text>
-            <TextInput value={qFirst} onChangeText={setQFirst} placeholder="Es. Mario" placeholderTextColor="#94A3B8" style={styles.input} testID="q-first" />
+            <TextInput value={qFirst} onChangeText={setQFirst} placeholder="Es. Mario" placeholderTextColor={HT.muted} style={styles.input} testID="q-first" />
             <Text style={styles.lbl}>Cognome</Text>
-            <TextInput value={qLast} onChangeText={setQLast} placeholder="Es. Rossi" placeholderTextColor="#94A3B8" style={styles.input} testID="q-last" />
+            <TextInput value={qLast} onChangeText={setQLast} placeholder="Es. Rossi" placeholderTextColor={HT.muted} style={styles.input} testID="q-last" />
             <Text style={styles.lbl}>Email</Text>
-            <TextInput value={qEmail} onChangeText={setQEmail} placeholder="mario.rossi@example.it" placeholderTextColor="#94A3B8" style={styles.input} keyboardType="email-address" autoCapitalize="none" testID="q-email" />
+            <TextInput value={qEmail} onChangeText={setQEmail} placeholder="mario.rossi@example.it" placeholderTextColor={HT.muted} style={styles.input} keyboardType="email-address" autoCapitalize="none" testID="q-email" />
             <Text style={styles.lbl}>Telefono</Text>
-            <TextInput value={qPhone} onChangeText={setQPhone} placeholder="+39 333 1234567" placeholderTextColor="#94A3B8" style={styles.input} keyboardType="phone-pad" testID="q-phone" />
+            <TextInput value={qPhone} onChangeText={setQPhone} placeholder="+39 333 1234567" placeholderTextColor={HT.muted} style={styles.input} keyboardType="phone-pad" testID="q-phone" />
             <Pressable onPress={createAndContinue} disabled={busy} style={[styles.saveBtn, { backgroundColor: intentMeta.color }]} testID="q-save">
               {busy ? <ActivityIndicator color="#FFF" /> : (
                 <>
@@ -215,14 +215,14 @@ export default function InvitaPickContact() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
+  root: { flex: 1, backgroundColor: HT.card2 },
   header: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 12 },
-  title: { fontSize: 17, fontWeight: "800", color: theme.color.onSurface },
-  sub: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
+  title: { fontSize: 17, fontWeight: "800", color: HT.text },
+  sub: { fontSize: 12, color: HT.muted, marginTop: 2 },
   intentBadge: { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  searchWrap: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16, backgroundColor: "#FFF", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: theme.color.border },
-  searchInput: { flex: 1, fontSize: 14, color: theme.color.onSurface },
-  createBtn: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#FFF", borderRadius: 14, padding: 14, marginHorizontal: 16, marginTop: 12, marginBottom: 8, borderWidth: 1, borderColor: theme.color.border, borderStyle: "dashed" },
+  searchWrap: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16, backgroundColor: HT.card, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: HT.border },
+  searchInput: { flex: 1, fontSize: 14, color: HT.text },
+  createBtn: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: HT.card, borderRadius: 14, padding: 14, marginHorizontal: 16, marginTop: 12, marginBottom: 8, borderWidth: 1, borderColor: HT.border, borderStyle: "dashed" },
   // V29.bb — Stile Optima
   createIcon: {
     width: 42,
@@ -238,25 +238,25 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 5,
   },
-  createTitle: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface },
-  createSub: { fontSize: 11, color: theme.color.muted, marginTop: 2 },
-  sectionLbl: { fontSize: 11, fontWeight: "800", color: theme.color.muted, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 8, marginBottom: 4 },
-  row: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#FFF", borderRadius: 12, padding: 12, borderWidth: 1, borderColor: theme.color.border },
-  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.color.brandTertiary, alignItems: "center", justifyContent: "center" },
-  avatarTxt: { color: theme.color.brandPrimary, fontWeight: "800", fontSize: 13 },
-  rowName: { fontSize: 14, fontWeight: "700", color: theme.color.onSurface },
-  rowSub: { fontSize: 11, color: theme.color.muted, marginTop: 2 },
+  createTitle: { fontSize: 14, fontWeight: "800", color: HT.text },
+  createSub: { fontSize: 11, color: HT.muted, marginTop: 2 },
+  sectionLbl: { fontSize: 11, fontWeight: "800", color: HT.muted, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 8, marginBottom: 4 },
+  row: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: HT.card, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: HT.border },
+  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: HT.brandTint, alignItems: "center", justifyContent: "center" },
+  avatarTxt: { color: HT.brand, fontWeight: "800", fontSize: 13 },
+  rowName: { fontSize: 14, fontWeight: "700", color: HT.text },
+  rowSub: { fontSize: 11, color: HT.muted, marginTop: 2 },
   statusMini: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
   statusMiniTxt: { fontSize: 10, fontWeight: "800" },
   empty: { alignItems: "center", padding: 20, gap: 8 },
-  emptyTxt: { color: theme.color.muted, fontStyle: "italic" },
+  emptyTxt: { color: HT.muted, fontStyle: "italic" },
   // Modal
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: "#FFF", borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 16, gap: 4, paddingBottom: 30 },
+  sheet: { backgroundColor: HT.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 16, gap: 4, paddingBottom: 30 },
   sheetHdr: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
-  sheetTitle: { fontSize: 17, fontWeight: "800", color: theme.color.onSurface },
-  lbl: { fontSize: 11, fontWeight: "700", color: theme.color.muted, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 10, marginBottom: 4 },
-  input: { backgroundColor: "#F1F5F9", borderRadius: 10, padding: 12, fontSize: 14, color: theme.color.onSurface },
+  sheetTitle: { fontSize: 17, fontWeight: "800", color: HT.text },
+  lbl: { fontSize: 11, fontWeight: "700", color: HT.muted, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 10, marginBottom: 4 },
+  input: { backgroundColor: HT.card2, borderRadius: 10, padding: 12, fontSize: 14, color: HT.text },
   saveBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 12, padding: 14, marginTop: 14 },
   saveBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
 });

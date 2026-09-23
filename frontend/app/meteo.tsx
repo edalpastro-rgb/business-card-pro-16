@@ -9,9 +9,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 import { ModuleErrorBoundary } from "@/src/shared";
 import { getWeatherCoords, weatherIcon, fmtDayIt } from "@/src/utils/weather";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Day = { date: string; icon_key: string; label: string; temp_min?: number; temp_max?: number; precipitation_mm?: number; precipitation_prob?: number; wind_kmh?: number; uv_index?: number; sunrise?: string; sunset?: string };
 type Forecast = { days: Day[]; current?: { temp?: number; feels_like?: number; humidity?: number; wind_kmh?: number; icon_key?: string; label?: string } | null; place?: string | null; needs_address?: boolean; address_error?: string | null; error?: string };
@@ -119,11 +119,11 @@ function MeteoInner() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable testID="back-btn" onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/home" as any))} hitSlop={10}>
-          <Ionicons name="chevron-back" size={26} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={26} color={HT.text} />
         </Pressable>
         <Text style={styles.title}>Meteo</Text>
         <Pressable testID="meteo-edit-address" onPress={openAddr} hitSlop={10}>
-          <Ionicons name="location-outline" size={22} color={theme.color.brandPrimary} />
+          <Ionicons name="location-outline" size={22} color={HT.brand} />
         </Pressable>
       </View>
 
@@ -137,7 +137,7 @@ function MeteoInner() {
               value={cityQuery}
               onChangeText={(t) => { setCityQuery(t); if (cityError) setCityError(null); }}
               placeholder="es. Milano, Roma, Cortina d'Ampezzo"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={HT.muted}
               returnKeyType="search"
               onSubmitEditing={searchCity}
               autoCorrect={false}
@@ -155,10 +155,10 @@ function MeteoInner() {
           {!!cityError && <Text style={[styles.muted, { color: "#DC2626", marginTop: 8 }]} testID="meteo-city-error">{cityError}</Text>}
           {cityActive ? (
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10 }} testID="meteo-city-active">
-              <Ionicons name="eye-outline" size={16} color={theme.color.brandPrimary} />
+              <Ionicons name="eye-outline" size={16} color={HT.brand} />
               <Text style={[styles.muted, { flex: 1 }]} numberOfLines={1}>Stai consultando: <Text style={{ fontWeight: "800" }}>{cityActive}</Text></Text>
               <Pressable testID="meteo-city-reset" onPress={resetCity} hitSlop={8} style={{ minHeight: 32, justifyContent: "center" }}>
-                <Text style={{ color: theme.color.brandPrimary, fontWeight: "800", fontSize: 12 }}>Torna alla mia posizione</Text>
+                <Text style={{ color: HT.brand, fontWeight: "800", fontSize: 12 }}>Torna alla mia posizione</Text>
               </Pressable>
             </View>
           ) : (
@@ -166,7 +166,7 @@ function MeteoInner() {
           )}
         </View>
         {loading ? (
-          <ActivityIndicator color={theme.color.brandPrimary} style={{ marginTop: 40 }} />
+          <ActivityIndicator color={HT.brand} style={{ marginTop: 40 }} />
         ) : fc?.needs_address ? (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>{fc?.address_error ? "Indirizzo non riconosciuto" : "Imposta la tua località"}</Text>
@@ -177,7 +177,7 @@ function MeteoInner() {
             </Text>
             <Pressable testID="meteo-set-address" onPress={openAddr} style={styles.primaryBtn}><Text style={styles.primaryBtnTxt}>{fc?.address_error ? "Correggi indirizzo" : "Imposta indirizzo"}</Text></Pressable>
             <Pressable testID="meteo-retry" onPress={() => { setLoading(true); load(); }} style={{ alignSelf: "center", marginTop: 10, minHeight: 40, justifyContent: "center" }}>
-              <Text style={{ color: theme.color.brandPrimary, fontWeight: "700" }}>Riprova</Text>
+              <Text style={{ color: HT.brand, fontWeight: "700" }}>Riprova</Text>
             </Pressable>
           </View>
         ) : fc?.error || !today ? (
@@ -243,7 +243,7 @@ function MeteoInner() {
               {fc!.days.map((d, i) => {
                 const ic = weatherIcon(d.icon_key);
                 return (
-                  <View key={d.date} style={[styles.dayRow, i === 0 && { backgroundColor: theme.color.surfaceTertiary }]}>
+                  <View key={d.date} style={[styles.dayRow, i === 0 && { backgroundColor: HT.card2 }]}>
                     <Text style={styles.dayName}>{fmtDayIt(d.date, i)}</Text>
                     <Ionicons name={ic.name} size={22} color={ic.color} />
                     <Text style={styles.dayLabel} numberOfLines={1}>{d.label}</Text>
@@ -263,9 +263,9 @@ function MeteoInner() {
           <View style={styles.modalCard}>
             <Text style={styles.cardTitle}>Indirizzo di residenza</Text>
             <Text style={styles.muted}>Usato per meteo e allerte quando il GPS non è disponibile. Ogni utente ha il proprio.</Text>
-            <TextInput testID="meteo-address-input" value={addrDraft} onChangeText={setAddrDraft} placeholder="es. Via Roma 10, Torino" placeholderTextColor="#94A3B8" style={styles.input} autoFocus />
+            <TextInput testID="meteo-address-input" value={addrDraft} onChangeText={setAddrDraft} placeholder="es. Via Roma 10, Torino" placeholderTextColor={HT.muted} style={styles.input} autoFocus />
             <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
-              <Pressable onPress={() => setAddrModal(false)} style={[styles.primaryBtn, { flex: 1, backgroundColor: theme.color.surfaceTertiary }]}><Text style={[styles.primaryBtnTxt, { color: theme.color.onSurface }]}>Annulla</Text></Pressable>
+              <Pressable onPress={() => setAddrModal(false)} style={[styles.primaryBtn, { flex: 1, backgroundColor: HT.card2 }]}><Text style={[styles.primaryBtnTxt, { color: HT.text }]}>Annulla</Text></Pressable>
               <Pressable testID="meteo-address-save" onPress={saveAddr} disabled={saving} style={[styles.primaryBtn, { flex: 1, opacity: saving ? 0.6 : 1 }]}>{saving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.primaryBtnTxt}>Salva</Text>}</Pressable>
             </View>
           </View>
@@ -276,10 +276,10 @@ function MeteoInner() {
 }
 
 function Stat({ icon, label, value, light }: { icon: any; label: string; value: string; light?: boolean }) {
-  const c = light ? "#FFF" : theme.color.onSurface;
+  const c = light ? "#FFF" : HT.text;
   return (
     <View style={styles.stat}>
-      <Ionicons name={icon} size={16} color={light ? "rgba(255,255,255,0.9)" : theme.color.brandPrimary} />
+      <Ionicons name={icon} size={16} color={light ? "rgba(255,255,255,0.9)" : HT.brand} />
       <Text style={[styles.statLabel, light && { color: "rgba(255,255,255,0.85)" }]}>{label}</Text>
       <Text style={[styles.statValue, { color: c }]}>{value}</Text>
     </View>
@@ -287,32 +287,32 @@ function Stat({ icon, label, value, light }: { icon: any; label: string; value: 
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.color.border, backgroundColor: theme.color.surfaceSecondary },
-  title: { fontSize: 18, fontWeight: "800", color: theme.color.onSurface },
+  root: { flex: 1, backgroundColor: HT.card2 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: HT.border, backgroundColor: HT.card2 },
+  title: { fontSize: 18, fontWeight: "800", color: HT.text },
   hero: { borderRadius: 18, padding: 16 },
   heroTemp: { fontSize: 44, fontWeight: "900", color: "#FFF", lineHeight: 48 },
   heroLabel: { fontSize: 15, fontWeight: "700", color: "#FFF" },
   heroPlace: { fontSize: 12, color: "rgba(255,255,255,0.9)", flexShrink: 1 },
   heroStats: { flexDirection: "row", marginTop: 14, gap: 8 },
-  card: { backgroundColor: theme.color.surfaceSecondary, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: theme.color.border },
-  cardTitle: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface, marginBottom: 8 },
-  muted: { fontSize: 12, color: theme.color.muted },
+  card: { backgroundColor: HT.card2, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: HT.border },
+  cardTitle: { fontSize: 14, fontWeight: "800", color: HT.text, marginBottom: 8 },
+  muted: { fontSize: 12, color: HT.muted },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   stat: { flexGrow: 1, flexBasis: "30%", alignItems: "center", gap: 2, paddingVertical: 8, borderRadius: 10, backgroundColor: "rgba(0,0,0,0.04)" },
-  statLabel: { fontSize: 10.5, color: theme.color.muted, fontWeight: "600" },
+  statLabel: { fontSize: 10.5, color: HT.muted, fontWeight: "600" },
   statValue: { fontSize: 13, fontWeight: "800" },
   alert: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 12 },
   alertTitle: { color: "#FFF", fontSize: 13, fontWeight: "800" },
   alertDetail: { color: "rgba(255,255,255,0.9)", fontSize: 11, marginTop: 2 },
   dayRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 9, paddingHorizontal: 8, borderRadius: 10 },
-  dayName: { width: 74, fontSize: 12.5, fontWeight: "700", color: theme.color.onSurface },
-  dayLabel: { flex: 1, fontSize: 12, color: theme.color.muted },
+  dayName: { width: 74, fontSize: 12.5, fontWeight: "700", color: HT.text },
+  dayLabel: { flex: 1, fontSize: 12, color: HT.muted },
   dayRain: { width: 38, fontSize: 11.5, color: "#0284C7", fontWeight: "700", textAlign: "right" },
-  dayTemp: { width: 66, fontSize: 13, color: theme.color.muted, textAlign: "right" },
-  primaryBtn: { marginTop: 12, backgroundColor: theme.color.brandPrimary, paddingVertical: 12, borderRadius: 10, alignItems: "center", justifyContent: "center", minHeight: 44 },
+  dayTemp: { width: 66, fontSize: 13, color: HT.muted, textAlign: "right" },
+  primaryBtn: { marginTop: 12, backgroundColor: HT.brand, paddingVertical: 12, borderRadius: 10, alignItems: "center", justifyContent: "center", minHeight: 44 },
   primaryBtnTxt: { color: "#FFF", fontWeight: "800" },
   modalBack: { flex: 1, backgroundColor: "rgba(15,23,42,0.55)", alignItems: "center", justifyContent: "center", padding: 20 },
-  modalCard: { width: "100%", maxWidth: 420, backgroundColor: theme.color.surfaceSecondary, borderRadius: 16, padding: 18 },
-  input: { marginTop: 8, borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: theme.color.onSurface, backgroundColor: theme.color.surface },
+  modalCard: { width: "100%", maxWidth: 420, backgroundColor: HT.card2, borderRadius: 16, padding: 18 },
+  input: { marginTop: 8, borderWidth: 1, borderColor: HT.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: HT.text, backgroundColor: HT.card2 },
 });

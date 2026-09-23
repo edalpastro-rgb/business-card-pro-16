@@ -9,9 +9,10 @@ import * as LocalAuthentication from "expo-local-authentication";
 import { api } from "@/src/api";
 import { storage } from "@/src/utils/storage";
 import { LockKeyIcon } from "@/src/LockKeyIcon";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const GREEN = "#059669";
-const NAVY = "#1B2B4B";
+const NAVY = HT.text;
 const BIO_KEY = "personal_space_bio_enabled_v1";
 
 type Status = { configured: boolean; attempts_left: number; locked_for_seconds: number; email?: string };
@@ -237,7 +238,7 @@ export function PersonalLockGate({ onUnlocked }: { onUnlocked: () => void }) {
           <Header title="Reimposta il PIN" sub={`Ti abbiamo inviato un codice a 6 cifre a ${sentTo || "l'email del tuo account"}. Inseriscilo e scegli un nuovo PIN.`} />
           {info ? <Text style={styles.info} testID="lock-forgot-info">{info}</Text> : null}
           <Text style={styles.fieldLabel}>Codice ricevuto via email</Text>
-          <TextInput value={code} onChangeText={(t) => setCode(t.replace(/\D/g, "").slice(0, 6))} keyboardType="number-pad" inputMode="numeric" maxLength={6} style={styles.codeInput} placeholder="••••••" placeholderTextColor="#94A3B8" testID="lock-reset-code" autoFocus />
+          <TextInput value={code} onChangeText={(t) => setCode(t.replace(/\D/g, "").slice(0, 6))} keyboardType="number-pad" inputMode="numeric" maxLength={6} style={styles.codeInput} placeholder="••••••" placeholderTextColor={HT.muted} testID="lock-reset-code" autoFocus />
           <Text style={styles.fieldLabel}>Nuovo PIN</Text>
           <PinField key="reset-pin" value={pin} onChange={setPin} testID="lock-reset-pin" />
           <Text style={styles.fieldLabel}>Conferma nuovo PIN</Text>
@@ -247,7 +248,7 @@ export function PersonalLockGate({ onUnlocked }: { onUnlocked: () => void }) {
             {busy ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="checkmark-circle" size={18} color="#FFF" /><Text style={styles.primaryTxt}>Salva nuovo PIN</Text></>}
           </Pressable>
           <Pressable onPress={doForgot} disabled={busy} style={styles.linkBtn} testID="lock-resend"><Text style={styles.linkTxt}>Non ho ricevuto il codice, invia di nuovo</Text></Pressable>
-          <Pressable onPress={() => { reset(); setCode(""); setMode("verify"); }} style={styles.linkBtn} testID="lock-forgot-back"><Text style={[styles.linkTxt, { color: "#64748B" }]}>Torna al PIN</Text></Pressable>
+          <Pressable onPress={() => { reset(); setCode(""); setMode("verify"); }} style={styles.linkBtn} testID="lock-forgot-back"><Text style={[styles.linkTxt, { color: HT.muted }]}>Torna al PIN</Text></Pressable>
         </>
       ) : null}
     </ScrollView>
@@ -288,41 +289,41 @@ export function ChangePinPanel({ onDone, onCancel }: { onDone: () => void; onCan
       <Pressable onPress={submit} disabled={busy} style={[styles.primaryBtn, busy && { opacity: 0.6 }]} testID="change-pin-submit">
         {busy ? <ActivityIndicator color="#FFF" /> : <Text style={styles.primaryTxt}>Salva nuovo PIN</Text>}
       </Pressable>
-      <Pressable onPress={onCancel} style={styles.linkBtn} testID="change-pin-cancel"><Text style={[styles.linkTxt, { color: "#64748B" }]}>Annulla</Text></Pressable>
+      <Pressable onPress={onCancel} style={styles.linkBtn} testID="change-pin-cancel"><Text style={[styles.linkTxt, { color: HT.muted }]}>Annulla</Text></Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F0FDF4" },
+  root: { flex: 1, backgroundColor: HT.successTint },
   content: { padding: 24, paddingTop: 36, gap: 16, alignItems: "stretch" },
   head: { alignItems: "center", gap: 8, marginBottom: 8 },
   badge: { width: 72, height: 72, borderRadius: 24, backgroundColor: GREEN, alignItems: "center", justifyContent: "center", marginBottom: 6 },
   title: { fontSize: 22, fontWeight: "900", color: NAVY, textAlign: "center" },
-  sub: { fontSize: 13.5, color: "#475569", textAlign: "center", lineHeight: 19, paddingHorizontal: 8 },
+  sub: { fontSize: 13.5, color: HT.text2, textAlign: "center", lineHeight: 19, paddingHorizontal: 8 },
   pinWrap: { flexDirection: "row", justifyContent: "center", gap: 10, position: "relative", minHeight: 56 },
-  pinBox: { width: 44, height: 54, borderRadius: 12, borderWidth: 1.5, borderColor: "#CBD5E1", backgroundColor: "#FFF", alignItems: "center", justifyContent: "center" },
+  pinBox: { width: 44, height: 54, borderRadius: 12, borderWidth: 1.5, borderColor: HT.borderStrong, backgroundColor: HT.card, alignItems: "center", justifyContent: "center" },
   pinBoxFilled: { borderColor: GREEN },
   pinBoxActive: { borderColor: GREEN, borderWidth: 2 },
   pinDot: { width: 14, height: 14, borderRadius: 7, backgroundColor: NAVY },
   pinHidden: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, opacity: 0.01, fontSize: 1, color: "transparent" },
   err: { color: "#DC2626", fontWeight: "700", textAlign: "center", fontSize: 13 },
-  info: { color: "#065F46", fontWeight: "700", textAlign: "center", fontSize: 13, backgroundColor: "#D1FAE5", padding: 10, borderRadius: 10 },
-  hint: { color: "#64748B", fontSize: 12, textAlign: "center" },
+  info: { color: HT.success, fontWeight: "700", textAlign: "center", fontSize: 13, backgroundColor: HT.successTint, padding: 10, borderRadius: 10 },
+  hint: { color: HT.muted, fontSize: 12, textAlign: "center" },
   primaryBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: GREEN, minHeight: 50, borderRadius: 14, paddingHorizontal: 16 },
   primaryTxt: { color: "#FFF", fontWeight: "800", fontSize: 15 },
-  secondaryBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#FFF", borderWidth: 1.5, borderColor: GREEN, minHeight: 48, borderRadius: 14 },
+  secondaryBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: HT.card, borderWidth: 1.5, borderColor: GREEN, minHeight: 48, borderRadius: 14 },
   secondaryTxt: { color: GREEN, fontWeight: "800", fontSize: 14 },
   linkBtn: { alignItems: "center", justifyContent: "center", minHeight: 44 },
   linkTxt: { color: GREEN, fontWeight: "800", fontSize: 14, textDecorationLine: "underline" },
-  fieldLabel: { fontSize: 12, fontWeight: "800", color: "#475569", marginTop: 4, marginBottom: -6 },
-  codeInput: { backgroundColor: "#FFF", borderWidth: 1.5, borderColor: "#CBD5E1", borderRadius: 12, minHeight: 54, textAlign: "center", fontSize: 24, letterSpacing: 10, fontWeight: "800", color: NAVY },
-  sheet: { backgroundColor: "#FFF", borderRadius: 20, padding: 20, gap: 14 },
+  fieldLabel: { fontSize: 12, fontWeight: "800", color: HT.text2, marginTop: 4, marginBottom: -6 },
+  codeInput: { backgroundColor: HT.card, borderWidth: 1.5, borderColor: HT.borderStrong, borderRadius: 12, minHeight: 54, textAlign: "center", fontSize: 24, letterSpacing: 10, fontWeight: "800", color: NAVY },
+  sheet: { backgroundColor: HT.card, borderRadius: 20, padding: 20, gap: 14 },
   sheetTitle: { fontSize: 17, fontWeight: "900", color: NAVY, textAlign: "center" },
-  toggleRow: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#ECFDF5", borderRadius: 12, padding: 12, minHeight: 48 },
+  toggleRow: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: HT.successTint, borderRadius: 12, padding: 12, minHeight: 48 },
   toggleLabel: { flex: 1, fontWeight: "800", color: NAVY, fontSize: 14 },
-  switch: { width: 44, height: 26, borderRadius: 13, backgroundColor: "#CBD5E1", padding: 3 },
+  switch: { width: 44, height: 26, borderRadius: 13, backgroundColor: HT.borderStrong, padding: 3 },
   switchOn: { backgroundColor: GREEN },
-  knob: { width: 20, height: 20, borderRadius: 10, backgroundColor: "#FFF" },
+  knob: { width: 20, height: 20, borderRadius: 10, backgroundColor: HT.card },
   knobOn: { alignSelf: "flex-end" },
 });

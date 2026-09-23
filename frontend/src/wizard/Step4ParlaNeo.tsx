@@ -10,6 +10,7 @@ import { useAudioRecorder, AudioModule, RecordingPresets, setAudioModeAsync } fr
 import { api, apiUpload } from "@/src/api";
 import type { StepBinder } from "@/src/wizard/Step1Anagrafica";
 import { PrivacyNote } from "@/src/wizard/PrivacyNote"; // V50.z217
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const PURPLE = "#7C3AED";
 const MAX_FILE = 50 * 1024 * 1024;
@@ -203,7 +204,7 @@ export function Step4ParlaNeo({ bind }: { bind: StepBinder }) {
       {/* 1 · Testo libero */}
       <View style={styles.card}>
         <View style={styles.cardHead}><Ionicons name="create" size={18} color={PURPLE} /><Text style={styles.cardTitle}>Testo libero</Text></View>
-        <TextInput value={text} onChangeText={setText} placeholder={PLACEHOLDER} placeholderTextColor="#94A3B8" multiline style={styles.textarea} textAlignVertical="top" testID="neo-text-input" />
+        <TextInput value={text} onChangeText={setText} placeholder={PLACEHOLDER} placeholderTextColor={HT.muted} multiline style={styles.textarea} textAlignVertical="top" testID="neo-text-input" />
         <Pressable onPress={sendText} disabled={!!busy} style={[styles.btn, (!text.trim() || !!busy) && styles.btnDim]} testID="neo-text-send">
           {busy === "text" ? <ActivityIndicator color="#FFF" size="small" /> : <Ionicons name="paper-plane" size={16} color="#FFF" />}<Text style={styles.btnTxt}>{busy === "text" ? "Neo sta leggendo…" : "Invia a Neo"}</Text>
         </Pressable>
@@ -216,7 +217,7 @@ export function Step4ParlaNeo({ bind }: { bind: StepBinder }) {
           <View style={styles.fileRow} testID="neo-file-picked">
             <Ionicons name="document" size={20} color={PURPLE} />
             <View style={{ flex: 1 }}><Text style={styles.fileName} numberOfLines={1}>{picked.name}</Text><Text style={styles.fileMeta}>{fmtSize(picked.size)}</Text></View>
-            <Pressable onPress={() => setPicked(null)} hitSlop={8} disabled={busy === "file"} testID="neo-file-remove"><Ionicons name="close-circle" size={22} color="#94A3B8" /></Pressable>
+            <Pressable onPress={() => setPicked(null)} hitSlop={8} disabled={busy === "file"} testID="neo-file-remove"><Ionicons name="close-circle" size={22} color={HT.muted} /></Pressable>
           </View>
         ) : null}
         <View style={{ flexDirection: "row", gap: 8 }}>
@@ -232,7 +233,7 @@ export function Step4ParlaNeo({ bind }: { bind: StepBinder }) {
       {/* 3 · Audio */}
       <View style={styles.card}>
         <View style={styles.cardHead}><Ionicons name="mic" size={18} color={PURPLE} /><Text style={styles.cardTitle}>Parla con la voce</Text><Text style={styles.cardHint}>Trascritto da Whisper, capito da Neo</Text></View>
-        <Pressable onPress={() => (rec ? void stopRec() : void startRec())} disabled={!!busy && !rec} style={[styles.btn, rec && { backgroundColor: "#DC2626" }, !!busy && !rec && styles.btnDim]} testID="neo-audio-btn">
+        <Pressable onPress={() => (rec ? void stopRec() : void startRec())} disabled={!!busy && !rec} style={[styles.btn, rec && { backgroundColor: '#DC2626' }, !!busy && !rec && styles.btnDim]} testID="neo-audio-btn">
           {busy === "audio" ? <ActivityIndicator color="#FFF" size="small" /> : <Ionicons name={rec ? "stop" : "mic"} size={16} color="#FFF" />}
           <Text style={styles.btnTxt}>{busy === "audio" ? "Neo sta ascoltando…" : rec ? `Ferma · ${String(Math.floor(sec / 60)).padStart(2, "0")}:${String(sec % 60).padStart(2, "0")}` : "Registra"}</Text>
         </Pressable>
@@ -267,7 +268,7 @@ export function Step4ParlaNeo({ bind }: { bind: StepBinder }) {
                 {p.current ? <Text style={styles.propCur}>Attuale: {p.current}</Text> : null}
                 {p.why ? <Text style={styles.propWhy}>{p.why}</Text> : null}
               </View>
-              <Pressable onPress={() => decide("proposal", p.id, false)} style={styles.noBtn} hitSlop={6} testID={`neo-prop-no-${p.id}`}><Ionicons name="close" size={18} color="#64748B" /></Pressable>
+              <Pressable onPress={() => decide("proposal", p.id, false)} style={styles.noBtn} hitSlop={6} testID={`neo-prop-no-${p.id}`}><Ionicons name="close" size={18} color={HT.muted} /></Pressable>
               <Pressable onPress={() => decide("proposal", p.id, true)} style={styles.yesBtn} hitSlop={6} testID={`neo-prop-yes-${p.id}`}><Ionicons name="checkmark" size={20} color="#FFF" /></Pressable>
             </View>
           ))}
@@ -279,7 +280,7 @@ export function Step4ParlaNeo({ bind }: { bind: StepBinder }) {
           {pendingFacts.map((f) => (
             <View key={f.id} style={styles.prop} testID={`neo-fact-${f.id}`}>
               <Text style={[styles.propValue, { flex: 1, fontSize: 13.5 }]}>{f.text}</Text>
-              <Pressable onPress={() => decide("fact", f.id, false)} style={styles.noBtn} hitSlop={6} testID={`neo-fact-no-${f.id}`}><Ionicons name="close" size={18} color="#64748B" /></Pressable>
+              <Pressable onPress={() => decide("fact", f.id, false)} style={styles.noBtn} hitSlop={6} testID={`neo-fact-no-${f.id}`}><Ionicons name="close" size={18} color={HT.muted} /></Pressable>
               <Pressable onPress={() => decide("fact", f.id, true)} style={styles.yesBtn} hitSlop={6} testID={`neo-fact-yes-${f.id}`}><Ionicons name="checkmark" size={20} color="#FFF" /></Pressable>
             </View>
           ))}
@@ -309,42 +310,42 @@ export function Step4ParlaNeo({ bind }: { bind: StepBinder }) {
 }
 
 const styles = StyleSheet.create({
-  lead: { fontSize: 13.5, color: "#475569", lineHeight: 19 },
-  card: { backgroundColor: "#F8FAFC", borderRadius: 16, padding: 12, gap: 10, borderWidth: 1, borderColor: "#E2E8F0" },
+  lead: { fontSize: 13.5, color: HT.text2, lineHeight: 19 },
+  card: { backgroundColor: HT.card2, borderRadius: 16, padding: 12, gap: 10, borderWidth: 1, borderColor: HT.border },
   cardHead: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
-  cardTitle: { fontSize: 15, fontWeight: "900", color: "#1B2B4B" },
-  cardHint: { fontSize: 11, color: "#64748B", flexBasis: "100%" },
-  textarea: { minHeight: 110, maxHeight: 220, backgroundColor: "#FFF", borderRadius: 12, borderWidth: 1, borderColor: "#E2E8F0", padding: 12, fontSize: 15, color: "#1B2B4B", lineHeight: 21 },
+  cardTitle: { fontSize: 15, fontWeight: "900", color: HT.text },
+  cardHint: { fontSize: 11, color: HT.muted, flexBasis: "100%" },
+  textarea: { minHeight: 110, maxHeight: 220, backgroundColor: HT.card, borderRadius: 12, borderWidth: 1, borderColor: HT.border, padding: 12, fontSize: 15, color: HT.text, lineHeight: 21 },
   btn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: PURPLE, borderRadius: 12, minHeight: 46, paddingHorizontal: 14 },
-  btnAlt: { backgroundColor: "#FFF", borderWidth: 1.5, borderColor: PURPLE },
+  btnAlt: { backgroundColor: HT.card, borderWidth: 1.5, borderColor: PURPLE },
   btnDim: { opacity: 0.55 },
   btnTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
-  fileRow: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#FFF", borderRadius: 12, padding: 10, borderWidth: 1, borderColor: "#DDD6FE" },
-  fileName: { fontSize: 13.5, fontWeight: "700", color: "#1B2B4B" },
-  fileMeta: { fontSize: 11.5, color: "#64748B" },
-  transcript: { fontSize: 12.5, color: "#475569", fontStyle: "italic", lineHeight: 17 },
+  fileRow: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: HT.card, borderRadius: 12, padding: 10, borderWidth: 1, borderColor: HT.violet + '66' },
+  fileName: { fontSize: 13.5, fontWeight: "700", color: HT.text },
+  fileMeta: { fontSize: 11.5, color: HT.muted },
+  transcript: { fontSize: 12.5, color: HT.text2, fontStyle: "italic", lineHeight: 17 },
   err: { fontSize: 12.5, color: "#DC2626", fontWeight: "700" },
-  readingPill: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#F5F3FF", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: "#DDD6FE" },
-  readingTxt: { flex: 1, fontSize: 12.5, fontWeight: "700", color: "#4C1D95" },
-  neoBox: { backgroundColor: "#F5F3FF", borderRadius: 14, padding: 12, gap: 4, borderWidth: 1, borderColor: "#DDD6FE" },
-  neoTitle: { fontSize: 12.5, fontWeight: "900", color: "#4C1D95" },
-  neoTxt: { fontSize: 13.5, color: "#1B2B4B", lineHeight: 19 },
+  readingPill: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: HT.violetTint, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: HT.violet + '66' },
+  readingTxt: { flex: 1, fontSize: 12.5, fontWeight: "700", color: HT.violet },
+  neoBox: { backgroundColor: HT.violetTint, borderRadius: 14, padding: 12, gap: 4, borderWidth: 1, borderColor: HT.violet + '66' },
+  neoTitle: { fontSize: 12.5, fontWeight: "900", color: HT.violet },
+  neoTxt: { fontSize: 13.5, color: HT.text, lineHeight: 19 },
   section: { fontSize: 12, fontWeight: "800", color: PURPLE, textTransform: "uppercase", letterSpacing: 0.6 },
-  prop: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF", borderRadius: 14, padding: 12, borderWidth: 1, borderColor: "#E2E8F0" },
-  propStar: { borderColor: "#F59E0B", backgroundColor: "#FFFBEB" },
-  propLabel: { fontSize: 11.5, fontWeight: "800", color: "#64748B", textTransform: "uppercase" },
-  propValue: { fontSize: 15, fontWeight: "700", color: "#1B2B4B" },
-  propCur: { fontSize: 11.5, color: "#B45309" },
-  propWhy: { fontSize: 11.5, color: "#94A3B8" },
-  yesBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#059669", alignItems: "center", justifyContent: "center" },
-  noBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center" },
+  prop: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: HT.card, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: HT.border },
+  propStar: { borderColor: '#F59E0B', backgroundColor: HT.warningTint },
+  propLabel: { fontSize: 11.5, fontWeight: "800", color: HT.muted, textTransform: "uppercase" },
+  propValue: { fontSize: 15, fontWeight: "700", color: HT.text },
+  propCur: { fontSize: 11.5, color: HT.warning },
+  propWhy: { fontSize: 11.5, color: HT.muted },
+  yesBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#059669', alignItems: "center", justifyContent: "center" },
+  noBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: HT.card2, alignItems: "center", justifyContent: "center" },
   doneTxt: { fontSize: 12.5, color: "#059669", fontWeight: "700" },
   backdrop: { flex: 1, backgroundColor: "rgba(15,23,42,0.55)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: "#FFF", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 32, gap: 12 },
-  sheetTitle: { fontSize: 18, fontWeight: "900", color: "#1B2B4B" },
-  sheetSub: { fontSize: 13, color: "#64748B", lineHeight: 18 },
+  sheet: { backgroundColor: HT.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 32, gap: 12 },
+  sheetTitle: { fontSize: 18, fontWeight: "900", color: HT.text },
+  sheetSub: { fontSize: 13, color: HT.muted, lineHeight: 18 },
   sheetPrimary: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: PURPLE, borderRadius: 14, minHeight: 50 },
   sheetPrimaryTxt: { color: "#FFF", fontWeight: "900", fontSize: 15 },
-  sheetSecondary: { alignItems: "center", justifyContent: "center", minHeight: 48, borderRadius: 14, borderWidth: 1.5, borderColor: "#CBD5E1" },
-  sheetSecondaryTxt: { color: "#1B2B4B", fontWeight: "800", fontSize: 15 },
+  sheetSecondary: { alignItems: "center", justifyContent: "center", minHeight: 48, borderRadius: 14, borderWidth: 1.5, borderColor: HT.borderStrong },
+  sheetSecondaryTxt: { color: HT.text, fontWeight: "800", fontSize: 15 },
 });

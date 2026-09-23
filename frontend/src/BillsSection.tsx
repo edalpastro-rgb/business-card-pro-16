@@ -6,7 +6,6 @@ import * as Print from "expo-print";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 import { notify, confirmAsync } from "@/src/utils/notify";
 import { uriToBase64 } from "@/src/utils/media";
 import { CalculatorFAB } from "@/src/CalculatorFAB";
@@ -20,6 +19,7 @@ import { ReportHeaderConfigModal } from "@/src/ReportHeaderConfigModal";
 import { BillAnalysisConfigModal, BillAnalysisConfigButton, PresetQuickRow } from "@/src/BillAnalysisConfigModal";
 import { BillAnalysisBundle, loadBillAnalysisConfig, configuredDefaults, configSummary } from "@/src/billAnalysisConfig";
 import { MicroTutorial, TUTORIAL_ANALIZZA_BOLLETTA } from "@/src/MicroTutorial";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type BillType = "luce" | "gas" | "telco";
 export type QuickBillType = BillType;
@@ -47,7 +47,7 @@ const SECTION_META: Record<BillType, { label: string; icon: any; color: string; 
 };
 
 const STATUS_META = {
-  pending: { label: "In coda…", color: "#6B7280", icon: "hourglass-outline" as const },
+  pending: { label: "In coda…", color: HT.muted, icon: "hourglass-outline" as const },
   analyzing: { label: "Analisi in corso…", color: "#0891B2", icon: "sync" as const },
   done: { label: "Analizzata", color: "#16A34A", icon: "checkmark-circle" as const },
   error: { label: "Errore", color: "#DC2626", icon: "warning" as const },
@@ -443,7 +443,7 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
       const delta = entry.delta_annual_eur;
       const bg = ok ? "#ECFDF5" : "#FEF2F2";
       const border = ok ? "#A7F3D0" : "#FCA5A5";
-      const color = ok ? "#065F46" : "#991B1B";
+      const color = ok ? HT.success : HT.danger;
       const text = ok
         ? `${label} ${fmtNum(exp, digits)}${unit} OK`
         : `${label} errata — attesa ${fmtNum(exp, digits)}${unit}, trovata ${fmtNum(act, digits)}${unit}`;
@@ -994,7 +994,7 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
   };
 
   if (loading) {
-    return <ActivityIndicator style={{ marginTop: 30 }} color={theme.color.brandPrimary} />;
+    return <ActivityIndicator style={{ marginTop: 30 }} color={HT.brand} />;
   }
 
   const totalDone = grouped.luce.filter((b) => b.status === "done").length
@@ -1008,7 +1008,7 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
             l'analisi bolletta prima del pulsante di upload. */}
         <MicroTutorial steps={TUTORIAL_ANALIZZA_BOLLETTA} />
         <View style={styles.introCard}>
-          <Ionicons name="sparkles" size={20} color={theme.color.brandPrimary} />
+          <Ionicons name="sparkles" size={20} color={HT.brand} />
           <View style={{ flex: 1, marginLeft: 10 }}>
             <Text style={styles.introTitle}>Fatture Energia · AI Claude Sonnet 5</Text>
             <Text style={styles.introTxt}>Carica le fatture in PDF: Luce, Gas o Telco. L&apos;AI estrae automaticamente POD/PDR, consumi, offerte, scadenze, IVA e altro.</Text>
@@ -1037,13 +1037,13 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
                 <View key={bt} style={{ marginTop: 8 }}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 }}>
                     <Text style={{ fontWeight: "700", fontSize: 12, color: meta.color }}>{meta.emoji} {meta.label}</Text>
-                    <Text style={{ fontSize: 10, color: theme.color.muted }}>({myOffers.length})</Text>
+                    <Text style={{ fontSize: 10, color: HT.muted }}>({myOffers.length})</Text>
                   </View>
                   <Pressable
                     testID={`offer-upload-${bt}`}
                     onPress={() => uploadOffer(bt)}
                     disabled={uploadingOffer === bt}
-                    style={[styles.uploadBtn, { borderColor: "#7C3AED", paddingVertical: 8 }]}
+                    style={[styles.uploadBtn, { borderColor: '#7C3AED', paddingVertical: 8 }]}
                   >
                     {uploadingOffer === bt ? (
                       <ActivityIndicator color="#7C3AED" />
@@ -1061,8 +1061,8 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
                       value={manualTxt[bt]}
                       onChangeText={(t) => setManualTxt((m) => ({ ...m, [bt]: t }))}
                       placeholder="…oppure inserisci qui le condizioni economiche (prezzi €/kWh, quota fissa, servizi extra, penali…)"
-                      placeholderTextColor="#94A3B8"
-                      style={{ backgroundColor: "#FFF", borderRadius: 8, padding: 8, borderWidth: 1, borderColor: "#DDD6FE", minHeight: 70, textAlignVertical: "top", color: theme.color.onSurface, fontSize: 12 }}
+                      placeholderTextColor={HT.muted}
+                      style={{ backgroundColor: HT.card, borderRadius: 8, padding: 8, borderWidth: 1, borderColor: HT.violet + '66', minHeight: 70, textAlignVertical: "top", color: HT.text, fontSize: 12 }}
                       multiline
                     />
                     <View style={{ flexDirection: "row", gap: 6 }}>
@@ -1078,7 +1078,7 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
                         testID={`offer-manual-save-${bt}`}
                         onPress={() => saveManualOffer(bt)}
                         disabled={savingManual === bt || !manualTxt[bt]?.trim()}
-                        style={[styles.uploadBtn, { flex: 1, borderColor: "#16A34A", backgroundColor: manualTxt[bt]?.trim() ? "#16A34A" : "#94A3B8", paddingVertical: 8 }]}
+                        style={[styles.uploadBtn, { flex: 1, borderColor: '#16A34A', backgroundColor: manualTxt[bt]?.trim() ? "#16A34A" : HT.muted, paddingVertical: 8 }]}
                       >
                         {savingManual === bt ? (
                           <ActivityIndicator color="#FFF" />
@@ -1190,7 +1190,7 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
                       >
                         <Ionicons name="trash-outline" size={18} color="#DC2626" />
                       </Pressable>
-                      <Ionicons name={isOpen ? "chevron-up" : "chevron-down"} size={18} color={theme.color.muted} />
+                      <Ionicons name={isOpen ? "chevron-up" : "chevron-down"} size={18} color={HT.muted} />
                     </Pressable>
 
                     {isOpen && (
@@ -1249,24 +1249,24 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
                         )}
 
                         <View style={styles.actionsRow}>
-                          <Pressable testID={`bill-view-${b.bill_id}`} onPress={() => openBillPdf(b)} style={[styles.actBtn, { backgroundColor: "#F1F5F9" }]}>
-                            <Ionicons name="eye-outline" size={14} color={theme.color.onSurface} />
+                          <Pressable testID={`bill-view-${b.bill_id}`} onPress={() => openBillPdf(b)} style={[styles.actBtn, { backgroundColor: HT.card2 }]}>
+                            <Ionicons name="eye-outline" size={14} color={HT.text} />
                             <Text style={styles.actBtnTxt}>Apri PDF</Text>
                           </Pressable>
                           {(b.status === "pending" || b.status === "analyzing") && (
                             <Pressable
                               testID={`bill-cancel-${b.bill_id}`}
                               onPress={() => cancelBillAnalysis(b)}
-                              style={[styles.actBtn, { backgroundColor: "#FEF3C7" }]}
+                              style={[styles.actBtn, { backgroundColor: HT.warningTint }]}
                             >
-                              <Ionicons name="stop-circle-outline" size={14} color="#B45309" />
-                              <Text style={[styles.actBtnTxt, { color: "#B45309" }]}>Annulla analisi</Text>
+                              <Ionicons name="stop-circle-outline" size={14} color={HT.warning} />
+                              <Text style={[styles.actBtnTxt, { color: HT.warning }]}>Annulla analisi</Text>
                             </Pressable>
                           )}
                           {(b.status === "error" || b.status === "done" || b.status === "cancelled") && (
-                            <Pressable testID={`bill-reanalyze-${b.bill_id}`} onPress={() => reanalyze(b)} style={[styles.actBtn, { backgroundColor: "#DBEAFE" }]}>
-                              <Ionicons name="refresh" size={14} color="#1D4ED8" />
-                              <Text style={[styles.actBtnTxt, { color: "#1D4ED8" }]}>Ri-analizza</Text>
+                            <Pressable testID={`bill-reanalyze-${b.bill_id}`} onPress={() => reanalyze(b)} style={[styles.actBtn, { backgroundColor: HT.axonTint }]}>
+                              <Ionicons name="refresh" size={14} color={HT.axon} />
+                              <Text style={[styles.actBtnTxt, { color: HT.axon }]}>Ri-analizza</Text>
                             </Pressable>
                           )}
                           {b.status === "done" && (
@@ -1280,13 +1280,13 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
                                 subtitle: "Salva l'analisi nei File del cliente",
                                 run: async (name: string) => { await saveBillAnalysisWithName(b, name); },
                               })}
-                              style={[styles.actBtn, { backgroundColor: "#DCFCE7" }]}
+                              style={[styles.actBtn, { backgroundColor: HT.successTint }]}
                             >
-                              <Ionicons name="save-outline" size={14} color="#166534" />
-                              <Text style={[styles.actBtnTxt, { color: "#166534" }]}>Salva sul cliente</Text>
+                              <Ionicons name="save-outline" size={14} color={HT.success} />
+                              <Text style={[styles.actBtnTxt, { color: HT.success }]}>Salva sul cliente</Text>
                             </Pressable>
                           )}
-                          <Pressable testID={`bill-delete-${b.bill_id}`} onPress={() => deleteBill(b)} style={[styles.actBtn, { backgroundColor: "#FEE2E2" }]}>
+                          <Pressable testID={`bill-delete-${b.bill_id}`} onPress={() => deleteBill(b)} style={[styles.actBtn, { backgroundColor: HT.dangerTint }]}>
                             <Ionicons name="trash-outline" size={14} color="#DC2626" />
                             <Text style={[styles.actBtnTxt, { color: "#DC2626" }]}>Elimina</Text>
                           </Pressable>
@@ -1305,7 +1305,7 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
       <Pressable
         testID="bills-header-cfg-btn"
         onPress={() => setHeaderCfgOpen(true)}
-        style={[styles.reportBtn, { backgroundColor: "#0F172A", flexDirection: "row" }]}
+        style={[styles.reportBtn, { backgroundColor: '#0F172A', flexDirection: "row" }]}
       >
         <Ionicons name="settings-outline" size={18} color="#FFF" />
         <Text style={styles.reportBtnTxt}>Configura intestazione</Text>
@@ -1337,7 +1337,7 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
         testID="bills-bulk-upload-btn"
         disabled={bulkBusy}
         onPress={bulkUploadPdfs}
-        style={[styles.reportBtn, { backgroundColor: "#0891B2", marginTop: 12, opacity: bulkBusy ? 0.6 : 1 }]}
+        style={[styles.reportBtn, { backgroundColor: '#0891B2', marginTop: 12, opacity: bulkBusy ? 0.6 : 1 }]}
       >
         {bulkBusy ? (
           <ActivityIndicator color="#FFF" />
@@ -1354,7 +1354,7 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
         testID="bills-cte-btn"
         disabled={totalDone < 1 || cteBusy}
         onPress={generateCTE}
-        style={[styles.reportBtn, { backgroundColor: "#059669", marginTop: 12, opacity: (totalDone < 1 || cteBusy) ? 0.5 : 1 }]}
+        style={[styles.reportBtn, { backgroundColor: '#059669', marginTop: 12, opacity: (totalDone < 1 || cteBusy) ? 0.5 : 1 }]}
       >
         {cteBusy ? (
           <ActivityIndicator color="#FFF" />
@@ -1405,27 +1405,27 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
       {/* V38 — Analysis parameters config modal */}
       <Modal visible={!!pendingUpload} animationType="slide" transparent onRequestClose={cancelPendingUpload}>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }}>
-          <View style={{ backgroundColor: theme.color.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "90%" }}>
+          <View style={{ backgroundColor: HT.card2, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "90%" }}>
             {pendingUpload && (() => {
               const bt = pendingUpload.bill_type;
               const meta = SECTION_META[bt];
               const defs = DEFAULT_PARAMS[bt];
               return (
                 <>
-                  <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: theme.color.border }}>
+                  <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: HT.border }}>
                     <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                         <Text style={{ fontSize: 20 }}>{meta.emoji}</Text>
                         <View>
-                          <Text style={{ fontSize: 15, fontWeight: "800", color: theme.color.onSurface }}>Parametri da estrarre</Text>
-                          <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 1 }} numberOfLines={1}>{pendingUpload.asset.name || `fattura-${bt}.pdf`}</Text>
+                          <Text style={{ fontSize: 15, fontWeight: "800", color: HT.text }}>Parametri da estrarre</Text>
+                          <Text style={{ fontSize: 11, color: HT.muted, marginTop: 1 }} numberOfLines={1}>{pendingUpload.asset.name || `fattura-${bt}.pdf`}</Text>
                         </View>
                       </View>
                       <Pressable onPress={cancelPendingUpload} hitSlop={8} testID="bill-config-close">
-                        <Ionicons name="close" size={22} color={theme.color.onSurface} />
+                        <Ionicons name="close" size={22} color={HT.text} />
                       </Pressable>
                     </View>
-                    <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 8, lineHeight: 15 }}>
+                    <Text style={{ fontSize: 11, color: HT.muted, marginTop: 8, lineHeight: 15 }}>
                       Scegli quali parametri vuoi che l&apos;AI estragga con priorità. Puoi anche aggiungerne di personalizzati.
                     </Text>
                   </View>
@@ -1437,7 +1437,7 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
                       color={meta.color}
                       onApply={(sel) => { setSelectedParams(new Set([...sel.labels, ...sel.custom])); setCustomParams(sel.custom); }}
                     />
-                    <Text style={{ fontSize: 12, fontWeight: "700", color: theme.color.muted, marginBottom: 6 }}>PARAMETRI STANDARD</Text>
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: HT.muted, marginBottom: 6 }}>PARAMETRI STANDARD</Text>
                     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
                       {defs.map((p) => {
                         const on = selectedParams.has(p.label);
@@ -1454,12 +1454,12 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
                               paddingVertical: 6,
                               borderRadius: 20,
                               borderWidth: 1,
-                              borderColor: on ? meta.color : theme.color.border,
+                              borderColor: on ? meta.color : HT.border,
                               backgroundColor: on ? meta.color + "18" : "#FFF",
                             }}
                           >
-                            <Ionicons name={on ? "checkbox" : "square-outline"} size={16} color={on ? meta.color : theme.color.muted} />
-                            <Text style={{ fontSize: 12, color: on ? meta.color : theme.color.onSurface, fontWeight: on ? "700" : "500" }}>{p.label}</Text>
+                            <Ionicons name={on ? "checkbox" : "square-outline"} size={16} color={on ? meta.color : HT.muted} />
+                            <Text style={{ fontSize: 12, color: on ? meta.color : HT.text, fontWeight: on ? "700" : "500" }}>{p.label}</Text>
                           </Pressable>
                         );
                       })}
@@ -1467,7 +1467,7 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
 
                     {customParams.length > 0 && (
                       <>
-                        <Text style={{ fontSize: 12, fontWeight: "700", color: theme.color.muted, marginTop: 14, marginBottom: 6 }}>PARAMETRI PERSONALIZZATI</Text>
+                        <Text style={{ fontSize: 12, fontWeight: "700", color: HT.muted, marginTop: 14, marginBottom: 6 }}>PARAMETRI PERSONALIZZATI</Text>
                         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
                           {customParams.map((p) => (
                             <View key={p} style={{
@@ -1477,12 +1477,12 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
                               paddingHorizontal: 10,
                               paddingVertical: 6,
                               borderRadius: 20,
-                              backgroundColor: "#F3E8FF",
+                              backgroundColor: '#F3E8FF',
                               borderWidth: 1,
-                              borderColor: "#7C3AED",
+                              borderColor: '#7C3AED',
                             }}>
                               <Ionicons name="sparkles" size={13} color="#7C3AED" />
-                              <Text style={{ fontSize: 12, color: "#5B21B6", fontWeight: "700" }}>{p}</Text>
+                              <Text style={{ fontSize: 12, color: HT.violet, fontWeight: "700" }}>{p}</Text>
                               <Pressable onPress={() => removeCustomParam(p)} hitSlop={6}>
                                 <Ionicons name="close-circle" size={14} color="#7C3AED" />
                               </Pressable>
@@ -1492,7 +1492,7 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
                       </>
                     )}
 
-                    <Text style={{ fontSize: 12, fontWeight: "700", color: theme.color.muted, marginTop: 14, marginBottom: 6 }}>AGGIUNGI PARAMETRO PERSONALIZZATO</Text>
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: HT.muted, marginTop: 14, marginBottom: 6 }}>AGGIUNGI PARAMETRO PERSONALIZZATO</Text>
                     <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
                       <TextInput
                         testID="bill-config-custom-input"
@@ -1500,8 +1500,8 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
                         onChangeText={setCustomParam}
                         onSubmitEditing={addCustomParam}
                         placeholder="Es. Bonus sociale, Rateizzazione, IVA agevolata…"
-                        placeholderTextColor={theme.color.muted}
-                        style={{ flex: 1, backgroundColor: "#FFF", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: theme.color.border, fontSize: 13, color: theme.color.onSurface }}
+                        placeholderTextColor={HT.muted}
+                        style={{ flex: 1, backgroundColor: HT.card, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: HT.border, fontSize: 13, color: HT.text }}
                       />
                       <Pressable
                         onPress={addCustomParam}
@@ -1515,13 +1515,13 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
                     </View>
                   </ScrollView>
 
-                  <View style={{ padding: 12, paddingBottom: 12 + safeBottom, borderTopWidth: 1, borderTopColor: theme.color.border, backgroundColor: "#FFF", gap: 8 }}>
-                    <Text style={{ fontSize: 11, color: theme.color.muted, textAlign: "center" }}>
+                  <View style={{ padding: 12, paddingBottom: 12 + safeBottom, borderTopWidth: 1, borderTopColor: HT.border, backgroundColor: HT.card, gap: 8 }}>
+                    <Text style={{ fontSize: 11, color: HT.muted, textAlign: "center" }}>
                       Selezionati: <Text style={{ fontWeight: "800", color: meta.color }}>{selectedParams.size}</Text> parametri
                     </Text>
                     <View style={{ flexDirection: "row", gap: 8 }}>
-                      <Pressable onPress={cancelPendingUpload} style={{ flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: "#F1F5F9", alignItems: "center" }} testID="bill-config-cancel">
-                        <Text style={{ color: theme.color.onSurface, fontWeight: "700", fontSize: 14 }}>Annulla</Text>
+                      <Pressable onPress={cancelPendingUpload} style={{ flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: HT.card2, alignItems: "center" }} testID="bill-config-cancel">
+                        <Text style={{ color: HT.text, fontWeight: "700", fontSize: 14 }}>Annulla</Text>
                       </Pressable>
                       <Pressable
                         onPress={confirmUploadWithParams}
@@ -1549,60 +1549,60 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
         onRequestClose={() => setSourcePickerBillType(null)}
       >
         <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 24 }} onPress={() => setSourcePickerBillType(null)}>
-          <Pressable style={{ backgroundColor: "#FFF", borderRadius: 16, padding: 20, width: "100%", maxWidth: 340, gap: 12 }} onPress={(e) => e.stopPropagation()}>
+          <Pressable style={{ backgroundColor: HT.card, borderRadius: 16, padding: 20, width: "100%", maxWidth: 340, gap: 12 }} onPress={(e) => e.stopPropagation()}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-              <Text style={{ fontSize: 16, fontWeight: "800", color: theme.color.onSurface }}>
+              <Text style={{ fontSize: 16, fontWeight: "800", color: HT.text }}>
                 Carica fattura {sourcePickerBillType ? SECTION_META[sourcePickerBillType].label : ""}
               </Text>
               <Pressable onPress={() => setSourcePickerBillType(null)} hitSlop={8}>
-                <Ionicons name="close" size={22} color={theme.color.muted} />
+                <Ionicons name="close" size={22} color={HT.muted} />
               </Pressable>
             </View>
-            <Text style={{ fontSize: 12, color: theme.color.muted, marginTop: -4 }}>
+            <Text style={{ fontSize: 12, color: HT.muted, marginTop: -4 }}>
               Scegli la sorgente del PDF
             </Text>
             <Pressable
               testID="bill-source-device"
               onPress={() => sourcePickerBillType && pickFromDevice(sourcePickerBillType)}
-              style={{ flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 12, borderWidth: 1, borderColor: theme.color.border, gap: 12 }}
+              style={{ flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 12, borderWidth: 1, borderColor: HT.border, gap: 12 }}
             >
-              <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: "#DBEAFE", justifyContent: "center", alignItems: "center" }}>
-                <Ionicons name="cloud-upload-outline" size={22} color="#1D4ED8" />
+              <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: HT.axonTint, justifyContent: "center", alignItems: "center" }}>
+                <Ionicons name="cloud-upload-outline" size={22} color={HT.axon} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 14, fontWeight: "700", color: theme.color.onSurface }}>Dal dispositivo</Text>
-                <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 2 }}>Scegli un PDF dai tuoi file locali</Text>
+                <Text style={{ fontSize: 14, fontWeight: "700", color: HT.text }}>Dal dispositivo</Text>
+                <Text style={{ fontSize: 11, color: HT.muted, marginTop: 2 }}>Scegli un PDF dai tuoi file locali</Text>
               </View>
-              <Ionicons name="chevron-forward" size={16} color={theme.color.muted} />
+              <Ionicons name="chevron-forward" size={16} color={HT.muted} />
             </Pressable>
             <Pressable
               testID="bill-source-contact-files"
               onPress={() => sourcePickerBillType && pickFromContactFiles(sourcePickerBillType)}
-              style={{ flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 12, borderWidth: 1, borderColor: theme.color.border, gap: 12 }}
+              style={{ flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 12, borderWidth: 1, borderColor: HT.border, gap: 12 }}
             >
-              <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: "#DCFCE7", justifyContent: "center", alignItems: "center" }}>
-                <Ionicons name="folder-open-outline" size={22} color="#15803D" />
+              <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: HT.successTint, justifyContent: "center", alignItems: "center" }}>
+                <Ionicons name="folder-open-outline" size={22} color={HT.success} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 14, fontWeight: "700", color: theme.color.onSurface }}>Da file cliente</Text>
-                <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 2 }}>Usa un PDF già presente nella scheda</Text>
+                <Text style={{ fontSize: 14, fontWeight: "700", color: HT.text }}>Da file cliente</Text>
+                <Text style={{ fontSize: 11, color: HT.muted, marginTop: 2 }}>Usa un PDF già presente nella scheda</Text>
               </View>
-              <Ionicons name="chevron-forward" size={16} color={theme.color.muted} />
+              <Ionicons name="chevron-forward" size={16} color={HT.muted} />
             </Pressable>
             {/* V27 — Scanner documenti multi-pagina */}
             <Pressable
               testID="bill-source-scanner"
               onPress={() => { const bt = sourcePickerBillType; setSourcePickerBillType(null); setScannerBillType(bt); }}
-              style={{ flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 12, borderWidth: 1, borderColor: "#FF6B35", gap: 12 }}
+              style={{ flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 12, borderWidth: 1, borderColor: '#FF6B35', gap: 12 }}
             >
-              <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: "#FFF1E9", justifyContent: "center", alignItems: "center" }}>
+              <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: HT.brandTint, justifyContent: "center", alignItems: "center" }}>
                 <Ionicons name="scan" size={22} color="#FF6B35" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 14, fontWeight: "700", color: theme.color.onSurface }}>Scanner documenti</Text>
-                <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 2 }}>Multi-pagina · Autocrop · Migliora contrasto</Text>
+                <Text style={{ fontSize: 14, fontWeight: "700", color: HT.text }}>Scanner documenti</Text>
+                <Text style={{ fontSize: 11, color: HT.muted, marginTop: 2 }}>Multi-pagina · Autocrop · Migliora contrasto</Text>
               </View>
-              <Ionicons name="chevron-forward" size={16} color={theme.color.muted} />
+              <Ionicons name="chevron-forward" size={16} color={HT.muted} />
             </Pressable>
           </Pressable>
         </Pressable>
@@ -1616,25 +1616,25 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
         onRequestClose={() => setContactFilesPicker(null)}
       >
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }}>
-          <View style={{ backgroundColor: theme.color.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "80%" }}>
-            <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: theme.color.border, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+          <View style={{ backgroundColor: HT.card2, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "80%" }}>
+            <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: HT.border, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
               <View>
-                <Text style={{ fontSize: 16, fontWeight: "800", color: theme.color.onSurface }}>File del cliente (PDF)</Text>
-                <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 2 }}>Seleziona un file già caricato</Text>
+                <Text style={{ fontSize: 16, fontWeight: "800", color: HT.text }}>File del cliente (PDF)</Text>
+                <Text style={{ fontSize: 11, color: HT.muted, marginTop: 2 }}>Seleziona un file già caricato</Text>
               </View>
               <Pressable onPress={() => setContactFilesPicker(null)} hitSlop={8} testID="bill-contact-files-close">
-                <Ionicons name="close" size={22} color={theme.color.onSurface} />
+                <Ionicons name="close" size={22} color={HT.text} />
               </Pressable>
             </View>
             {loadingContactFiles ? (
               <View style={{ padding: 30, alignItems: "center" }}>
-                <ActivityIndicator color={theme.color.brandPrimary} />
-                <Text style={{ marginTop: 8, color: theme.color.muted, fontSize: 12 }}>Carico i file…</Text>
+                <ActivityIndicator color={HT.brand} />
+                <Text style={{ marginTop: 8, color: HT.muted, fontSize: 12 }}>Carico i file…</Text>
               </View>
             ) : contactPdfFiles.length === 0 ? (
               <View style={{ padding: 30, alignItems: "center" }}>
-                <Ionicons name="document-outline" size={40} color={theme.color.muted} />
-                <Text style={{ marginTop: 8, color: theme.color.muted, fontSize: 13, textAlign: "center" }}>
+                <Ionicons name="document-outline" size={40} color={HT.muted} />
+                <Text style={{ marginTop: 8, color: HT.muted, fontSize: 13, textAlign: "center" }}>
                   Nessun PDF trovato nella scheda del cliente.{"\n"}Carica prima un file dalla tab File.
                 </Text>
               </View>
@@ -1645,17 +1645,17 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
                     key={f.id}
                     testID={`bill-contact-file-${f.id}`}
                     onPress={() => selectContactFileAsBill(f)}
-                    style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: theme.color.border, flexDirection: "row", alignItems: "center", gap: 12 }}
+                    style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: HT.border, flexDirection: "row", alignItems: "center", gap: 12 }}
                   >
                     <Ionicons name="document-text" size={22} color="#DC2626" />
                     <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 14, fontWeight: "600", color: theme.color.onSurface }} numberOfLines={1}>{f.name}</Text>
-                      <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 2 }}>
+                      <Text style={{ fontSize: 14, fontWeight: "600", color: HT.text }} numberOfLines={1}>{f.name}</Text>
+                      <Text style={{ fontSize: 11, color: HT.muted, marginTop: 2 }}>
                         {f.size ? `${Math.round(f.size / 1024)} KB` : ""}
                         {f.created_at ? ` · ${new Date(f.created_at).toLocaleDateString("it-IT")}` : ""}
                       </Text>
                     </View>
-                    <Ionicons name="chevron-forward" size={16} color={theme.color.muted} />
+                    <Ionicons name="chevron-forward" size={16} color={HT.muted} />
                   </Pressable>
                 ))}
               </ScrollView>
@@ -1833,7 +1833,7 @@ function renderConsumiSvg(rawData: any, unit: string, color: string): string {
   const grid = yTicks.map((t) => {
     const y = padT + chartH - (chartH * (t / max));
     return `<line x1="${padL}" y1="${y}" x2="${width - padR}" y2="${y}" stroke="#E5E7EB" stroke-width="1"/>
-            <text x="${padL - 4}" y="${y + 3}" font-size="9" fill="#6B7280" text-anchor="end">${t}</text>`;
+            <text x="${padL - 4}" y="${y + 3}" font-size="9" fill={HT.muted} text-anchor="end">${t}</text>`;
   }).join("");
   const bars = points.map((p, i) => {
     const h = (p.value / max) * chartH;
@@ -1841,10 +1841,10 @@ function renderConsumiSvg(rawData: any, unit: string, color: string): string {
     const y = padT + chartH - h;
     const label = pointLabel(p, i);
     return `<rect x="${x}" y="${y}" width="${barW}" height="${h}" fill="${color}" rx="3"/>
-            ${p.value > 0 ? `<text x="${x + barW / 2}" y="${y - 2}" font-size="8" fill="#374151" text-anchor="middle">${p.value}</text>` : ""}
-            <text x="${x + barW / 2}" y="${height - padB + 12}" font-size="9" fill="#6B7280" text-anchor="middle">${esc(label)}</text>`;
+            ${p.value > 0 ? `<text x="${x + barW / 2}" y="${y - 2}" font-size="8" fill={HT.text2} text-anchor="middle">${p.value}</text>` : ""}
+            <text x="${x + barW / 2}" y="${height - padB + 12}" font-size="9" fill={HT.muted} text-anchor="middle">${esc(label)}</text>`;
   }).join("");
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${grid}${bars}<text x="${width - padR}" y="${height - 4}" font-size="9" fill="#6B7280" text-anchor="end">Unità: ${unit}</text></svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${grid}${bars}<text x="${width - padR}" y="${height - 4}" font-size="9" fill={HT.muted} text-anchor="end">Unità: ${unit}</text></svg>`;
 }
 
 function renderExtractedTable(ex: Record<string, any>, sectionColor = "#6366F1"): string {
@@ -1988,7 +1988,7 @@ const SL = {
   green: "#2E9E5A",
   greenSoft: "#D4F0DC",
   blueF3: "#79ABC7",
-  ink: "#0F172A",
+  ink: HT.text,
   muted: "#5B6B7F",
   border: "#E3D9C4",
 };
@@ -1997,9 +1997,9 @@ const SL_DEFAULT = { ...SL };
 // V50.z251 — Stili grafici selezionabili dal pannello «Configura Analisi Fatture» (id = catalogo backend)
 const SL_STYLES: Record<string, Partial<typeof SL>> = {
   classico: {},
-  moderno: { navy: "#1B6CB0", navyDark: "#134E86", bg: "#FFFFFF", orange: "#F59E0B", orangeSoft: "#FEF3C7", green: "#16A34A", greenSoft: "#DCFCE7", blueF3: "#60A5FA", border: "#E2E8F0", muted: "#64748B" },
-  energia: { navy: "#166534", navyDark: "#14532D", bg: "#F3F7F0", orange: "#EA580C", orangeSoft: "#FFEDD5", green: "#15803D", greenSoft: "#DCFCE7", blueF3: "#5EAE7A", border: "#D9E5D3", muted: "#4B5F52" },
-  minimal: { navy: "#1F2937", navyDark: "#111827", bg: "#FFFFFF", orange: "#6B7280", orangeSoft: "#F3F4F6", green: "#374151", greenSoft: "#E5E7EB", blueF3: "#9CA3AF", border: "#E5E7EB", muted: "#6B7280" },
+  moderno: { navy: "#1B6CB0", navyDark: "#134E86", bg: HT.card, orange: "#F59E0B", orangeSoft: "#FEF3C7", green: "#16A34A", greenSoft: "#DCFCE7", blueF3: "#60A5FA", border: "#E2E8F0", muted: HT.muted },
+  energia: { navy: HT.success, navyDark: HT.success, bg: "#F3F7F0", orange: "#EA580C", orangeSoft: "#FFEDD5", green: HT.success, greenSoft: "#DCFCE7", blueF3: "#5EAE7A", border: "#D9E5D3", muted: "#4B5F52" },
+  minimal: { navy: "#1F2937", navyDark: HT.text, bg: HT.card, orange: HT.muted, orangeSoft: "#F3F4F6", green: HT.text2, greenSoft: "#E5E7EB", blueF3: HT.muted, border: "#E5E7EB", muted: HT.muted },
 };
 
 export type ComparisonRenderCfg = { layout?: string; style?: string; sections?: Record<string, boolean> };
@@ -2630,7 +2630,7 @@ function FiscalCheckBanner({ check, billType }: { check: { iva?: FiscalRow; acci
     <View style={[fcStyles.wrap, allOk ? fcStyles.wrapOk : fcStyles.wrapBad]}>
       <View style={fcStyles.head}>
         <Ionicons name={allOk ? "shield-checkmark" : "warning"} size={16} color={allOk ? "#059669" : "#DC2626"} />
-        <Text style={[fcStyles.title, { color: allOk ? "#065F46" : "#991B1B" }]}>
+        <Text style={[fcStyles.title, { color: allOk ? HT.success : HT.danger }]}>
           {allOk ? "Agevolazioni fiscali applicate correttamente" : "Anomalie fiscali rilevate"}
         </Text>
       </View>
@@ -2638,7 +2638,7 @@ function FiscalCheckBanner({ check, billType }: { check: { iva?: FiscalRow; acci
         <View key={r.key} style={[fcStyles.row, !r.ok && fcStyles.rowBad]}>
           <View style={{ flex: 1 }}>
             <Text style={fcStyles.label}>{r.label}</Text>
-            <Text style={fcStyles.sub}>Atteso: {r.expected} · Rilevato: <Text style={{ fontWeight: "700", color: r.ok ? "#065F46" : "#DC2626" }}>{r.actual}</Text></Text>
+            <Text style={fcStyles.sub}>Atteso: {r.expected} · Rilevato: <Text style={{ fontWeight: "700", color: r.ok ? HT.success : "#DC2626" }}>{r.actual}</Text></Text>
           </View>
           {!r.ok && typeof r.delta === "number" && (
             <View style={fcStyles.deltaBox}>
@@ -2660,33 +2660,33 @@ function FiscalCheckBanner({ check, billType }: { check: { iva?: FiscalRow; acci
 
 const fcStyles = StyleSheet.create({
   wrap: { marginBottom: 10, padding: 10, borderRadius: 10, borderWidth: 1 },
-  wrapOk: { backgroundColor: "#ECFDF5", borderColor: "#A7F3D0" },
-  wrapBad: { backgroundColor: "#FEF2F2", borderColor: "#FCA5A5" },
+  wrapOk: { backgroundColor: HT.successTint, borderColor: '#A7F3D0' },
+  wrapBad: { backgroundColor: HT.dangerTint, borderColor: '#FCA5A5' },
   head: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
   title: { fontSize: 12, fontWeight: "800", flex: 1 },
-  row: { flexDirection: "row", alignItems: "center", paddingVertical: 6, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#E5E7EB", gap: 8 },
-  rowBad: { backgroundColor: "#FEE2E2", marginHorizontal: -10, paddingHorizontal: 10, borderRadius: 6 },
+  row: { flexDirection: "row", alignItems: "center", paddingVertical: 6, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: HT.border, gap: 8 },
+  rowBad: { backgroundColor: HT.dangerTint, marginHorizontal: -10, paddingHorizontal: 10, borderRadius: 6 },
   label: { fontSize: 12, fontWeight: "700", color: "#1F2937" },
-  sub: { fontSize: 10, color: "#6B7280", marginTop: 2 },
+  sub: { fontSize: 10, color: HT.muted, marginTop: 2 },
   deltaBox: { alignItems: "flex-end" },
-  deltaLbl: { fontSize: 9, color: "#991B1B", fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.4 },
+  deltaLbl: { fontSize: 9, color: HT.danger, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.4 },
   deltaVal: { fontSize: 13, fontWeight: "900", color: "#DC2626" },
-  totalBox: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, padding: 8, backgroundColor: "#FEE2E2", borderRadius: 6 },
-  totalTxt: { fontSize: 12, color: "#7F1D1D", flex: 1 },
+  totalBox: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, padding: 8, backgroundColor: HT.dangerTint, borderRadius: 6 },
+  totalTxt: { fontSize: 12, color: HT.danger, flex: 1 },
 });
 
 
 const styles = StyleSheet.create({
   introCard: {
     flexDirection: "row",
-    backgroundColor: "#EEF2FF",
+    backgroundColor: HT.violetTint,
     borderRadius: 12,
     padding: 12,
     marginBottom: 16,
     alignItems: "flex-start",
   },
-  introTitle: { fontSize: 13, fontWeight: "800", color: theme.color.brandPrimary },
-  introTxt: { fontSize: 11, color: theme.color.muted, marginTop: 2, lineHeight: 15 },
+  introTitle: { fontSize: 13, fontWeight: "800", color: HT.brand },
+  introTxt: { fontSize: 11, color: HT.muted, marginTop: 2, lineHeight: 15 },
   section: { marginBottom: 20 },
   sectionHeader: {
     flexDirection: "row",
@@ -2711,36 +2711,36 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   uploadTxt: { fontWeight: "700", fontSize: 13 },
-  emptyTxt: { fontSize: 12, color: theme.color.muted, fontStyle: "italic", textAlign: "center", paddingVertical: 8 },
+  emptyTxt: { fontSize: 12, color: HT.muted, fontStyle: "italic", textAlign: "center", paddingVertical: 8 },
   billCard: {
-    backgroundColor: theme.color.surface,
+    backgroundColor: HT.card2,
     borderRadius: 10,
     marginTop: 8,
     borderWidth: 1,
-    borderColor: theme.color.border,
+    borderColor: HT.border,
     overflow: "hidden",
   },
   billHeader: { flexDirection: "row", alignItems: "center", padding: 12 },
-  billName: { fontSize: 13, fontWeight: "700", color: theme.color.onSurface },
+  billName: { fontSize: 13, fontWeight: "700", color: HT.text },
   statusRow: { flexDirection: "row", alignItems: "center", marginTop: 2, gap: 3 },
   statusTxt: { fontSize: 11, fontWeight: "600" },
-  metaTxt: { fontSize: 11, color: theme.color.muted },
-  billBody: { paddingHorizontal: 12, paddingBottom: 12, borderTopWidth: 1, borderTopColor: theme.color.border },
-  errorBox: { backgroundColor: "#FEE2E2", borderRadius: 8, padding: 10, marginTop: 10 },
-  errorTxt: { color: "#991B1B", fontSize: 12 },
-  dataBox: { marginTop: 8, backgroundColor: "#FAFBFF", borderRadius: 8, padding: 8, overflow: "hidden" },
-  kvRow: { flexDirection: "row", paddingVertical: 3, borderBottomWidth: 1, borderBottomColor: "#EEF2FF", alignItems: "flex-start" },
-  kvKey: { fontSize: 11, fontWeight: "700", color: theme.color.muted, width: 110, paddingRight: 6 },
-  kvVal: { fontSize: 11, color: theme.color.onSurface, flex: 1, flexShrink: 1, flexWrap: "wrap" },
+  metaTxt: { fontSize: 11, color: HT.muted },
+  billBody: { paddingHorizontal: 12, paddingBottom: 12, borderTopWidth: 1, borderTopColor: HT.border },
+  errorBox: { backgroundColor: HT.dangerTint, borderRadius: 8, padding: 10, marginTop: 10 },
+  errorTxt: { color: HT.danger, fontSize: 12 },
+  dataBox: { marginTop: 8, backgroundColor: '#FAFBFF', borderRadius: 8, padding: 8, overflow: "hidden" },
+  kvRow: { flexDirection: "row", paddingVertical: 3, borderBottomWidth: 1, borderBottomColor: HT.violetTint, alignItems: "flex-start" },
+  kvKey: { fontSize: 11, fontWeight: "700", color: HT.muted, width: 110, paddingRight: 6 },
+  kvVal: { fontSize: 11, color: HT.text, flex: 1, flexShrink: 1, flexWrap: "wrap" },
   bulletRow: { flexDirection: "row", paddingVertical: 2, alignItems: "flex-start" },
-  bulletDot: { fontSize: 12, color: theme.color.brandPrimary, width: 14, marginTop: 1 },
-  bulletTxt: { fontSize: 11, color: theme.color.onSurface, flex: 1, lineHeight: 15 },
+  bulletDot: { fontSize: 12, color: HT.brand, width: 14, marginTop: 1 },
+  bulletTxt: { fontSize: 11, color: HT.text, flex: 1, lineHeight: 15 },
   actionsRow: { flexDirection: "row", gap: 6, marginTop: 10, flexWrap: "wrap" },
   actBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
-  actBtnTxt: { fontSize: 11, fontWeight: "700", color: theme.color.onSurface },
+  actBtnTxt: { fontSize: 11, fontWeight: "700", color: HT.text },
   reportBtn: {
     marginTop: 24,
-    backgroundColor: "#6366F1",
+    backgroundColor: '#6366F1',
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
@@ -2751,7 +2751,7 @@ const styles = StyleSheet.create({
   reportBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
   compareBtn: {
     marginTop: 12,
-    backgroundColor: "#7C3AED",
+    backgroundColor: '#7C3AED',
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
@@ -2760,10 +2760,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   offersCard: {
-    backgroundColor: "#F5F3FF",
+    backgroundColor: HT.violetTint,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#DDD6FE",
+    borderColor: HT.violet + '66',
     marginBottom: 16,
     overflow: "hidden",
   },
@@ -2773,16 +2773,16 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   offersTitle: { fontSize: 13, fontWeight: "800", color: "#7C3AED" },
-  offersSub: { fontSize: 11, color: theme.color.muted, marginTop: 2, lineHeight: 14 },
+  offersSub: { fontSize: 11, color: HT.muted, marginTop: 2, lineHeight: 14 },
   offerCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderRadius: 8,
     padding: 8,
     marginTop: 6,
     borderWidth: 1,
-    borderColor: "#EDE9FE",
+    borderColor: HT.violetTint,
   },
-  offerCardTitle: { fontSize: 12, fontWeight: "700", color: theme.color.onSurface },
+  offerCardTitle: { fontSize: 12, fontWeight: "700", color: HT.text },
 });

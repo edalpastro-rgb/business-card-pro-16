@@ -92,7 +92,7 @@ function _hLuminance(hex: string): number {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 function _hContrastText(bg: string): string {
-  return _hLuminance(bg) > 0.72 ? "#1B2B4B" : "#FFFFFF";
+  return _hLuminance(bg) > 0.72 ? HT.text : "#FFFFFF";
 }
 function _hFontFamily(key: string | null | undefined): string | undefined {
   switch ((key || "system") as string) {
@@ -636,33 +636,33 @@ export default function HomeScreen() {
           {qaOpen ? (
             <View style={styles.quickRow}>
               <Pressable testID="qa-new-appt" style={styles.quick} onPress={() => router.push("/appointment/new")}>
-                <View style={[styles.quickIcon, { backgroundColor: "#0EA5E9" /* V50.z34 CRM Core */ }]}>
+                <View style={[styles.quickIcon, { backgroundColor: '#0EA5E9' /* V50.z34 CRM Core */ }]}>
                   <Ionicons name="calendar-outline" size={22} color="#FFF" />
                 </View>
                 <Text style={styles.quickTxt} numberOfLines={2}>Nuovo appuntamento</Text>
               </Pressable>
               <Pressable testID="qa-new-contact" style={styles.quick} onPress={() => router.push("/contact/new")}>
-                <View style={[styles.quickIcon, { backgroundColor: "#0EA5E9" /* V50.z34 CRM Core */ }]}>
+                <View style={[styles.quickIcon, { backgroundColor: '#0EA5E9' /* V50.z34 CRM Core */ }]}>
                   <Ionicons name="person-add-outline" size={22} color="#FFF" />
                 </View>
                 <Text style={styles.quickTxt} numberOfLines={2}>Nuovo contatto</Text>
               </Pressable>
               <Pressable testID="qa-voice-copilot" style={styles.quick} onPress={() => router.push("/voice-copilot")}>
-                <View style={[styles.quickIcon, { backgroundColor: "#7C3AED" /* V50.z34 AI & Axon */ }]}>
+                <View style={[styles.quickIcon, { backgroundColor: '#7C3AED' /* V50.z34 AI & Axon */ }]}>
                   <Ionicons name="car-sport" size={22} color="#FFF" />
                 </View>
                 <Text style={styles.quickTxt} numberOfLines={2}>Axon Drive</Text>
               </Pressable>
               {/* V50.z253 — Resoconto Km (note spese) */}
               <Pressable testID="qa-km-report" style={styles.quick} onPress={() => router.push("/km-report" as any)}>
-                <View style={[styles.quickIcon, { backgroundColor: "#0EA5E9" /* CRM Core */ }]}>
+                <View style={[styles.quickIcon, { backgroundColor: '#0EA5E9' /* CRM Core */ }]}>
                   <Ionicons name="speedometer-outline" size={22} color="#FFF" />
                 </View>
                 <Text style={styles.quickTxt} numberOfLines={2}>Resoconto Km</Text>
               </Pressable>
               {/* V50.z25 — Caselle mail (IMAP) — categoria Comunicazioni */}
               <Pressable testID="qa-email-accounts" style={styles.quick} onPress={() => router.push("/email-accounts")}>
-                <View style={[styles.quickIcon, { backgroundColor: "#F97316" /* V50.z34 Comunicazioni */ }]}>
+                <View style={[styles.quickIcon, { backgroundColor: '#F97316' /* V50.z34 Comunicazioni */ }]}>
                   <Ionicons name="mail-outline" size={22} color="#FFF" />
                 </View>
                 <Text style={styles.quickTxt} numberOfLines={2}>Caselle mail</Text>

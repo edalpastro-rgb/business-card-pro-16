@@ -7,6 +7,7 @@ import { theme } from "@/src/theme";
 import { api } from "@/src/api";
 import { DocumentScannerModal } from "@/src/DocumentScannerModal";
 import { ModuleErrorBoundary } from "@/src/shared";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 /**
  * V50.z50 — Scanner standalone (Utility).
@@ -52,7 +53,7 @@ function ScannerScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={10} testID="scanner-back">
-          <Ionicons name="chevron-back" size={26} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={26} color={HT.text} />
         </Pressable>
         <Text style={styles.title}>Scanner documenti</Text>
         <View style={{ width: 26 }} />
@@ -113,7 +114,7 @@ function ScannerScreen() {
           style={styles.secondaryBtn}
           testID="scanner-open-master-files"
         >
-          <Ionicons name="folder-open" size={20} color={theme.color.brandPrimary} />
+          <Ionicons name="folder-open" size={20} color={HT.brand} />
           <Text style={styles.secondaryBtnTxt}>Apri "I miei file"</Text>
         </Pressable>
 
@@ -149,24 +150,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: theme.color.border,
-    backgroundColor: "#FFF",
+    borderBottomColor: HT.border,
+    backgroundColor: HT.card,
   },
-  title: { fontSize: 17, fontWeight: "800", color: theme.color.onSurface },
+  title: { fontSize: 17, fontWeight: "800", color: HT.text },
   heroCard: {
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderRadius: 16,
     padding: 20,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: theme.color.border,
+    borderColor: HT.border,
     gap: 10,
   },
   heroIcon: {
     width: 76,
     height: 76,
     borderRadius: 38,
-    backgroundColor: "#475569",
+    backgroundColor: '#475569',
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
@@ -175,29 +176,29 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 4,
   },
-  heroTitle: { fontSize: 17, fontWeight: "800", color: theme.color.onSurface, textAlign: "center" },
-  heroSub: { fontSize: 13, color: theme.color.muted, textAlign: "center", lineHeight: 18 },
+  heroTitle: { fontSize: 17, fontWeight: "800", color: HT.text, textAlign: "center" },
+  heroSub: { fontSize: 13, color: HT.muted, textAlign: "center", lineHeight: 18 },
   savedCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    backgroundColor: "#F0FDF4",
+    backgroundColor: HT.successTint,
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,
-    borderColor: "#BBF7D0",
+    borderColor: HT.success + '66',
   },
   savedIcon: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#DCFCE7",
+    backgroundColor: HT.successTint,
     alignItems: "center",
     justifyContent: "center",
   },
-  savedTitle: { fontSize: 12, fontWeight: "800", color: "#166534" },
-  savedSub: { fontSize: 13, fontWeight: "700", color: theme.color.onSurface, marginTop: 2 },
-  savedMeta: { fontSize: 11, color: theme.color.muted, marginTop: 1 },
+  savedTitle: { fontSize: 12, fontWeight: "800", color: HT.success },
+  savedSub: { fontSize: 13, fontWeight: "700", color: HT.text, marginTop: 2 },
+  savedMeta: { fontSize: 11, color: HT.muted, marginTop: 1 },
   savedGoBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -205,7 +206,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: "#16A34A",
+    backgroundColor: '#16A34A',
   },
   savedGoTxt: { color: "#FFF", fontWeight: "800", fontSize: 12 },
   primaryBtn: {
@@ -213,7 +214,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: "#475569",
+    backgroundColor: '#475569',
     paddingVertical: 14,
     borderRadius: 12,
   },
@@ -223,20 +224,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: theme.color.border,
+    borderColor: HT.border,
   },
-  secondaryBtnTxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 14 },
+  secondaryBtnTxt: { color: HT.brand, fontWeight: "700", fontSize: 14 },
   tipsCard: {
-    backgroundColor: "#FEFCE8",
+    backgroundColor: '#FEFCE8',
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,
-    borderColor: "#FDE68A",
+    borderColor: HT.warning + '66',
   },
-  tipsTitle: { fontSize: 12, fontWeight: "800", color: "#92400E", letterSpacing: 0.3 },
-  tipsRow: { fontSize: 12, color: "#78350F", lineHeight: 18 },
+  tipsTitle: { fontSize: 12, fontWeight: "800", color: "#FDBA74", letterSpacing: 0.3 },
+  tipsRow: { fontSize: 12, color: "#FDBA74", lineHeight: 18 },
 });

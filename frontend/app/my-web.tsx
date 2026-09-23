@@ -11,6 +11,7 @@ import { notify } from "@/src/utils/notify";
 import { InAppWebViewer } from "@/src/InAppWebViewer";
 
 import { useBottomSheetPadding, usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 type Link = { link_id: string; title: string; url: string; icon: string; order: number };
 
 const ICONS = ["🔗","🔍","📊","📰","🏦","💼","⚡","🔥","📞","🌐","📈","🛒","💰","🎯","🔧"];
@@ -108,7 +109,7 @@ export default function MyWebScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.background }} edges={["top"]}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.headerBtn}><Ionicons name="chevron-back" size={22} color={theme.color.onSurface} /></Pressable>
+        <Pressable onPress={() => router.back()} style={styles.headerBtn}><Ionicons name="chevron-back" size={22} color={HT.text} /></Pressable>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>My Web</Text>
           <Text style={styles.headerSubGreen}>🟢 Spazio Personale</Text>
@@ -120,10 +121,10 @@ export default function MyWebScreen() {
       </View>
 
       {loading ? (
-        <ActivityIndicator style={{ marginTop: 40 }} color={theme.color.brandPrimary} />
+        <ActivityIndicator style={{ marginTop: 40 }} color={HT.brand} />
       ) : items.length === 0 ? (
         <View style={styles.empty}>
-          <Ionicons name="globe-outline" size={48} color={theme.color.muted} />
+          <Ionicons name="globe-outline" size={48} color={HT.muted} />
           <Text style={styles.emptyTitle}>Nessun link salvato</Text>
           <Text style={styles.emptyTxt}>Salva qui i tuoi siti preferiti per accesso rapido.</Text>
           <Pressable onPress={openCreate} style={styles.emptyBtn}><Ionicons name="add" size={18} color="#FFF" /><Text style={styles.emptyBtnTxt}>Aggiungi link</Text></Pressable>
@@ -148,7 +149,7 @@ export default function MyWebScreen() {
                     testID={`link-edit-${lk.link_id}`}
                     hitSlop={6}
                   >
-                    <Ionicons name="create-outline" size={18} color={theme.color.brandPrimary} />
+                    <Ionicons name="create-outline" size={18} color={HT.brand} />
                   </Pressable>
                   <Pressable onPress={() => remove(lk)} style={styles.deleteBtn} testID={`link-delete-${lk.link_id}`}><Ionicons name="close-circle" size={20} color="#DC2626" /></Pressable>
                   {/* V50.z60 — Pulsante "Aggiungi a Comunica con l'azienda"
@@ -206,7 +207,7 @@ export default function MyWebScreen() {
                 style={styles.sheetCloseBtn}
                 testID="link-modal-close"
               >
-                <Ionicons name="close" size={20} color={theme.color.muted} />
+                <Ionicons name="close" size={20} color={HT.muted} />
               </Pressable>
             </View>
             <Text style={styles.label}>Titolo</Text>
@@ -243,53 +244,53 @@ export default function MyWebScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: "row", alignItems: "center", padding: 14, gap: 10, borderBottomWidth: 1, borderBottomColor: theme.color.border, backgroundColor: theme.color.surface },
-  headerBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface },
+  header: { flexDirection: "row", alignItems: "center", padding: 14, gap: 10, borderBottomWidth: 1, borderBottomColor: HT.border, backgroundColor: HT.card2 },
+  headerBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: HT.card2, alignItems: "center", justifyContent: "center" },
+  headerTitle: { fontSize: 16, fontWeight: "800", color: HT.text },
   headerSubGreen: { fontSize: 11, color: "#059669", fontWeight: "700", marginTop: 1 },
   empty: { alignItems: "center", padding: 40, marginTop: 40 },
-  emptyTitle: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface, marginTop: 12 },
-  emptyTxt: { fontSize: 12, color: theme.color.muted, marginTop: 4, textAlign: "center" },
-  emptyBtn: { marginTop: 20, flexDirection: "row", gap: 6, alignItems: "center", backgroundColor: "#DB2777", paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10 },
+  emptyTitle: { fontSize: 16, fontWeight: "800", color: HT.text, marginTop: 12 },
+  emptyTxt: { fontSize: 12, color: HT.muted, marginTop: 4, textAlign: "center" },
+  emptyBtn: { marginTop: 20, flexDirection: "row", gap: 6, alignItems: "center", backgroundColor: '#DB2777', paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10 },
   emptyBtnTxt: { color: "#FFF", fontWeight: "800" },
   // V50.z64 — Pulsante "Aggiungi link" grande sotto la griglia
   addBigBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
     marginTop: 16, marginHorizontal: 4,
-    backgroundColor: "#DB2777", paddingVertical: 14, borderRadius: 12,
+    backgroundColor: '#DB2777', paddingVertical: 14, borderRadius: 12,
     shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 3,
   },
   addBigBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 15 },
   grid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
-  card: { width: "47%", backgroundColor: theme.color.surface, borderRadius: 14, marginBottom: 12, borderWidth: 1, borderColor: theme.color.border, position: "relative" },
+  card: { width: "47%", backgroundColor: HT.card2, borderRadius: 14, marginBottom: 12, borderWidth: 1, borderColor: HT.border, position: "relative" },
   cardInner: { padding: 14, alignItems: "flex-start" },
   cardIcon: { fontSize: 32, marginBottom: 6 },
-  cardTitle: { fontSize: 13, fontWeight: "800", color: theme.color.onSurface },
-  cardUrl: { fontSize: 11, color: theme.color.muted, marginTop: 4 },
+  cardTitle: { fontSize: 13, fontWeight: "800", color: HT.text },
+  cardUrl: { fontSize: 11, color: HT.muted, marginTop: 4 },
   deleteBtn: { position: "absolute", top: 6, right: 6, padding: 4 },
   // V50.z73 — Bottone modifica su ogni link (top-left, complementare al delete top-right)
-  editBtn: { position: "absolute", top: 6, left: 6, padding: 4, backgroundColor: "#FFF", borderRadius: 999, borderWidth: 1, borderColor: theme.color.border },
+  editBtn: { position: "absolute", top: 6, left: 6, padding: 4, backgroundColor: HT.card, borderRadius: 999, borderWidth: 1, borderColor: HT.border },
   // V50.z60 — Pulsante "Aggiungi a Comunica con l'azienda"
   addToCompanyBtn: {
     position: "absolute", bottom: 8, right: 8,
     flexDirection: "row", alignItems: "center", gap: 4,
     paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999,
-    backgroundColor: "#0EA5E9",
+    backgroundColor: '#0EA5E9',
   },
-  addToCompanyBtnDone: { backgroundColor: "#16A34A" },
+  addToCompanyBtnDone: { backgroundColor: '#16A34A' },
   addToCompanyTxt: { color: "#FFF", fontSize: 10, fontWeight: "800" },
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: "#FFF", borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 16, paddingBottom: 30 },
-  sheetHandle: { alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: "#CBD5E1", marginBottom: 12 },
+  sheet: { backgroundColor: HT.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 16, paddingBottom: 30 },
+  sheetHandle: { alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: HT.borderStrong, marginBottom: 12 },
   // V50.z62 — Header con titolo + pulsante X (sostituisce il tap-outside-to-close)
   sheetHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
-  sheetCloseBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center" },
-  sheetTitle: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface, marginBottom: 10 },
-  label: { fontSize: 12, fontWeight: "700", color: theme.color.muted, marginTop: 10, marginBottom: 4 },
-  input: { borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, padding: 12, fontSize: 14, color: theme.color.onSurface, backgroundColor: theme.color.surface },
+  sheetCloseBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: HT.card2, alignItems: "center", justifyContent: "center" },
+  sheetTitle: { fontSize: 16, fontWeight: "800", color: HT.text, marginBottom: 10 },
+  label: { fontSize: 12, fontWeight: "700", color: HT.muted, marginTop: 10, marginBottom: 4 },
+  input: { borderWidth: 1, borderColor: HT.border, borderRadius: 10, padding: 12, fontSize: 14, color: HT.text, backgroundColor: HT.card2 },
   iconRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  iconOpt: { padding: 8, borderRadius: 10, backgroundColor: "#F1F5F9" },
-  iconOptActive: { backgroundColor: "#FCE7F3", borderWidth: 2, borderColor: "#DB2777" },
-  submitBtn: { marginTop: 20, backgroundColor: "#DB2777", padding: 14, borderRadius: 12, alignItems: "center" },
+  iconOpt: { padding: 8, borderRadius: 10, backgroundColor: HT.card2 },
+  iconOptActive: { backgroundColor: '#FCE7F3', borderWidth: 2, borderColor: '#DB2777' },
+  submitBtn: { marginTop: 20, backgroundColor: '#DB2777', padding: 14, borderRadius: 12, alignItems: "center" },
   submitTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
 });

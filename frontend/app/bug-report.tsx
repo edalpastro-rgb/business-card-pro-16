@@ -20,6 +20,7 @@ import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Msg = {
   from: "user" | "ai";
@@ -43,7 +44,7 @@ type Ticket = {
 };
 
 const STATUS_COLOR: Record<Ticket["status"], string> = {
-  open: "#64748B",
+  open: HT.muted,
   escalated: "#EA580C",
   resolved: "#16A34A",
 };
@@ -95,7 +96,7 @@ export default function BugReportScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={10}>
-          <Ionicons name="chevron-back" size={26} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={26} color={HT.text} />
         </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Bug, Errori e Idee</Text>
@@ -122,7 +123,7 @@ export default function BugReportScreen() {
       </View>
 
       {loading ? (
-        <ActivityIndicator style={{ marginTop: 30 }} color={theme.color.brandPrimary} />
+        <ActivityIndicator style={{ marginTop: 30 }} color={HT.brand} />
       ) : (
         <ScrollView
           contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: pagePad }}
@@ -130,7 +131,7 @@ export default function BugReportScreen() {
         >
           {items.length === 0 ? (
             <View style={styles.emptyBox}>
-              <Ionicons name="checkmark-done-circle" size={40} color={theme.color.muted} />
+              <Ionicons name="checkmark-done-circle" size={40} color={HT.muted} />
               <Text style={styles.emptyTxt}>Nessuna segnalazione</Text>
               <Text style={styles.emptySub}>Le nuove richieste degli utenti compariranno qui.</Text>
             </View>
@@ -152,7 +153,7 @@ export default function BugReportScreen() {
                         {(t.user_email || "")}{t.attempts > 0 ? ` · Tentativi: ${t.attempts}` : ""}
                       </Text>
                     </View>
-                    <Ionicons name={isOpen ? "chevron-up" : "chevron-down"} size={18} color={theme.color.muted} />
+                    <Ionicons name={isOpen ? "chevron-up" : "chevron-down"} size={18} color={HT.muted} />
                   </Pressable>
 
                   {!isOpen ? (
@@ -196,36 +197,36 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.color.background },
   header: {
     flexDirection: "row", alignItems: "center", gap: 12,
-    padding: 12, backgroundColor: theme.color.surface,
-    borderBottomWidth: 1, borderBottomColor: theme.color.border,
+    padding: 12, backgroundColor: HT.card2,
+    borderBottomWidth: 1, borderBottomColor: HT.border,
   },
-  title: { fontSize: 18, fontWeight: "900", color: theme.color.onSurface },
-  sub: { fontSize: 11, color: theme.color.muted, marginTop: 2 },
-  headerBadge: { width: 36, height: 36, borderRadius: 12, backgroundColor: "#7C3AED", alignItems: "center", justifyContent: "center" },
+  title: { fontSize: 18, fontWeight: "900", color: HT.text },
+  sub: { fontSize: 11, color: HT.muted, marginTop: 2 },
+  headerBadge: { width: 36, height: 36, borderRadius: 12, backgroundColor: '#7C3AED', alignItems: "center", justifyContent: "center" },
   filterRow: { flexDirection: "row", padding: 12, paddingBottom: 4, gap: 6, flexWrap: "wrap" },
-  filterChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: "#F1F5F9" },
-  filterChipActive: { backgroundColor: theme.color.brandPrimary },
-  filterTxt: { fontSize: 12, fontWeight: "800", color: "#64748B" },
+  filterChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: HT.card2 },
+  filterChipActive: { backgroundColor: HT.brand },
+  filterTxt: { fontSize: 12, fontWeight: "800", color: HT.muted },
   filterTxtActive: { color: "#FFF" },
   emptyBox: { alignItems: "center", padding: 30, gap: 6 },
-  emptyTxt: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface },
-  emptySub: { fontSize: 12, color: theme.color.muted, textAlign: "center" },
+  emptyTxt: { fontSize: 14, fontWeight: "800", color: HT.text },
+  emptySub: { fontSize: 12, color: HT.muted, textAlign: "center" },
   card: {
-    backgroundColor: theme.color.surface, borderRadius: 14, padding: 12,
-    borderWidth: 1, borderColor: theme.color.border, gap: 6,
+    backgroundColor: HT.card2, borderRadius: 14, padding: 12,
+    borderWidth: 1, borderColor: HT.border, gap: 6,
   },
   cardHdr: { flexDirection: "row", alignItems: "center", gap: 8 },
   statusPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
   statusTxt: { color: "#FFF", fontSize: 10, fontWeight: "800", letterSpacing: 0.2 },
-  userName: { fontSize: 13, fontWeight: "800", color: theme.color.onSurface },
-  userMeta: { fontSize: 11, color: theme.color.muted },
-  preview: { fontSize: 12, color: "#64748B", lineHeight: 17 },
+  userName: { fontSize: 13, fontWeight: "800", color: HT.text },
+  userMeta: { fontSize: 11, color: HT.muted },
+  preview: { fontSize: 12, color: HT.muted, lineHeight: 17 },
   msg: { padding: 8, borderRadius: 10 },
-  msgUser: { backgroundColor: "#F1F5F9" },
-  msgAi: { backgroundColor: "#EDE9FE" },
-  msgFrom: { fontSize: 10, fontWeight: "800", color: theme.color.muted, marginBottom: 2 },
-  msgChecks: { fontSize: 11, color: "#334155", fontWeight: "700", marginBottom: 2 },
-  msgText: { fontSize: 13, color: theme.color.onSurface, lineHeight: 18 },
-  msgAttach: { fontSize: 11, color: theme.color.muted, marginTop: 3 },
+  msgUser: { backgroundColor: HT.card2 },
+  msgAi: { backgroundColor: HT.violetTint },
+  msgFrom: { fontSize: 10, fontWeight: "800", color: HT.muted, marginBottom: 2 },
+  msgChecks: { fontSize: 11, color: HT.text2, fontWeight: "700", marginBottom: 2 },
+  msgText: { fontSize: 13, color: HT.text, lineHeight: 18 },
+  msgAttach: { fontSize: 11, color: HT.muted, marginTop: 3 },
   msgFb: { fontSize: 11, fontWeight: "800", marginTop: 4 },
 });

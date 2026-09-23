@@ -21,6 +21,7 @@ import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { buildOAuthReturn } from "@/src/utils/oauthReturn";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const DBX_BLUE = "#0061FF";
 
@@ -138,7 +139,7 @@ export default function DropboxScreen() {
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={10}><Ionicons name="chevron-back" size={26} color={theme.color.onSurface} /></Pressable>
+        <Pressable onPress={() => router.back()} hitSlop={10}><Ionicons name="chevron-back" size={26} color={HT.text} /></Pressable>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Dropbox</Text>
           <Text style={styles.sub}>Integrazione OAuth per allegare i file Dropbox ad Axon</Text>
@@ -151,16 +152,16 @@ export default function DropboxScreen() {
       ) : (
         <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: pagePad }}>
           {!status.configured && (
-            <View style={[styles.card, { borderColor: "#F59E0B" }]}>
+            <View style={[styles.card, { borderColor: '#F59E0B' }]}>
               <Ionicons name="warning" size={22} color="#F59E0B" />
               <Text style={styles.cardTxt}>Dropbox non è configurato lato server. Contatta l&apos;amministratore.</Text>
             </View>
           )}
           {status.configured && (
-            <View style={[styles.card, { borderColor: status.connected ? DBX_BLUE : theme.color.border }]}>
+            <View style={[styles.card, { borderColor: status.connected ? DBX_BLUE : HT.border }]}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Ionicons name={status.connected ? "checkmark-circle" : "close-circle"} size={22} color={status.connected ? DBX_BLUE : "#94A3B8"} />
-                <Text style={[styles.cardTitle, { color: status.connected ? DBX_BLUE : theme.color.onSurface }]}>
+                <Ionicons name={status.connected ? "checkmark-circle" : "close-circle"} size={22} color={status.connected ? DBX_BLUE : HT.muted} />
+                <Text style={[styles.cardTitle, { color: status.connected ? DBX_BLUE : HT.text }]}>
                   {status.connected ? "Collegato" : "Non collegato"}
                 </Text>
               </View>
@@ -200,7 +201,7 @@ export default function DropboxScreen() {
           )}
 
           <View style={styles.infoCard}>
-            <Ionicons name="information-circle" size={18} color={theme.color.brandPrimary} />
+            <Ionicons name="information-circle" size={18} color={HT.brand} />
             <Text style={styles.infoTxt}>
               Solo lettura dei file. Il refresh token è cifrato lato server. Puoi revocare l&apos;accesso in ogni momento anche dal tuo account Dropbox.
             </Text>
@@ -213,18 +214,18 @@ export default function DropboxScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.color.background },
-  header: { flexDirection: "row", alignItems: "center", gap: 12, padding: 12, backgroundColor: theme.color.surface, borderBottomWidth: 1, borderBottomColor: theme.color.border },
-  title: { fontSize: 18, fontWeight: "900", color: theme.color.onSurface },
-  sub: { fontSize: 11, color: theme.color.muted, marginTop: 2 },
+  header: { flexDirection: "row", alignItems: "center", gap: 12, padding: 12, backgroundColor: HT.card2, borderBottomWidth: 1, borderBottomColor: HT.border },
+  title: { fontSize: 18, fontWeight: "900", color: HT.text },
+  sub: { fontSize: 11, color: HT.muted, marginTop: 2 },
   badgeIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: DBX_BLUE, alignItems: "center", justifyContent: "center" },
-  card: { backgroundColor: theme.color.surface, borderRadius: 14, borderWidth: 1, padding: 14, gap: 6 },
+  card: { backgroundColor: HT.card2, borderRadius: 14, borderWidth: 1, padding: 14, gap: 6 },
   cardTitle: { fontSize: 14, fontWeight: "900" },
-  cardTxt: { fontSize: 13, color: theme.color.onSurface, lineHeight: 19 },
-  cardMeta: { fontSize: 11, color: theme.color.muted },
+  cardTxt: { fontSize: 13, color: HT.text, lineHeight: 19 },
+  cardMeta: { fontSize: 11, color: HT.muted },
   primaryBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 12 },
   primaryBtnTxt: { color: "#FFF", fontWeight: "900", fontSize: 14 },
-  secondaryBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: "#DC2626", backgroundColor: "#FEE2E2" },
+  secondaryBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: '#DC2626', backgroundColor: HT.dangerTint },
   secondaryBtnTxt: { color: "#DC2626", fontWeight: "900", fontSize: 14 },
-  infoCard: { flexDirection: "row", alignItems: "flex-start", gap: 8, padding: 12, backgroundColor: "#F1F5F9", borderRadius: 12, marginTop: 4 },
-  infoTxt: { flex: 1, fontSize: 11, color: theme.color.muted, lineHeight: 16 },
+  infoCard: { flexDirection: "row", alignItems: "flex-start", gap: 8, padding: 12, backgroundColor: HT.card2, borderRadius: 12, marginTop: 4 },
+  infoTxt: { flex: 1, fontSize: 11, color: HT.muted, lineHeight: 16 },
 });

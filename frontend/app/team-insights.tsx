@@ -21,8 +21,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
-import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type TeamMemberMetrics = {
   contacts_total: number;
@@ -117,14 +117,14 @@ function TeamListView({
   if (loading) {
     return (
       <View style={{ padding: 40, alignItems: "center" }}>
-        <ActivityIndicator color={theme.color.brandPrimary} />
+        <ActivityIndicator color={HT.brand} />
       </View>
     );
   }
   if (items.length === 0) {
     return (
       <View style={styles.empty}>
-        <Ionicons name="people-outline" size={40} color="#94A3B8" />
+        <Ionicons name="people-outline" size={40} color={HT.muted} />
         <Text style={styles.emptyTitle}>Nessun collaboratore</Text>
         <Text style={styles.emptyTxt}>
           Invita membri della tua rete dal menu ⋯ della pagina Master per vedere qui i loro profili.
@@ -170,7 +170,7 @@ function TeamListView({
               <Text style={styles.lastActive}>· {timeAgo(it.metrics.last_active_at)}</Text>
             </View>
           </View>
-          <Ionicons name="chevron-forward" size={20} color={theme.color.muted} />
+          <Ionicons name="chevron-forward" size={20} color={HT.muted} />
         </Pressable>
       ))}
     </>
@@ -222,8 +222,8 @@ function TeamDetailView({
   if (loading) {
     return (
       <View style={{ padding: 40, alignItems: "center", gap: 8 }}>
-        <ActivityIndicator color={theme.color.brandPrimary} />
-        <Text style={{ color: "#64748B", fontSize: 12 }}>Generazione profilo AI in corso…</Text>
+        <ActivityIndicator color={HT.brand} />
+        <Text style={{ color: HT.muted, fontSize: 12 }}>Generazione profilo AI in corso…</Text>
       </View>
     );
   }
@@ -340,7 +340,7 @@ function TeamDetailView({
                 {(data.profile.strengths || []).map((s, i) => (
                   <View key={i} style={{ flexDirection: "row", gap: 6, marginBottom: 3 }}>
                     <Text style={{ color: "#16A34A" }}>•</Text>
-                    <Text style={{ flex: 1, fontSize: 13, color: "#334155", lineHeight: 18 }}>{s}</Text>
+                    <Text style={{ flex: 1, fontSize: 13, color: HT.text2, lineHeight: 18 }}>{s}</Text>
                   </View>
                 ))}
               </View>
@@ -355,16 +355,16 @@ function TeamDetailView({
                 {(data.profile.improvement_areas || []).map((s, i) => (
                   <View key={i} style={{ flexDirection: "row", gap: 6, marginBottom: 3 }}>
                     <Text style={{ color: "#EA580C" }}>•</Text>
-                    <Text style={{ flex: 1, fontSize: 13, color: "#334155", lineHeight: 18 }}>{s}</Text>
+                    <Text style={{ flex: 1, fontSize: 13, color: HT.text2, lineHeight: 18 }}>{s}</Text>
                   </View>
                 ))}
               </View>
             )}
 
             {data.profile.overall_summary && (
-              <View style={[styles.profileRow, { backgroundColor: "#F8FAFC", borderRadius: 12, padding: 10 }]}>
+              <View style={[styles.profileRow, { backgroundColor: HT.card2, borderRadius: 12, padding: 10 }]}>
                 <Text style={styles.profileRowLbl}>Sintesi</Text>
-                <Text style={{ fontSize: 13, color: "#0F172A", lineHeight: 19, marginTop: 4 }}>
+                <Text style={{ fontSize: 13, color: HT.text, lineHeight: 19, marginTop: 4 }}>
                   {data.profile.overall_summary}
                 </Text>
               </View>
@@ -463,7 +463,7 @@ export default function TeamInsightsScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={{ padding: 40, alignItems: "center" }}>
-          <ActivityIndicator color={theme.color.brandPrimary} />
+          <ActivityIndicator color={HT.brand} />
         </View>
       </SafeAreaView>
     );
@@ -479,7 +479,7 @@ export default function TeamInsightsScreen() {
           <Text style={styles.headerTitle}>Team Insights</Text>
         </View>
         <View style={styles.empty}>
-          <Ionicons name="lock-closed-outline" size={40} color="#94A3B8" />
+          <Ionicons name="lock-closed-outline" size={40} color={HT.muted} />
           <Text style={styles.emptyTitle}>Sezione riservata al Master</Text>
         </View>
       </SafeAreaView>
@@ -535,14 +535,14 @@ export default function TeamInsightsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F8FAFC" },
+  container: { flex: 1, backgroundColor: HT.card2 },
   header: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    backgroundColor: "#0EA5E9",
+    backgroundColor: '#0EA5E9',
   },
   backBtn: {
     width: 36,
@@ -558,50 +558,50 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     padding: 32,
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: HT.border,
     borderStyle: "dashed",
   },
-  emptyTitle: { fontSize: 15, fontWeight: "700", color: "#334155", marginTop: 8 },
-  emptyTxt: { fontSize: 12, color: "#64748B", textAlign: "center", maxWidth: 300 },
+  emptyTitle: { fontSize: 15, fontWeight: "700", color: HT.text2, marginTop: 8 },
+  emptyTxt: { fontSize: 12, color: HT.muted, textAlign: "center", maxWidth: 300 },
 
   // List
   memberCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderRadius: 14,
     padding: 12,
     borderWidth: 1,
-    borderColor: "#EEF2F7",
+    borderColor: '#EEF2F7',
   },
   avatarCircle: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: "#0EA5E9",
+    backgroundColor: '#0EA5E9',
     alignItems: "center",
     justifyContent: "center",
   },
   avatarTxt: { color: "#FFF", fontSize: 16, fontWeight: "800", letterSpacing: -0.5 },
-  memberName: { fontSize: 15, fontWeight: "800", color: "#0F172A", flexShrink: 1 },
-  memberEmail: { fontSize: 11, color: "#64748B", marginTop: 1 },
+  memberName: { fontSize: 15, fontWeight: "800", color: HT.text, flexShrink: 1 },
+  memberEmail: { fontSize: 11, color: HT.muted, marginTop: 1 },
   areaPill: {
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 999,
-    backgroundColor: "#E0F2FE",
+    backgroundColor: HT.axonTint,
     borderWidth: 1,
-    borderColor: "#7DD3FC",
+    borderColor: '#7DD3FC',
   },
-  areaPillTxt: { fontSize: 9, color: "#075985", fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.3 },
+  areaPillTxt: { fontSize: 9, color: HT.axon, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.3 },
   miniKpiRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 6, flexWrap: "wrap" },
   miniKpi: { flexDirection: "row", alignItems: "center", gap: 3 },
-  miniKpiTxt: { fontSize: 11, color: "#0F172A", fontWeight: "700" },
-  lastActive: { fontSize: 10, color: "#94A3B8", fontWeight: "600" },
+  miniKpiTxt: { fontSize: 11, color: HT.text, fontWeight: "700" },
+  lastActive: { fontSize: 10, color: HT.muted, fontWeight: "600" },
 
   // Detail
   detailHeader: { flexDirection: "row", gap: 14, alignItems: "center", padding: 4 },
@@ -609,48 +609,48 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: "#0EA5E9",
+    backgroundColor: '#0EA5E9',
     alignItems: "center",
     justifyContent: "center",
   },
   avatarLgTxt: { color: "#FFF", fontSize: 22, fontWeight: "800", letterSpacing: -0.5 },
-  detailName: { fontSize: 20, fontWeight: "800", color: "#0F172A" },
-  detailEmail: { fontSize: 12, color: "#64748B" },
+  detailName: { fontSize: 20, fontWeight: "800", color: HT.text },
+  detailEmail: { fontSize: 12, color: HT.muted },
   kpiGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   kpiCard: {
     flexBasis: "48%",
     flexGrow: 1,
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderRadius: 12,
     padding: 12,
     borderTopWidth: 3,
-    borderColor: "#EEF2F7",
+    borderColor: '#EEF2F7',
     borderWidth: 1,
   },
   kpiValue: { fontSize: 22, fontWeight: "800", letterSpacing: -0.5 },
-  kpiLabel: { fontSize: 11, color: "#64748B", fontWeight: "700", textTransform: "uppercase", marginTop: 4 },
-  kpiSub: { fontSize: 10, color: "#94A3B8", marginTop: 2 },
+  kpiLabel: { fontSize: 11, color: HT.muted, fontWeight: "700", textTransform: "uppercase", marginTop: 4 },
+  kpiSub: { fontSize: 10, color: HT.muted, marginTop: 2 },
   feedbackBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,
-    borderColor: "#EEF2F7",
+    borderColor: '#EEF2F7',
   },
-  feedbackTxt: { fontSize: 16, fontWeight: "800", color: "#0F172A" },
-  feedbackLbl: { fontSize: 11, color: "#64748B" },
+  feedbackTxt: { fontSize: 16, fontWeight: "800", color: HT.text },
+  feedbackLbl: { fontSize: 11, color: HT.muted },
 
   topicsBox: {
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,
-    borderColor: "#EEF2F7",
+    borderColor: '#EEF2F7',
   },
-  sectionTitle: { fontSize: 13, fontWeight: "800", color: "#0F172A", marginBottom: 8 },
+  sectionTitle: { fontSize: 13, fontWeight: "800", color: HT.text, marginBottom: 8 },
   topicChip: {
     flexDirection: "row",
     alignItems: "center",
@@ -658,19 +658,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: HT.card2,
   },
-  topicChipTxt: { fontSize: 11, color: "#334155", fontWeight: "700" },
-  topicChipCnt: { fontSize: 10, color: "#94A3B8", fontWeight: "700" },
+  topicChipTxt: { fontSize: 11, color: HT.text2, fontWeight: "700" },
+  topicChipCnt: { fontSize: 10, color: HT.muted, fontWeight: "700" },
 
   profileBox: {
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#EDE9FE",
+    borderColor: HT.violetTint,
     borderLeftWidth: 4,
-    borderLeftColor: "#7C3AED",
+    borderLeftColor: '#7C3AED',
     gap: 8,
   },
   profileHeader: {
@@ -685,13 +685,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: "#F3E8FF",
+    backgroundColor: '#F3E8FF',
   },
   refreshTxt: { fontSize: 11, color: "#7C3AED", fontWeight: "800" },
   profileRow: { marginTop: 6 },
-  profileRowLbl: { fontSize: 11, color: "#64748B", fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.3 },
-  profileRowTxt: { fontSize: 14, color: "#0F172A", fontWeight: "600", marginTop: 4 },
-  profileMeta: { fontSize: 10, color: "#94A3B8", textAlign: "right", marginTop: 6 },
+  profileRowLbl: { fontSize: 11, color: HT.muted, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.3 },
+  profileRowTxt: { fontSize: 14, color: HT.text, fontWeight: "600", marginTop: 4 },
+  profileMeta: { fontSize: 10, color: HT.muted, textAlign: "right", marginTop: 6 },
 });
 
 // V50.z273 — Card «Area Corsi» nel blocco Team Insights (badge con i corsi nuovi non ancora aperti)
@@ -701,13 +701,13 @@ function CoursesCard({ router }: { router: ReturnType<typeof useRouter> }) {
     api<{ items: any[]; new_count: number; can_manage: boolean }>("/courses").then((r) => setInfo({ total: (r.items || []).length, newCount: r.new_count || 0, canManage: !!r.can_manage })).catch(() => setInfo({ total: 0, newCount: 0, canManage: false }));
   }, []);
   return (
-    <Pressable onPress={() => router.push("/courses" as any)} style={{ flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#FAF5FF", borderWidth: 1, borderColor: "#E9D5FF", borderRadius: 16, padding: 14, minHeight: 72 }} testID="team-courses-card">
-      <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: "#7C3AED", alignItems: "center", justifyContent: "center" }}><Ionicons name="school" size={22} color="#FFF" /></View>
+    <Pressable onPress={() => router.push("/courses" as any)} style={{ flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: '#FAF5FF', borderWidth: 1, borderColor: '#E9D5FF', borderRadius: 16, padding: 14, minHeight: 72 }} testID="team-courses-card">
+      <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: '#7C3AED', alignItems: "center", justifyContent: "center" }}><Ionicons name="school" size={22} color="#FFF" /></View>
       <View style={{ flex: 1 }}>
         <Text style={{ fontSize: 15, fontWeight: "900", color: "#1F1147" }}>Area Corsi</Text>
         <Text style={{ fontSize: 12, color: "#6B21A8", marginTop: 2 }}>{info ? `${info.total} cartelle corso${info.canManage ? " · lettura e partecipazione del team" : ""}` : "Caricamento…"}</Text>
       </View>
-      {info && info.newCount > 0 ? <View style={{ backgroundColor: "#DC2626", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 }}><Text style={{ color: "#FFF", fontSize: 11, fontWeight: "900" }}>{info.newCount} nuovi</Text></View> : null}
+      {info && info.newCount > 0 ? <View style={{ backgroundColor: '#DC2626', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 }}><Text style={{ color: "#FFF", fontSize: 11, fontWeight: "900" }}>{info.newCount} nuovi</Text></View> : null}
       <Ionicons name="chevron-forward" size={18} color="#7C3AED" />
     </Pressable>
   );

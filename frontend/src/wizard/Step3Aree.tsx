@@ -11,6 +11,7 @@ import { api } from "@/src/api";
 import type { StepBinder } from "@/src/wizard/Step1Anagrafica";
 import type { Sphere } from "@/src/wizard/Step2Sfera";
 import { AreaMiniWizard, type AreaCfg } from "@/src/AreaMiniWizard"; // V50.z227 — mini-wizard contestuale all'attivazione
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const PURPLE = "#7C3AED";
 const PER_PAGE = 4;
@@ -23,9 +24,9 @@ const BG = {
   future: require("../../assets/images/wizard-bg-future.jpg"),
 };
 const META = {
-  business: { label: "🟦 Aree Business", sub: "Accendi ciò che usi per lavoro.", accent: "#1D4ED8" },
-  home: { label: "🟢 Aree Home", sub: "La tua vita privata, separata dal CRM.", accent: "#047857" },
-  future: { label: "🚀 Interessi futuri", sub: "Non ancora disponibili: dimmi cosa ti interessa e ti avviso io.", accent: "#C2410C" },
+  business: { label: "🟦 Aree Business", sub: "Accendi ciò che usi per lavoro.", accent: HT.axon },
+  home: { label: "🟢 Aree Home", sub: "La tua vita privata, separata dal CRM.", accent: HT.success },
+  future: { label: "🚀 Interessi futuri", sub: "Non ancora disponibili: dimmi cosa ti interessa e ti avviso io.", accent: "#FDBA74" },
 };
 
 function chunk<T>(arr: T[], n: number): T[][] { const out: T[][] = []; for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n)); return out; }
@@ -94,7 +95,7 @@ export function Step3Aree({ bind, sphere, initial, onNext, onSkipAll }: { bind: 
               return (
                 <View key={a.key} style={[styles.row, v && { borderColor: cur.accent }]} testID={`area-row-${a.key}`}>
                   <View style={[styles.rowIcon, { backgroundColor: v ? cur.accent : "#E2E8F0" }]}>
-                    <Ionicons name={a.icon as any} size={22} color={v ? "#FFF" : "#64748B"} />
+                    <Ionicons name={a.icon as any} size={22} color={v ? "#FFF" : HT.muted} />
                   </View>
                   <View style={{ flex: 1, gap: 2 }}>
                     <Text style={styles.rowTitle} numberOfLines={2}>{a.title}</Text>
@@ -102,7 +103,7 @@ export function Step3Aree({ bind, sphere, initial, onNext, onSkipAll }: { bind: 
                     {a.future && <Text style={styles.futureTag}>Interesse futuro</Text>}
                     {v && !a.future && cfgAreas[a.key]?.wizard && (
                       <Pressable onPress={() => setWiz(cfgAreas[a.key])} style={styles.cfgBtn} testID={`area-configure-${a.key}`}>
-                        <Ionicons name={cfgAreas[a.key].status === "complete" ? "checkmark-circle" : "alert-circle"} size={12} color={cfgAreas[a.key].status === "complete" ? "#16A34A" : "#B45309"} />
+                        <Ionicons name={cfgAreas[a.key].status === "complete" ? "checkmark-circle" : "alert-circle"} size={12} color={cfgAreas[a.key].status === "complete" ? "#16A34A" : HT.warning} />
                         <Text style={[styles.cfgTxt, cfgAreas[a.key].status === "complete" && { color: "#16A34A" }]}>{cfgAreas[a.key].status === "complete" ? "Configurata" : "Configurazione incompleta · Configura"}</Text>
                       </Pressable>
                     )}
@@ -123,7 +124,7 @@ export function Step3Aree({ bind, sphere, initial, onNext, onSkipAll }: { bind: 
         <Ionicons name={last ? "checkmark" : "arrow-forward"} size={18} color="#FFF" />
       </Pressable>
       <View style={styles.secondaryRow}>
-        {page > 0 ? <Pressable onPress={() => setPage((p) => p - 1)} style={styles.linkBtn} testID="aree-prev"><Ionicons name="arrow-back" size={14} color="#64748B" /><Text style={styles.linkTxt}>Indietro</Text></Pressable> : <View style={styles.linkBtn} />}
+        {page > 0 ? <Pressable onPress={() => setPage((p) => p - 1)} style={styles.linkBtn} testID="aree-prev"><Ionicons name="arrow-back" size={14} color={HT.muted} /><Text style={styles.linkTxt}>Indietro</Text></Pressable> : <View style={styles.linkBtn} />}
         <Text style={styles.count}>{activeCount} {activeCount === 1 ? "area attiva" : "aree attive"}</Text>
         <Pressable onPress={onSkipAll} style={styles.linkBtn} testID="aree-skip-all"><Text style={styles.linkTxt}>Salta tutto per ora</Text></Pressable>
       </View>
@@ -138,22 +139,22 @@ const styles = StyleSheet.create({
   veil: { flex: 1, padding: 14, paddingTop: 56, gap: 12 },
   pageHead: { flexDirection: "row", alignItems: "flex-end", gap: 8 },
   pageLabel: { fontSize: 18, fontWeight: "900", textShadowColor: "rgba(255,255,255,0.9)", textShadowRadius: 6 },
-  pageSub: { fontSize: 12.5, color: "#334155", fontWeight: "700", textShadowColor: "rgba(255,255,255,0.9)", textShadowRadius: 6 },
-  pageIdx: { fontSize: 12, fontWeight: "800", color: "#475569", backgroundColor: "rgba(255,255,255,0.85)", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
-  row: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "rgba(255,255,255,0.97)", borderRadius: 16, padding: 12, minHeight: 68, borderWidth: 1.5, borderColor: "#E2E8F0" },
+  pageSub: { fontSize: 12.5, color: HT.text2, fontWeight: "700", textShadowColor: "rgba(255,255,255,0.9)", textShadowRadius: 6 },
+  pageIdx: { fontSize: 12, fontWeight: "800", color: HT.text2, backgroundColor: "rgba(255,255,255,0.85)", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+  row: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "rgba(255,255,255,0.97)", borderRadius: 16, padding: 12, minHeight: 68, borderWidth: 1.5, borderColor: HT.border },
   rowIcon: { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  rowTitle: { fontSize: 15, fontWeight: "800", color: "#1B2B4B" },
-  rowDesc: { fontSize: 12, color: "#64748B", lineHeight: 16 },
+  rowTitle: { fontSize: 15, fontWeight: "800", color: HT.text },
+  rowDesc: { fontSize: 12, color: HT.muted, lineHeight: 16 },
   cfgBtn: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 28, alignSelf: "flex-start" },
-  cfgTxt: { fontSize: 11, fontWeight: "800", color: "#B45309" },
-  futureTag: { alignSelf: "flex-start", fontSize: 10, fontWeight: "800", color: "#C2410C", backgroundColor: "#FFF7ED", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, marginTop: 2 },
+  cfgTxt: { fontSize: 11, fontWeight: "800", color: HT.warning },
+  futureTag: { alignSelf: "flex-start", fontSize: 10, fontWeight: "800", color: "#FDBA74", backgroundColor: HT.brandTint, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, marginTop: 2 },
   dots: { flexDirection: "row", justifyContent: "center", gap: 6 },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#DDD6FE" },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: HT.violet + '66' },
   okBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: PURPLE, borderRadius: 16, minHeight: 52 },
   okTxt: { color: "#FFF", fontWeight: "900", fontSize: 16 },
   secondaryRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   linkBtn: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 44, minWidth: 80, justifyContent: "center" },
-  linkTxt: { color: "#64748B", fontWeight: "700", fontSize: 13.5 },
+  linkTxt: { color: HT.muted, fontWeight: "700", fontSize: 13.5 },
   count: { fontSize: 12, color: "#7C3AED", fontWeight: "800" },
   err: { fontSize: 12.5, color: "#DC2626", fontWeight: "700" },
 });

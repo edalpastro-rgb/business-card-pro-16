@@ -6,6 +6,7 @@ import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Member = { user_id: string; name: string; email: string };
 
@@ -49,7 +50,7 @@ export default function NewChatScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={10}>
-          <Ionicons name="chevron-back" size={26} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={26} color={HT.text} />
         </Pressable>
         <Text style={styles.title}>Nuova chat</Text>
         <View style={{ width: 26 }} />
@@ -62,13 +63,13 @@ export default function NewChatScreen() {
           value={name}
           onChangeText={setName}
           placeholder="Es. Team commerciale"
-          placeholderTextColor="#94A3B8"
+          placeholderTextColor={HT.muted}
           style={styles.input}
         />
 
         <Text style={[styles.lbl, { marginTop: 16 }]}>Seleziona partecipanti ({selCount})</Text>
         {loading ? (
-          <ActivityIndicator style={{ marginTop: 20 }} color={theme.color.brandPrimary} />
+          <ActivityIndicator style={{ marginTop: 20 }} color={HT.brand} />
         ) : members.length === 0 ? (
           <Text style={styles.emptyTxt}>Non ci sono altri utenti nel tuo team. Invita collaboratori da Impostazioni → Team.</Text>
         ) : (
@@ -79,7 +80,7 @@ export default function NewChatScreen() {
                 <Text style={styles.userName}>{m.name}</Text>
                 <Text style={styles.userEmail}>{m.email}</Text>
               </View>
-              <Ionicons name={selected[m.user_id] ? "checkmark-circle" : "ellipse-outline"} size={22} color={selected[m.user_id] ? theme.color.success : theme.color.muted} />
+              <Ionicons name={selected[m.user_id] ? "checkmark-circle" : "ellipse-outline"} size={22} color={selected[m.user_id] ? HT.success : HT.muted} />
             </Pressable>
           ))
         )}
@@ -93,18 +94,18 @@ export default function NewChatScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
+  root: { flex: 1, backgroundColor: HT.card2 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12 },
-  title: { fontSize: 18, fontWeight: "700", color: theme.color.onSurface },
-  lbl: { fontSize: 12, color: theme.color.onSurfaceTertiary, fontWeight: "600", marginBottom: 4 },
-  input: { backgroundColor: "#FFF", borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: theme.color.border, color: theme.color.onSurface },
-  userRow: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#FFF", padding: 12, borderRadius: theme.radius.md, marginBottom: 8, borderWidth: 1, borderColor: theme.color.border },
-  userRowActive: { borderColor: theme.color.success, backgroundColor: "#F0FDF4" },
-  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.color.brandTertiary, alignItems: "center", justifyContent: "center" },
-  avatarTxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 14 },
-  userName: { fontSize: 15, fontWeight: "700", color: theme.color.onSurface },
-  userEmail: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
-  emptyTxt: { color: theme.color.muted, textAlign: "center", marginTop: 20, fontStyle: "italic" },
-  saveBtn: { backgroundColor: theme.color.brandPrimary, paddingVertical: 14, borderRadius: theme.radius.md, alignItems: "center", marginTop: 20 },
+  title: { fontSize: 18, fontWeight: "700", color: HT.text },
+  lbl: { fontSize: 12, color: HT.text2, fontWeight: "600", marginBottom: 4 },
+  input: { backgroundColor: HT.card, borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: HT.border, color: HT.text },
+  userRow: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: HT.card, padding: 12, borderRadius: theme.radius.md, marginBottom: 8, borderWidth: 1, borderColor: HT.border },
+  userRowActive: { borderColor: HT.success, backgroundColor: HT.successTint },
+  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: HT.brandTint, alignItems: "center", justifyContent: "center" },
+  avatarTxt: { color: HT.brand, fontWeight: "700", fontSize: 14 },
+  userName: { fontSize: 15, fontWeight: "700", color: HT.text },
+  userEmail: { fontSize: 12, color: HT.muted, marginTop: 2 },
+  emptyTxt: { color: HT.muted, textAlign: "center", marginTop: 20, fontStyle: "italic" },
+  saveBtn: { backgroundColor: HT.brand, paddingVertical: 14, borderRadius: theme.radius.md, alignItems: "center", marginTop: 20 },
   saveBtnTxt: { color: "#FFF", fontWeight: "700", fontSize: 15 },
 });

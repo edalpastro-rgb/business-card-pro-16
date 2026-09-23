@@ -18,8 +18,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as Clipboard from "expo-clipboard";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Lead = {
   lead_id: string;
@@ -52,9 +52,9 @@ const DEFAULT_NEED_META: Record<string, { label: string; emoji: string }> = {
 const STATUS_META: Record<Lead["status"], { label: string; color: string; icon: any }> = {
   new: { label: "Nuovo", color: "#EA580C", icon: "sparkles" },
   analyzed: { label: "Analizzato", color: "#8B5CF6", icon: "flash" },
-  approved: { label: "Approvato", color: theme.color.success, icon: "checkmark-circle" },
-  replied: { label: "Risposto", color: theme.color.info, icon: "send" },
-  archived: { label: "Archiviato", color: theme.color.muted, icon: "archive" },
+  approved: { label: "Approvato", color: HT.success, icon: "checkmark-circle" },
+  replied: { label: "Risposto", color: HT.axon, icon: "send" },
+  archived: { label: "Archiviato", color: HT.muted, icon: "archive" },
 };
 
 const CHANNEL_META: Record<string, { label: string; icon: any; color: string }> = {
@@ -331,20 +331,20 @@ export default function LeadsPage() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.iconBtn} testID="leads-back">
-          <Ionicons name="chevron-back" size={24} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={24} color={HT.text} />
         </Pressable>
         <Text style={styles.title}>Richieste Info</Text>
         <Pressable onPress={openNeedsCfg} style={styles.iconBtn} testID="leads-config-needs">
-          <Ionicons name="options" size={22} color={theme.color.brandPrimary} />
+          <Ionicons name="options" size={22} color={HT.brand} />
         </Pressable>
         <Pressable onPress={copyPublicLink} style={styles.iconBtn} testID="leads-copy-link">
-          <Ionicons name="share-social" size={22} color={theme.color.brandPrimary} />
+          <Ionicons name="share-social" size={22} color={HT.brand} />
         </Pressable>
       </View>
 
       {publicUrl ? (
         <View style={styles.linkBar}>
-          <Ionicons name="link" size={14} color={theme.color.brandPrimary} />
+          <Ionicons name="link" size={14} color={HT.brand} />
           <Text style={styles.linkTxt} numberOfLines={1}>{publicUrl}</Text>
         </View>
       ) : null}
@@ -369,10 +369,10 @@ export default function LeadsPage() {
       </ScrollView>
 
       {loading ? (
-        <View style={styles.centered}><ActivityIndicator size="large" color={theme.color.brandPrimary} /></View>
+        <View style={styles.centered}><ActivityIndicator size="large" color={HT.brand} /></View>
       ) : items.length === 0 ? (
         <View style={styles.centered}>
-          <Ionicons name="mail-open-outline" size={48} color={theme.color.muted} />
+          <Ionicons name="mail-open-outline" size={48} color={HT.muted} />
           <Text style={styles.emptyTxt}>Nessuna richiesta al momento.</Text>
           <Pressable style={styles.emptyBtn} onPress={copyPublicLink}>
             <Ionicons name="share-social" size={16} color="#FFF" />
@@ -434,7 +434,7 @@ export default function LeadsPage() {
                 ) : null}
               </View>
               <Pressable onPress={() => setDetail(null)} testID="lead-detail-close">
-                <Ionicons name="close" size={22} color={theme.color.onSurface} />
+                <Ionicons name="close" size={22} color={HT.text} />
               </Pressable>
             </View>
             <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
@@ -455,9 +455,9 @@ export default function LeadsPage() {
                       })}
                     </View>
                     {detail.free_text ? (
-                      <View style={{ marginTop: 10, padding: 10, backgroundColor: theme.color.surfaceTertiary, borderRadius: 8 }}>
-                        <Text style={{ fontSize: 12, color: theme.color.muted, marginBottom: 4, fontWeight: "700" }}>Messaggio:</Text>
-                        <Text style={{ color: theme.color.onSurface, fontSize: 13, lineHeight: 18, fontStyle: "italic" }}>“{detail.free_text}”</Text>
+                      <View style={{ marginTop: 10, padding: 10, backgroundColor: HT.card2, borderRadius: 8 }}>
+                        <Text style={{ fontSize: 12, color: HT.muted, marginBottom: 4, fontWeight: "700" }}>Messaggio:</Text>
+                        <Text style={{ color: HT.text, fontSize: 13, lineHeight: 18, fontStyle: "italic" }}>“{detail.free_text}”</Text>
                       </View>
                     ) : null}
                   </View>
@@ -475,7 +475,7 @@ export default function LeadsPage() {
                       multiline
                       numberOfLines={10}
                       placeholder="Nessuna risposta generata ancora. Tocca 'Rigenera' qui sotto."
-                      placeholderTextColor={theme.color.muted}
+                      placeholderTextColor={HT.muted}
                       testID="lead-axon-input"
                     />
                     <View style={styles.axonActions}>
@@ -532,7 +532,7 @@ export default function LeadsPage() {
 
                   {detail.master_replied_at ? (
                     <View style={styles.repliedBox}>
-                      <Ionicons name="checkmark-done" size={16} color={theme.color.success} />
+                      <Ionicons name="checkmark-done" size={16} color={HT.success} />
                       <Text style={styles.repliedTxt}>
                         Risposto {detail.master_reply_channel ? `via ${CHANNEL_META[detail.master_reply_channel]?.label || detail.master_reply_channel}` : ""} il {fmt(detail.master_replied_at)}
                       </Text>
@@ -540,7 +540,7 @@ export default function LeadsPage() {
                   ) : null}
 
                   <Pressable style={styles.deleteBtn} onPress={remove} testID="lead-delete">
-                    <Ionicons name="trash" size={14} color={theme.color.error} />
+                    <Ionicons name="trash" size={14} color={HT.danger} />
                     <Text style={styles.deleteTxt}>Elimina lead</Text>
                   </Pressable>
                 </>
@@ -557,16 +557,16 @@ export default function LeadsPage() {
             <View style={styles.sheetHead}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.sheetTitle}>Configura esigenze</Text>
-                <Text style={{ fontSize: 11, color: theme.color.muted }}>
+                <Text style={{ fontSize: 11, color: HT.muted }}>
                   Modifica le checkbox del form pubblico · {needsDefault ? "Default attivi" : "Custom attivi"}
                 </Text>
               </View>
               <Pressable onPress={() => setShowNeedsCfg(false)} testID="needs-cfg-close">
-                <Ionicons name="close" size={22} color={theme.color.onSurface} />
+                <Ionicons name="close" size={22} color={HT.text} />
               </Pressable>
             </View>
             <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
-              <Text style={{ fontSize: 12, color: theme.color.muted, marginBottom: 10, lineHeight: 16 }}>
+              <Text style={{ fontSize: 12, color: HT.muted, marginBottom: 10, lineHeight: 16 }}>
                 Puoi avere da 1 a 12 esigenze. L&apos;ID viene generato automaticamente dal nome.
                 I lead già ricevuti mantengono le esigenze originali.
               </Text>
@@ -593,7 +593,7 @@ export default function LeadsPage() {
                     style={styles.needRemoveBtn}
                     testID={`need-remove-${idx}`}
                   >
-                    <Ionicons name="trash" size={16} color={theme.color.error} />
+                    <Ionicons name="trash" size={16} color={HT.danger} />
                   </Pressable>
                 </View>
               ))}
@@ -604,7 +604,7 @@ export default function LeadsPage() {
                 disabled={editNeeds.length >= 12}
                 testID="need-add"
               >
-                <Ionicons name="add-circle" size={18} color={theme.color.brandPrimary} />
+                <Ionicons name="add-circle" size={18} color={HT.brand} />
                 <Text style={styles.needAddTxt}>Aggiungi esigenza ({editNeeds.length}/12)</Text>
               </Pressable>
 
@@ -629,7 +629,7 @@ export default function LeadsPage() {
                   disabled={savingCfg}
                   testID="need-reset"
                 >
-                  <Ionicons name="refresh" size={14} color={theme.color.muted} />
+                  <Ionicons name="refresh" size={14} color={HT.muted} />
                   <Text style={styles.needResetTxt}>Ripristina 5 default</Text>
                 </Pressable>
               ) : null}
@@ -642,84 +642,84 @@ export default function LeadsPage() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.color.surface },
+  container: { flex: 1, backgroundColor: HT.card2 },
   header: {
     flexDirection: "row", alignItems: "center",
     paddingHorizontal: 12, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: theme.color.divider,
-    backgroundColor: theme.color.surfaceSecondary,
+    borderBottomWidth: 1, borderBottomColor: HT.border,
+    backgroundColor: HT.card2,
   },
   iconBtn: { padding: 8 },
-  title: { flex: 1, fontSize: 17, fontWeight: "800", color: theme.color.onSurface, textAlign: "center" },
+  title: { flex: 1, fontSize: 17, fontWeight: "800", color: HT.text, textAlign: "center" },
   linkBar: {
     flexDirection: "row", alignItems: "center", gap: 6,
     paddingHorizontal: 12, paddingVertical: 8,
-    backgroundColor: theme.color.brandPrimary + "10",
+    backgroundColor: HT.brand + "10",
   },
-  linkTxt: { flex: 1, fontSize: 12, color: theme.color.brandPrimary, fontWeight: "600" },
+  linkTxt: { flex: 1, fontSize: 12, color: HT.brand, fontWeight: "600" },
   filterRow: { paddingHorizontal: 12, paddingVertical: 10, gap: 8 },
   filterChip: {
     flexDirection: "row", alignItems: "center", gap: 6,
     paddingHorizontal: 12, paddingVertical: 7,
-    borderRadius: 20, borderWidth: 1, borderColor: theme.color.border,
-    backgroundColor: theme.color.surfaceSecondary,
+    borderRadius: 20, borderWidth: 1, borderColor: HT.border,
+    backgroundColor: HT.card2,
   },
-  filterChipActive: { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary },
-  filterTxt: { fontSize: 12, color: theme.color.onSurface, fontWeight: "600" },
+  filterChipActive: { backgroundColor: HT.brand, borderColor: HT.brand },
+  filterTxt: { fontSize: 12, color: HT.text, fontWeight: "600" },
   filterTxtActive: { color: "#FFF" },
-  filterCount: { fontSize: 10, color: theme.color.muted, fontWeight: "700" },
+  filterCount: { fontSize: 10, color: HT.muted, fontWeight: "700" },
   centered: { flex: 1, alignItems: "center", justifyContent: "center", padding: 40 },
-  emptyTxt: { color: theme.color.muted, marginTop: 12, fontSize: 14, textAlign: "center" },
+  emptyTxt: { color: HT.muted, marginTop: 12, fontSize: 14, textAlign: "center" },
   emptyBtn: {
     marginTop: 20, flexDirection: "row", alignItems: "center", gap: 6,
     paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10,
-    backgroundColor: theme.color.brandPrimary,
+    backgroundColor: HT.brand,
   },
   emptyBtnTxt: { color: "#FFF", fontWeight: "700" },
   card: {
     padding: 14, borderRadius: 12,
-    backgroundColor: theme.color.surfaceSecondary,
+    backgroundColor: HT.card2,
     marginBottom: 10,
-    borderWidth: 1, borderColor: theme.color.divider,
+    borderWidth: 1, borderColor: HT.border,
   },
   cardHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
-  cardName: { flex: 1, fontSize: 15, fontWeight: "800", color: theme.color.onSurface },
+  cardName: { flex: 1, fontSize: 15, fontWeight: "800", color: HT.text },
   statusBadge: {
     flexDirection: "row", alignItems: "center", gap: 4,
     paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
   },
   statusBadgeTxt: { fontSize: 11, fontWeight: "700" },
-  cardDate: { color: theme.color.muted, fontSize: 11 },
+  cardDate: { color: HT.muted, fontSize: 11 },
   needsRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6 },
   needTiny: {
-    fontSize: 11, color: theme.color.onSurface,
+    fontSize: 11, color: HT.text,
     paddingHorizontal: 8, paddingVertical: 3,
-    backgroundColor: theme.color.surfaceTertiary,
+    backgroundColor: HT.card2,
     borderRadius: 6, fontWeight: "600",
   },
-  freeTextPrev: { color: theme.color.muted, fontStyle: "italic", fontSize: 12, marginTop: 6, lineHeight: 16 },
+  freeTextPrev: { color: HT.muted, fontStyle: "italic", fontSize: 12, marginTop: 6, lineHeight: 16 },
   contactMini: { flexDirection: "row", gap: 10, marginTop: 8, flexWrap: "wrap" },
-  contactMiniTxt: { fontSize: 11, color: theme.color.brandPrimary, fontWeight: "600" },
+  contactMiniTxt: { fontSize: 11, color: HT.brand, fontWeight: "600" },
   // Modal
   backdrop: { flex: 1, backgroundColor: "rgba(15,15,25,0.55)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: theme.color.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, maxHeight: "94%" },
+  sheet: { backgroundColor: HT.card2, borderTopLeftRadius: 22, borderTopRightRadius: 22, maxHeight: "94%" },
   sheetHead: {
     flexDirection: "row", alignItems: "center", padding: 16,
-    borderBottomWidth: 1, borderBottomColor: theme.color.divider,
+    borderBottomWidth: 1, borderBottomColor: HT.border,
   },
-  sheetTitle: { fontSize: 17, fontWeight: "800", color: theme.color.onSurface },
+  sheetTitle: { fontSize: 17, fontWeight: "800", color: HT.text },
   detailBox: {
     padding: 12, borderRadius: 12,
-    backgroundColor: theme.color.surfaceSecondary,
-    borderWidth: 1, borderColor: theme.color.divider,
+    backgroundColor: HT.card2,
+    borderWidth: 1, borderColor: HT.border,
     marginBottom: 12,
   },
-  detailKv: { fontSize: 13, color: theme.color.onSurface, marginBottom: 3 },
+  detailKv: { fontSize: 13, color: HT.text, marginBottom: 3 },
   needPill: {
     paddingHorizontal: 8, paddingVertical: 3,
-    backgroundColor: theme.color.brandPrimary + "18", borderRadius: 6,
+    backgroundColor: HT.brand + "18", borderRadius: 6,
   },
-  needPillTxt: { fontSize: 11, color: theme.color.brandPrimary, fontWeight: "700" },
+  needPillTxt: { fontSize: 11, color: HT.brand, fontWeight: "700" },
   axonBox: {
     padding: 12, borderRadius: 12,
     backgroundColor: "#8B5CF60A",
@@ -728,30 +728,30 @@ const styles = StyleSheet.create({
   },
   axonTitle: { fontSize: 13, fontWeight: "800", color: "#8B5CF6", flex: 1 },
   axonInput: {
-    borderWidth: 1, borderColor: theme.color.border, borderRadius: 8,
-    padding: 12, backgroundColor: theme.color.surfaceSecondary,
-    color: theme.color.onSurface, fontSize: 13, minHeight: 200,
+    borderWidth: 1, borderColor: HT.border, borderRadius: 8,
+    padding: 12, backgroundColor: HT.card2,
+    color: HT.text, fontSize: 13, minHeight: 200,
     textAlignVertical: "top",
   },
   axonActions: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 },
   axonBtn: {
     flexDirection: "row", alignItems: "center", gap: 4,
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6,
-    borderWidth: 1, borderColor: "#8B5CF6",
+    borderWidth: 1, borderColor: '#8B5CF6',
   },
   axonBtnTxt: { fontSize: 11, color: "#8B5CF6", fontWeight: "700" },
   saveEditBtn: {
     marginTop: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
-    paddingVertical: 8, borderRadius: 8, backgroundColor: "#8B5CF6",
+    paddingVertical: 8, borderRadius: 8, backgroundColor: '#8B5CF6',
   },
   saveEditTxt: { color: "#FFF", fontWeight: "800", fontSize: 12 },
   approveBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
     paddingVertical: 12, borderRadius: 10,
-    backgroundColor: theme.color.success, marginBottom: 12,
+    backgroundColor: HT.success, marginBottom: 12,
   },
   approveTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
-  sendLbl: { fontSize: 12, fontWeight: "700", color: theme.color.muted, marginBottom: 6 },
+  sendLbl: { fontSize: 12, fontWeight: "700", color: HT.muted, marginBottom: 6 },
   sendChannels: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   sendChBtn: {
     flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
@@ -761,14 +761,14 @@ const styles = StyleSheet.create({
   repliedBox: {
     flexDirection: "row", alignItems: "center", gap: 6,
     padding: 10, borderRadius: 8,
-    backgroundColor: theme.color.success + "15", marginTop: 12,
+    backgroundColor: HT.success + "15", marginTop: 12,
   },
-  repliedTxt: { fontSize: 12, color: theme.color.success, fontWeight: "600" },
+  repliedTxt: { fontSize: 12, color: HT.success, fontWeight: "600" },
   deleteBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
     marginTop: 20, paddingVertical: 10,
   },
-  deleteTxt: { color: theme.color.error, fontWeight: "700" },
+  deleteTxt: { color: HT.danger, fontWeight: "700" },
   // V50.z103.b — Config esigenze
   needEditRow: {
     flexDirection: "row", alignItems: "center", gap: 8,
@@ -776,37 +776,37 @@ const styles = StyleSheet.create({
   },
   needEmojiInput: {
     width: 52, height: 44, borderRadius: 8,
-    borderWidth: 1, borderColor: theme.color.border,
-    backgroundColor: theme.color.surfaceSecondary,
-    textAlign: "center", fontSize: 22, color: theme.color.onSurface,
+    borderWidth: 1, borderColor: HT.border,
+    backgroundColor: HT.card2,
+    textAlign: "center", fontSize: 22, color: HT.text,
   },
   needLabelInput: {
     flex: 1, height: 44, borderRadius: 8,
-    borderWidth: 1, borderColor: theme.color.border,
-    backgroundColor: theme.color.surfaceSecondary,
-    paddingHorizontal: 12, fontSize: 14, color: theme.color.onSurface,
+    borderWidth: 1, borderColor: HT.border,
+    backgroundColor: HT.card2,
+    paddingHorizontal: 12, fontSize: 14, color: HT.text,
   },
   needRemoveBtn: {
     width: 40, height: 44, borderRadius: 8,
     alignItems: "center", justifyContent: "center",
-    backgroundColor: theme.color.error + "15",
+    backgroundColor: HT.danger + "15",
   },
   needAddBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
     paddingVertical: 12, borderRadius: 10,
-    borderWidth: 1.5, borderStyle: "dashed", borderColor: theme.color.brandPrimary,
+    borderWidth: 1.5, borderStyle: "dashed", borderColor: HT.brand,
     marginTop: 4,
   },
-  needAddTxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 13 },
+  needAddTxt: { color: HT.brand, fontWeight: "700", fontSize: 13 },
   needSaveBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
     paddingVertical: 13, borderRadius: 10,
-    backgroundColor: theme.color.success, marginTop: 16,
+    backgroundColor: HT.success, marginTop: 16,
   },
   needSaveTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
   needResetBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
     paddingVertical: 10, marginTop: 8,
   },
-  needResetTxt: { color: theme.color.muted, fontWeight: "600", fontSize: 12 },
+  needResetTxt: { color: HT.muted, fontWeight: "600", fontSize: 12 },
 });

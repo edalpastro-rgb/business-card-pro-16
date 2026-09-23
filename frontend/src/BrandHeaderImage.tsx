@@ -55,7 +55,7 @@ export function BrandHeaderImage({ radius = 12 }: { radius?: number }) {
 
 const styles = StyleSheet.create({
   fill: { position: "absolute", top: 0, left: 0, width: "100%", height: "100%" },
-  orgBg: { backgroundColor: "#0B1E38", alignItems: "center", justifyContent: "center", padding: 18 },
+  orgBg: { backgroundColor: '#0B1E38', alignItems: "center", justifyContent: "center", padding: 18 },
   orgLogo: { width: "70%", height: "62%" },
-  axonBox: { position: "absolute", right: 12, bottom: 12, borderRadius: 8, overflow: "hidden", backgroundColor: "#E6EBEE" },
+  axonBox: { position: "absolute", right: 12, bottom: 12, borderRadius: 8, overflow: "hidden", backgroundColor: '#E6EBEE' },
 });

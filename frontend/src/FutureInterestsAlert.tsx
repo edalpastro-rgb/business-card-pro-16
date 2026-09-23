@@ -7,6 +7,7 @@ import { View, Text, StyleSheet, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import { api } from "@/src/api";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Alert = { key: string; title: string; kind: string; seen: boolean };
 type Res = { alerts: Alert[]; unseen: number; future_interests: string[] };
@@ -30,7 +31,7 @@ export function FutureInterestsAlert({ variant = "settings", onOpen }: { variant
   return (
     <View style={[styles.card, variant === "chat" && styles.cardChat]} testID={`future-interests-${variant}`}>
       <View style={styles.head}>
-        <View style={styles.icon}><Ionicons name="rocket" size={18} color="#C2410C" /></View>
+        <View style={styles.icon}><Ionicons name="rocket" size={18} color="#FDBA74" /></View>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Interessi futuri registrati</Text>
           <Text style={styles.txt}>{variant === "chat" ? "Ho segnato cosa ti interessa: non è ancora disponibile, ti avviso io appena sarà pronto. Nel frattempo non lo proporrò come funzionante." : "Non ancora disponibili: AxonOS ti avviserà appena saranno pronti. Puoi cambiarli quando vuoi."}</Text>
@@ -39,7 +40,7 @@ export function FutureInterestsAlert({ variant = "settings", onOpen }: { variant
       <View style={styles.chips}>
         {items.map((a) => (
           <View key={a.key} style={styles.chip} testID={`future-interest-${a.key}`}>
-            <Ionicons name={ICONS[a.key] || "sparkles"} size={13} color="#9A3412" />
+            <Ionicons name={ICONS[a.key] || "sparkles"} size={13} color="#FDBA74" />
             <Text style={styles.chipTxt} numberOfLines={1}>{a.title}</Text>
           </View>
         ))}
@@ -53,18 +54,18 @@ export function FutureInterestsAlert({ variant = "settings", onOpen }: { variant
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: "#FFF7ED", borderRadius: 14, borderWidth: 1, borderColor: "#FED7AA", padding: 12, gap: 10 },
+  card: { backgroundColor: HT.brandTint, borderRadius: 14, borderWidth: 1, borderColor: HT.brandLine, padding: 12, gap: 10 },
   cardChat: { marginLeft: 30, marginTop: 6 },
   head: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
-  icon: { width: 34, height: 34, borderRadius: 12, backgroundColor: "#FFEDD5", alignItems: "center", justifyContent: "center" },
+  icon: { width: 34, height: 34, borderRadius: 12, backgroundColor: HT.brandTint, alignItems: "center", justifyContent: "center" },
   title: { fontSize: 12.5, fontWeight: "800", color: "#7C2D12" },
-  txt: { fontSize: 11.5, color: "#9A3412", lineHeight: 15, marginTop: 1 },
+  txt: { fontSize: 11.5, color: "#FDBA74", lineHeight: 15, marginTop: 1 },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  chip: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#FFF", borderRadius: 999, paddingHorizontal: 10, minHeight: 30, borderWidth: 1, borderColor: "#FED7AA", maxWidth: "100%" },
+  chip: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: HT.card, borderRadius: 999, paddingHorizontal: 10, minHeight: 30, borderWidth: 1, borderColor: HT.brandLine, maxWidth: "100%" },
   chipTxt: { fontSize: 11.5, fontWeight: "700", color: "#7C2D12", flexShrink: 1 },
   btns: { flexDirection: "row", gap: 8, alignItems: "center" },
-  btnPrimary: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: "#C2410C", borderRadius: 999, paddingHorizontal: 14, minHeight: 40 },
+  btnPrimary: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: '#C2410C', borderRadius: 999, paddingHorizontal: 14, minHeight: 40 },
   btnPrimaryTxt: { color: "#FFF", fontWeight: "800", fontSize: 12 },
-  btnAlt: { alignItems: "center", justifyContent: "center", minHeight: 40, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: "#FDBA74" },
-  btnAltTxt: { color: "#9A3412", fontWeight: "800", fontSize: 12 },
+  btnAlt: { alignItems: "center", justifyContent: "center", minHeight: 40, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: '#FDBA74' },
+  btnAltTxt: { color: "#FDBA74", fontWeight: "800", fontSize: 12 },
 });

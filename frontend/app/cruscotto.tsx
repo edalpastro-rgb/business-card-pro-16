@@ -18,9 +18,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
-import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type DashboardPayload = {
   feedback: {
@@ -121,7 +121,7 @@ export default function CruscottoScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={{ padding: 40, alignItems: "center" }}>
-          <ActivityIndicator color={theme.color.brandPrimary} />
+          <ActivityIndicator color={HT.brand} />
         </View>
       </SafeAreaView>
     );
@@ -137,7 +137,7 @@ export default function CruscottoScreen() {
           <Text style={styles.headerTitle}>Cruscotto</Text>
         </View>
         <View style={styles.empty}>
-          <Ionicons name="lock-closed-outline" size={40} color="#94A3B8" />
+          <Ionicons name="lock-closed-outline" size={40} color={HT.muted} />
           <Text style={styles.emptyTitle}>Sezione riservata al Master</Text>
         </View>
       </SafeAreaView>
@@ -167,7 +167,7 @@ export default function CruscottoScreen() {
 
       {loading && !data ? (
         <View style={{ padding: 40, alignItems: "center" }}>
-          <ActivityIndicator color={theme.color.brandPrimary} />
+          <ActivityIndicator color={HT.brand} />
         </View>
       ) : (
         <ScrollView
@@ -197,7 +197,7 @@ export default function CruscottoScreen() {
           )}
 
           {/* Feedback panel */}
-          <View style={[styles.panel, { borderLeftColor: "#7C3AED", borderLeftWidth: 4 }]}>
+          <View style={[styles.panel, { borderLeftColor: '#7C3AED', borderLeftWidth: 4 }]}>
             <View style={styles.panelHeader}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                 <Ionicons name="thumbs-up" size={16} color="#7C3AED" />
@@ -241,7 +241,7 @@ export default function CruscottoScreen() {
           </View>
 
           {/* Activity panel */}
-          <View style={[styles.panel, { borderLeftColor: "#0EA5E9", borderLeftWidth: 4 }]}>
+          <View style={[styles.panel, { borderLeftColor: '#0EA5E9', borderLeftWidth: 4 }]}>
             <View style={styles.panelHeader}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                 <Ionicons name="pulse" size={16} color="#0EA5E9" />
@@ -260,7 +260,7 @@ export default function CruscottoScreen() {
           </View>
 
           {/* Knowledge panel */}
-          <View style={[styles.panel, { borderLeftColor: "#FF6B35", borderLeftWidth: 4 }]}>
+          <View style={[styles.panel, { borderLeftColor: '#FF6B35', borderLeftWidth: 4 }]}>
             <View style={styles.panelHeader}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                 <Ionicons name="library" size={16} color="#FF6B35" />
@@ -286,7 +286,7 @@ export default function CruscottoScreen() {
           </View>
 
           {/* Team panel */}
-          <View style={[styles.panel, { borderLeftColor: "#16A34A", borderLeftWidth: 4 }]}>
+          <View style={[styles.panel, { borderLeftColor: '#16A34A', borderLeftWidth: 4 }]}>
             <View style={styles.panelHeader}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                 <Ionicons name="people-circle" size={16} color="#16A34A" />
@@ -297,7 +297,7 @@ export default function CruscottoScreen() {
               </Pressable>
             </View>
             {(team?.top_active || []).length === 0 ? (
-              <Text style={{ fontSize: 12, color: "#64748B", padding: 4 }}>
+              <Text style={{ fontSize: 12, color: HT.muted, padding: 4 }}>
                 {team?.collaborators_total === 0
                   ? "Nessun collaboratore invitato. Invita membri dalla pagina Master."
                   : "Nessuna attività recente."}
@@ -331,7 +331,7 @@ export default function CruscottoScreen() {
                       <Text style={styles.collabAgo}>· {timeAgo(m.last_active_at)}</Text>
                     </View>
                   </View>
-                  <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+                  <Ionicons name="chevron-forward" size={16} color={HT.muted} />
                 </Pressable>
               ))
             )}
@@ -378,14 +378,14 @@ function MiniKpi({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F8FAFC" },
+  container: { flex: 1, backgroundColor: HT.card2 },
   header: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    backgroundColor: "#0F172A",
+    backgroundColor: '#0F172A',
   },
   backBtn: {
     width: 36,
@@ -410,15 +410,15 @@ const styles = StyleSheet.create({
     gap: 6,
     padding: 40,
   },
-  emptyTitle: { fontSize: 15, fontWeight: "700", color: "#334155", marginTop: 8 },
+  emptyTitle: { fontSize: 15, fontWeight: "700", color: HT.text2, marginTop: 8 },
 
   alertCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
     padding: 14,
-    backgroundColor: "#FFF7ED",
-    borderColor: "#FED7AA",
+    backgroundColor: HT.brandTint,
+    borderColor: HT.brandLine,
     borderWidth: 1,
     borderRadius: 14,
   },
@@ -426,20 +426,20 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#FFEDD5",
+    backgroundColor: HT.brandTint,
     alignItems: "center",
     justifyContent: "center",
   },
-  alertTitle: { fontSize: 14, fontWeight: "800", color: "#9A3412" },
-  alertSub: { fontSize: 11, color: "#78350F", marginTop: 2 },
+  alertTitle: { fontSize: 14, fontWeight: "800", color: "#FDBA74" },
+  alertSub: { fontSize: 11, color: "#FDBA74", marginTop: 2 },
 
   panel: {
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderRadius: 14,
     padding: 14,
     gap: 10,
     borderWidth: 1,
-    borderColor: "#EEF2F7",
+    borderColor: '#EEF2F7',
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -451,8 +451,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  panelTitle: { fontSize: 14, fontWeight: "800", color: "#0F172A" },
-  panelSub: { fontSize: 10, color: "#94A3B8", fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.3 },
+  panelTitle: { fontSize: 14, fontWeight: "800", color: HT.text },
+  panelSub: { fontSize: 10, color: HT.muted, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.3 },
   viewAll: { fontSize: 11, color: "#0EA5E9", fontWeight: "800" },
 
   feedbackGrid: { flexDirection: "row", gap: 8 },
@@ -460,35 +460,35 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 10,
     borderRadius: 12,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: HT.card2,
     alignItems: "center",
     gap: 4,
   },
   fbBigN: { fontSize: 26, fontWeight: "800", letterSpacing: -1 },
-  fbLbl: { fontSize: 10, color: "#64748B", fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.3 },
+  fbLbl: { fontSize: 10, color: HT.muted, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.3 },
   satBar: {
     height: 6,
-    backgroundColor: "#FEE2E2",
+    backgroundColor: HT.dangerTint,
     borderRadius: 3,
     overflow: "hidden",
   },
   satBarFill: {
     height: "100%",
-    backgroundColor: "#16A34A",
+    backgroundColor: '#16A34A',
   },
 
   kpiRow: { flexDirection: "row", gap: 8 },
   kpiBox: {
     padding: 10,
     borderRadius: 12,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: HT.card2,
     borderWidth: 1,
-    borderColor: "#EEF2F7",
+    borderColor: '#EEF2F7',
     gap: 4,
   },
   kpiN: { fontSize: 20, fontWeight: "800", letterSpacing: -0.5 },
-  kpiLbl: { fontSize: 10, color: "#64748B", fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.3 },
-  kpiSub: { fontSize: 9, color: "#94A3B8", marginTop: 1 },
+  kpiLbl: { fontSize: 10, color: HT.muted, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.3 },
+  kpiSub: { fontSize: 9, color: HT.muted, marginTop: 1 },
 
   acceptedBanner: {
     flexDirection: "row",
@@ -496,9 +496,9 @@ const styles = StyleSheet.create({
     gap: 6,
     padding: 8,
     borderRadius: 8,
-    backgroundColor: "#DCFCE7",
+    backgroundColor: HT.successTint,
   },
-  acceptedTxt: { fontSize: 11, color: "#166534", fontWeight: "700" },
+  acceptedTxt: { fontSize: 11, color: HT.success, fontWeight: "700" },
 
   collabRow: {
     flexDirection: "row",
@@ -506,22 +506,22 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
+    borderBottomColor: HT.card2,
   },
   collabAvatar: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#16A34A",
+    backgroundColor: '#16A34A',
     alignItems: "center",
     justifyContent: "center",
   },
   collabAvatarTxt: { color: "#FFF", fontWeight: "800", fontSize: 12, letterSpacing: -0.3 },
-  collabName: { fontSize: 13, fontWeight: "700", color: "#0F172A" },
+  collabName: { fontSize: 13, fontWeight: "700", color: HT.text },
   collabKpiRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 3 },
   collabKpi: { flexDirection: "row", alignItems: "center", gap: 2 },
-  collabKpiTxt: { fontSize: 10, color: "#0F172A", fontWeight: "700" },
-  collabAgo: { fontSize: 9, color: "#94A3B8", fontWeight: "600" },
+  collabKpiTxt: { fontSize: 10, color: HT.text, fontWeight: "700" },
+  collabAgo: { fontSize: 9, color: HT.muted, fontWeight: "600" },
 
-  generatedAt: { fontSize: 10, color: "#94A3B8", textAlign: "center", marginTop: 4 },
+  generatedAt: { fontSize: 10, color: HT.muted, textAlign: "center", marginTop: 4 },
 });

@@ -12,7 +12,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
-import { theme } from "@/src/theme";
 import { AxonOSLogo } from "@/src/BrandLogos";
 import { notify } from "@/src/utils/notify";
 import { pickCommonFile } from "@/src/utils/filePicker";
@@ -21,6 +20,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import { useBottomSheetPadding, usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { MicroTutorial, TUTORIAL_INSEGNA_AXON } from "@/src/MicroTutorial";
 import { DistillConversationModal } from "@/src/DistillConversationModal";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 type Rule = { rule_id: string; category?: string; categories?: string[]; title: string; text: string; files: { name: string; mime: string; size: number }[]; updated_at?: string; priority_weight?: number };
 // V50.z294 — pesi del motore regole (0-100): in conflitto vince il peso maggiore
 const RULE_WEIGHTS = [100, 80, 60, 40] as const;
@@ -53,7 +53,7 @@ const FREQ_LABEL: Record<string, string> = {
   monthly: "Mensile",
 };
 const FREQ_ORDER: ("manual" | "daily" | "weekly" | "monthly")[] = ["manual", "daily", "weekly", "monthly"];
-const C = { primary: "#FF6B35", primarySoft: "#FFF1E9", navy: "#1B2B4B", muted: "#94A3B8" };
+const C = { primary: "#FF6B35", primarySoft: "#FFF1E9", navy: HT.text, muted: HT.muted };
 
 // Deterministic color per category (stable hashing on the label)
 function colorFor(category: string): string {
@@ -664,7 +664,7 @@ export default function AiTeachScreen() {
                 <Text style={styles.addBtnTxt}>Aggiungi regola</Text>
               </Pressable>
               {/* V50.z143 — Distilla una chat storica in regole PINNED via Claude */}
-              <Pressable testID="distill-conversation-btn" onPress={() => setDistillOpen(true)} style={[styles.addBtn, { flex: 1, backgroundColor: "#7C3AED" }]}>
+              <Pressable testID="distill-conversation-btn" onPress={() => setDistillOpen(true)} style={[styles.addBtn, { flex: 1, backgroundColor: '#7C3AED' }]}>
                 <Ionicons name="flask" size={18} color="#FFF" />
                 <Text style={styles.addBtnTxt}>Distilla chat</Text>
               </Pressable>
@@ -692,12 +692,12 @@ export default function AiTeachScreen() {
                   <Text style={styles.cardTxt} numberOfLines={4}>{r.text}</Text>
                   {/* V50.z294 — peso della regola per il conflict resolver */}
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }} testID={`rule-weight-${r.rule_id}`}>
-                    <Ionicons name="scale-outline" size={13} color="#64748B" /><Text style={{ fontSize: 11, color: "#64748B", fontWeight: "700" }}>Peso</Text>
+                    <Ionicons name="scale-outline" size={13} color={HT.muted} /><Text style={{ fontSize: 11, color: HT.muted, fontWeight: "700" }}>Peso</Text>
                     {RULE_WEIGHTS.map((w) => {
                       const on = (r.priority_weight ?? 60) === w;
                       return (
                         <Pressable key={w} onPress={() => void setRuleWeight(r.rule_id, w)} style={{ minHeight: 30, paddingHorizontal: 9, borderRadius: 15, backgroundColor: on ? "#7C3AED" : "#F1F5F9", justifyContent: "center" }} testID={`rule-weight-${r.rule_id}-${w}`}>
-                          <Text style={{ fontSize: 11, fontWeight: "800", color: on ? "#FFF" : "#475569" }}>{w} · {RULE_WEIGHT_LABEL[w]}</Text>
+                          <Text style={{ fontSize: 11, fontWeight: "800", color: on ? "#FFF" : HT.text2 }}>{w} · {RULE_WEIGHT_LABEL[w]}</Text>
                         </Pressable>
                       );
                     })}
@@ -784,7 +784,7 @@ export default function AiTeachScreen() {
                 {u.last_changes?.status === "changed" && u.last_changes.text ? (
                   <View style={styles.changesBox} testID={`changes-${u.url_id}`}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                      <Ionicons name="sparkles" size={14} color="#1D4ED8" />
+                      <Ionicons name="sparkles" size={14} color={HT.axon} />
                       <Text style={styles.changesTitle}>Novità rilevate da Axon</Text>
                       {u.last_changes.prev_at ? <Text style={styles.changesMeta}>vs {new Date(u.last_changes.prev_at).toLocaleDateString("it-IT")}</Text> : null}
                     </View>
@@ -831,7 +831,7 @@ export default function AiTeachScreen() {
               <View style={[styles.progressCard, { borderColor: seqSummary.ko ? "#FCA5A5" : "#86EFAC", backgroundColor: seqSummary.ko ? "#FEF2F2" : "#F0FDF4" }]} testID="history-summary">
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                   <Ionicons name={seqSummary.ko ? "alert-circle" : "checkmark-circle"} size={18} color={seqSummary.ko ? "#DC2626" : "#16A34A"} />
-                  <Text style={[styles.progressTxt, { flex: 1, fontWeight: "800", color: seqSummary.ko ? "#991B1B" : "#166534" }]}>
+                  <Text style={[styles.progressTxt, { flex: 1, fontWeight: "800", color: seqSummary.ko ? HT.danger : HT.success }]}>
                     Completato: {seqSummary.ok}/{seqSummary.total} fonti aggiornate con successo{seqSummary.changed ? `, ✨ ${seqSummary.changed} con novità` : ""}{seqSummary.ko ? `, ${seqSummary.ko} fallite` : ""}
                   </Text>
                   <Pressable onPress={() => setSeqSummary(null)} hitSlop={8} testID="history-summary-close"><Ionicons name="close" size={16} color={C.muted} /></Pressable>
@@ -857,8 +857,8 @@ export default function AiTeachScreen() {
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                     <Ionicons name={modeIcon} size={16} color={C.navy} />
                     <Text style={[styles.cardTitle, { flex: 1 }]} numberOfLines={1}>{modeLabel}</Text>
-                    <View style={[styles.freqPill, inProgress ? { backgroundColor: C.primarySoft } : allOk ? { backgroundColor: "#DCFCE7" } : { backgroundColor: "#FEE2E2" }]} testID={`history-badge-${h.run_id}`}>
-                      <Text style={[styles.freqPillTxt, { color: inProgress ? C.primary : allOk ? "#166534" : "#DC2626" }]}>
+                    <View style={[styles.freqPill, inProgress ? { backgroundColor: C.primarySoft } : allOk ? { backgroundColor: HT.successTint } : { backgroundColor: HT.dangerTint }]} testID={`history-badge-${h.run_id}`}>
+                      <Text style={[styles.freqPillTxt, { color: inProgress ? C.primary : allOk ? HT.success : "#DC2626" }]}>
                         {inProgress ? `${h.success_count + h.failure_count}/${h.total}…` : `${h.success_count}/${h.total} OK`}
                       </Text>
                     </View>
@@ -938,7 +938,7 @@ export default function AiTeachScreen() {
                     <Text style={styles.sugStatLbl}>Accettate</Text>
                   </View>
                   <View style={styles.sugStat}>
-                    <Text style={[styles.sugStatN, { color: "#94A3B8" }]}>{proposalCounts.rejected}</Text>
+                    <Text style={[styles.sugStatN, { color: HT.muted }]}>{proposalCounts.rejected}</Text>
                     <Text style={styles.sugStatLbl}>Rifiutate</Text>
                   </View>
                 </View>
@@ -962,7 +962,7 @@ export default function AiTeachScreen() {
 
             {proposals.length === 0 ? (
               <View style={styles.empty}>
-                <Ionicons name="bulb-outline" size={38} color="#94A3B8" style={{ marginBottom: 8 }} />
+                <Ionicons name="bulb-outline" size={38} color={HT.muted} style={{ marginBottom: 8 }} />
                 <Text style={styles.emptyTitle}>Nessun suggerimento in attesa</Text>
                 <Text style={styles.emptyTxt}>
                   Continua a usare Axon: dai pattern che emergono dalle conversazioni verranno estratte nuove regole ogni notte.
@@ -987,7 +987,7 @@ export default function AiTeachScreen() {
                     <Text style={styles.sugCardTxt}>{p.text}</Text>
                     {!!p.evidence && (
                       <View style={styles.sugEvidence}>
-                        <Ionicons name="chatbubble-ellipses-outline" size={12} color="#64748B" />
+                        <Ionicons name="chatbubble-ellipses-outline" size={12} color={HT.muted} />
                         <Text style={styles.sugEvidenceTxt} numberOfLines={2}>
                           &ldquo;{p.evidence}&rdquo;
                         </Text>
@@ -1098,7 +1098,7 @@ export default function AiTeachScreen() {
                   onSubmitEditing={addCustomCategory}
                   returnKeyType="done"
                   placeholder="Es. Backoffice, Fibra…"
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={HT.muted}
                   style={[styles.input, { flex: 1, marginBottom: 0 }]}
                 />
                 <Pressable testID="rule-add-custom-cat" onPress={addCustomCategory} style={styles.addCatBtn}>
@@ -1107,9 +1107,9 @@ export default function AiTeachScreen() {
               </View>
 
               <Text style={styles.lbl}>Titolo</Text>
-              <TextInput testID="rule-title-input" value={editRule?.title || ""} onChangeText={(t) => setEditRule((r) => ({ ...(r || {}), title: t }))} placeholder="Es. Procedura acquisizione nuovi clienti" placeholderTextColor="#94A3B8" style={styles.input} />
+              <TextInput testID="rule-title-input" value={editRule?.title || ""} onChangeText={(t) => setEditRule((r) => ({ ...(r || {}), title: t }))} placeholder="Es. Procedura acquisizione nuovi clienti" placeholderTextColor={HT.muted} style={styles.input} />
               <Text style={styles.lbl}>Testo della regola</Text>
-              <TextInput testID="rule-text-input" value={editRule?.text || ""} onChangeText={(t) => setEditRule((r) => ({ ...(r || {}), text: t }))} multiline placeholder="Descrivi la regola in modo dettagliato…" placeholderTextColor="#94A3B8" style={[styles.input, { minHeight: 130, textAlignVertical: "top" }]} />
+              <TextInput testID="rule-text-input" value={editRule?.text || ""} onChangeText={(t) => setEditRule((r) => ({ ...(r || {}), text: t }))} multiline placeholder="Descrivi la regola in modo dettagliato…" placeholderTextColor={HT.muted} style={[styles.input, { minHeight: 130, textAlignVertical: "top" }]} />
               <Pressable onPress={attachPdf} style={styles.pdfBtn}><Ionicons name="attach" size={17} color={C.navy} /><Text style={styles.pdfBtnTxt}>Allega file (PDF, Excel, immagine…)</Text></Pressable>
               {(editRule as any)?._pendingFiles?.length ? (
                 <Text style={styles.metaTxt}>Nuovi allegati: {(editRule as any)._pendingFiles.length}</Text>
@@ -1152,9 +1152,9 @@ export default function AiTeachScreen() {
                 showsVerticalScrollIndicator={false}
               >
               <Text style={styles.lbl}>Nome / descrizione</Text>
-              <TextInput testID="url-name-input" value={editUrl?.name || ""} onChangeText={(t) => setEditUrl((u) => ({ ...(u || {}), name: t }))} placeholder="Es. ARERA - Bollette luce" placeholderTextColor="#94A3B8" style={styles.input} />
+              <TextInput testID="url-name-input" value={editUrl?.name || ""} onChangeText={(t) => setEditUrl((u) => ({ ...(u || {}), name: t }))} placeholder="Es. ARERA - Bollette luce" placeholderTextColor={HT.muted} style={styles.input} />
               <Text style={styles.lbl}>Indirizzo web</Text>
-              <TextInput testID="url-input" value={editUrl?.url || ""} onChangeText={(t) => setEditUrl((u) => ({ ...(u || {}), url: t }))} placeholder="https://www.arera.it/…" placeholderTextColor="#94A3B8" style={styles.input} autoCapitalize="none" />
+              <TextInput testID="url-input" value={editUrl?.url || ""} onChangeText={(t) => setEditUrl((u) => ({ ...(u || {}), url: t }))} placeholder="https://www.arera.it/…" placeholderTextColor={HT.muted} style={styles.input} autoCapitalize="none" />
 
               {/* V50.z29 — Suggerimenti deep-link canonici (solo in creazione, non in modifica) */}
               {!editUrl?.url_id && (canonicalLoading || canonicalSuggestions.length > 0) ? (
@@ -1218,7 +1218,7 @@ export default function AiTeachScreen() {
                 value={(editUrl as any)?.reading_rules || ""}
                 onChangeText={(t) => setEditUrl((u) => ({ ...(u || {}), reading_rules: t } as any))}
                 placeholder={"Es.\n• Apri anche le sotto-sezioni \"Comunicati stampa\" e \"Delibere\"\n• Estrai tabelle e valori numerici del PUN\n• Ignora banner cookie, pubblicità e archivio storico"}
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={HT.muted}
                 style={[styles.input, { minHeight: 90, textAlignVertical: "top" }]}
                 multiline
                 numberOfLines={4}
@@ -1226,8 +1226,8 @@ export default function AiTeachScreen() {
               <Text style={styles.metaTxt}>Specifica quali sezioni o sotto-link aprire, quali contenuti estrarre e quali ignorare: aiuti Axon a filtrare solo gli aggiornamenti utili.</Text>
 
               <Text style={[styles.lbl, { marginTop: 12 }]}>Credenziali (opzionali — per siti protetti)</Text>
-              <TextInput testID="url-username" value={editUrl?.username || ""} onChangeText={(t) => setEditUrl((u) => ({ ...(u || {}), username: t }))} placeholder="Username (se richiesto)" placeholderTextColor="#94A3B8" style={styles.input} autoCapitalize="none" />
-              <TextInput testID="url-password" value={(editUrl as any)?.password || ""} onChangeText={(t) => setEditUrl((u) => ({ ...(u || {}), password: t }))} placeholder="Password (se richiesta)" placeholderTextColor="#94A3B8" style={styles.input} secureTextEntry />
+              <TextInput testID="url-username" value={editUrl?.username || ""} onChangeText={(t) => setEditUrl((u) => ({ ...(u || {}), username: t }))} placeholder="Username (se richiesto)" placeholderTextColor={HT.muted} style={styles.input} autoCapitalize="none" />
+              <TextInput testID="url-password" value={(editUrl as any)?.password || ""} onChangeText={(t) => setEditUrl((u) => ({ ...(u || {}), password: t }))} placeholder="Password (se richiesta)" placeholderTextColor={HT.muted} style={styles.input} secureTextEntry />
               <Text style={styles.metaTxt}>La password viene salvata cifrata sul tuo tenant e mai mostrata di nuovo.</Text>
 
               <Pressable onPress={saveUrl} disabled={busy} style={[styles.saveBtn, { backgroundColor: busy ? C.muted : C.primary }]} testID="save-url">
@@ -1267,7 +1267,7 @@ export default function AiTeachScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
+  root: { flex: 1, backgroundColor: HT.card2 },
   header: { flexDirection: "row", alignItems: "center", gap: 10, padding: 16, paddingBottom: 6 },
   title: { fontSize: 18, fontWeight: "800", color: C.navy, letterSpacing: -0.3 },
   sub: { fontSize: 11, color: C.muted, marginTop: 2, fontWeight: "600" },
@@ -1278,12 +1278,12 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     paddingVertical: 8,
     paddingHorizontal: 4,
     borderRadius: 10,
     borderWidth: 1.5,
-    borderColor: theme.color.border,
+    borderColor: HT.border,
     gap: 2,
   },
   tabBtnOn: { backgroundColor: C.primary, borderColor: C.primary },
@@ -1295,37 +1295,37 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   tabLabel: { fontSize: 11, fontWeight: "800", color: C.navy, textAlign: "center" },
-  tabCount: { fontSize: 10, fontWeight: "700", color: theme.color.muted, textAlign: "center" },
+  tabCount: { fontSize: 10, fontWeight: "700", color: HT.muted, textAlign: "center" },
   // Legacy (kept in case referenced elsewhere)
   tabTxt: { fontSize: 12, fontWeight: "800", color: C.navy, flexShrink: 1 },
   infoBtn: { padding: 2 },
   infoBody: { fontSize: 13, color: C.navy, lineHeight: 19, padding: 4, fontWeight: "600" },
   // V28.j — Storico aggiornamenti
   historyGroup: { marginTop: 8, gap: 3 },
-  historyGroupTitle: { fontSize: 12, fontWeight: "800", color: "#166534", marginBottom: 2 },
-  historyItemOk: { fontSize: 12, color: "#166534", fontWeight: "600" },
+  historyGroupTitle: { fontSize: 12, fontWeight: "800", color: HT.success, marginBottom: 2 },
+  historyItemOk: { fontSize: 12, color: HT.success, fontWeight: "600" },
   historyItemErr: { fontSize: 12, color: "#DC2626", fontWeight: "700" },
   historyErrMsg: { fontSize: 11, color: "#DC2626", fontStyle: "italic", marginLeft: 10 },
   // V50.z235 — Storico: rerun voce + progress "AGGIORNA TUTTO"
-  rerunBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, minHeight: 32, borderRadius: 999, backgroundColor: C.primarySoft, borderWidth: 1, borderColor: "#FFD2BF" },
-  rerunBtnDone: { backgroundColor: "#DCFCE7", borderColor: "#86EFAC" },
+  rerunBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, minHeight: 32, borderRadius: 999, backgroundColor: C.primarySoft, borderWidth: 1, borderColor: '#FFD2BF' },
+  rerunBtnDone: { backgroundColor: HT.successTint, borderColor: '#86EFAC' },
   rerunBtnTxt: { fontSize: 12, fontWeight: "800", color: C.primary },
-  cardJustUpdated: { borderColor: "#86EFAC", backgroundColor: "#F0FDF4" },
-  progressCard: { backgroundColor: "#FFF", borderRadius: 12, padding: 10, gap: 8, borderWidth: 1, borderColor: theme.color.border },
-  progressTrack: { height: 8, borderRadius: 999, backgroundColor: "#E2E8F0", overflow: "hidden" },
+  cardJustUpdated: { borderColor: '#86EFAC', backgroundColor: HT.successTint },
+  progressCard: { backgroundColor: HT.card, borderRadius: 12, padding: 10, gap: 8, borderWidth: 1, borderColor: HT.border },
+  progressTrack: { height: 8, borderRadius: 999, backgroundColor: HT.border, overflow: "hidden" },
   progressFill: { height: "100%", borderRadius: 999, backgroundColor: C.primary },
   progressTxt: { fontSize: 12, fontWeight: "700", color: C.navy, flexShrink: 1 },
   // V50.z236 — Novità rilevate
-  changesBox: { gap: 4, padding: 8, borderRadius: 8, backgroundColor: "#EFF6FF", borderWidth: 1, borderColor: "#BFDBFE" },
-  changesTitle: { fontSize: 12, fontWeight: "800", color: "#1D4ED8", flex: 1 },
+  changesBox: { gap: 4, padding: 8, borderRadius: 8, backgroundColor: HT.axonTint, borderWidth: 1, borderColor: HT.axonLine },
+  changesTitle: { fontSize: 12, fontWeight: "800", color: HT.axon, flex: 1 },
   changesMeta: { fontSize: 10, fontWeight: "700", color: "#60A5FA" },
-  changesTxt: { fontSize: 12, color: "#1E3A8A", lineHeight: 17, fontWeight: "600" },
-  newPill: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4, backgroundColor: "#1D4ED8" },
+  changesTxt: { fontSize: 12, color: HT.axon, lineHeight: 17, fontWeight: "600" },
+  newPill: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4, backgroundColor: '#1D4ED8' },
   newPillTxt: { color: "#FFF", fontSize: 9, fontWeight: "900", letterSpacing: 0.5 },
-  historyChangesTxt: { fontSize: 11, color: "#1E3A8A", lineHeight: 16, marginLeft: 10, marginBottom: 2, fontWeight: "600" },
+  historyChangesTxt: { fontSize: 11, color: HT.axon, lineHeight: 16, marginLeft: 10, marginBottom: 2, fontWeight: "600" },
   filterRow: { flexDirection: "row", gap: 6, marginBottom: 4, paddingRight: 20 },
   presetRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6, marginBottom: 4 },
-  chip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: "#FFF", borderWidth: 1.5 },
+  chip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: HT.card, borderWidth: 1.5 },
   chipTxt: { fontSize: 11, fontWeight: "800" },
   // V28.n — Multi-category selector
   selectedCatsRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4, marginBottom: 2 },
@@ -1336,41 +1336,41 @@ const styles = StyleSheet.create({
   addBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.primary, paddingVertical: 13, borderRadius: 14 },
   refreshAllBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.navy, paddingHorizontal: 14, paddingVertical: 13, borderRadius: 14 },
   addBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
-  card: { backgroundColor: "#FFF", borderRadius: 14, padding: 12, gap: 6, borderWidth: 1, borderColor: theme.color.border },
+  card: { backgroundColor: HT.card, borderRadius: 14, padding: 12, gap: 6, borderWidth: 1, borderColor: HT.border },
   // V50.z20 — Card in errore: bordo sinistro rosso + tint
-  cardError: { borderLeftWidth: 4, borderLeftColor: "#DC2626", backgroundColor: "#FEF2F2" },
+  cardError: { borderLeftWidth: 4, borderLeftColor: '#DC2626', backgroundColor: HT.dangerTint },
   errorBadge: {
     paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4,
-    backgroundColor: "#DC2626",
+    backgroundColor: '#DC2626',
   },
   errorBadgeTxt: { color: "#FFF", fontSize: 9, fontWeight: "900", letterSpacing: 0.5 },
   errorBox: {
     flexDirection: "row", alignItems: "flex-start", gap: 6,
-    padding: 8, borderRadius: 8, backgroundColor: "#FEE2E2",
-    borderWidth: 1, borderColor: "#FCA5A5",
+    padding: 8, borderRadius: 8, backgroundColor: HT.dangerTint,
+    borderWidth: 1, borderColor: '#FCA5A5',
   },
-  errorTxt: { color: "#991B1B", fontSize: 12, flex: 1, lineHeight: 16, fontWeight: "600" },
+  errorTxt: { color: HT.danger, fontSize: 12, flex: 1, lineHeight: 16, fontWeight: "600" },
   catBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
   catBadgeTxt: { color: "#FFF", fontSize: 10, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.4 },
   cardTitle: { flex: 1, fontSize: 14, fontWeight: "800", color: C.navy },
-  cardTxt: { fontSize: 13, color: theme.color.onSurface, lineHeight: 18 },
+  cardTxt: { fontSize: 13, color: HT.text, lineHeight: 18 },
   metaTxt: { fontSize: 11, color: C.muted, fontWeight: "600" },
-  summaryTxt: { fontSize: 12, color: theme.color.onSurfaceTertiary, fontStyle: "italic", marginTop: 4, backgroundColor: "#F8FAFC", padding: 8, borderRadius: 8 },
+  summaryTxt: { fontSize: 12, color: HT.text2, fontStyle: "italic", marginTop: 4, backgroundColor: HT.card2, padding: 8, borderRadius: 8 },
   filesRow: { flexDirection: "row", gap: 6, flexWrap: "wrap", marginTop: 2 },
-  fileTag: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: "#FEE2E2", maxWidth: 200 },
+  fileTag: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: HT.dangerTint, maxWidth: 200 },
   fileTagTxt: { fontSize: 10, fontWeight: "700", color: "#DC2626" },
   freqPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: C.primarySoft },
   freqPillTxt: { fontSize: 10, fontWeight: "800", color: C.primary, textTransform: "uppercase", letterSpacing: 0.4 },
-  empty: { padding: 30, alignItems: "center", backgroundColor: "#FFF", borderRadius: 14, borderWidth: 1, borderColor: theme.color.border, borderStyle: "dashed" },
+  empty: { padding: 30, alignItems: "center", backgroundColor: HT.card, borderRadius: 14, borderWidth: 1, borderColor: HT.border, borderStyle: "dashed" },
   emptyTxt: { color: C.muted, textAlign: "center", fontSize: 12, fontWeight: "600" },
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: "#FFF", borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 16, paddingBottom: 30, maxHeight: "92%" },
+  sheet: { backgroundColor: HT.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 16, paddingBottom: 30, maxHeight: "92%" },
   sheetHdr: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
   sheetTitle: { fontSize: 17, fontWeight: "800", color: C.navy },
   lbl: { fontSize: 11, fontWeight: "800", color: C.muted, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 12, marginBottom: 4 },
-  input: { backgroundColor: "#F1F5F9", borderRadius: 10, padding: 12, fontSize: 14, color: C.navy, marginBottom: 4 },
+  input: { backgroundColor: HT.card2, borderRadius: 10, padding: 12, fontSize: 14, color: C.navy, marginBottom: 4 },
   catRow: { flexDirection: "row", gap: 6 },
-  pdfBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#F1F5F9", padding: 10, borderRadius: 10, marginTop: 10 },
+  pdfBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: HT.card2, padding: 10, borderRadius: 10, marginTop: 10 },
   pdfBtnTxt: { color: C.navy, fontWeight: "800", fontSize: 13 },
   saveBtn: { padding: 14, borderRadius: 14, marginTop: 14, alignItems: "center" },
   saveBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
@@ -1379,43 +1379,43 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 12,
     padding: 14,
-    backgroundColor: "#FFF7ED",
-    borderColor: "#FED7AA",
+    backgroundColor: HT.brandTint,
+    borderColor: HT.brandLine,
     borderWidth: 1,
     borderRadius: 14,
     alignItems: "center",
   },
   sugHeaderTxt: { flex: 1, gap: 4 },
-  sugHeaderTitle: { fontSize: 14, fontWeight: "800", color: "#9A3412" },
+  sugHeaderTitle: { fontSize: 14, fontWeight: "800", color: "#FDBA74" },
   sugHeaderSub: { fontSize: 11, color: "#7C2D12", lineHeight: 15 },
   sugStat: {
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 10,
     alignItems: "center",
     minWidth: 60,
     borderWidth: 1,
-    borderColor: "#FED7AA",
+    borderColor: HT.brandLine,
   },
   sugStatN: { fontSize: 15, fontWeight: "800", color: "#EA580C" },
-  sugStatLbl: { fontSize: 9, color: "#78350F", fontWeight: "700", textTransform: "uppercase" },
+  sugStatLbl: { fontSize: 9, color: "#FDBA74", fontWeight: "700", textTransform: "uppercase" },
   sugRunBtn: {
     flexDirection: "row",
     gap: 4,
     alignItems: "center",
-    backgroundColor: "#EA580C",
+    backgroundColor: '#EA580C',
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 12,
   },
   sugRunTxt: { color: "#FFF", fontWeight: "800", fontSize: 12 },
   sugCard: {
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderRadius: 14,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#EEF2F7",
+    borderColor: '#EEF2F7',
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -1435,21 +1435,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 999,
-    backgroundColor: "#F3E8FF",
+    backgroundColor: '#F3E8FF',
   },
   autoBadgeTxt: { fontSize: 9, color: "#7C3AED", fontWeight: "800", letterSpacing: 0.5 },
   sugCardTitle: { fontSize: 15, fontWeight: "800", color: C.navy, marginBottom: 4 },
-  sugCardTxt: { fontSize: 13, color: "#334155", lineHeight: 18 },
+  sugCardTxt: { fontSize: 13, color: HT.text2, lineHeight: 18 },
   sugEvidence: {
     flexDirection: "row",
     gap: 6,
     marginTop: 8,
     padding: 8,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: HT.card2,
     borderRadius: 8,
     alignItems: "flex-start",
   },
-  sugEvidenceTxt: { flex: 1, fontSize: 11, color: "#64748B", fontStyle: "italic", lineHeight: 15 },
+  sugEvidenceTxt: { flex: 1, fontSize: 11, color: HT.muted, fontStyle: "italic", lineHeight: 15 },
   sugRejectBtn: {
     flex: 1,
     flexDirection: "row",
@@ -1458,9 +1458,9 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 10,
     borderRadius: 10,
-    backgroundColor: "#FEE2E2",
+    backgroundColor: HT.dangerTint,
     borderWidth: 1,
-    borderColor: "#FCA5A5",
+    borderColor: '#FCA5A5',
   },
   sugRejectTxt: { color: "#DC2626", fontWeight: "800", fontSize: 13 },
   sugAcceptBtn: {
@@ -1471,35 +1471,35 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 10,
     borderRadius: 10,
-    backgroundColor: "#16A34A",
+    backgroundColor: '#16A34A',
   },
   sugAcceptTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
-  emptyTitle: { fontSize: 14, fontWeight: "800", color: "#334155", marginBottom: 4 },
+  emptyTitle: { fontSize: 14, fontWeight: "800", color: HT.text2, marginBottom: 4 },
   // V50.z29 — Deep link suggeriti canonici
   canonicalBox: {
     marginTop: 10, padding: 10, borderRadius: 12,
-    backgroundColor: "#F5F3FF", borderWidth: 1, borderColor: "#DDD6FE", gap: 8,
+    backgroundColor: HT.violetTint, borderWidth: 1, borderColor: HT.violet + '66', gap: 8,
   },
   canonicalHead: { flexDirection: "row", alignItems: "center", gap: 6 },
-  canonicalTitle: { fontSize: 12, fontWeight: "800", color: "#5B21B6" },
-  canonicalHint: { fontSize: 11, color: "#5B21B6", opacity: 0.85 },
+  canonicalTitle: { fontSize: 12, fontWeight: "800", color: HT.violet },
+  canonicalHint: { fontSize: 11, color: HT.violet, opacity: 0.85 },
   canonicalCard: {
     flexDirection: "row", alignItems: "center", gap: 10,
-    padding: 8, borderRadius: 10, backgroundColor: "#FFF",
-    borderWidth: 1, borderColor: "#E9D5FF",
+    padding: 8, borderRadius: 10, backgroundColor: HT.card,
+    borderWidth: 1, borderColor: '#E9D5FF',
   },
   canonicalName: { fontSize: 12, fontWeight: "800", color: C.navy },
   canonicalUrl: { fontSize: 10, color: C.muted },
-  canonicalWhy: { fontSize: 10, color: "#5B21B6", marginTop: 3, fontStyle: "italic" },
+  canonicalWhy: { fontSize: 10, color: HT.violet, marginTop: 3, fontStyle: "italic" },
   canonicalUseBtn: {
     paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999,
-    backgroundColor: "#7C3AED", alignItems: "center", justifyContent: "center",
+    backgroundColor: '#7C3AED', alignItems: "center", justifyContent: "center",
   },
   canonicalUseTxt: { color: "#FFF", fontSize: 10, fontWeight: "900", letterSpacing: 0.5 },
   canonicalAddBtn: {
     flexDirection: "row", alignItems: "center", gap: 3,
     paddingHorizontal: 8, paddingVertical: 5, borderRadius: 999,
-    backgroundColor: "#FFF", borderWidth: 1, borderColor: "#7C3AED",
+    backgroundColor: HT.card, borderWidth: 1, borderColor: '#7C3AED',
   },
   canonicalAddTxt: { color: "#7C3AED", fontSize: 10, fontWeight: "800" },
 });

@@ -7,8 +7,9 @@ import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
-const COLORS = ["#7C3AED","#0891B2","#DB2777","#16A34A","#F59E0B","#DC2626","#6366F1","#0F172A"];
+const COLORS = ["#7C3AED","#0891B2","#DB2777","#16A34A","#F59E0B","#DC2626","#6366F1",HT.text];
 
 export default function NewCorporateScreen() {
   const router = useRouter();
@@ -37,7 +38,7 @@ export default function NewCorporateScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.background }} edges={["top"]}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.headerBtn}><Ionicons name="chevron-back" size={22} color={theme.color.onSurface} /></Pressable>
+        <Pressable onPress={() => router.back()} style={styles.headerBtn}><Ionicons name="chevron-back" size={22} color={HT.text} /></Pressable>
         <Text style={styles.headerTitle}>New Corporate</Text>
       </View>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: pagePad }}>
@@ -67,16 +68,16 @@ export default function NewCorporateScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: "row", alignItems: "center", padding: 14, gap: 10, borderBottomWidth: 1, borderBottomColor: theme.color.border, backgroundColor: theme.color.surface },
-  headerBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center" },
-  headerTitle: { flex: 1, fontSize: 16, fontWeight: "800", color: theme.color.onSurface },
-  intro: { flexDirection: "row", alignItems: "flex-start", backgroundColor: "#ECFDF5", padding: 12, borderRadius: 10, marginBottom: 14, gap: 10 },
-  introTxt: { flex: 1, fontSize: 12, color: "#065F46", lineHeight: 16 },
-  label: { fontSize: 12, fontWeight: "700", color: theme.color.muted, marginTop: 14, marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 },
-  input: { borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, padding: 12, fontSize: 14, color: theme.color.onSurface, backgroundColor: theme.color.surface },
+  header: { flexDirection: "row", alignItems: "center", padding: 14, gap: 10, borderBottomWidth: 1, borderBottomColor: HT.border, backgroundColor: HT.card2 },
+  headerBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: HT.card2, alignItems: "center", justifyContent: "center" },
+  headerTitle: { flex: 1, fontSize: 16, fontWeight: "800", color: HT.text },
+  intro: { flexDirection: "row", alignItems: "flex-start", backgroundColor: HT.successTint, padding: 12, borderRadius: 10, marginBottom: 14, gap: 10 },
+  introTxt: { flex: 1, fontSize: 12, color: HT.success, lineHeight: 16 },
+  label: { fontSize: 12, fontWeight: "700", color: HT.muted, marginTop: 14, marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 },
+  input: { borderWidth: 1, borderColor: HT.border, borderRadius: 10, padding: 12, fontSize: 14, color: HT.text, backgroundColor: HT.card2 },
   colorRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 4 },
   colorDot: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
-  colorDotActive: { borderWidth: 3, borderColor: "#0F172A" },
-  submitBtn: { marginTop: 30, backgroundColor: "#059669", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 14, borderRadius: 12 },
+  colorDotActive: { borderWidth: 3, borderColor: '#0F172A' },
+  submitBtn: { marginTop: 30, backgroundColor: '#059669', flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 14, borderRadius: 12 },
   submitTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
 });

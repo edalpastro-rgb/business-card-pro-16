@@ -13,11 +13,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
-import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
-const C = { primary: "#FF6B35", navy: "#1B2B4B", muted: "#94A3B8", success: "#16A34A" };
+const C = { primary: "#FF6B35", navy: HT.text, muted: HT.muted, success: "#16A34A" };
 
 type NamedScript = { id: string; name: string; content: string; whatsapp_message?: string };
 
@@ -149,7 +149,7 @@ export default function CallScriptConfigScreen() {
                 value={active.name}
                 onChangeText={(t) => patchActive({ name: t })}
                 placeholder="es. Freddo / Caldo / Prospect"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={HT.muted}
                 style={styles.nameInput}
               />
 
@@ -160,7 +160,7 @@ export default function CallScriptConfigScreen() {
                 onChangeText={(t) => patchActive({ content: t })}
                 multiline
                 placeholder={"APERTURA\nBuongiorno {name}, sono {agent}…\n\nSCOPO\n…\n\nCHIUSURA\nLe va bene giovedì alle 18:00?"}
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={HT.muted}
                 style={styles.textarea}
               />
 
@@ -174,7 +174,7 @@ export default function CallScriptConfigScreen() {
                 onChangeText={(t) => patchActive({ whatsapp_message: t })}
                 multiline
                 placeholder={"Ciao {name}! Ti scrivo da parte di {agent}… un messaggio breve e caldo per iniziare la conversazione."}
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={HT.muted}
                 style={[styles.textarea, styles.textareaWa, { minHeight: 130 }]}
               />
               <Text style={styles.waHint}>
@@ -206,23 +206,23 @@ export default function CallScriptConfigScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
+  root: { flex: 1, backgroundColor: HT.card2 },
   header: { flexDirection: "row", alignItems: "center", gap: 10, padding: 16 },
   title: { fontSize: 18, fontWeight: "800", color: C.navy, letterSpacing: -0.3 },
   sub: { fontSize: 11, color: C.muted, marginTop: 2, fontWeight: "600" },
-  tipCard: { flexDirection: "row", gap: 10, alignItems: "flex-start", padding: 12, backgroundColor: "#FFF1E9", borderRadius: 12, borderWidth: 1, borderColor: "#FFD5B8" },
+  tipCard: { flexDirection: "row", gap: 10, alignItems: "flex-start", padding: 12, backgroundColor: HT.brandTint, borderRadius: 12, borderWidth: 1, borderColor: '#FFD5B8' },
   tipTxt: { flex: 1, fontSize: 12, color: C.navy, lineHeight: 17, fontWeight: "600" },
-  tab: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: "#FFF", borderWidth: 1.5, borderColor: C.primary },
+  tab: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: HT.card, borderWidth: 1.5, borderColor: C.primary },
   tabOn: { backgroundColor: C.primary, borderColor: C.primary },
-  tabAdd: { borderColor: C.navy, backgroundColor: "#F1F5F9" },
+  tabAdd: { borderColor: C.navy, backgroundColor: HT.card2 },
   tabTxt: { fontSize: 12, fontWeight: "800", color: C.primary },
   lbl: { fontSize: 12, fontWeight: "800", color: C.muted, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 8 },
-  nameInput: { backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, padding: 12, fontSize: 15, fontWeight: "700", color: C.navy },
-  textarea: { backgroundColor: "#FFF", borderRadius: 14, padding: 14, minHeight: 260, fontSize: 15, color: C.navy, textAlignVertical: "top", borderWidth: 1, borderColor: theme.color.border, lineHeight: 22 },
-  textareaWa: { backgroundColor: "#F0FDF4", borderColor: "#86EFAC" },
+  nameInput: { backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, borderRadius: 10, padding: 12, fontSize: 15, fontWeight: "700", color: C.navy },
+  textarea: { backgroundColor: HT.card, borderRadius: 14, padding: 14, minHeight: 260, fontSize: 15, color: C.navy, textAlignVertical: "top", borderWidth: 1, borderColor: HT.border, lineHeight: 22 },
+  textareaWa: { backgroundColor: HT.successTint, borderColor: '#86EFAC' },
   waHeaderRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 14, marginBottom: 4 },
-  waHint: { fontSize: 11, color: theme.color.muted, marginTop: 4, fontStyle: "italic" },
-  removeBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 8, backgroundColor: "#FEE2E2", borderRadius: 10, marginTop: 4 },
+  waHint: { fontSize: 11, color: HT.muted, marginTop: 4, fontStyle: "italic" },
+  removeBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 8, backgroundColor: HT.dangerTint, borderRadius: 10, marginTop: 4 },
   removeBtnTxt: { color: "#DC2626", fontWeight: "700", fontSize: 12 },
   saveBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 14, borderRadius: 14, marginTop: 8 },
   saveBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },

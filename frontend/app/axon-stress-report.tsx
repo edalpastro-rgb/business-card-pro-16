@@ -12,9 +12,9 @@ import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
-import { theme } from "@/src/theme";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
-const NAVY = "#1B2B4B"; const VIOLET = "#7C3AED";
+const NAVY = HT.text; const VIOLET = "#7C3AED";
 type Rep = { rep: number; reply: string; ok: boolean | null; routes: string[]; actions: string[]; reason: string };
 type Item = { id: string; category: string; question: string; expected: string[]; flag: string; reps: Rep[]; outcome: "passed" | "failed" | "inconsistent" | "skipped" | "error" | null; correction?: { expected_text: string; rule: string } | null; correction_applied?: boolean };
 type Summary = { tested: number; passed: number; failed: number; inconsistent: number; errors?: number; pct_passed: number; pct_failed: number; pct_inconsistent: number; by_category?: Record<string, { tested: number; passed: number; failed: number; inconsistent: number }> };
@@ -24,10 +24,10 @@ type NightlyCfg = { enabled: boolean; hour: number; mode: "quick" | "full"; reps
 type NightlyStatus = { settings: NightlyCfg; last: (RunHead & { nightly_verdict?: string; nightly_reasons?: string[]; nightly_prev_pct?: number | null }) | null; previous: RunHead | null; running: boolean };
 
 const OUT_LABEL: Record<string, { t: string; c: string; bg: string }> = {
-  passed: { t: "Passato", c: "#166534", bg: "#DCFCE7" },
-  failed: { t: "Fallito", c: "#991B1B", bg: "#FEE2E2" },
-  inconsistent: { t: "Incoerente", c: "#92400E", bg: "#FEF3C7" },
-  skipped: { t: "Non testato", c: "#374151", bg: "#F3F4F6" },
+  passed: { t: "Passato", c: HT.success, bg: HT.successTint },
+  failed: { t: "Fallito", c: HT.danger, bg: HT.dangerTint },
+  inconsistent: { t: "Incoerente", c: "#FDBA74", bg: HT.warningTint },
+  skipped: { t: "Non testato", c: HT.text2, bg: HT.card2 },
   error: { t: "Errore LLM", c: "#6B21A8", bg: "#F3E8FF" },
 };
 
@@ -232,9 +232,9 @@ export default function AxonStressReportScreen() {
               {/* Contatori */}
               <View style={styles.kpiRow} testID="stress-kpis">
                 <View style={styles.kpi}><Text style={styles.kpiN}>{S.tested}</Text><Text style={styles.kpiL}>Domande testate</Text></View>
-                <View style={[styles.kpi, { borderColor: "#86EFAC" }]}><Text style={[styles.kpiN, { color: "#166534" }]}>{S.pct_passed}%</Text><Text style={styles.kpiL}>Corrette</Text></View>
-                <View style={[styles.kpi, { borderColor: "#FCA5A5" }]}><Text style={[styles.kpiN, { color: "#991B1B" }]}>{S.pct_failed}%</Text><Text style={styles.kpiL}>Fallite</Text></View>
-                <View style={[styles.kpi, { borderColor: "#FCD34D" }]}><Text style={[styles.kpiN, { color: "#92400E" }]}>{S.pct_inconsistent}%</Text><Text style={styles.kpiL}>Incoerenti</Text></View>
+                <View style={[styles.kpi, { borderColor: '#86EFAC' }]}><Text style={[styles.kpiN, { color: HT.success }]}>{S.pct_passed}%</Text><Text style={styles.kpiL}>Corrette</Text></View>
+                <View style={[styles.kpi, { borderColor: '#FCA5A5' }]}><Text style={[styles.kpiN, { color: HT.danger }]}>{S.pct_failed}%</Text><Text style={styles.kpiL}>Fallite</Text></View>
+                <View style={[styles.kpi, { borderColor: '#FCD34D' }]}><Text style={[styles.kpiN, { color: "#FDBA74" }]}>{S.pct_inconsistent}%</Text><Text style={styles.kpiL}>Incoerenti</Text></View>
               </View>
 
               {/* V50.z305 — Regole di stile (aspetta → OK!, solo tabella, sì/no, scelte A)/B), motivazioni) */}
@@ -246,7 +246,7 @@ export default function AxonStressReportScreen() {
               ) : null}
 
               {(S.errors || 0) > 0 && (
-                <View style={[styles.card, { borderColor: "#E9D5FF", backgroundColor: "#FAF5FF" }]} testID="stress-llm-error">
+                <View style={[styles.card, { borderColor: '#E9D5FF', backgroundColor: '#FAF5FF' }]} testID="stress-llm-error">
                   <Text style={[styles.cardTitle, { color: "#6B21A8" }]}>⛔ {S.errors} domande non valutate per errore LLM</Text>
                   <Text style={styles.hint}>{run.error || "Il modello non ha risposto."} Se compare «Daily spend limit reached» il budget giornaliero della chiave LLM è esaurito: ricarica da Profilo → Manage plan → Universal Key → Add Balance (o attiva l'auto top-up) e rilancia il test.</Text>
                 </View>
@@ -276,7 +276,7 @@ export default function AxonStressReportScreen() {
                         <Text style={styles.itemMeta}>{it.category}{it.flag ? ` · ${it.flag}` : ""} · {okCount}/{it.reps.length} ok</Text>
                       </View>
                       {o && <View style={[styles.badge, { backgroundColor: o.bg }]}><Text style={[styles.badgeTxt, { color: o.c }]}>{o.t}</Text></View>}
-                      <Ionicons name={open ? "chevron-up" : "chevron-down"} size={16} color={theme.color.muted} />
+                      <Ionicons name={open ? "chevron-up" : "chevron-down"} size={16} color={HT.muted} />
                     </Pressable>
                     {open && (
                       <View style={styles.itemBody}>
@@ -298,7 +298,7 @@ export default function AxonStressReportScreen() {
                             <Pressable
                               onPress={() => applyCorrection(it)}
                               disabled={!!it.correction_applied || applying === it.id}
-                              style={[styles.applyBtn, it.correction_applied && { backgroundColor: "#16A34A" }]}
+                              style={[styles.applyBtn, it.correction_applied && { backgroundColor: '#16A34A' }]}
                               testID={`stress-apply-${it.id}`}
                             >
                               {applying === it.id ? <ActivityIndicator size="small" color="#FFF" /> : <Ionicons name={it.correction_applied ? "checkmark-circle" : "sparkles"} size={14} color="#FFF" />}
@@ -320,42 +320,42 @@ export default function AxonStressReportScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
+  root: { flex: 1, backgroundColor: HT.card2 },
   header: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: NAVY, paddingHorizontal: 14, paddingVertical: 12 },
   title: { color: "#FFF", fontWeight: "900", fontSize: 17 }, sub: { color: "#C7D2FE", fontSize: 11, marginTop: 1 },
   headBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: VIOLET, borderRadius: 999, paddingHorizontal: 12, minHeight: 36 },
   headBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 12 },
-  card: { backgroundColor: "#FFF", borderRadius: 14, padding: 12, borderWidth: 1, borderColor: theme.color.border, gap: 8 },
-  cardTitle: { fontSize: 15, fontWeight: "900", color: theme.color.onSurface },
-  cardTxt: { fontSize: 12, color: theme.color.muted, marginTop: 4, lineHeight: 17 },
-  hint: { fontSize: 12, color: theme.color.muted, lineHeight: 17 },
+  card: { backgroundColor: HT.card, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: HT.border, gap: 8 },
+  cardTitle: { fontSize: 15, fontWeight: "900", color: HT.text },
+  cardTxt: { fontSize: 12, color: HT.muted, marginTop: 4, lineHeight: 17 },
+  hint: { fontSize: 12, color: HT.muted, lineHeight: 17 },
   rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
   rowWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   primaryBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: VIOLET, borderRadius: 12, paddingHorizontal: 14, minHeight: 44 },
   primaryTxt: { color: "#FFF", fontWeight: "900", fontSize: 13 },
-  secondaryBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#F5F3FF", borderWidth: 1, borderColor: "#DDD6FE", borderRadius: 12, paddingHorizontal: 14, minHeight: 44 },
+  secondaryBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: HT.violetTint, borderWidth: 1, borderColor: HT.violet + '66', borderRadius: 12, paddingHorizontal: 14, minHeight: 44 },
   secondaryTxt: { color: VIOLET, fontWeight: "900", fontSize: 13 },
-  stopBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: theme.color.error, borderRadius: 999, paddingHorizontal: 12, minHeight: 36 },
+  stopBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: HT.danger, borderRadius: 999, paddingHorizontal: 12, minHeight: 36 },
   stopTxt: { color: "#FFF", fontWeight: "800", fontSize: 12 },
-  barBg: { height: 8, borderRadius: 4, backgroundColor: "#EDE9FE", overflow: "hidden" }, barFg: { height: 8, backgroundColor: VIOLET },
+  barBg: { height: 8, borderRadius: 4, backgroundColor: HT.violetTint, overflow: "hidden" }, barFg: { height: 8, backgroundColor: VIOLET },
   kpiRow: { flexDirection: "row", gap: 8 },
-  kpi: { flex: 1, backgroundColor: "#FFF", borderRadius: 12, borderWidth: 1, borderColor: theme.color.border, padding: 8, alignItems: "center" },
-  kpiN: { fontSize: 18, fontWeight: "900", color: theme.color.onSurface }, kpiL: { fontSize: 9.5, color: theme.color.muted, textAlign: "center", marginTop: 2 },
-  chip: { backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, borderRadius: 999, paddingHorizontal: 12, minHeight: 36, justifyContent: "center" },
-  chipOn: { backgroundColor: VIOLET, borderColor: VIOLET }, chipTxt: { fontSize: 12.5, fontWeight: "800", color: theme.color.onSurface }, chipTxtOn: { color: "#FFF" },
-  item: { backgroundColor: "#FFF", borderRadius: 12, borderWidth: 1, borderColor: theme.color.border, overflow: "hidden" },
+  kpi: { flex: 1, backgroundColor: HT.card, borderRadius: 12, borderWidth: 1, borderColor: HT.border, padding: 8, alignItems: "center" },
+  kpiN: { fontSize: 18, fontWeight: "900", color: HT.text }, kpiL: { fontSize: 9.5, color: HT.muted, textAlign: "center", marginTop: 2 },
+  chip: { backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, borderRadius: 999, paddingHorizontal: 12, minHeight: 36, justifyContent: "center" },
+  chipOn: { backgroundColor: VIOLET, borderColor: VIOLET }, chipTxt: { fontSize: 12.5, fontWeight: "800", color: HT.text }, chipTxtOn: { color: "#FFF" },
+  item: { backgroundColor: HT.card, borderRadius: 12, borderWidth: 1, borderColor: HT.border, overflow: "hidden" },
   itemHead: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, minHeight: 56 },
-  itemQ: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface }, itemMeta: { fontSize: 11, color: theme.color.muted, marginTop: 2 },
+  itemQ: { fontSize: 14, fontWeight: "800", color: HT.text }, itemMeta: { fontSize: 11, color: HT.muted, marginTop: 2 },
   badge: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 }, badgeTxt: { fontSize: 11, fontWeight: "900" },
-  itemBody: { borderTopWidth: 1, borderTopColor: theme.color.divider, padding: 12, gap: 8 },
-  rep: { backgroundColor: theme.color.surface, borderRadius: 10, padding: 8, gap: 3 },
-  repHead: { fontSize: 12, fontWeight: "800", color: theme.color.onSurface }, repTxt: { fontSize: 12, color: theme.color.onSurfaceTertiary, lineHeight: 17 }, repLinks: { fontSize: 11, color: VIOLET, fontWeight: "700" },
-  corr: { backgroundColor: "#F5F3FF", borderRadius: 10, padding: 10, gap: 3, borderWidth: 1, borderColor: "#DDD6FE" },
-  corrLab: { fontSize: 10.5, fontWeight: "900", color: VIOLET, letterSpacing: 0.3 }, corrTxt: { fontSize: 12.5, color: theme.color.onSurface, lineHeight: 18 },
+  itemBody: { borderTopWidth: 1, borderTopColor: HT.border, padding: 12, gap: 8 },
+  rep: { backgroundColor: HT.card2, borderRadius: 10, padding: 8, gap: 3 },
+  repHead: { fontSize: 12, fontWeight: "800", color: HT.text }, repTxt: { fontSize: 12, color: HT.text2, lineHeight: 17 }, repLinks: { fontSize: 11, color: VIOLET, fontWeight: "700" },
+  corr: { backgroundColor: HT.violetTint, borderRadius: 10, padding: 10, gap: 3, borderWidth: 1, borderColor: HT.violet + '66' },
+  corrLab: { fontSize: 10.5, fontWeight: "900", color: VIOLET, letterSpacing: 0.3 }, corrTxt: { fontSize: 12.5, color: HT.text, lineHeight: 18 },
   applyBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: VIOLET, borderRadius: 10, minHeight: 44, marginTop: 10 },
   applyTxt: { color: "#FFF", fontWeight: "900", fontSize: 13 },
-  toggle: { width: 50, height: 30, borderRadius: 15, backgroundColor: "#CBD5E1", padding: 3, justifyContent: "center" },
+  toggle: { width: 50, height: 30, borderRadius: 15, backgroundColor: HT.borderStrong, padding: 3, justifyContent: "center" },
   toggleOn: { backgroundColor: VIOLET },
-  knob: { width: 24, height: 24, borderRadius: 12, backgroundColor: "#FFF" }, knobOn: { alignSelf: "flex-end" },
-  optLab: { fontSize: 11, fontWeight: "900", color: theme.color.muted, letterSpacing: 0.3, marginTop: 4 },
+  knob: { width: 24, height: 24, borderRadius: 12, backgroundColor: HT.card }, knobOn: { alignSelf: "flex-end" },
+  optLab: { fontSize: 11, fontWeight: "900", color: HT.muted, letterSpacing: 0.3, marginTop: 4 },
 });

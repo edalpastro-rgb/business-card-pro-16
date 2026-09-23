@@ -8,6 +8,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { notify } from "@/src/utils/notify";
 import { proactiveApi, respondToItem, openAxonChat, ProactiveItem, KIND_ICON, KIND_COLOR } from "@/src/axonProactive";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const PURPLE = "#7C3AED";
 
@@ -126,7 +127,7 @@ export default function AxonProactiveScreen() {
                 <Text style={styles.rowTitle} numberOfLines={1}>{it.title}</Text>
                 <Text style={styles.rowMeta}>{it.type_label} · {fmt(it.created_at)}{it.responded_at ? " · risposto" : it.dismissed_at ? " · ignorato" : ""}</Text>
               </View>
-              <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+              <Ionicons name="chevron-forward" size={16} color={HT.muted} />
             </Pressable>
           );
         })}
@@ -136,27 +137,27 @@ export default function AxonProactiveScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F4F5FA" },
+  root: { flex: 1, backgroundColor: '#F4F5FA' },
   header: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: PURPLE },
   title: { color: "#FFF", fontWeight: "800", fontSize: 17 },
   sub: { color: "#EDE9FE", fontSize: 12 },
   gear: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   quickRow: { flexDirection: "row", gap: 8 },
-  quick: { flex: 1, backgroundColor: "#FFF", borderRadius: 14, borderWidth: 1, borderColor: "#EDE9FE", paddingVertical: 12, alignItems: "center", gap: 4, minHeight: 60 },
-  quickTxt: { fontSize: 11.5, fontWeight: "800", color: "#1B2B4B", textAlign: "center" },
-  card: { backgroundColor: "#FFF", borderRadius: 16, borderWidth: 1.5, padding: 14, gap: 10 },
+  quick: { flex: 1, backgroundColor: HT.card, borderRadius: 14, borderWidth: 1, borderColor: HT.violetTint, paddingVertical: 12, alignItems: "center", gap: 4, minHeight: 60 },
+  quickTxt: { fontSize: 11.5, fontWeight: "800", color: HT.text, textAlign: "center" },
+  card: { backgroundColor: HT.card, borderRadius: 16, borderWidth: 1.5, padding: 14, gap: 10 },
   cardHead: { flexDirection: "row", alignItems: "center", gap: 10 },
   icon: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
-  cardType: { fontSize: 14, fontWeight: "800", color: "#1B2B4B" },
-  cardMeta: { fontSize: 11.5, color: "#64748B" },
-  chatLine: { fontSize: 14, color: "#1B2B4B", lineHeight: 21 },
+  cardType: { fontSize: 14, fontWeight: "800", color: HT.text },
+  cardMeta: { fontSize: 11.5, color: HT.muted },
+  chatLine: { fontSize: 14, color: HT.text, lineHeight: 21 },
   actions: { gap: 8, marginTop: 4 },
   actBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 12, minHeight: 44, paddingHorizontal: 12 },
   actTxt: { fontWeight: "800", fontSize: 13 },
-  ghost: { backgroundColor: "#FFF", borderWidth: 1, borderColor: "#DDD6FE" },
-  secTitle: { fontSize: 12, fontWeight: "800", color: "#64748B", textTransform: "uppercase", letterSpacing: 0.5, marginTop: 4 },
-  empty: { fontSize: 13, color: "#94A3B8", fontStyle: "italic", lineHeight: 18 },
-  row: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#FFF", borderRadius: 12, borderWidth: 1, borderColor: "#EEF0F6", padding: 10, minHeight: 56 },
-  rowTitle: { fontSize: 13.5, fontWeight: "700", color: "#1B2B4B" },
-  rowMeta: { fontSize: 11.5, color: "#64748B", marginTop: 1 },
+  ghost: { backgroundColor: HT.card, borderWidth: 1, borderColor: HT.violet + '66' },
+  secTitle: { fontSize: 12, fontWeight: "800", color: HT.muted, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 4 },
+  empty: { fontSize: 13, color: HT.muted, fontStyle: "italic", lineHeight: 18 },
+  row: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: HT.card, borderRadius: 12, borderWidth: 1, borderColor: '#EEF0F6', padding: 10, minHeight: 56 },
+  rowTitle: { fontSize: 13.5, fontWeight: "700", color: HT.text },
+  rowMeta: { fontSize: 11.5, color: HT.muted, marginTop: 1 },
 });

@@ -15,6 +15,7 @@ import { ModuleErrorBoundary } from "@/src/shared";
 import { AppointmentShareActions } from "@/src/AppointmentShareActions";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { apptTypeColor } from "@/app/appointment/new";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Outcome = { id: string; name: string; color: string; icon?: string; counts_as?: string };
 type NoteAttachment = { id: string; kind: "photo" | "audio" | "file"; photo_base64?: string; audio_base64?: string; audio_mime?: string; file_base64?: string; file_name?: string; file_mime?: string; file_size?: number };
@@ -193,7 +194,7 @@ function AppointmentDetail() {
     return () => clearTimeout(t);
   }, [linkQuery, linkModal, searchContactsForLink]);
 
-  if (!a) return <SafeAreaView style={styles.root}><ActivityIndicator style={{ marginTop: 40 }} color={theme.color.brandPrimary} /></SafeAreaView>;
+  if (!a) return <SafeAreaView style={styles.root}><ActivityIndicator style={{ marginTop: 40 }} color={HT.brand} /></SafeAreaView>;
 
   const color = a.area === "energy" ? theme.color.energy : theme.color.network;
   const outcomes = a.area === "energy" ? ENERGY_OUTCOMES : NETWORK_OUTCOMES;
@@ -421,7 +422,7 @@ function AppointmentDetail() {
         <View style={[styles.titleCard, { borderLeftColor: color }]}>
           <Text style={styles.apTitle}>{a.title}</Text>
           <View style={styles.metaRow}>
-            <Ionicons name="time-outline" size={14} color={theme.color.muted} />
+            <Ionicons name="time-outline" size={14} color={HT.muted} />
             <Text style={styles.metaTxt}>{new Date(a.start_at).toLocaleString("it-IT")}</Text>
             {a.is_phone && <><Ionicons name="call" size={14} color={color} /><Text style={[styles.metaTxt, { color }]}>Telefonico</Text></>}
           </View>
@@ -441,10 +442,10 @@ function AppointmentDetail() {
           {a.location ? (
             <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
               <Pressable testID="waze-btn" onPress={() => Linking.openURL(`https://www.waze.com/ul?q=${encodeURIComponent(a.location)}&navigate=yes`)} style={[styles.wazeBtn, { flex: 1 }]}>
-                <Ionicons name="navigate" size={16} color={theme.color.brandPrimary} />
+                <Ionicons name="navigate" size={16} color={HT.brand} />
                 <Text style={styles.wazeTxt} numberOfLines={1}>Waze</Text>
               </Pressable>
-              <Pressable testID="gmaps-btn" onPress={() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.location)}`)} style={[styles.wazeBtn, { flex: 1, borderColor: "#34A853" }]}>
+              <Pressable testID="gmaps-btn" onPress={() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.location)}`)} style={[styles.wazeBtn, { flex: 1, borderColor: '#34A853' }]}>
                 <Ionicons name="map" size={16} color="#34A853" />
                 <Text style={[styles.wazeTxt, { color: "#34A853" }]} numberOfLines={1}>Google Maps</Text>
               </Pressable>
@@ -455,7 +456,7 @@ function AppointmentDetail() {
             <Pressable
               testID="edit-appt"
               onPress={() => router.push(`/appointment/new?edit=${a.appointment_id}` as any)}
-              style={[styles.gotoContactBtn, { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary }]}
+              style={[styles.gotoContactBtn, { backgroundColor: HT.brand, borderColor: HT.brand }]}
             >
               <Ionicons name="create-outline" size={18} color="#FFF" />
               <Text style={[styles.gotoContactTxt, { color: "#FFF" }]}>Modifica appuntamento</Text>
@@ -468,9 +469,9 @@ function AppointmentDetail() {
               onPress={() => router.push(`/contact/${contact.contact_id}` as any)}
               style={styles.gotoContactBtn}
             >
-              <Ionicons name="person-circle-outline" size={18} color={theme.color.brandPrimary} />
+              <Ionicons name="person-circle-outline" size={18} color={HT.brand} />
               <Text style={styles.gotoContactTxt} numberOfLines={1}>Vai alla scheda cliente · {contact.first_name} {contact.last_name}</Text>
-              <Ionicons name="chevron-forward" size={16} color={theme.color.brandPrimary} />
+              <Ionicons name="chevron-forward" size={16} color={HT.brand} />
             </Pressable>
           )}
         </View>
@@ -494,7 +495,7 @@ function AppointmentDetail() {
               </View>
               <View style={{ marginTop: 10, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: ic.color + "14", borderRadius: 10, padding: 10 }}>
                 <Ionicons name="bulb-outline" size={16} color={ic.color} />
-                <Text style={[styles.metaTxt, { flex: 1, color: theme.color.onSurface, fontWeight: "700" }]} testID="appt-weather-advice">{wxAdvice}</Text>
+                <Text style={[styles.metaTxt, { flex: 1, color: HT.text, fontWeight: "700" }]} testID="appt-weather-advice">{wxAdvice}</Text>
               </View>
             </View>
           );
@@ -520,8 +521,8 @@ function AppointmentDetail() {
                   const isAudio = att.kind === "audio";
                   return (
                     <Pressable key={key} testID={`appt-att-${key}`} onPress={() => (isAudio ? playAttachment(att) : openFileAttachment(att))} style={styles.attChip}>
-                      <View style={[styles.attThumb, { alignItems: "center", justifyContent: "center", backgroundColor: theme.color.surfaceTertiary }]}>
-                        <Ionicons name={isAudio ? "play-circle" : "document-text"} size={26} color={theme.color.brandPrimary} />
+                      <View style={[styles.attThumb, { alignItems: "center", justifyContent: "center", backgroundColor: HT.card2 }]}>
+                        <Ionicons name={isAudio ? "play-circle" : "document-text"} size={26} color={HT.brand} />
                       </View>
                       <Text style={styles.attLabel} numberOfLines={1}>{isAudio ? "Audio" : (att.file_name || "File")}</Text>
                     </Pressable>
@@ -532,7 +533,7 @@ function AppointmentDetail() {
           </View>
         )}
 
-        <Pressable testID="done-btn" onPress={() => savePartial({ done: !a.done })} style={[styles.doneBtn, a.done && { backgroundColor: theme.color.success }]}>
+        <Pressable testID="done-btn" onPress={() => savePartial({ done: !a.done })} style={[styles.doneBtn, a.done && { backgroundColor: HT.success }]}>
           <Ionicons name={a.done ? "checkmark-circle" : "ellipse-outline"} size={22} color="#FFF" />
           <Text style={styles.doneBtnTxt}>{a.done ? "Appuntamento fatto ✓" : "Segna come fatto"}</Text>
         </Pressable>
@@ -568,7 +569,7 @@ function AppointmentDetail() {
           {!contact && (
             <View style={styles.linkContactBlock}>
               <View style={styles.linkContactRow}>
-                <Ionicons name="link" size={16} color={theme.color.muted} />
+                <Ionicons name="link" size={16} color={HT.muted} />
                 <Text style={styles.shareWarn}>Nessun contatto collegato — puoi comunque usare i canali sopra se hai inserito telefono/email nell&apos;appuntamento.</Text>
               </View>
               <Pressable
@@ -583,7 +584,7 @@ function AppointmentDetail() {
           )}
           {contact && (
             <View style={styles.linkedContactRow}>
-              <Ionicons name="checkmark-circle" size={14} color={theme.color.success} />
+              <Ionicons name="checkmark-circle" size={14} color={HT.success} />
               <Text style={styles.linkedContactTxt}>
                 Collegato a: <Text style={{ fontWeight: "700" }}>{contact.first_name} {contact.last_name}</Text>
               </Text>
@@ -604,7 +605,7 @@ function AppointmentDetail() {
             <Pressable
               testID="sync-google"
               onPress={() => openGoogleCalendar({ id: a.appointment_id, title: a.title, start: new Date(a.start_at), location: a.location, description: a.notes })}
-              style={[styles.syncBtn, { backgroundColor: "#EA4335" }]}
+              style={[styles.syncBtn, { backgroundColor: '#EA4335' }]}
             >
               <Ionicons name="logo-google" size={16} color="#FFF" />
               <Text style={styles.syncBtnTxt}>Google</Text>
@@ -612,7 +613,7 @@ function AppointmentDetail() {
             <Pressable
               testID="sync-outlook"
               onPress={() => openOutlookCalendar({ id: a.appointment_id, title: a.title, start: new Date(a.start_at), location: a.location, description: a.notes })}
-              style={[styles.syncBtn, { backgroundColor: "#0078D4" }]}
+              style={[styles.syncBtn, { backgroundColor: '#0078D4' }]}
             >
               <Ionicons name="mail" size={16} color="#FFF" />
               <Text style={styles.syncBtnTxt}>Outlook</Text>
@@ -620,7 +621,7 @@ function AppointmentDetail() {
             <Pressable
               testID="sync-ics"
               onPress={() => shareIcs({ id: a.appointment_id, title: a.title, start: new Date(a.start_at), location: a.location, description: a.notes })}
-              style={[styles.syncBtn, { backgroundColor: theme.color.brandPrimary }]}
+              style={[styles.syncBtn, { backgroundColor: HT.brand }]}
             >
               <Ionicons name="download-outline" size={16} color="#FFF" />
               <Text style={styles.syncBtnTxt}>.ics</Text>
@@ -651,12 +652,12 @@ function AppointmentDetail() {
               }}
               style={{
                 width: "100%",
-                backgroundColor: theme.color.surface,
-                border: `1px solid ${theme.color.border}`,
+                backgroundColor: HT.card2,
+                border: `1px solid ${HT.border}`,
                 borderRadius: 12,
                 padding: "10px 14px",
                 fontSize: 14,
-                color: theme.color.onSurface,
+                color: HT.text,
                 fontFamily: "inherit",
                 outline: "none",
               } as any}
@@ -665,11 +666,11 @@ function AppointmentDetail() {
             <>
               <View style={styles.dateRow}>
                 <Pressable testID="reschedule-date" onPress={() => setShowPicker("date")} style={styles.dateBtn}>
-                  <Ionicons name="calendar-outline" size={16} color={theme.color.brandPrimary} />
+                  <Ionicons name="calendar-outline" size={16} color={HT.brand} />
                   <Text style={styles.dateBtnTxt}>{new Date(a.start_at).toLocaleDateString("it-IT")}</Text>
                 </Pressable>
                 <Pressable testID="reschedule-time" onPress={() => setShowPicker("time")} style={styles.dateBtn}>
-                  <Ionicons name="time-outline" size={16} color={theme.color.brandPrimary} />
+                  <Ionicons name="time-outline" size={16} color={HT.brand} />
                   <Text style={styles.dateBtnTxt}>{new Date(a.start_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text>
                 </Pressable>
               </View>
@@ -706,12 +707,12 @@ function AppointmentDetail() {
                     onChange={(e: any) => setCallbackAt(new Date(e.target.value))}
                     style={{
                       width: "100%",
-                      backgroundColor: theme.color.surface,
-                      border: `1px solid ${theme.color.border}`,
+                      backgroundColor: HT.card2,
+                      border: `1px solid ${HT.border}`,
                       borderRadius: 12,
                       padding: "10px 14px",
                       fontSize: 14,
-                      color: theme.color.onSurface,
+                      color: HT.text,
                       fontFamily: "inherit",
                       outline: "none",
                     } as any}
@@ -731,18 +732,18 @@ function AppointmentDetail() {
           </View>
         )}
 
-        <View style={[styles.card, { borderLeftColor: theme.color.success, borderLeftWidth: 4 }]}>
+        <View style={[styles.card, { borderLeftColor: HT.success, borderLeftWidth: 4 }]}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
             <Text style={styles.sectionTitle}>Esito dell&apos;appuntamento</Text>
             {a.done ? (
               <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                <Ionicons name="checkmark-circle" size={14} color={theme.color.success} />
-                <Text style={{ color: theme.color.success, fontWeight: "700", fontSize: 11 }}>Fatto</Text>
+                <Ionicons name="checkmark-circle" size={14} color={HT.success} />
+                <Text style={{ color: HT.success, fontWeight: "700", fontSize: 11 }}>Fatto</Text>
               </View>
             ) : (
               <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                <Ionicons name="time-outline" size={14} color={theme.color.warning} />
-                <Text style={{ color: theme.color.warning, fontWeight: "700", fontSize: 11 }}>Da svolgere</Text>
+                <Ionicons name="time-outline" size={14} color={HT.warning} />
+                <Text style={{ color: HT.warning, fontWeight: "700", fontSize: 11 }}>Da svolgere</Text>
               </View>
             )}
           </View>
@@ -777,15 +778,15 @@ function AppointmentDetail() {
               <Pressable
                 testID="out-new"
                 onPress={() => setOutcomeModal({ mode: "create", name: "", color: "#16A34A", counts_as: "other" })}
-                style={[styles.outcomeChip, { borderStyle: "dashed", borderColor: theme.color.brandPrimary }]}
+                style={[styles.outcomeChip, { borderStyle: "dashed", borderColor: HT.brand }]}
               >
-                <Ionicons name="add" size={14} color={theme.color.brandPrimary} />
-                <Text style={[styles.outcomeTxt, { color: theme.color.brandPrimary }]}>Nuovo esito</Text>
+                <Ionicons name="add" size={14} color={HT.brand} />
+                <Text style={[styles.outcomeTxt, { color: HT.brand }]}>Nuovo esito</Text>
               </Pressable>
             </View>
             {selectedOutcomeIds.length > 0 && (
-              <View style={{ marginTop: 10, padding: 10, backgroundColor: "#F0FDF4", borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.success }}>
-                <Text style={{ color: theme.color.success, fontWeight: "700", fontSize: 12 }}>
+              <View style={{ marginTop: 10, padding: 10, backgroundColor: HT.successTint, borderRadius: theme.radius.md, borderWidth: 1, borderColor: HT.success }}>
+                <Text style={{ color: HT.success, fontWeight: "700", fontSize: 12 }}>
                   ✓ {selectedOutcomeIds.length} esit{selectedOutcomeIds.length === 1 ? "o registrato" : "i registrati"}
                 </Text>
               </View>
@@ -806,7 +807,7 @@ function AppointmentDetail() {
                   android_ripple={{ color: "rgba(0,0,0,0.08)", borderless: false }}
                   style={[styles.outcomeChip, active && { backgroundColor: color, borderColor: color }]}
                 >
-                  <Ionicons name={active ? "checkmark-circle" : "ellipse-outline"} size={16} color={active ? "#FFF" : theme.color.muted} />
+                  <Ionicons name={active ? "checkmark-circle" : "ellipse-outline"} size={16} color={active ? "#FFF" : HT.muted} />
                   <Text style={[styles.outcomeTxt, active && { color: "#FFF" }]}>{o.label}</Text>
                 </Pressable>
               );
@@ -822,7 +823,7 @@ function AppointmentDetail() {
             style={[styles.input, { minHeight: 80, textAlignVertical: "top" }]}
             multiline
             placeholder="Aggiungi note approfondite..."
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={HT.muted}
           />
 
           {a.area === "energy" && (
@@ -857,17 +858,17 @@ function AppointmentDetail() {
                 data-testid="resched-datetime"
                 value={rescheduleModal ? new Date(rescheduleModal.date.getTime() - rescheduleModal.date.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ""}
                 onChange={(e: any) => { if (rescheduleModal && e.target.value) setRescheduleModal({ ...rescheduleModal, date: new Date(e.target.value) }); }}
-                style={{ width: "100%", border: `1px solid ${theme.color.border}`, borderRadius: 10, padding: "10px 12px", fontSize: 15, marginBottom: 8 } as any}
+                style={{ width: "100%", border: `1px solid ${HT.border}`, borderRadius: 10, padding: "10px 12px", fontSize: 15, marginBottom: 8 } as any}
               />
             ) : (
               <>
                 <View style={{ flexDirection: "row", gap: 8, marginBottom: 8 }}>
                   <Pressable testID="resched-date-btn" onPress={() => setRescheduleModal((m) => m ? { ...m, showPicker: "date" } : m)} style={[omstyles.input, { flexDirection: "row", alignItems: "center", gap: 6 }]}>
-                    <Ionicons name="calendar-outline" size={16} color={theme.color.brandPrimary} />
+                    <Ionicons name="calendar-outline" size={16} color={HT.brand} />
                     <Text>{rescheduleModal?.date.toLocaleDateString("it-IT")}</Text>
                   </Pressable>
                   <Pressable testID="resched-time-btn" onPress={() => setRescheduleModal((m) => m ? { ...m, showPicker: "time" } : m)} style={[omstyles.input, { flexDirection: "row", alignItems: "center", gap: 6 }]}>
-                    <Ionicons name="time-outline" size={16} color={theme.color.brandPrimary} />
+                    <Ionicons name="time-outline" size={16} color={HT.brand} />
                     <Text>{rescheduleModal?.date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text>
                   </Pressable>
                 </View>
@@ -897,17 +898,17 @@ function AppointmentDetail() {
                   <Pressable
                     testID="resched-type-presence"
                     onPress={() => setRescheduleModal((m) => m ? { ...m, isPhone: false } : m)}
-                    style={[omstyles.typeChip, !rescheduleModal.isPhone && { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary }]}
+                    style={[omstyles.typeChip, !rescheduleModal.isPhone && { backgroundColor: HT.brand, borderColor: HT.brand }]}
                   >
-                    <Ionicons name="location" size={14} color={!rescheduleModal.isPhone ? "#FFF" : theme.color.onSurface} />
+                    <Ionicons name="location" size={14} color={!rescheduleModal.isPhone ? "#FFF" : HT.text} />
                     <Text style={[omstyles.typeChipTxt, !rescheduleModal.isPhone && { color: "#FFF" }]}>In presenza</Text>
                   </Pressable>
                   <Pressable
                     testID="resched-type-phone"
                     onPress={() => setRescheduleModal((m) => m ? { ...m, isPhone: true } : m)}
-                    style={[omstyles.typeChip, rescheduleModal.isPhone && { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary }]}
+                    style={[omstyles.typeChip, rescheduleModal.isPhone && { backgroundColor: HT.brand, borderColor: HT.brand }]}
                   >
-                    <Ionicons name="call" size={14} color={rescheduleModal.isPhone ? "#FFF" : theme.color.onSurface} />
+                    <Ionicons name="call" size={14} color={rescheduleModal.isPhone ? "#FFF" : HT.text} />
                     <Text style={[omstyles.typeChipTxt, rescheduleModal.isPhone && { color: "#FFF" }]}>Telefonico</Text>
                   </Pressable>
                 </View>
@@ -921,12 +922,12 @@ function AppointmentDetail() {
               onChangeText={(t) => setRescheduleModal((m) => m ? { ...m, notes: t } : m)}
               style={[omstyles.input, { minHeight: 60, textAlignVertical: "top" }]}
               multiline
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={HT.muted}
             />
 
             <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
-              <Pressable testID="resched-cancel" onPress={() => setRescheduleModal(null)} style={[omstyles.btn, { backgroundColor: "#E5E7EB" }]}>
-                <Text style={[omstyles.btnTxt, { color: theme.color.onSurface }]}>Annulla</Text>
+              <Pressable testID="resched-cancel" onPress={() => setRescheduleModal(null)} style={[omstyles.btn, { backgroundColor: HT.border }]}>
+                <Text style={[omstyles.btnTxt, { color: HT.text }]}>Annulla</Text>
               </Pressable>
               <Pressable testID="resched-confirm" onPress={confirmReschedule} style={omstyles.btn}>
                 <Ionicons name="checkmark" size={16} color="#FFF" />
@@ -949,14 +950,14 @@ function AppointmentDetail() {
               value={outcomeModal?.name || ""}
               onChangeText={(t) => setOutcomeModal((m) => m ? { ...m, name: t } : m)}
               placeholder="Nome dell'esito"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={HT.muted}
               autoFocus
               style={omstyles.input}
             />
             <Text style={omstyles.lbl}>Colore</Text>
             <View style={omstyles.swatches}>
-              {["#16A34A", "#C83232", "#1B6CB0", "#B77C14", "#6B7280", "#0891B2", "#7C3AED", "#DB2777"].map((c) => (
-                <Pressable key={c} onPress={() => setOutcomeModal((m) => m ? { ...m, color: c } : m)} style={[omstyles.swatch, { backgroundColor: c }, outcomeModal?.color === c && { borderColor: theme.color.onSurface }]}>
+              {["#16A34A", "#C83232", "#1B6CB0", "#B77C14", HT.muted, "#0891B2", "#7C3AED", "#DB2777"].map((c) => (
+                <Pressable key={c} onPress={() => setOutcomeModal((m) => m ? { ...m, color: c } : m)} style={[omstyles.swatch, { backgroundColor: c }, outcomeModal?.color === c && { borderColor: HT.text }]}>
                   {outcomeModal?.color === c && <Ionicons name="checkmark" size={16} color="#FFF" />}
                 </Pressable>
               ))}
@@ -974,17 +975,17 @@ function AppointmentDetail() {
               ].map((t) => {
                 const on = (outcomeModal?.counts_as || "other") === t.k;
                 return (
-                  <Pressable key={t.k} onPress={() => setOutcomeModal((m) => m ? { ...m, counts_as: t.k } : m)} style={[omstyles.typeChip, on && { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary }]}>
+                  <Pressable key={t.k} onPress={() => setOutcomeModal((m) => m ? { ...m, counts_as: t.k } : m)} style={[omstyles.typeChip, on && { backgroundColor: HT.brand, borderColor: HT.brand }]}>
                     <Text style={[omstyles.typeChipTxt, on && { color: "#FFF" }]}>{t.label}</Text>
                   </Pressable>
                 );
               })}
             </View>
             <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
-              <Pressable onPress={() => setOutcomeModal(null)} style={[omstyles.btn, { backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border }]}>
-                <Text style={{ color: theme.color.onSurface, fontWeight: "700" }}>Annulla</Text>
+              <Pressable onPress={() => setOutcomeModal(null)} style={[omstyles.btn, { backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border }]}>
+                <Text style={{ color: HT.text, fontWeight: "700" }}>Annulla</Text>
               </Pressable>
-              <Pressable testID="out-modal-save" onPress={saveOutcomeModal} disabled={!outcomeModal?.name?.trim()} style={[omstyles.btn, { backgroundColor: theme.color.brandPrimary, opacity: outcomeModal?.name?.trim() ? 1 : 0.5 }]}>
+              <Pressable testID="out-modal-save" onPress={saveOutcomeModal} disabled={!outcomeModal?.name?.trim()} style={[omstyles.btn, { backgroundColor: HT.brand, opacity: outcomeModal?.name?.trim() ? 1 : 0.5 }]}>
                 <Text style={{ color: "#FFF", fontWeight: "700" }}>{outcomeModal?.mode === "create" ? "Crea" : "Salva"}</Text>
               </Pressable>
             </View>
@@ -1007,14 +1008,14 @@ function AppointmentDetail() {
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
               <Text style={omstyles.title}>Collega contatto</Text>
               <Pressable testID="link-modal-close" onPress={() => setLinkModal(false)} hitSlop={10}>
-                <Ionicons name="close" size={22} color={theme.color.muted} />
+                <Ionicons name="close" size={22} color={HT.muted} />
               </Pressable>
             </View>
             <Text style={omstyles.hint}>Cerca un contatto esistente e collegalo all&apos;appuntamento.</Text>
             <TextInput
               testID="link-search-input"
               placeholder="Nome, cognome, telefono o email"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={HT.muted}
               value={linkQuery}
               onChangeText={setLinkQuery}
               style={omstyles.input}
@@ -1022,11 +1023,11 @@ function AppointmentDetail() {
             />
             <ScrollView style={{ maxHeight: 360, marginTop: 10 }} contentContainerStyle={{ gap: 6, paddingBottom: 140 }}>
               {linkLoading ? (
-                <ActivityIndicator style={{ marginTop: 20 }} color={theme.color.brandPrimary} />
+                <ActivityIndicator style={{ marginTop: 20 }} color={HT.brand} />
               ) : linkContacts.length === 0 ? (
                 <View style={{ padding: 24, alignItems: "center" }}>
-                  <Ionicons name="people-outline" size={30} color={theme.color.muted} />
-                  <Text style={{ color: theme.color.muted, fontSize: 12, marginTop: 6, textAlign: "center" }}>
+                  <Ionicons name="people-outline" size={30} color={HT.muted} />
+                  <Text style={{ color: HT.muted, fontSize: 12, marginTop: 6, textAlign: "center" }}>
                     {linkQuery.trim() ? "Nessun contatto trovato" : "Inizia a scrivere per cercare"}
                   </Text>
                 </View>
@@ -1051,9 +1052,9 @@ function AppointmentDetail() {
                       ) : null}
                     </View>
                     {linking === c.contact_id ? (
-                      <ActivityIndicator size="small" color={theme.color.brandPrimary} />
+                      <ActivityIndicator size="small" color={HT.brand} />
                     ) : (
-                      <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+                      <Ionicons name="chevron-forward" size={18} color={HT.muted} />
                     )}
                   </Pressable>
                 ))
@@ -1068,82 +1069,82 @@ function AppointmentDetail() {
 
 const omstyles = StyleSheet.create({
   back: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center", padding: 20 },
-  card: { width: "100%", maxWidth: 420, backgroundColor: "#FFF", borderRadius: theme.radius.md, padding: 18 },
-  title: { fontSize: 18, fontWeight: "700", color: theme.color.onSurface, marginBottom: 6 },
-  hint: { color: theme.color.muted, fontSize: 12, marginBottom: 8, fontStyle: "italic" },
-  lbl: { fontSize: 12, color: theme.color.onSurfaceTertiary, fontWeight: "600", marginTop: 10, marginBottom: 4 },
-  input: { backgroundColor: theme.color.surface, borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: theme.color.border, color: theme.color.onSurface },
+  card: { width: "100%", maxWidth: 420, backgroundColor: HT.card, borderRadius: theme.radius.md, padding: 18 },
+  title: { fontSize: 18, fontWeight: "700", color: HT.text, marginBottom: 6 },
+  hint: { color: HT.muted, fontSize: 12, marginBottom: 8, fontStyle: "italic" },
+  lbl: { fontSize: 12, color: HT.text2, fontWeight: "600", marginTop: 10, marginBottom: 4 },
+  input: { backgroundColor: HT.card2, borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: HT.border, color: HT.text },
   swatches: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   swatch: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "transparent" },
   typeRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  typeChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 10, borderRadius: theme.radius.pill, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, flex: 1, justifyContent: "center" },
-  typeChipTxt: { fontSize: 12, fontWeight: "700", color: theme.color.onSurfaceTertiary },
-  btn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderRadius: theme.radius.md, backgroundColor: theme.color.brandPrimary },
+  typeChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 10, borderRadius: theme.radius.pill, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, flex: 1, justifyContent: "center" },
+  typeChipTxt: { fontSize: 12, fontWeight: "700", color: HT.text2 },
+  btn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderRadius: theme.radius.md, backgroundColor: HT.brand },
   btnTxt: { color: "#FFF", fontWeight: "700", fontSize: 13 },
 });
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
+  root: { flex: 1, backgroundColor: HT.card2 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12 },
   headerTxt: { color: "#FFF", fontSize: 16, fontWeight: "700" },
-  titleCard: { backgroundColor: "#FFF", padding: 16, borderRadius: theme.radius.md, borderLeftWidth: 4, borderWidth: 1, borderColor: theme.color.border },
-  apTitle: { fontSize: 20, fontWeight: "700", color: theme.color.onSurface },
+  titleCard: { backgroundColor: HT.card, padding: 16, borderRadius: theme.radius.md, borderLeftWidth: 4, borderWidth: 1, borderColor: HT.border },
+  apTitle: { fontSize: 20, fontWeight: "700", color: HT.text },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6, flexWrap: "wrap" },
-  metaTxt: { fontSize: 13, color: theme.color.muted },
-  wazeBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 10, backgroundColor: theme.color.brandTertiary, paddingHorizontal: 10, paddingVertical: 8, borderRadius: theme.radius.pill, borderWidth: 1, borderColor: theme.color.brandPrimary },
-  wazeTxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 13 },
-  addrTxt: { color: theme.color.muted, fontSize: 12, marginTop: 6 },
-  roBanner: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: theme.color.muted, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
-  bcBanner: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#7A2E8E", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
+  metaTxt: { fontSize: 13, color: HT.muted },
+  wazeBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 10, backgroundColor: HT.brandTint, paddingHorizontal: 10, paddingVertical: 8, borderRadius: theme.radius.pill, borderWidth: 1, borderColor: HT.brand },
+  wazeTxt: { color: HT.brand, fontWeight: "700", fontSize: 13 },
+  addrTxt: { color: HT.muted, fontSize: 12, marginTop: 6 },
+  roBanner: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: HT.muted, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
+  bcBanner: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: '#7A2E8E', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
   roBannerTxt: { color: "#FFF", fontWeight: "700", fontSize: 12 },
-  doneBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: theme.color.brandPrimary, padding: 14, borderRadius: theme.radius.md },
+  doneBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: HT.brand, padding: 14, borderRadius: theme.radius.md },
   doneBtnTxt: { color: "#FFF", fontWeight: "700" },
-  card: { backgroundColor: "#FFF", padding: 14, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border },
-  sectionTitle: { fontSize: 14, fontWeight: "700", color: theme.color.onSurface, marginBottom: 10 },
+  card: { backgroundColor: HT.card, padding: 14, borderRadius: theme.radius.md, borderWidth: 1, borderColor: HT.border },
+  sectionTitle: { fontSize: 14, fontWeight: "700", color: HT.text, marginBottom: 10 },
   dateRow: { flexDirection: "row", gap: 10 },
-  dateBtn: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: theme.color.surface, padding: 10, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border },
-  dateBtnTxt: { color: theme.color.onSurface, fontWeight: "600" },
-  input: { backgroundColor: theme.color.surface, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border, padding: 10, fontSize: 14, color: theme.color.onSurface, marginTop: 8 },
+  dateBtn: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: HT.card2, padding: 10, borderRadius: theme.radius.md, borderWidth: 1, borderColor: HT.border },
+  dateBtnTxt: { color: HT.text, fontWeight: "600" },
+  input: { backgroundColor: HT.card2, borderRadius: theme.radius.md, borderWidth: 1, borderColor: HT.border, padding: 10, fontSize: 14, color: HT.text, marginTop: 8 },
   linkBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
-  linkTxt: { color: theme.color.brandPrimary, fontWeight: "600" },
+  linkTxt: { color: HT.brand, fontWeight: "600" },
   // V38S — Long green "Aggiungi Telefonata"
-  greenAddBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#16A34A", paddingVertical: 12, borderRadius: 10, marginTop: 6 },
+  greenAddBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: '#16A34A', paddingVertical: 12, borderRadius: 10, marginTop: 6 },
   greenAddTxt: { color: "#FFF", fontSize: 14, fontWeight: "800" },
-  smallSave: { backgroundColor: theme.color.brandPrimary, padding: 10, borderRadius: theme.radius.md, alignItems: "center", marginTop: 10 },
+  smallSave: { backgroundColor: HT.brand, padding: 10, borderRadius: theme.radius.md, alignItems: "center", marginTop: 10 },
   smallSaveTxt: { color: "#FFF", fontWeight: "700" },
   outcomesGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  outcomeChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 9, minHeight: 40, borderRadius: theme.radius.pill, backgroundColor: "#F1F5F9", borderWidth: 1, borderColor: "#CBD5E1", overflow: "hidden" },
-  outcomeTxt: { fontSize: 12, fontWeight: "600", color: theme.color.onSurfaceTertiary },
-  lbl: { fontSize: 12, fontWeight: "600", color: theme.color.onSurfaceTertiary, marginTop: 12, marginBottom: 4 },
+  outcomeChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 9, minHeight: 40, borderRadius: theme.radius.pill, backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.borderStrong, overflow: "hidden" },
+  outcomeTxt: { fontSize: 12, fontWeight: "600", color: HT.text2 },
+  lbl: { fontSize: 12, fontWeight: "600", color: HT.text2, marginTop: 12, marginBottom: 4 },
   syncRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
   syncBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: theme.radius.md, flex: 1, justifyContent: "center", minWidth: 90 },
   syncBtnTxt: { color: "#FFF", fontWeight: "700", fontSize: 13 },
-  syncHint: { fontSize: 11, color: theme.color.muted, marginTop: 8 },
+  syncHint: { fontSize: 11, color: HT.muted, marginTop: 8 },
   shareRow: { flexDirection: "row", gap: 8, marginTop: 8, flexWrap: "wrap" },
   shareBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: theme.radius.md, flex: 1, justifyContent: "center", minWidth: 90 },
   shareBtnTxt: { color: "#FFF", fontWeight: "700", fontSize: 13 },
-  shareHint: { fontSize: 12, color: theme.color.muted, marginTop: -2, marginBottom: 4 },
-  shareWarn: { fontSize: 11, color: theme.color.warning, marginTop: 8, fontStyle: "italic" },
+  shareHint: { fontSize: 12, color: HT.muted, marginTop: -2, marginBottom: 4 },
+  shareWarn: { fontSize: 11, color: HT.warning, marginTop: 8, fontStyle: "italic" },
   // V38W — Link contact button + modal styles
   linkContactBlock: { marginTop: 8, gap: 8 },
   linkContactRow: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
-  linkContactBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: theme.color.brandPrimary, paddingVertical: 12, borderRadius: 10 },
+  linkContactBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: HT.brand, paddingVertical: 12, borderRadius: 10 },
   linkContactBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
-  gotoContactBtn: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10, paddingVertical: 11, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: theme.color.brandPrimary, backgroundColor: theme.color.surface, minHeight: 44 },
-  gotoContactTxt: { flex: 1, color: theme.color.brandPrimary, fontWeight: "800", fontSize: 13 },
-  notesTxt: { fontSize: 14, color: theme.color.onSurface, lineHeight: 20 },
+  gotoContactBtn: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10, paddingVertical: 11, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: HT.brand, backgroundColor: HT.card2, minHeight: 44 },
+  gotoContactTxt: { flex: 1, color: HT.brand, fontWeight: "800", fontSize: 13 },
+  notesTxt: { fontSize: 14, color: HT.text, lineHeight: 20 },
   attRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 10 },
   attChip: { width: 84, alignItems: "center" },
-  attThumb: { width: 84, height: 84, borderRadius: 10, backgroundColor: theme.color.surfaceTertiary },
-  attLabel: { fontSize: 11, color: theme.color.muted, marginTop: 4, maxWidth: 84 },
+  attThumb: { width: 84, height: 84, borderRadius: 10, backgroundColor: HT.card2 },
+  attLabel: { fontSize: 11, color: HT.muted, marginTop: 4, maxWidth: 84 },
   photoPreviewBack: { flex: 1, backgroundColor: "rgba(0,0,0,0.92)", alignItems: "center", justifyContent: "center" },
   photoPreviewImg: { width: "100%", height: "85%" },
   photoPreviewClose: { position: "absolute", top: 48, right: 20, width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" },
-  linkedContactRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, backgroundColor: "#F1F5F9", paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8 },
-  linkedContactTxt: { flex: 1, fontSize: 12, color: theme.color.onSurface },
-  linkChangeTxt: { fontSize: 12, color: theme.color.brandPrimary, fontWeight: "700" },
-  linkContactItem: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: theme.color.border, backgroundColor: "#FFF" },
+  linkedContactRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, backgroundColor: HT.card2, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8 },
+  linkedContactTxt: { flex: 1, fontSize: 12, color: HT.text },
+  linkChangeTxt: { fontSize: 12, color: HT.brand, fontWeight: "700" },
+  linkContactItem: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: HT.border, backgroundColor: HT.card },
   linkAvatar: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
-  linkName: { fontSize: 14, fontWeight: "700", color: theme.color.onSurface },
-  linkMeta: { fontSize: 11, color: theme.color.muted, marginTop: 2 },
+  linkName: { fontSize: 14, fontWeight: "700", color: HT.text },
+  linkMeta: { fontSize: 11, color: HT.muted, marginTop: 2 },
 });

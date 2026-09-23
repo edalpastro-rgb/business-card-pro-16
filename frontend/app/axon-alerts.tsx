@@ -11,6 +11,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Alert = {
   alert_id: string;
@@ -124,7 +125,7 @@ export default function AxonAlertsScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={10} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={24} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={24} color={HT.text} />
         </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Notifiche Axon</Text>
@@ -156,7 +157,7 @@ export default function AxonAlertsScreen() {
         <View style={styles.empty}><ActivityIndicator size="large" color="#7C3AED" /></View>
       ) : items.length === 0 ? (
         <View style={styles.empty}>
-          <Ionicons name="notifications-off-outline" size={48} color={theme.color.muted} />
+          <Ionicons name="notifications-off-outline" size={48} color={HT.muted} />
           <Text style={styles.emptyTxt}>
             {filter === "unread" ? "Nessun avviso non letto 🎉" : "Ancora nessun avviso"}
           </Text>
@@ -194,7 +195,7 @@ export default function AxonAlertsScreen() {
                   }) : ""}
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+              <Ionicons name="chevron-forward" size={18} color={HT.muted} />
             </Pressable>
           )}
         />
@@ -208,44 +209,44 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row", alignItems: "center", gap: 8,
     paddingHorizontal: 12, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: theme.color.border,
-    backgroundColor: "#FFF",
+    borderBottomWidth: 1, borderBottomColor: HT.border,
+    backgroundColor: HT.card,
   },
   backBtn: { width: 30, height: 30, alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface },
-  headerSub: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
+  headerTitle: { fontSize: 16, fontWeight: "800", color: HT.text },
+  headerSub: { fontSize: 12, color: HT.muted, marginTop: 2 },
   markAllBtn: {
     flexDirection: "row", alignItems: "center", gap: 4,
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999,
-    backgroundColor: "#F5F3FF", borderWidth: 1, borderColor: "#DDD6FE",
+    backgroundColor: HT.violetTint, borderWidth: 1, borderColor: HT.violet + '66',
   },
   markAllTxt: { color: "#7C3AED", fontSize: 12, fontWeight: "800" },
   filterBar: {
     flexDirection: "row", gap: 8, padding: 10,
-    borderBottomWidth: 1, borderBottomColor: theme.color.border, backgroundColor: "#FFF",
+    borderBottomWidth: 1, borderBottomColor: HT.border, backgroundColor: HT.card,
   },
   filterChip: {
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: HT.card2,
   },
-  filterChipOn: { backgroundColor: "#7C3AED" },
-  filterTxt: { color: theme.color.onSurface, fontWeight: "700", fontSize: 12 },
+  filterChipOn: { backgroundColor: '#7C3AED' },
+  filterTxt: { color: HT.text, fontWeight: "700", fontSize: 12 },
   filterTxtOn: { color: "#FFF" },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10, padding: 30 },
-  emptyTxt: { color: theme.color.onSurface, fontSize: 15, fontWeight: "700" },
-  emptyHint: { color: theme.color.muted, fontSize: 12, textAlign: "center", lineHeight: 18, maxWidth: 260 },
+  emptyTxt: { color: HT.text, fontSize: 15, fontWeight: "700" },
+  emptyHint: { color: HT.muted, fontSize: 12, textAlign: "center", lineHeight: 18, maxWidth: 260 },
   card: {
     flexDirection: "row", alignItems: "center", gap: 12, padding: 12, borderRadius: 12,
-    backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border,
+    backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border,
   },
-  cardUnread: { backgroundColor: "#F5F3FF", borderColor: "#DDD6FE" },
+  cardUnread: { backgroundColor: HT.violetTint, borderColor: HT.violet + '66' },
   iconBox: {
     width: 40, height: 40, borderRadius: 10,
     alignItems: "center", justifyContent: "center",
   },
   cardHead: { flexDirection: "row", alignItems: "center", gap: 6 },
-  cardTitle: { flex: 1, fontSize: 14, fontWeight: "700", color: theme.color.onSurface },
-  cardMsg: { fontSize: 13, color: "#334155", marginTop: 2, lineHeight: 17 },
-  cardMeta: { fontSize: 11, color: theme.color.muted, marginTop: 4 },
-  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#7C3AED" },
+  cardTitle: { flex: 1, fontSize: 14, fontWeight: "700", color: HT.text },
+  cardMsg: { fontSize: 13, color: HT.text2, marginTop: 2, lineHeight: 17 },
+  cardMeta: { fontSize: 11, color: HT.muted, marginTop: 4 },
+  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#7C3AED' },
 });

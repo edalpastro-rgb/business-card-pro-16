@@ -4,8 +4,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import * as DocumentPicker from "expo-document-picker";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 /**
  * V50.z80 — Sheet condivisione appuntamento con cliente.
@@ -126,11 +126,11 @@ export function ShareAppointmentSheet({
           <View style={styles.header}>
             <Text style={styles.title}>Condividi con il cliente</Text>
             <Pressable onPress={onClose} hitSlop={8}>
-              <Ionicons name="close" size={22} color={theme.color.muted} />
+              <Ionicons name="close" size={22} color={HT.muted} />
             </Pressable>
           </View>
           {loading ? (
-            <ActivityIndicator style={{ marginVertical: 40 }} color={theme.color.brandPrimary} />
+            <ActivityIndicator style={{ marginVertical: 40 }} color={HT.brand} />
           ) : (
             <KeyboardAwareScrollView bottomOffset={20} contentContainerStyle={{ padding: 16, gap: 14 }} keyboardShouldPersistTaps="handled">
               <Text style={styles.label}>Messaggio</Text>
@@ -145,12 +145,12 @@ export function ShareAppointmentSheet({
 
               <Text style={styles.label}>Allegati (opzionali)</Text>
               <Pressable onPress={pickAttachment} style={styles.attachBtn} testID="share-appt-attach">
-                <Ionicons name="attach" size={16} color={theme.color.brandPrimary} />
+                <Ionicons name="attach" size={16} color={HT.brand} />
                 <Text style={styles.attachBtnTxt}>Aggiungi file / foto / audio</Text>
               </Pressable>
               {attachments.map((a, i) => (
                 <View key={i} style={styles.attachRow}>
-                  <Ionicons name="document-outline" size={14} color={theme.color.muted} />
+                  <Ionicons name="document-outline" size={14} color={HT.muted} />
                   <Text style={styles.attachTxt} numberOfLines={1}>{a.name}</Text>
                   <Pressable onPress={() => setAttachments((prev) => prev.filter((_, j) => j !== i))} hitSlop={6}>
                     <Ionicons name="close-circle" size={16} color="#DC2626" />
@@ -165,7 +165,7 @@ export function ShareAppointmentSheet({
                 <Pressable
                   onPress={openWhatsApp}
                   disabled={!preview?.channels_available.whatsapp}
-                  style={[styles.actionBtn, { backgroundColor: "#16A34A" }, !preview?.channels_available.whatsapp && { opacity: 0.4 }]}
+                  style={[styles.actionBtn, { backgroundColor: '#16A34A' }, !preview?.channels_available.whatsapp && { opacity: 0.4 }]}
                   testID="share-wa-btn"
                 >
                   <Ionicons name="logo-whatsapp" size={18} color="#FFF" />
@@ -174,7 +174,7 @@ export function ShareAppointmentSheet({
                 <Pressable
                   onPress={openEmail}
                   disabled={!preview?.channels_available.email}
-                  style={[styles.actionBtn, { backgroundColor: "#4285F4" }, !preview?.channels_available.email && { opacity: 0.4 }]}
+                  style={[styles.actionBtn, { backgroundColor: '#4285F4' }, !preview?.channels_available.email && { opacity: 0.4 }]}
                   testID="share-email-btn"
                 >
                   <Ionicons name="mail" size={18} color="#FFF" />
@@ -185,7 +185,7 @@ export function ShareAppointmentSheet({
               {/* Reminder automatici */}
               <View style={styles.reminderBox}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                  <Ionicons name="alarm" size={16} color={theme.color.brandPrimary} />
+                  <Ionicons name="alarm" size={16} color={HT.brand} />
                   <Text style={styles.reminderTitle}>Promemoria automatico</Text>
                 </View>
                 <Text style={styles.reminderSub}>Invia in automatico il messaggio X ore prima dell&apos;appuntamento.</Text>
@@ -249,29 +249,29 @@ export function ShareAppointmentSheet({
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: "#FFF", borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "90%" },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: theme.color.border },
-  title: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface },
-  label: { fontSize: 11, fontWeight: "700", color: theme.color.muted, textTransform: "uppercase" },
-  textarea: { borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, padding: 12, fontSize: 14, minHeight: 100, textAlignVertical: "top", color: theme.color.onSurface, backgroundColor: "#F8FAFC" },
-  attachBtn: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderStyle: "dashed", borderColor: theme.color.brandPrimary },
-  attachBtnTxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 12 },
-  attachRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: "#F1F5F9" },
-  attachTxt: { flex: 1, fontSize: 12, color: theme.color.onSurface },
-  hint: { fontSize: 11, color: theme.color.muted, fontStyle: "italic" },
+  sheet: { backgroundColor: HT.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "90%" },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: HT.border },
+  title: { fontSize: 16, fontWeight: "800", color: HT.text },
+  label: { fontSize: 11, fontWeight: "700", color: HT.muted, textTransform: "uppercase" },
+  textarea: { borderWidth: 1, borderColor: HT.border, borderRadius: 10, padding: 12, fontSize: 14, minHeight: 100, textAlignVertical: "top", color: HT.text, backgroundColor: HT.card2 },
+  attachBtn: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderStyle: "dashed", borderColor: HT.brand },
+  attachBtnTxt: { color: HT.brand, fontWeight: "700", fontSize: 12 },
+  attachRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: HT.card2 },
+  attachTxt: { flex: 1, fontSize: 12, color: HT.text },
+  hint: { fontSize: 11, color: HT.muted, fontStyle: "italic" },
   actionsRow: { flexDirection: "row", gap: 10, marginTop: 4 },
   actionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderRadius: 10 },
   actionTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
-  reminderBox: { padding: 12, borderRadius: 12, backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: theme.color.border, gap: 8, marginTop: 6 },
-  reminderTitle: { fontSize: 13, fontWeight: "800", color: theme.color.onSurface },
-  reminderSub: { fontSize: 11, color: theme.color.muted },
+  reminderBox: { padding: 12, borderRadius: 12, backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border, gap: 8, marginTop: 6 },
+  reminderTitle: { fontSize: 13, fontWeight: "800", color: HT.text },
+  reminderSub: { fontSize: 11, color: HT.muted },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: theme.color.border, backgroundColor: "#FFF" },
-  chipActive: { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary },
-  chipTxt: { fontSize: 12, fontWeight: "700", color: theme.color.onSurface },
-  chipCh: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: theme.color.border, backgroundColor: "#FFF" },
-  chipChOn: { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary },
-  chipChTxt: { fontSize: 11, fontWeight: "700", color: theme.color.onSurface },
-  saveBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: theme.color.brandPrimary, marginTop: 6 },
+  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: HT.border, backgroundColor: HT.card },
+  chipActive: { backgroundColor: HT.brand, borderColor: HT.brand },
+  chipTxt: { fontSize: 12, fontWeight: "700", color: HT.text },
+  chipCh: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: HT.border, backgroundColor: HT.card },
+  chipChOn: { backgroundColor: HT.brand, borderColor: HT.brand },
+  chipChTxt: { fontSize: 11, fontWeight: "700", color: HT.text },
+  saveBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: HT.brand, marginTop: 6 },
   saveBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
 });

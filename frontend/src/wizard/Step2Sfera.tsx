@@ -7,13 +7,14 @@ import { LinearGradient } from "expo-linear-gradient";
 import { api } from "@/src/api";
 import type { StepBinder } from "@/src/wizard/Step1Anagrafica";
 import { AxonToneLevelPicker } from "@/src/AxonToneLevelPicker"; // V50.z219 — tono nel wizard
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 export type Sphere = "business" | "home" | "both";
 
 const OPTIONS: Array<{ key: Sphere; title: string; desc: string; icon: keyof typeof Ionicons.glyphMap; colors: [string, string]; emoji: string }> = [
-  { key: "business", title: "Business", desc: "Clienti, bollette, PUN, mail, team: AdvisorOS come strumento di lavoro.", icon: "briefcase", colors: ["#1D4ED8", "#3B82F6"], emoji: "🟦" },
-  { key: "home", title: "Home", desc: "La tua vita privata: ricordi, spese, meteo, sveglie. Mai mescolata al CRM.", icon: "home", colors: ["#047857", "#10B981"], emoji: "🟢" },
-  { key: "both", title: "Entrambe", desc: "Lavoro e vita privata insieme: Axon tiene le due sfere separate, tu le usi entrambe.", icon: "infinite", colors: ["#6D28D9", "#A855F7"], emoji: "✨" },
+  { key: "business", title: "Business", desc: "Clienti, bollette, PUN, mail, team: AdvisorOS come strumento di lavoro.", icon: "briefcase", colors: [HT.axon, "#3B82F6"], emoji: "🟦" },
+  { key: "home", title: "Home", desc: "La tua vita privata: ricordi, spese, meteo, sveglie. Mai mescolata al CRM.", icon: "home", colors: [HT.success, "#10B981"], emoji: "🟢" },
+  { key: "both", title: "Entrambe", desc: "Lavoro e vita privata insieme: Axon tiene le due sfere separate, tu le usi entrambe.", icon: "infinite", colors: [HT.violet, "#A855F7"], emoji: "✨" },
 ];
 
 export function Step2Sfera({ bind, initial }: { bind: StepBinder; initial?: Sphere | null }) {
@@ -56,15 +57,15 @@ export function Step2Sfera({ bind, initial }: { bind: StepBinder; initial?: Sphe
 }
 
 const styles = StyleSheet.create({
-  lead: { fontSize: 14.5, fontWeight: "800", color: "#1B2B4B", marginTop: 4 },
-  card: { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: "#FFF", borderRadius: 18, padding: 14, minHeight: 84, borderWidth: 2, borderColor: "#EDE9FE" },
-  cardOn: { borderColor: "#7C3AED", backgroundColor: "#FAF5FF" },
+  lead: { fontSize: 14.5, fontWeight: "800", color: HT.text, marginTop: 4 },
+  card: { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: HT.card, borderRadius: 18, padding: 14, minHeight: 84, borderWidth: 2, borderColor: HT.violetTint },
+  cardOn: { borderColor: '#7C3AED', backgroundColor: '#FAF5FF' },
   iconWrap: { width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 17, fontWeight: "900", color: "#1B2B4B" },
-  desc: { fontSize: 12.5, color: "#64748B", lineHeight: 17 },
-  radio: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: "#CBD5E1", alignItems: "center", justifyContent: "center" },
-  radioOn: { borderColor: "#7C3AED", backgroundColor: "#7C3AED" },
-  hint: { fontSize: 12.5, color: "#5B21B6", fontWeight: "700", backgroundColor: "#F5F3FF", borderRadius: 12, padding: 10 },
+  title: { fontSize: 17, fontWeight: "900", color: HT.text },
+  desc: { fontSize: 12.5, color: HT.muted, lineHeight: 17 },
+  radio: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: HT.borderStrong, alignItems: "center", justifyContent: "center" },
+  radioOn: { borderColor: '#7C3AED', backgroundColor: '#7C3AED' },
+  hint: { fontSize: 12.5, color: HT.violet, fontWeight: "700", backgroundColor: HT.violetTint, borderRadius: 12, padding: 10 },
   err: { fontSize: 12.5, color: "#DC2626", fontWeight: "700" },
-  toneCard: { backgroundColor: "#FFF", borderRadius: 18, padding: 14, paddingTop: 2, borderWidth: 1, borderColor: "#EDE9FE", marginTop: 4 },
+  toneCard: { backgroundColor: HT.card, borderRadius: 18, padding: 14, paddingTop: 2, borderWidth: 1, borderColor: HT.violetTint, marginTop: 4 },
 });

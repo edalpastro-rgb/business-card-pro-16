@@ -7,6 +7,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "@/src/theme";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) UIManager.setLayoutAnimationEnabledExperimental(true);
 
@@ -34,9 +35,9 @@ export default function FaqScreen() {
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={10} style={styles.backBtn} testID="faq-back"><Ionicons name="chevron-back" size={24} color={theme.color.onSurface} /></Pressable>
+        <Pressable onPress={() => router.back()} hitSlop={10} style={styles.backBtn} testID="faq-back"><Ionicons name="chevron-back" size={24} color={HT.text} /></Pressable>
         <View style={{ flex: 1 }}><Text style={styles.title}>Domande frequenti</Text><Text style={styles.sub}>Le risposte rapide su Axon e AdvisorOS</Text></View>
-        <View style={styles.headIcon}><Ionicons name="help-circle" size={22} color={theme.color.brandPrimary} /></View>
+        <View style={styles.headIcon}><Ionicons name="help-circle" size={22} color={HT.brand} /></View>
       </View>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: pagePad + 24, gap: 10 }} testID="faq-list">
         {FAQ_ITEMS.map((it, i) => {
@@ -44,9 +45,9 @@ export default function FaqScreen() {
           return (
             <Pressable key={it.q} onPress={() => toggle(i)} style={[styles.item, on && styles.itemOpen]} testID={`faq-item-${i}`} accessibilityRole="button" accessibilityState={{ expanded: on }}>
               <View style={styles.row}>
-                <View style={[styles.icon, on && { backgroundColor: theme.color.brandPrimary }]}><Ionicons name={it.icon} size={18} color={on ? theme.color.onBrandPrimary : theme.color.brandPrimary} /></View>
-                <Text style={[styles.q, on && { color: theme.color.brandPrimary }]}>{it.q}</Text>
-                <Ionicons name={on ? "chevron-up" : "chevron-down"} size={18} color={theme.color.muted} />
+                <View style={[styles.icon, on && { backgroundColor: HT.brand }]}><Ionicons name={it.icon} size={18} color={on ? theme.color.onBrandPrimary : HT.brand} /></View>
+                <Text style={[styles.q, on && { color: HT.brand }]}>{it.q}</Text>
+                <Ionicons name={on ? "chevron-up" : "chevron-down"} size={18} color={HT.muted} />
               </View>
               {on ? <Text style={styles.a} testID={`faq-answer-${i}`}>{it.a}</Text> : null}
             </Pressable>
@@ -67,20 +68,20 @@ export default function FaqScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
-  header: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: theme.color.surfaceSecondary, borderBottomWidth: 1, borderBottomColor: theme.color.border },
+  root: { flex: 1, backgroundColor: HT.card2 },
+  header: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: HT.card2, borderBottomWidth: 1, borderBottomColor: HT.border },
   backBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 18, fontWeight: "800", color: theme.color.onSurface },
-  sub: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
-  headIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: theme.color.brandTertiary, alignItems: "center", justifyContent: "center" },
-  item: { backgroundColor: theme.color.surfaceSecondary, borderRadius: 14, borderWidth: 1, borderColor: theme.color.border, padding: 14, gap: 10 },
-  itemOpen: { borderColor: theme.color.brandSecondary, backgroundColor: theme.color.brandTertiary },
+  title: { fontSize: 18, fontWeight: "800", color: HT.text },
+  sub: { fontSize: 12, color: HT.muted, marginTop: 2 },
+  headIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: HT.brandTint, alignItems: "center", justifyContent: "center" },
+  item: { backgroundColor: HT.card2, borderRadius: 14, borderWidth: 1, borderColor: HT.border, padding: 14, gap: 10 },
+  itemOpen: { borderColor: theme.color.brandSecondary, backgroundColor: HT.brandTint },
   row: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 44 },
-  icon: { width: 34, height: 34, borderRadius: 10, backgroundColor: theme.color.brandTertiary, alignItems: "center", justifyContent: "center" },
-  q: { flex: 1, fontSize: 15, fontWeight: "700", color: theme.color.onSurface, lineHeight: 20 },
-  a: { fontSize: 14, lineHeight: 21, color: theme.color.onSurfaceTertiary, paddingLeft: 44 },
-  cta: { marginTop: 8, flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: theme.color.brandPrimary, borderRadius: 16, padding: 16, minHeight: 64 },
+  icon: { width: 34, height: 34, borderRadius: 10, backgroundColor: HT.brandTint, alignItems: "center", justifyContent: "center" },
+  q: { flex: 1, fontSize: 15, fontWeight: "700", color: HT.text, lineHeight: 20 },
+  a: { fontSize: 14, lineHeight: 21, color: HT.text2, paddingLeft: 44 },
+  cta: { marginTop: 8, flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: HT.brand, borderRadius: 16, padding: 16, minHeight: 64 },
   ctaTitle: { color: theme.color.onBrandPrimary, fontSize: 16, fontWeight: "800" },
   ctaSub: { color: theme.color.onBrandPrimary, opacity: 0.85, fontSize: 12, marginTop: 2 },
-  foot: { fontSize: 12, color: theme.color.muted, textAlign: "center", marginTop: 4 },
+  foot: { fontSize: 12, color: HT.muted, textAlign: "center", marginTop: 4 },
 });

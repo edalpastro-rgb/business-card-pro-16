@@ -8,6 +8,7 @@ import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
 import { sendSystemHeartbeat } from "@/src/systemHeartbeat";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Ev = { event_id: string; ts: string; level: string; source: string; title: string; detail?: string | null; user_id?: string | null; ms?: number };
 type Status = {
@@ -20,7 +21,7 @@ type Status = {
 };
 
 const LEVEL_ICON: Record<string, string> = { info: "ℹ️", warning: "⚠️", error: "🛑", deploy: "🚀", client: "📱" };
-const LEVEL_COLOR: Record<string, string> = { info: "#475569", warning: "#B45309", error: "#DC2626", deploy: "#2563EB", client: "#059669" };
+const LEVEL_COLOR: Record<string, string> = { info: HT.text2, warning: HT.warning, error: "#DC2626", deploy: "#2563EB", client: "#059669" };
 const fmt = (iso?: string | null) => (iso ? new Date(iso).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—");
 const ver = (d: { app_version?: string | null; build_number?: string | null; js_version?: string | null }) => `${d.app_version || d.js_version || "?"}${d.build_number ? ` (build ${d.build_number})` : ""}`;
 
@@ -56,15 +57,15 @@ export default function AxonSystemScreen() {
             <Text style={styles.meta}>Avviato {fmt(st.backend.started_at)} · uptime {st.backend.uptime_label} · boot {st.backend.boot_id} · {st.backend.modules} moduli · Python {st.backend.python}</Text>
             <View style={styles.chips}>
               <Text style={[styles.chip, { borderColor: st.backend.llm_key ? "#059669" : "#DC2626" }]}>{st.backend.llm_key ? "✓" : "✗"} LLM</Text>
-              <Text style={[styles.chip, { borderColor: st.backend.push_configured ? "#059669" : "#B45309" }]}>{st.backend.push_configured ? "✓ Push" : "Push solo su app pubblicata"}</Text>
+              <Text style={[styles.chip, { borderColor: st.backend.push_configured ? "#059669" : HT.warning }]}>{st.backend.push_configured ? "✓ Push" : "Push solo su app pubblicata"}</Text>
               <Text style={styles.chip}>📱 {st.push_devices} dispositivi push</Text>
-              {Object.entries(st.integrations).map(([k, v]) => <Text key={k} style={[styles.chip, { borderColor: v ? "#059669" : "#E5E7EB", color: v ? "#065F46" : "#94A3B8" }]}>{v ? "✓" : "✗"} {k.replace(/_/g, " ")}</Text>)}
+              {Object.entries(st.integrations).map(([k, v]) => <Text key={k} style={[styles.chip, { borderColor: v ? "#059669" : "#E5E7EB", color: v ? HT.success : HT.muted }]}>{v ? "✓" : "✗"} {k.replace(/_/g, " ")}</Text>)}
             </View>
           </View>
 
           <View style={styles.kpis}>
-            <View style={[styles.kpi, { borderColor: st.counters.errors_24h ? "#DC2626" : "#EEF0F6" }]}><Text style={[styles.kpiV, { color: st.counters.errors_24h ? "#DC2626" : "#1B2B4B" }]}>{st.counters.errors_24h}</Text><Text style={styles.kpiL}>errori 24h</Text></View>
-            <View style={styles.kpi}><Text style={[styles.kpiV, { color: "#B45309" }]}>{st.counters.warnings_24h}</Text><Text style={styles.kpiL}>warning 24h</Text></View>
+            <View style={[styles.kpi, { borderColor: st.counters.errors_24h ? "#DC2626" : "#EEF0F6" }]}><Text style={[styles.kpiV, { color: st.counters.errors_24h ? "#DC2626" : HT.text }]}>{st.counters.errors_24h}</Text><Text style={styles.kpiL}>errori 24h</Text></View>
+            <View style={styles.kpi}><Text style={[styles.kpiV, { color: HT.warning }]}>{st.counters.warnings_24h}</Text><Text style={styles.kpiL}>warning 24h</Text></View>
             <View style={styles.kpi}><Text style={styles.kpiV}>{st.counters.api_actions_24h}</Text><Text style={styles.kpiL}>azioni API 24h</Text></View>
           </View>
 
@@ -72,7 +73,7 @@ export default function AxonSystemScreen() {
             <Text style={styles.secTitle}>App installata sui tuoi dispositivi</Text>
             {st.devices.length === 0 ? <Text style={styles.empty}>Nessun heartbeat ancora: apri l&apos;app installata (APK/IPA) e Axon registrerà la versione.</Text> : st.devices.map((d) => (
               <View key={d.device_key} style={styles.row}>
-                <Ionicons name={d.platform === "ios" ? "logo-apple" : d.platform === "android" ? "logo-android" : "globe-outline"} size={20} color="#475569" />
+                <Ionicons name={d.platform === "ios" ? "logo-apple" : d.platform === "android" ? "logo-android" : "globe-outline"} size={20} color={HT.text2} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.rowTitle}>{d.device_name || d.platform} · <Text style={{ color: "#2563EB" }}>v{ver(d)}</Text></Text>
                   <Text style={styles.meta}>{d.app_env || ""} · JS {d.js_version || "?"} · ultimo contatto {fmt(d.last_seen)}{d.previous_version ? ` · aggiornata da ${d.previous_version}` : ""}</Text>
@@ -84,7 +85,7 @@ export default function AxonSystemScreen() {
 
           <View style={styles.card} testID="axs-changelog">
             <Text style={styles.secTitle}>Ultime novità (CHANGELOG)</Text>
-            {st.changelog.slice(0, 8).map((r) => <Text key={r.version} style={styles.line}><Text style={{ fontWeight: "800", color: "#7C3AED" }}>{r.version}</Text> <Text style={{ color: "#94A3B8" }}>{r.date}</Text> — {r.desc.replace(/\([^()]*`[^()]*\)/g, "").replace(/`[^`]*`/g, "").replace(/\s{2,}/g, " ").trim()}</Text>)}
+            {st.changelog.slice(0, 8).map((r) => <Text key={r.version} style={styles.line}><Text style={{ fontWeight: "800", color: "#7C3AED" }}>{r.version}</Text> <Text style={{ color: HT.muted }}>{r.date}</Text> — {r.desc.replace(/\([^()]*`[^()]*\)/g, "").replace(/`[^`]*`/g, "").replace(/\s{2,}/g, " ").trim()}</Text>)}
           </View>
 
           <View style={styles.card} testID="axs-jobs">
@@ -103,7 +104,7 @@ export default function AxonSystemScreen() {
               <Pressable key={e.event_id} onPress={() => setOpenEv(openEv === e.event_id ? null : e.event_id)} style={styles.ev} testID={`axs-ev-${e.event_id}`}>
                 <Text style={styles.evIcon}>{LEVEL_ICON[e.level] || "•"}</Text>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.evTitle, { color: LEVEL_COLOR[e.level] || "#1B2B4B" }]} numberOfLines={openEv === e.event_id ? undefined : 2}>{e.title}</Text>
+                  <Text style={[styles.evTitle, { color: LEVEL_COLOR[e.level] || HT.text }]} numberOfLines={openEv === e.event_id ? undefined : 2}>{e.title}</Text>
                   <Text style={styles.meta}>{fmt(e.ts)} · {e.source}{e.user_id ? ` · ${e.user_id.slice(-6)}` : ""}{typeof e.ms === "number" ? ` · ${e.ms} ms` : ""}</Text>
                   {openEv === e.event_id && !!e.detail && <Text style={styles.detail} selectable>{e.detail}</Text>}
                 </View>
@@ -117,26 +118,26 @@ export default function AxonSystemScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F4F5FA" },
-  header: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "#7C3AED" },
+  root: { flex: 1, backgroundColor: '#F4F5FA' },
+  header: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: '#7C3AED' },
   title: { color: "#FFF", fontWeight: "800", fontSize: 17 }, sub: { color: "#FFFFFFCC", fontSize: 12 },
-  card: { backgroundColor: "#FFF", borderRadius: 16, borderWidth: 1.5, borderColor: "#EEF0F6", padding: 14, gap: 8 },
-  secTitle: { fontSize: 12, fontWeight: "800", color: "#64748B", textTransform: "uppercase", letterSpacing: 0.4 },
-  big: { fontSize: 26, fontWeight: "900", color: "#1B2B4B" },
-  meta: { fontSize: 11.5, color: "#64748B", lineHeight: 16 },
+  card: { backgroundColor: HT.card, borderRadius: 16, borderWidth: 1.5, borderColor: '#EEF0F6', padding: 14, gap: 8 },
+  secTitle: { fontSize: 12, fontWeight: "800", color: HT.muted, textTransform: "uppercase", letterSpacing: 0.4 },
+  big: { fontSize: 26, fontWeight: "900", color: HT.text },
+  meta: { fontSize: 11.5, color: HT.muted, lineHeight: 16 },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  chip: { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 12, paddingHorizontal: 9, paddingVertical: 4, fontSize: 11.5, fontWeight: "700", color: "#1B2B4B" },
+  chip: { borderWidth: 1, borderColor: HT.border, borderRadius: 12, paddingHorizontal: 9, paddingVertical: 4, fontSize: 11.5, fontWeight: "700", color: HT.text },
   kpis: { flexDirection: "row", gap: 8 },
-  kpi: { flex: 1, backgroundColor: "#FFF", borderRadius: 14, borderWidth: 1.5, borderColor: "#EEF0F6", padding: 10, alignItems: "center" },
-  kpiV: { fontSize: 22, fontWeight: "900", color: "#1B2B4B" }, kpiL: { fontSize: 11, color: "#64748B" },
+  kpi: { flex: 1, backgroundColor: HT.card, borderRadius: 14, borderWidth: 1.5, borderColor: '#EEF0F6', padding: 10, alignItems: "center" },
+  kpiV: { fontSize: 22, fontWeight: "900", color: HT.text }, kpiL: { fontSize: 11, color: HT.muted },
   row: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 44 },
-  rowTitle: { fontSize: 14, fontWeight: "700", color: "#1B2B4B" },
-  line: { fontSize: 12.5, color: "#1B2B4B", lineHeight: 18 },
-  empty: { fontSize: 12.5, color: "#94A3B8", fontStyle: "italic" },
+  rowTitle: { fontSize: 14, fontWeight: "700", color: HT.text },
+  line: { fontSize: 12.5, color: HT.text, lineHeight: 18 },
+  empty: { fontSize: 12.5, color: HT.muted, fontStyle: "italic" },
   tabs: { flexDirection: "row", gap: 6, flexWrap: "wrap" },
-  tab: { minHeight: 36, paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, borderColor: "#E5E7EB", alignItems: "center", justifyContent: "center" },
-  tabOn: { backgroundColor: "#7C3AED", borderColor: "#7C3AED" }, tabTxt: { fontSize: 12, fontWeight: "800", color: "#475569" },
-  ev: { flexDirection: "row", gap: 8, paddingVertical: 8, borderTopWidth: 1, borderTopColor: "#F1F5F9", minHeight: 44 },
+  tab: { minHeight: 36, paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, borderColor: HT.border, alignItems: "center", justifyContent: "center" },
+  tabOn: { backgroundColor: '#7C3AED', borderColor: '#7C3AED' }, tabTxt: { fontSize: 12, fontWeight: "800", color: HT.text2 },
+  ev: { flexDirection: "row", gap: 8, paddingVertical: 8, borderTopWidth: 1, borderTopColor: HT.card2, minHeight: 44 },
   evIcon: { fontSize: 14, width: 22, textAlign: "center", marginTop: 1 }, evTitle: { fontSize: 13, fontWeight: "700" },
-  detail: { fontSize: 11.5, color: "#334155", backgroundColor: "#F8FAFC", borderRadius: 8, padding: 8, marginTop: 6, fontFamily: "monospace" as any },
+  detail: { fontSize: 11.5, color: HT.text2, backgroundColor: HT.card2, borderRadius: 8, padding: 8, marginTop: 6, fontFamily: "monospace" as any },
 });

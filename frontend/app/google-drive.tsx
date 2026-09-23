@@ -18,9 +18,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { buildOAuthReturn } from "@/src/utils/oauthReturn";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 // Su web questa call chiude la popup di auth restituendo il controllo alla pagina.
 try { WebBrowser.maybeCompleteAuthSession(); } catch { /* noop */ }
@@ -244,7 +244,7 @@ export default function GoogleDriveScreen() {
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={10}><Ionicons name="chevron-back" size={26} color={theme.color.onSurface} /></Pressable>
+        <Pressable onPress={() => router.back()} hitSlop={10}><Ionicons name="chevron-back" size={26} color={HT.text} /></Pressable>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Google Drive</Text>
           <Text style={styles.sub}>Integrazione OAuth per allegare i file Drive ad Axon</Text>
@@ -257,16 +257,16 @@ export default function GoogleDriveScreen() {
       ) : (
         <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}>
           {!status.configured && (
-            <View style={[styles.card, { borderColor: "#F59E0B" }]}>
+            <View style={[styles.card, { borderColor: '#F59E0B' }]}>
               <Ionicons name="warning" size={22} color="#F59E0B" />
               <Text style={styles.cardTxt}>Google Drive non è configurato lato server. Contatta l&apos;amministratore.</Text>
             </View>
           )}
           {status.configured && (
-            <View style={[styles.card, { borderColor: status.connected ? GD_GREEN : theme.color.border }]}>
+            <View style={[styles.card, { borderColor: status.connected ? GD_GREEN : HT.border }]}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Ionicons name={status.connected ? "checkmark-circle" : "close-circle"} size={22} color={status.connected ? GD_GREEN : "#94A3B8"} />
-                <Text style={[styles.cardTitle, { color: status.connected ? GD_GREEN : theme.color.onSurface }]}>
+                <Ionicons name={status.connected ? "checkmark-circle" : "close-circle"} size={22} color={status.connected ? GD_GREEN : HT.muted} />
+                <Text style={[styles.cardTitle, { color: status.connected ? GD_GREEN : HT.text }]}>
                   {status.connected ? "Collegato" : "Non collegato"}
                 </Text>
               </View>
@@ -296,7 +296,7 @@ export default function GoogleDriveScreen() {
             </Pressable>
           )}
           {status.configured && !status.connected && !!(status as any).redirect_uri && (
-            <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 8 }} selectable testID="gd-redirect-uri">
+            <Text style={{ fontSize: 11, color: HT.muted, marginTop: 8 }} selectable testID="gd-redirect-uri">
               Redirect URI OAuth (deve essere registrato in Google Cloud Console): {(status as any).redirect_uri}
             </Text>
           )}
@@ -343,7 +343,7 @@ export default function GoogleDriveScreen() {
                 <ActivityIndicator color={GD_GREEN} style={{ marginTop: 8 }} />
               ) : folders.length === 0 ? (
                 <View style={styles.emptyFolders}>
-                  <Ionicons name="folder-open-outline" size={26} color="#94A3B8" />
+                  <Ionicons name="folder-open-outline" size={26} color={HT.muted} />
                   <Text style={styles.emptyTxt}>Nessuna cartella scelta ancora</Text>
                   <Text style={styles.emptyHint}>Tocca &ldquo;Scegli cartella&rdquo; per aprire il Google Picker</Text>
                 </View>
@@ -413,7 +413,7 @@ export default function GoogleDriveScreen() {
           )}
 
           <View style={styles.infoCard}>
-            <Ionicons name="information-circle" size={18} color={theme.color.brandPrimary} />
+            <Ionicons name="information-circle" size={18} color={HT.brand} />
             <Text style={styles.infoTxt}>
               Axon legge in automatico i file delle cartelle scelte (aggiornamento ogni 30 minuti e ad ogni nuova cartella). Puoi anche allegare un singolo file in chat con l&apos;icona G. Revoca l&apos;accesso in qualsiasi momento con Scollega.
             </Text>
@@ -425,10 +425,10 @@ export default function GoogleDriveScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
+  root: { flex: 1, backgroundColor: HT.card2 },
   header: { flexDirection: "row", alignItems: "center", gap: 10, padding: 16, paddingBottom: 8 },
-  title: { fontSize: 18, fontWeight: "800", color: theme.color.onSurface },
-  sub: { fontSize: 11, color: theme.color.muted, marginTop: 2, fontWeight: "600" },
+  title: { fontSize: 18, fontWeight: "800", color: HT.text },
+  sub: { fontSize: 11, color: HT.muted, marginTop: 2, fontWeight: "600" },
   // V29.bb — Stile Optima
   badgeIcon: {
     width: 32,
@@ -445,50 +445,50 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     elevation: 4,
   },
-  card: { backgroundColor: "#FFF", borderRadius: 14, padding: 12, gap: 8, borderWidth: 1.5, borderColor: theme.color.border },
+  card: { backgroundColor: HT.card, borderRadius: 14, padding: 12, gap: 8, borderWidth: 1.5, borderColor: HT.border },
   cardTitle: { fontSize: 15, fontWeight: "800" },
-  cardMeta: { fontSize: 12, color: theme.color.muted, fontWeight: "600" },
-  cardTxt: { fontSize: 13, color: theme.color.onSurface, lineHeight: 18 },
+  cardMeta: { fontSize: 12, color: HT.muted, fontWeight: "600" },
+  cardTxt: { fontSize: 13, color: HT.text, lineHeight: 18 },
   primaryBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 14 },
   primaryBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
-  secondaryBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 12, borderRadius: 14, borderWidth: 1.5, borderColor: "#DC2626", backgroundColor: "#FEF2F2" },
+  secondaryBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 12, borderRadius: 14, borderWidth: 1.5, borderColor: '#DC2626', backgroundColor: HT.dangerTint },
   secondaryBtnTxt: { color: "#DC2626", fontWeight: "800", fontSize: 14 },
-  infoCard: { flexDirection: "row", alignItems: "flex-start", gap: 8, padding: 12, borderRadius: 12, backgroundColor: "#EDE9FE" },
-  infoTxt: { flex: 1, fontSize: 12, color: theme.color.onSurface, lineHeight: 17 },
+  infoCard: { flexDirection: "row", alignItems: "flex-start", gap: 8, padding: 12, borderRadius: 12, backgroundColor: HT.violetTint },
+  infoTxt: { flex: 1, fontSize: 12, color: HT.text, lineHeight: 17 },
   // V50.i — Cartelle Axon
   folderBlock: {
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderRadius: 14,
     padding: 14,
     gap: 12,
     borderWidth: 1.5,
-    borderColor: theme.color.border,
+    borderColor: HT.border,
   },
   folderHeader: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
   refreshBtn: {
-    padding: 8, borderRadius: 999, backgroundColor: "#ECFDF5",
-    borderWidth: 1, borderColor: "#A7F3D0",
+    padding: 8, borderRadius: 999, backgroundColor: HT.successTint,
+    borderWidth: 1, borderColor: '#A7F3D0',
     alignItems: "center", justifyContent: "center", minWidth: 34, minHeight: 34,
   },
-  folderTitle: { fontSize: 15, fontWeight: "900", color: theme.color.onSurface },
-  folderSub: { fontSize: 12, color: theme.color.muted, marginTop: 3, lineHeight: 17 },
+  folderTitle: { fontSize: 15, fontWeight: "900", color: HT.text },
+  folderSub: { fontSize: 12, color: HT.muted, marginTop: 3, lineHeight: 17 },
   emptyFolders: {
     alignItems: "center", justifyContent: "center", gap: 4,
     paddingVertical: 18, paddingHorizontal: 12,
     borderRadius: 12,
-    borderWidth: 1, borderColor: theme.color.border, borderStyle: "dashed",
-    backgroundColor: "#F8FAFC",
+    borderWidth: 1, borderColor: HT.border, borderStyle: "dashed",
+    backgroundColor: HT.card2,
   },
-  emptyTxt: { fontSize: 13, color: theme.color.onSurface, fontWeight: "700" },
-  emptyHint: { fontSize: 11, color: theme.color.muted },
+  emptyTxt: { fontSize: 13, color: HT.text, fontWeight: "700" },
+  emptyHint: { fontSize: 11, color: HT.muted },
   folderRow: {
     flexDirection: "row", alignItems: "center", gap: 10,
     paddingVertical: 10, paddingHorizontal: 12,
-    borderRadius: 10, backgroundColor: "#F1F5F9",
-    borderWidth: 1, borderColor: "#E2E8F0",
+    borderRadius: 10, backgroundColor: HT.card2,
+    borderWidth: 1, borderColor: HT.border,
   },
-  folderName: { fontSize: 13, fontWeight: "800", color: theme.color.onSurface },
-  folderId: { fontSize: 10, color: theme.color.muted, marginTop: 2 },
+  folderName: { fontSize: 13, fontWeight: "800", color: HT.text },
+  folderId: { fontSize: 10, color: HT.muted, marginTop: 2 },
   folderDelBtn: { padding: 6, borderRadius: 8 },
   pickerBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
@@ -496,11 +496,11 @@ const styles = StyleSheet.create({
   },
   pickerBtnTxt: { color: "#FFF", fontWeight: "900", fontSize: 14 },
   // V50.z155 — Indice Axon
-  idxCard: { marginTop: 12, padding: 12, borderRadius: 12, backgroundColor: "#F5F3FF", borderWidth: 1, borderColor: "#DDD6FE", gap: 6 },
-  idxTitle: { fontSize: 13, fontWeight: "900", color: "#5B21B6" },
-  idxMeta: { fontSize: 12, color: theme.color.onSurface, fontWeight: "600" },
+  idxCard: { marginTop: 12, padding: 12, borderRadius: 12, backgroundColor: HT.violetTint, borderWidth: 1, borderColor: HT.violet + '66', gap: 6 },
+  idxTitle: { fontSize: 13, fontWeight: "900", color: HT.violet },
+  idxMeta: { fontSize: 12, color: HT.text, fontWeight: "600" },
   idxErr: { fontSize: 11.5, color: "#DC2626", fontWeight: "600" },
-  idxHint: { fontSize: 11.5, color: theme.color.muted, lineHeight: 16 },
-  idxBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, alignSelf: "flex-start", minHeight: 40, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: "#7C3AED", backgroundColor: "#FFFFFF" },
+  idxHint: { fontSize: 11.5, color: HT.muted, lineHeight: 16 },
+  idxBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, alignSelf: "flex-start", minHeight: 40, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: '#7C3AED', backgroundColor: HT.card },
   idxBtnTxt: { color: "#7C3AED", fontWeight: "800", fontSize: 13 },
 });

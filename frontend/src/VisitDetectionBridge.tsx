@@ -1,11 +1,11 @@
 // VisitDetectionBridge.tsx — V50.z256 — Montato in app/_layout: avvia/ferma il tracking secondo le impostazioni,
 // mostra il popup Tempo Reale («Sei da X? Visita effettuata?» Sì/No + nota) e il recap Fine Giornata (spunte pre-selezionate).
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 import { View, Text, StyleSheet, Pressable, Modal, TextInput, ActivityIndicator, AppState, Platform, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Notifications from "expo-notifications";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import {
   VisitCandidate, VisitDetectionSettings, loadVisitSettings, onVisitEvent, maybeTriggerRecap, startForegroundWatch, stopForegroundWatch,
@@ -92,12 +92,12 @@ function RealtimeVisitModal({ items, onDone }: { items: VisitCandidate[]; onDone
           <View style={styles.iconWrap}><Ionicons name="location" size={26} color="#FFF" /></View>
           <Text style={styles.title}>Sei da {cur.contact_name}?</Text>
           <Text style={styles.sub}>Sosta di ~{cur.stay_minutes} min{cur.city ? ` · ${cur.city}` : ""}{items.length > 1 ? ` · ${idx + 1}/${items.length} clienti nel raggio` : ""}. Visita effettuata?</Text>
-          <TextInput value={notes} onChangeText={setNotes} placeholder="Nota rapida (opzionale)…" placeholderTextColor={theme.color.muted} style={styles.input} multiline testID="visit-realtime-notes" />
+          <TextInput value={notes} onChangeText={setNotes} placeholder="Nota rapida (opzionale)…" placeholderTextColor={HT.muted} style={styles.input} multiline testID="visit-realtime-notes" />
           <View style={{ flexDirection: "row", gap: 8 }}>
-            <Pressable onPress={() => answer(false)} disabled={busy} style={[styles.btn, styles.btnNo]} testID="visit-realtime-no"><Ionicons name="close" size={18} color={theme.color.onSurface} /><Text style={styles.btnNoTxt}>No</Text></Pressable>
+            <Pressable onPress={() => answer(false)} disabled={busy} style={[styles.btn, styles.btnNo]} testID="visit-realtime-no"><Ionicons name="close" size={18} color={HT.text} /><Text style={styles.btnNoTxt}>No</Text></Pressable>
             <Pressable onPress={() => answer(true)} disabled={busy} style={[styles.btn, styles.btnYes]} testID="visit-realtime-yes">{busy ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="checkmark" size={18} color="#FFF" /><Text style={styles.btnYesTxt}>Sì, visita effettuata</Text></>}</Pressable>
           </View>
-          <Pressable onPress={onDone} style={{ paddingVertical: 10, alignItems: "center" }} testID="visit-realtime-later"><Text style={{ color: theme.color.muted, fontWeight: "700", fontSize: 12 }}>Decido nel recap di fine giornata</Text></Pressable>
+          <Pressable onPress={onDone} style={{ paddingVertical: 10, alignItems: "center" }} testID="visit-realtime-later"><Text style={{ color: HT.muted, fontWeight: "700", fontSize: 12 }}>Decido nel recap di fine giornata</Text></Pressable>
         </View>
       </View>
     </Modal>
@@ -132,7 +132,7 @@ export function EveningRecapModal({ date, onClose }: { date: string; onClose: ()
     <Modal transparent visible animationType="slide" onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <View style={[styles.sheet, { maxHeight: "80%" }]} testID="visit-recap-modal">
-          <View style={[styles.iconWrap, { backgroundColor: "#7C3AED" }]}><Ionicons name="moon" size={24} color="#FFF" /></View>
+          <View style={[styles.iconWrap, { backgroundColor: '#7C3AED' }]}><Ionicons name="moon" size={24} color="#FFF" /></View>
           <Text style={styles.title}>Recap visite di oggi</Text>
           <Text style={styles.sub}>Soste rilevate dal GPS: togli la spunta a quelle NON effettuate e conferma in un tap.</Text>
           {!items ? <ActivityIndicator color={SKY} style={{ marginVertical: 20 }} /> : items.length === 0 ? (
@@ -143,7 +143,7 @@ export function EveningRecapModal({ date, onClose }: { date: string; onClose: ()
                 const on = !!checked[c.cand_id];
                 return (
                   <Pressable key={c.cand_id} onPress={() => setChecked((m) => ({ ...m, [c.cand_id]: !on }))} style={[styles.row, on && styles.rowOn]} testID={`visit-recap-${c.cand_id}`}>
-                    <Ionicons name={on ? "checkbox" : "square-outline"} size={22} color={on ? SKY : theme.color.muted} />
+                    <Ionicons name={on ? "checkbox" : "square-outline"} size={22} color={on ? SKY : HT.muted} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.rowTitle}>{c.contact_name}</Text>
                       <Text style={styles.rowMeta}>{hhmm(c.started_at)} · ~{c.stay_minutes} min{c.city ? ` · ${c.city}` : ""}</Text>
@@ -165,15 +165,15 @@ export function EveningRecapModal({ date, onClose }: { date: string; onClose: ()
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 20 },
-  sheet: { width: "100%", maxWidth: 380, backgroundColor: theme.color.surfaceSecondary, borderRadius: 20, padding: 18, gap: 10 },
+  sheet: { width: "100%", maxWidth: 380, backgroundColor: HT.card2, borderRadius: 20, padding: 18, gap: 10 },
   iconWrap: { width: 48, height: 48, borderRadius: 24, backgroundColor: SKY, alignItems: "center", justifyContent: "center", alignSelf: "center" },
-  title: { fontSize: 18, fontWeight: "900", color: theme.color.onSurface, textAlign: "center" },
-  sub: { fontSize: 13, color: theme.color.muted, textAlign: "center", lineHeight: 18 },
-  input: { backgroundColor: theme.color.surface, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: theme.color.border, minHeight: 60, color: theme.color.onSurface, fontSize: 13, textAlignVertical: "top" },
+  title: { fontSize: 18, fontWeight: "900", color: HT.text, textAlign: "center" },
+  sub: { fontSize: 13, color: HT.muted, textAlign: "center", lineHeight: 18 },
+  input: { backgroundColor: HT.card2, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: HT.border, minHeight: 60, color: HT.text, fontSize: 13, textAlignVertical: "top" },
   btn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 12, minHeight: 48, paddingHorizontal: 10 },
-  btnNo: { backgroundColor: theme.color.surfaceTertiary }, btnNoTxt: { fontWeight: "800", color: theme.color.onSurface },
-  btnYes: { backgroundColor: "#16A34A", flex: 2 }, btnYesTxt: { fontWeight: "800", color: "#FFF" },
-  row: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 12, borderWidth: 1, borderColor: theme.color.border, backgroundColor: theme.color.surface, minHeight: 52 },
-  rowOn: { borderColor: SKY, backgroundColor: "#E0F2FE" },
-  rowTitle: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface }, rowMeta: { fontSize: 11, color: theme.color.muted, marginTop: 1 },
+  btnNo: { backgroundColor: HT.card2 }, btnNoTxt: { fontWeight: "800", color: HT.text },
+  btnYes: { backgroundColor: '#16A34A', flex: 2 }, btnYesTxt: { fontWeight: "800", color: "#FFF" },
+  row: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 12, borderWidth: 1, borderColor: HT.border, backgroundColor: HT.card2, minHeight: 52 },
+  rowOn: { borderColor: SKY, backgroundColor: HT.axonTint },
+  rowTitle: { fontSize: 14, fontWeight: "800", color: HT.text }, rowMeta: { fontSize: 11, color: HT.muted, marginTop: 1 },
 });

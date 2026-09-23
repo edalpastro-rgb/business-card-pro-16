@@ -12,6 +12,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { api } from "@/src/api";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const GREEN = "#059669";
 type Summary = {
@@ -104,7 +105,7 @@ export default function SpazioPersonaleScreen() {
 
       <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: insets.bottom + 120, gap: 12 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}>
         <View style={styles.trust}>
-          <Ionicons name="shield-checkmark" size={20} color="#065F46" />
+          <Ionicons name="shield-checkmark" size={20} color={HT.success} />
           <Text style={styles.trustTxt}>
             Qui trovi tutto ciò che è tuo e non dell'azienda: My Thing, My Web, le tue note vocali, i ricordi e le spese personali.
             Axon opera in questa sfera solo su tua richiesta e non incrocia mai questi dati con quelli Business.
@@ -130,7 +131,7 @@ export default function SpazioPersonaleScreen() {
             </View>
             <View style={styles.countBox}>
               <Text style={styles.count}>{c.count}</Text>
-              <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+              <Ionicons name="chevron-forward" size={16} color={HT.muted} />
             </View>
           </Pressable>
         ))}
@@ -138,11 +139,11 @@ export default function SpazioPersonaleScreen() {
         {s && (
           <View style={styles.linksRow}>
             <View style={[styles.pill, s.google_home.connected && styles.pillOn]}>
-              <Ionicons name="logo-google" size={13} color={s.google_home.connected ? GREEN : "#64748B"} />
+              <Ionicons name="logo-google" size={13} color={s.google_home.connected ? GREEN : HT.muted} />
               <Text style={[styles.pillTxt, s.google_home.connected && { color: GREEN }]}>{s.google_home.connected ? `Google Home · ${s.google_home.account || "collegato"}` : "Google Home non collegato"}</Text>
             </View>
             <View style={[styles.pill, s.homeassistant && styles.pillOn]}>
-              <Ionicons name="home" size={13} color={s.homeassistant ? GREEN : "#64748B"} />
+              <Ionicons name="home" size={13} color={s.homeassistant ? GREEN : HT.muted} />
               <Text style={[styles.pillTxt, s.homeassistant && { color: GREEN }]}>{s.homeassistant ? "Domotica attiva" : "Domotica non collegata"}</Text>
             </View>
           </View>
@@ -154,24 +155,24 @@ export default function SpazioPersonaleScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F0FDF4" },
+  root: { flex: 1, backgroundColor: HT.successTint },
   header: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: GREEN },
   title: { color: "#FFF", fontWeight: "800", fontSize: 17 },
   sub: { color: "#D1FAE5", fontSize: 11.5, marginTop: 1 },
   headBtn: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.18)" },
-  trust: { flexDirection: "row", gap: 10, backgroundColor: "#ECFDF5", borderRadius: 14, padding: 12, borderWidth: 1, borderColor: "#A7F3D0" },
-  trustTxt: { flex: 1, fontSize: 12.5, color: "#065F46", lineHeight: 18 },
-  card: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#FFF", borderRadius: 16, padding: 14, borderWidth: 1, borderColor: "#D1FAE5", minHeight: 76 },
-  icon: { width: 42, height: 42, borderRadius: 14, backgroundColor: "#ECFDF5", alignItems: "center", justifyContent: "center" },
-  label: { fontSize: 15, fontWeight: "800", color: "#1B2B4B" },
-  desc: { fontSize: 12, color: "#64748B", marginTop: 2, lineHeight: 16 },
+  trust: { flexDirection: "row", gap: 10, backgroundColor: HT.successTint, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: '#A7F3D0' },
+  trustTxt: { flex: 1, fontSize: 12.5, color: HT.success, lineHeight: 18 },
+  card: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: HT.card, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: HT.successTint, minHeight: 76 },
+  icon: { width: 42, height: 42, borderRadius: 14, backgroundColor: HT.successTint, alignItems: "center", justifyContent: "center" },
+  label: { fontSize: 15, fontWeight: "800", color: HT.text },
+  desc: { fontSize: 12, color: HT.muted, marginTop: 2, lineHeight: 16 },
   hint: { fontSize: 11, color: GREEN, marginTop: 4, fontWeight: "700" },
   countBox: { alignItems: "center", gap: 2, minWidth: 44 },
   count: { fontSize: 20, fontWeight: "900", color: GREEN },
   linksRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  pill: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FFF", borderRadius: 999, paddingHorizontal: 12, minHeight: 36, borderWidth: 1, borderColor: "#E2E8F0" },
-  pillOn: { borderColor: "#A7F3D0", backgroundColor: "#ECFDF5" },
-  pillTxt: { fontSize: 12, fontWeight: "700", color: "#64748B" },
-  foot: { fontSize: 11.5, color: "#64748B", textAlign: "center", lineHeight: 16, paddingHorizontal: 8 },
+  pill: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: HT.card, borderRadius: 999, paddingHorizontal: 12, minHeight: 36, borderWidth: 1, borderColor: HT.border },
+  pillOn: { borderColor: '#A7F3D0', backgroundColor: HT.successTint },
+  pillTxt: { fontSize: 12, fontWeight: "700", color: HT.muted },
+  foot: { fontSize: 11.5, color: HT.muted, textAlign: "center", lineHeight: 16, paddingHorizontal: 8 },
   modalBg: { flex: 1, backgroundColor: "rgba(15,23,42,0.55)", alignItems: "center", justifyContent: "center", padding: 20 },
 });

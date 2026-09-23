@@ -6,8 +6,8 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 import { getOfflineState, subscribeOffline, syncQueue, initOffline, OfflineState, PREFETCH_PATHS } from "@/src/offline";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 export function useOffline(): OfflineState {
   const [s, setS] = useState(getOfflineState());
@@ -56,12 +56,12 @@ export function OfflineBanner({ userId }: { userId?: string | null }) {
 
   if (!userId) return null;
   const pendingTotal = st.pending + st.failed;
-  let bg = "#0F172A"; let icon: any = "airplane"; let text = "";
+  let bg = HT.text; let icon: any = "airplane"; let text = "";
   if (st.offline) { text = `Modalità offline · navighi con gli ultimi dati${pendingTotal ? ` · ${pendingTotal} modifiche in attesa` : ""}`; }
-  else if (st.syncing) { bg = theme.color.brandPrimary; icon = "sync"; text = "Sincronizzazione in corso…"; }
-  else if (st.failed) { bg = "#B45309"; icon = "alert-circle"; text = `${st.failed} modifiche da controllare${st.pending ? ` · ${st.pending} in attesa` : ""}`; }
-  else if (st.pending) { bg = theme.color.brandPrimary; icon = "cloud-upload"; text = `${st.pending} modifiche in attesa · tocca per sincronizzare`; }
-  else if (st.lastResult && !hideOk) { bg = "#15803D"; icon = "checkmark-circle"; text = `Sincronizzato: ${st.lastResult}`; }
+  else if (st.syncing) { bg = HT.brand; icon = "sync"; text = "Sincronizzazione in corso…"; }
+  else if (st.failed) { bg = HT.warning; icon = "alert-circle"; text = `${st.failed} modifiche da controllare${st.pending ? ` · ${st.pending} in attesa` : ""}`; }
+  else if (st.pending) { bg = HT.brand; icon = "cloud-upload"; text = `${st.pending} modifiche in attesa · tocca per sincronizzare`; }
+  else if (st.lastResult && !hideOk) { bg = HT.success; icon = "checkmark-circle"; text = `Sincronizzato: ${st.lastResult}`; }
   else return null;
   return (
     <Pressable onPress={() => router.push("/offline-sync" as any)} style={[s.wrap, { backgroundColor: bg, paddingTop: Math.max(insets.top, 6) }]} testID="offline-banner">
@@ -75,6 +75,6 @@ export function OfflineBanner({ userId }: { userId?: string | null }) {
 const s = StyleSheet.create({
   wrap: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, paddingBottom: 8, minHeight: 36 },
   txt: { flex: 1, color: "#FFF", fontWeight: "800", fontSize: 12 },
-  pend: { alignSelf: "flex-start", backgroundColor: "#FEF3C7", borderColor: "#FCD34D", borderWidth: 1, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 1, marginLeft: 6 },
-  pendTxt: { fontSize: 10, fontWeight: "800", color: "#92400E" },
+  pend: { alignSelf: "flex-start", backgroundColor: HT.warningTint, borderColor: '#FCD34D', borderWidth: 1, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 1, marginLeft: 6 },
+  pendTxt: { fontSize: 10, fontWeight: "800", color: "#FDBA74" },
 });

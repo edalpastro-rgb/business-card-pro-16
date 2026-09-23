@@ -6,8 +6,8 @@ import { View, Text, StyleSheet, Pressable, ActivityIndicator } from "react-nati
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Tpl = { template_id: string; name: string; field_count: number; page_count: number };
 type Filled = { form_id: string; name: string; template_name: string; missing: any[]; created_at: string };
@@ -65,7 +65,7 @@ export function ContractFormsSection({ contactId }: { contactId: string | null }
             <Pressable key={x.form_id} onPress={() => router.push(`/filled-form/${x.form_id}` as any)} style={s.row} testID={`contract-filled-${x.form_id}`}>
               <Ionicons name="document-text" size={18} color="#059669" />
               <View style={{ flex: 1 }}><Text style={s.tplName} numberOfLines={1}>{x.template_name}</Text><Text style={s.hint}>{new Date(x.created_at).toLocaleDateString("it-IT")} · {(x.missing || []).length ? `${x.missing.length} campi da completare` : "completo"}</Text></View>
-              <Ionicons name="chevron-forward" size={16} color={theme.color.muted} />
+              <Ionicons name="chevron-forward" size={16} color={HT.muted} />
             </Pressable>
           ))}
         </View>
@@ -75,12 +75,12 @@ export function ContractFormsSection({ contactId }: { contactId: string | null }
 }
 
 const s = StyleSheet.create({
-  card: { marginTop: 18, backgroundColor: "#FAF5FF", borderRadius: 14, borderWidth: 1, borderColor: "#E9D5FF", padding: 12, gap: 10 },
-  title: { flex: 1, fontSize: 14, fontWeight: "900", color: theme.color.onSurface },
-  linkBtn: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 32, paddingHorizontal: 8, borderRadius: 8, backgroundColor: "#F3E8FF" }, linkTxt: { fontSize: 12, fontWeight: "800", color: "#7C3AED" },
-  hint: { fontSize: 12, color: theme.color.muted, lineHeight: 17 }, sub: { fontSize: 12, fontWeight: "800", color: theme.color.onSurface },
-  tpl: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 10, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, minHeight: 48 },
-  tplOn: { borderColor: "#7C3AED", backgroundColor: "#F5F3FF" }, tplName: { fontSize: 13, fontWeight: "800", color: theme.color.onSurface },
-  primary: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#7C3AED", borderRadius: 12, minHeight: 46 }, primaryTxt: { color: "#FFF", fontWeight: "900", fontSize: 13 },
-  row: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 10, backgroundColor: "#FFF", borderWidth: 1, borderColor: "#A7F3D0", minHeight: 48 },
+  card: { marginTop: 18, backgroundColor: '#FAF5FF', borderRadius: 14, borderWidth: 1, borderColor: '#E9D5FF', padding: 12, gap: 10 },
+  title: { flex: 1, fontSize: 14, fontWeight: "900", color: HT.text },
+  linkBtn: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 32, paddingHorizontal: 8, borderRadius: 8, backgroundColor: '#F3E8FF' }, linkTxt: { fontSize: 12, fontWeight: "800", color: "#7C3AED" },
+  hint: { fontSize: 12, color: HT.muted, lineHeight: 17 }, sub: { fontSize: 12, fontWeight: "800", color: HT.text },
+  tpl: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 10, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, minHeight: 48 },
+  tplOn: { borderColor: '#7C3AED', backgroundColor: HT.violetTint }, tplName: { fontSize: 13, fontWeight: "800", color: HT.text },
+  primary: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: '#7C3AED', borderRadius: 12, minHeight: 46 }, primaryTxt: { color: "#FFF", fontWeight: "900", fontSize: 13 },
+  row: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 10, backgroundColor: HT.card, borderWidth: 1, borderColor: '#A7F3D0', minHeight: 48 },
 });

@@ -13,6 +13,7 @@ import { theme } from "@/src/theme";
 import { scheduleOneShot, scheduleDailyAt, scheduleYearlyAt, cancelByTag, ensureNotifPermission } from "@/src/notifs";
 
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 type Kind = "message" | "image" | "event" | "anniversary";
 
 // V28.d — Banner customization types
@@ -58,7 +59,7 @@ function isLightColor(hex: string): boolean {
 }
 
 function contrastTextColor(bg: string): string {
-  return isLightColor(bg) ? "#1B2B4B" : "#FFFFFF";
+  return isLightColor(bg) ? HT.text : "#FFFFFF";
 }
 
 const TABS: { id: Kind; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
@@ -305,7 +306,7 @@ export default function MyThingScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.iconBtn}>
-          <Ionicons name="chevron-back" size={22} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={22} color={HT.text} />
         </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>My Thing</Text>
@@ -326,7 +327,7 @@ export default function MyThingScreen() {
               onPress={() => setActive(t.id)}
               style={[styles.tab, on && styles.tabOn]}
             >
-              <Ionicons name={t.icon} size={16} color={on ? "#FFF" : theme.color.muted} />
+              <Ionicons name={t.icon} size={16} color={on ? "#FFF" : HT.muted} />
               <Text style={[styles.tabTxt, on && styles.tabTxtOn]}>{t.label}</Text>
             </Pressable>
           );
@@ -334,10 +335,10 @@ export default function MyThingScreen() {
       </View>
 
       {loading ? (
-        <View style={styles.center}><ActivityIndicator color={theme.color.brandPrimary} /></View>
+        <View style={styles.center}><ActivityIndicator color={HT.brand} /></View>
       ) : items.length === 0 ? (
         <View style={styles.empty}>
-          <Ionicons name={TABS.find((t) => t.id === active)!.icon} size={44} color={theme.color.muted} />
+          <Ionicons name={TABS.find((t) => t.id === active)!.icon} size={44} color={HT.muted} />
           <Text style={styles.emptyTitle}>Nessun elemento</Text>
           <Text style={styles.emptySub}>Tocca &quot;+&quot; per aggiungere il primo{active === "message" ? " messaggio motivazionale" : active === "image" ? "&apos;a immagine" : active === "event" ? "&apos; evento" : "&apos;a ricorrenza"}</Text>
           <Pressable testID="mt-empty-add" onPress={() => openEditor()} style={styles.emptyBtn}>
@@ -356,14 +357,14 @@ export default function MyThingScreen() {
                 <View style={styles.cardRow}>
                   <Text style={styles.cardTitle} numberOfLines={1}>{it.title || (it.kind === "message" ? "Messaggio" : it.kind === "image" ? "Immagine" : it.kind === "event" ? "Evento" : "Ricorrenza")}</Text>
                   <Pressable onPress={() => toggleActive(it)} hitSlop={8}>
-                    <Ionicons name={it.active ? "eye" : "eye-off"} size={18} color={it.active ? theme.color.brandPrimary : theme.color.muted} />
+                    <Ionicons name={it.active ? "eye" : "eye-off"} size={18} color={it.active ? HT.brand : HT.muted} />
                   </Pressable>
                 </View>
                 {!!it.body && <Text style={styles.cardBody} numberOfLines={3}>{it.body}</Text>}
                 <View style={styles.cardMeta}>
                   {it.kind === "message" && (
                     <View style={styles.metaChip}>
-                      <Ionicons name={it.display_mode === "random" ? "shuffle" : "time"} size={11} color={theme.color.muted} />
+                      <Ionicons name={it.display_mode === "random" ? "shuffle" : "time"} size={11} color={HT.muted} />
                       <Text style={styles.metaTxt}>
                         {it.display_mode === "random" ? "Random" : `Ore ${it.daily_time}`}
                       </Text>
@@ -371,7 +372,7 @@ export default function MyThingScreen() {
                   )}
                   {(it.kind === "event" || it.kind === "anniversary") && it.scheduled_at && (
                     <View style={styles.metaChip}>
-                      <Ionicons name="calendar" size={11} color={theme.color.muted} />
+                      <Ionicons name="calendar" size={11} color={HT.muted} />
                       <Text style={styles.metaTxt}>
                         {new Date(it.scheduled_at).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: it.kind === "anniversary" ? undefined : "numeric" })}
                       </Text>
@@ -379,19 +380,19 @@ export default function MyThingScreen() {
                   )}
                   {it.notify && (
                     <View style={styles.metaChip}>
-                      <Ionicons name="notifications" size={11} color={theme.color.brandPrimary} />
-                      <Text style={[styles.metaTxt, { color: theme.color.brandPrimary }]}>Notifica</Text>
+                      <Ionicons name="notifications" size={11} color={HT.brand} />
+                      <Text style={[styles.metaTxt, { color: HT.brand }]}>Notifica</Text>
                     </View>
                   )}
                 </View>
                 <View style={styles.cardActions}>
                   <Pressable onPress={() => openEditor(it)} style={styles.actionBtn}>
-                    <Ionicons name="create-outline" size={14} color={theme.color.brandPrimary} />
+                    <Ionicons name="create-outline" size={14} color={HT.brand} />
                     <Text style={styles.actionTxt}>Modifica</Text>
                   </Pressable>
                   <Pressable onPress={() => doDelete(it)} style={styles.actionBtn}>
-                    <Ionicons name="trash-outline" size={14} color={theme.color.error} />
-                    <Text style={[styles.actionTxt, { color: theme.color.error }]}>Elimina</Text>
+                    <Ionicons name="trash-outline" size={14} color={HT.danger} />
+                    <Text style={[styles.actionTxt, { color: HT.danger }]}>Elimina</Text>
                   </Pressable>
                 </View>
               </View>
@@ -409,7 +410,7 @@ export default function MyThingScreen() {
                 {editing ? "Modifica" : "Nuovo"} {active === "message" ? "messaggio" : active === "image" ? "immagine" : active === "event" ? "evento" : "ricorrenza"}
               </Text>
               <Pressable onPress={closeEditor} hitSlop={8}>
-                <Ionicons name="close" size={22} color={theme.color.onSurface} />
+                <Ionicons name="close" size={22} color={HT.text} />
               </Pressable>
             </View>
             <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 140 }} keyboardShouldPersistTaps="handled">
@@ -418,7 +419,7 @@ export default function MyThingScreen() {
                 value={title}
                 onChangeText={setTitle}
                 placeholder="Titolo (opzionale)"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={HT.muted}
                 style={styles.input}
               />
 
@@ -428,7 +429,7 @@ export default function MyThingScreen() {
                   value={body}
                   onChangeText={setBody}
                   placeholder={active === "message" ? "Scrivi il tuo messaggio motivazionale…" : "Descrizione dell'evento…"}
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={HT.muted}
                   multiline
                   numberOfLines={4}
                   style={[styles.input, { minHeight: 90, textAlignVertical: "top" }]}
@@ -446,11 +447,11 @@ export default function MyThingScreen() {
                     </View>
                   ) : (
                     <View style={{ flexDirection: "row", gap: 8 }}>
-                      <Pressable onPress={pickImage} style={[styles.imgBtn, { backgroundColor: "#7A2E8E" }]}>
+                      <Pressable onPress={pickImage} style={[styles.imgBtn, { backgroundColor: '#7A2E8E' }]}>
                         <Ionicons name="images" size={18} color="#FFF" />
                         <Text style={styles.imgBtnTxt}>Galleria</Text>
                       </Pressable>
-                      <Pressable onPress={takePhoto} style={[styles.imgBtn, { backgroundColor: "#E67700" }]}>
+                      <Pressable onPress={takePhoto} style={[styles.imgBtn, { backgroundColor: '#E67700' }]}>
                         <Ionicons name="camera" size={18} color="#FFF" />
                         <Text style={styles.imgBtnTxt}>Scatta</Text>
                       </Pressable>
@@ -460,7 +461,7 @@ export default function MyThingScreen() {
                     value={body}
                     onChangeText={setBody}
                     placeholder="Didascalia (opzionale)"
-                    placeholderTextColor="#94A3B8"
+                    placeholderTextColor={HT.muted}
                     style={styles.input}
                   />
                 </View>
@@ -475,7 +476,7 @@ export default function MyThingScreen() {
                       onPress={() => setDisplayMode("random")}
                       style={[styles.segItem, displayMode === "random" && styles.segItemOn]}
                     >
-                      <Ionicons name="shuffle" size={14} color={displayMode === "random" ? "#FFF" : theme.color.muted} />
+                      <Ionicons name="shuffle" size={14} color={displayMode === "random" ? "#FFF" : HT.muted} />
                       <Text style={[styles.segTxt, displayMode === "random" && { color: "#FFF" }]}>Random in home</Text>
                     </Pressable>
                     <Pressable
@@ -483,7 +484,7 @@ export default function MyThingScreen() {
                       onPress={() => setDisplayMode("scheduled")}
                       style={[styles.segItem, displayMode === "scheduled" && styles.segItemOn]}
                     >
-                      <Ionicons name="time" size={14} color={displayMode === "scheduled" ? "#FFF" : theme.color.muted} />
+                      <Ionicons name="time" size={14} color={displayMode === "scheduled" ? "#FFF" : HT.muted} />
                       <Text style={[styles.segTxt, displayMode === "scheduled" && { color: "#FFF" }]}>Orario fisso</Text>
                     </Pressable>
                   </View>
@@ -495,7 +496,7 @@ export default function MyThingScreen() {
                         value={dailyTime}
                         onChangeText={(t) => setDailyTime(t.replace(/[^0-9:]/g, "").slice(0, 5))}
                         placeholder="09:00"
-                        placeholderTextColor="#94A3B8"
+                        placeholderTextColor={HT.muted}
                         style={[styles.input, { textAlign: "center", letterSpacing: 4, fontSize: 18 }]}
                         maxLength={5}
                       />
@@ -530,7 +531,7 @@ export default function MyThingScreen() {
                   ) : (
                     <>
                       <Pressable onPress={() => setDatePickerOpen(true)} style={styles.dateBtn}>
-                        <Ionicons name="calendar" size={16} color={theme.color.brandPrimary} />
+                        <Ionicons name="calendar" size={16} color={HT.brand} />
                         <Text style={styles.dateBtnTxt}>{dateLabel}</Text>
                       </Pressable>
                       {datePickerOpen && (
@@ -568,7 +569,7 @@ export default function MyThingScreen() {
                     value={notify}
                     onValueChange={setNotify}
                     disabled={active === "message" && displayMode === "random"}
-                    trackColor={{ true: theme.color.brandPrimary, false: "#E2E8F0" }}
+                    trackColor={{ true: HT.brand, false: "#E2E8F0" }}
                   />
                 </View>
               </View>
@@ -686,52 +687,52 @@ export default function MyThingScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
+  root: { flex: 1, backgroundColor: HT.card2 },
   header: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12 },
   iconBtn: { padding: 4 },
-  title: { fontSize: 20, fontWeight: "800", color: theme.color.onSurface },
-  subtitle: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
-  addBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.color.brandPrimary, alignItems: "center", justifyContent: "center" },
+  title: { fontSize: 20, fontWeight: "800", color: HT.text },
+  subtitle: { fontSize: 12, color: HT.muted, marginTop: 2 },
+  addBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: HT.brand, alignItems: "center", justifyContent: "center" },
   tabsRow: { flexDirection: "row", gap: 6, paddingHorizontal: 12, marginBottom: 4, flexWrap: "wrap" },
-  tab: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, backgroundColor: theme.color.surfaceTertiary },
-  tabOn: { backgroundColor: theme.color.brandPrimary },
-  tabTxt: { color: theme.color.muted, fontWeight: "600", fontSize: 12 },
+  tab: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, backgroundColor: HT.card2 },
+  tabOn: { backgroundColor: HT.brand },
+  tabTxt: { color: HT.muted, fontWeight: "600", fontSize: 12 },
   tabTxtOn: { color: "#FFF" },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: 32, gap: 8 },
-  emptyTitle: { fontSize: 16, fontWeight: "700", color: theme.color.onSurface, marginTop: 8 },
-  emptySub: { fontSize: 13, color: theme.color.muted, textAlign: "center" },
-  emptyBtn: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 12, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 20, backgroundColor: theme.color.brandPrimary },
+  emptyTitle: { fontSize: 16, fontWeight: "700", color: HT.text, marginTop: 8 },
+  emptySub: { fontSize: 13, color: HT.muted, textAlign: "center" },
+  emptyBtn: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 12, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 20, backgroundColor: HT.brand },
   emptyBtnTxt: { color: "#FFF", fontWeight: "700" },
-  card: { backgroundColor: "#FFF", borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: theme.color.border, flexDirection: "row", gap: 12 },
-  formCard: { backgroundColor: "#FFF", borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: theme.color.border, gap: 8 },
+  card: { backgroundColor: HT.card, borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: HT.border, flexDirection: "row", gap: 12 },
+  formCard: { backgroundColor: HT.card, borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: HT.border, gap: 8 },
   cardImg: { width: 70, height: 70, borderRadius: 8 },
   cardRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  cardTitle: { fontSize: 14, fontWeight: "700", color: theme.color.onSurface, flex: 1 },
-  cardBody: { fontSize: 13, color: theme.color.onSurfaceTertiary, marginTop: 2 },
+  cardTitle: { fontSize: 14, fontWeight: "700", color: HT.text, flex: 1 },
+  cardBody: { fontSize: 13, color: HT.text2, marginTop: 2 },
   cardMeta: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6 },
-  metaChip: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: theme.color.surface, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  metaTxt: { fontSize: 11, color: theme.color.muted },
+  metaChip: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: HT.card2, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  metaTxt: { fontSize: 11, color: HT.muted },
   cardActions: { flexDirection: "row", gap: 12, marginTop: 8 },
   actionBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
-  actionTxt: { fontSize: 12, color: theme.color.brandPrimary, fontWeight: "700" },
+  actionTxt: { fontSize: 12, color: HT.brand, fontWeight: "700" },
   modalWrap: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  modalCard: { backgroundColor: theme.color.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "92%" },
-  modalHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 16, borderBottomWidth: 1, borderBottomColor: theme.color.border },
-  modalTitle: { fontSize: 17, fontWeight: "700", color: theme.color.onSurface },
-  input: { backgroundColor: "#FFF", borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: theme.color.border, color: theme.color.onSurface, fontSize: 15 },
-  label: { fontSize: 12, color: theme.color.onSurfaceTertiary, fontWeight: "700", marginBottom: 6 },
-  hint: { fontSize: 11, color: theme.color.muted, marginTop: 4, fontStyle: "italic" },
-  segment: { flexDirection: "row", backgroundColor: theme.color.surfaceTertiary, borderRadius: 20, padding: 3 },
+  modalCard: { backgroundColor: HT.card2, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "92%" },
+  modalHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 16, borderBottomWidth: 1, borderBottomColor: HT.border },
+  modalTitle: { fontSize: 17, fontWeight: "700", color: HT.text },
+  input: { backgroundColor: HT.card, borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: HT.border, color: HT.text, fontSize: 15 },
+  label: { fontSize: 12, color: HT.text2, fontWeight: "700", marginBottom: 6 },
+  hint: { fontSize: 11, color: HT.muted, marginTop: 4, fontStyle: "italic" },
+  segment: { flexDirection: "row", backgroundColor: HT.card2, borderRadius: 20, padding: 3 },
   segItem: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 8, borderRadius: 16 },
-  segItemOn: { backgroundColor: theme.color.brandPrimary },
-  segTxt: { color: theme.color.muted, fontWeight: "600", fontSize: 12 },
+  segItemOn: { backgroundColor: HT.brand },
+  segTxt: { color: HT.muted, fontWeight: "600", fontSize: 12 },
   rowBetween: { flexDirection: "row", alignItems: "center", gap: 12 },
-  dateBtn: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: theme.color.surfaceTertiary, padding: 12, borderRadius: theme.radius.md },
-  dateBtnTxt: { color: theme.color.onSurface, fontWeight: "600" },
+  dateBtn: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: HT.card2, padding: 12, borderRadius: theme.radius.md },
+  dateBtnTxt: { color: HT.text, fontWeight: "600" },
   swatches: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   swatch: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "transparent" },
-  swatchOn: { borderColor: theme.color.onSurface },
+  swatchOn: { borderColor: HT.text },
   // V28.d — banner customization
   bannerPreview: {
     borderRadius: 14,
@@ -756,31 +757,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: theme.radius.pill,
-    backgroundColor: theme.color.surfaceTertiary,
+    backgroundColor: HT.card2,
     borderWidth: 1,
     borderColor: "transparent",
   },
-  fontChipOn: { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary },
-  fontChipSample: { fontSize: 15, fontWeight: "800", color: theme.color.onSurface },
-  fontChipLbl: { fontSize: 12, fontWeight: "700", color: theme.color.muted },
+  fontChipOn: { backgroundColor: HT.brand, borderColor: HT.brand },
+  fontChipSample: { fontSize: 15, fontWeight: "800", color: HT.text },
+  fontChipLbl: { fontSize: 12, fontWeight: "700", color: HT.muted },
   fontChipTxtOn: { color: "#FFF" },
-  saveBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: theme.color.brandPrimary, paddingVertical: 14, borderRadius: theme.radius.md, marginTop: 4 },
+  saveBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: HT.brand, paddingVertical: 14, borderRadius: theme.radius.md, marginTop: 4 },
   saveBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 15 },
   imgBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 14, borderRadius: theme.radius.md },
   imgBtnTxt: { color: "#FFF", fontWeight: "700" },
-  previewImg: { width: 220, height: 220, borderRadius: 12, backgroundColor: theme.color.surfaceTertiary },
+  previewImg: { width: 220, height: 220, borderRadius: 12, backgroundColor: HT.card2 },
   linkBtn: { paddingVertical: 8 },
-  linkBtnTxt: { color: theme.color.error, fontWeight: "600", fontSize: 13 },
+  linkBtnTxt: { color: HT.danger, fontWeight: "600", fontSize: 13 },
 });
 
 const webInputStyle: any = {
   width: "100%",
-  backgroundColor: theme.color.surface,
-  border: `1px solid ${theme.color.border}`,
+  backgroundColor: HT.card2,
+  border: `1px solid ${HT.border}`,
   borderRadius: 12,
   padding: "12px 14px",
   fontSize: 15,
-  color: theme.color.onSurface,
+  color: HT.text,
   fontFamily: "inherit",
   outline: "none",
 };

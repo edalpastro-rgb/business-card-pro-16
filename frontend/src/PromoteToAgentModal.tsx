@@ -17,6 +17,7 @@ import { notify } from "@/src/utils/notify";
 import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 /**
  * V29 — Modal "Promuovi ad agente" (solo Master).
  * Converte il contatto in account collaboratore + Biglietto da Visita con QR
@@ -47,11 +48,11 @@ type Result = {
 const C = {
   primary: "#EA580C",
   primarySoft: "#FFF7ED",
-  text: "#111820",
-  muted: "#64748B",
+  text: HT.text,
+  muted: HT.muted,
   border: "#E5E7EB",
-  bg: "#FFFFFF",
-  navy: "#1B2B4B",
+  bg: HT.card,
+  navy: HT.text,
   danger: "#DC2626",
   ok: "#16A34A",
 };
@@ -235,7 +236,7 @@ export function PromoteToAgentModal({
             ) : (
               <>
                 <View style={styles.header}>
-                  <View style={[styles.hIcon, { backgroundColor: "#DCFCE7" }]}>
+                  <View style={[styles.hIcon, { backgroundColor: HT.successTint }]}>
                     <Ionicons name="checkmark" size={20} color={C.ok} />
                   </View>
                   <View style={{ flex: 1 }}>
@@ -253,7 +254,7 @@ export function PromoteToAgentModal({
                   </View>
                 ) : (
                   <View style={styles.emailWarnBox}>
-                    <Ionicons name="warning" size={16} color="#B45309" />
+                    <Ionicons name="warning" size={16} color={HT.warning} />
                     <Text style={styles.emailWarnTxt}>
                       {result.email_error || "Email non inviata: condividi manualmente le credenziali qui sotto."}
                     </Text>
@@ -322,13 +323,13 @@ const styles = StyleSheet.create({
       default: {},
     } as any),
   },
-  grip: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E2E8F0", alignSelf: "center", marginBottom: 12 },
+  grip: { width: 40, height: 4, borderRadius: 2, backgroundColor: HT.border, alignSelf: "center", marginBottom: 12 },
   header: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 14 },
   hIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: C.primarySoft, alignItems: "center", justifyContent: "center" },
   title: { fontSize: 18, fontWeight: "800", color: C.text, letterSpacing: -0.3 },
   subtitle: { fontSize: 13, color: C.muted, marginTop: 2 },
   infoBox: {
-    flexDirection: "row", gap: 8, padding: 12, backgroundColor: "#F8FAFC",
+    flexDirection: "row", gap: 8, padding: 12, backgroundColor: HT.card2,
     borderRadius: 10, borderWidth: 1, borderColor: C.border, alignItems: "flex-start", marginBottom: 16,
   },
   infoTxt: { flex: 1, fontSize: 12.5, color: C.muted, lineHeight: 18 },
@@ -344,7 +345,7 @@ const styles = StyleSheet.create({
   toggleRow: {
     flexDirection: "row", alignItems: "center", gap: 12,
     padding: 12, borderRadius: 12, borderWidth: 1, borderColor: C.border,
-    backgroundColor: "#FBFCFD", marginBottom: 16,
+    backgroundColor: HT.card2, marginBottom: 16,
   },
   toggleRowActive: { borderColor: C.primary + "60", backgroundColor: C.primarySoft },
   checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: C.border, alignItems: "center", justifyContent: "center" },
@@ -352,12 +353,12 @@ const styles = StyleSheet.create({
   toggleTxt: { fontSize: 14, fontWeight: "700", color: C.text },
   toggleSub: { fontSize: 12, color: C.muted, marginTop: 2 },
   errorBox: {
-    flexDirection: "row", gap: 8, padding: 10, backgroundColor: "#FEE2E2",
+    flexDirection: "row", gap: 8, padding: 10, backgroundColor: HT.dangerTint,
     borderRadius: 10, alignItems: "center", marginBottom: 12,
   },
   errorTxt: { flex: 1, fontSize: 13, color: C.danger, fontWeight: "600" },
   actionsRow: { flexDirection: "row", gap: 10, marginTop: 4 },
-  btnGhost: { flex: 1, paddingVertical: 13, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "#F1F5F9" },
+  btnGhost: { flex: 1, paddingVertical: 13, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: HT.card2 },
   btnGhostTxt: { fontSize: 14, fontWeight: "700", color: C.navy },
   btnPrimary: {
     flex: 1, flexDirection: "row", gap: 8, paddingVertical: 13, borderRadius: 12,
@@ -367,18 +368,18 @@ const styles = StyleSheet.create({
 
   emailOkBox: {
     flexDirection: "row", gap: 8, alignItems: "center", padding: 10,
-    backgroundColor: "#DCFCE7", borderRadius: 10, marginBottom: 12,
+    backgroundColor: HT.successTint, borderRadius: 10, marginBottom: 12,
   },
-  emailOkTxt: { flex: 1, fontSize: 13, color: "#166534", fontWeight: "600" },
+  emailOkTxt: { flex: 1, fontSize: 13, color: HT.success, fontWeight: "600" },
   emailWarnBox: {
     flexDirection: "row", gap: 8, alignItems: "flex-start", padding: 10,
-    backgroundColor: "#FEF3C7", borderRadius: 10, marginBottom: 12,
+    backgroundColor: HT.warningTint, borderRadius: 10, marginBottom: 12,
   },
-  emailWarnTxt: { flex: 1, fontSize: 12.5, color: "#92400E" },
+  emailWarnTxt: { flex: 1, fontSize: 12.5, color: "#FDBA74" },
   warnPassword: { fontSize: 12, color: C.danger, fontWeight: "700", marginBottom: 8, textAlign: "center" },
   credBox: {
     borderWidth: 1, borderColor: C.border, borderRadius: 12,
-    backgroundColor: "#F8FAFC", padding: 12, gap: 8, marginBottom: 16,
+    backgroundColor: HT.card2, padding: 12, gap: 8, marginBottom: 16,
   },
   credRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   credLabel: { fontSize: 11, fontWeight: "800", color: C.muted, textTransform: "uppercase", letterSpacing: 0.4 },

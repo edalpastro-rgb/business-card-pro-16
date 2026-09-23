@@ -10,7 +10,7 @@
 //   - `note_ai` → bulleted list
 
 import { View, Text, StyleSheet, ScrollView } from "react-native";
-import { theme } from "@/src/theme";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const MONTHS_IT_SHORT = ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"];
 const MONTHS_IT_LONG = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"];
@@ -307,32 +307,32 @@ export function ConsumptionBarChart({ points, unit, accent }: { points: { mese: 
 }
 
 const styles = StyleSheet.create({
-  kvRow: { flexDirection: "row", paddingVertical: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.color.border, alignItems: "flex-start" },
-  kvKey: { flex: 1, fontSize: 12, fontWeight: "600", color: theme.color.muted, paddingRight: 6 },
-  kvVal: { flex: 2, fontSize: 12, color: theme.color.onSurface, flexShrink: 1, flexWrap: "wrap" },
-  blockRow: { paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.color.border, overflow: "hidden" },
-  blockLabel: { fontSize: 12, fontWeight: "700", color: theme.color.muted, textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 4 },
-  paramSubBox: { gap: 3, backgroundColor: "#F8FAFC", borderRadius: 8, padding: 8, borderWidth: 1, borderColor: theme.color.border, overflow: "hidden" },
+  kvRow: { flexDirection: "row", paddingVertical: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: HT.border, alignItems: "flex-start" },
+  kvKey: { flex: 1, fontSize: 12, fontWeight: "600", color: HT.muted, paddingRight: 6 },
+  kvVal: { flex: 2, fontSize: 12, color: HT.text, flexShrink: 1, flexWrap: "wrap" },
+  blockRow: { paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: HT.border, overflow: "hidden" },
+  blockLabel: { fontSize: 12, fontWeight: "700", color: HT.muted, textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 4 },
+  paramSubBox: { gap: 3, backgroundColor: HT.card2, borderRadius: 8, padding: 8, borderWidth: 1, borderColor: HT.border, overflow: "hidden" },
   paramSubRow: { flexDirection: "row", paddingVertical: 3, alignItems: "flex-start" },
-  paramSubKey: { flex: 1, fontSize: 11, fontWeight: "600", color: theme.color.muted, paddingRight: 6 },
-  paramSubVal: { flex: 2, fontSize: 12, color: theme.color.onSurface, flexShrink: 1, flexWrap: "wrap" },
+  paramSubKey: { flex: 1, fontSize: 11, fontWeight: "600", color: HT.muted, paddingRight: 6 },
+  paramSubVal: { flex: 2, fontSize: 12, color: HT.text, flexShrink: 1, flexWrap: "wrap" },
   bulletRow: { flexDirection: "row", alignItems: "flex-start", gap: 8, paddingRight: 4 },
   bulletDot: { width: 6, height: 6, borderRadius: 3, marginTop: 6 },
-  bulletTxt: { flex: 1, fontSize: 12, lineHeight: 17, color: theme.color.onSurface, flexShrink: 1, flexWrap: "wrap" },
-  chartWrap: { marginTop: 4, backgroundColor: "#F8FAFC", borderRadius: 8, padding: 8, borderWidth: 1, borderColor: theme.color.border },
+  bulletTxt: { flex: 1, fontSize: 12, lineHeight: 17, color: HT.text, flexShrink: 1, flexWrap: "wrap" },
+  chartWrap: { marginTop: 4, backgroundColor: HT.card2, borderRadius: 8, padding: 8, borderWidth: 1, borderColor: HT.border },
   chartHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 6 },
-  chartTotal: { fontSize: 11, fontWeight: "700", color: theme.color.onSurface },
-  chartMax: { fontSize: 10, color: theme.color.muted },
+  chartTotal: { fontSize: 11, fontWeight: "700", color: HT.text },
+  chartMax: { fontSize: 10, color: HT.muted },
   barCol: { alignItems: "center", marginHorizontal: 3, width: 34 },
-  barValue: { fontSize: 9, color: theme.color.muted, marginBottom: 2, minHeight: 12 },
-  barTrack: { width: 26, height: 120, backgroundColor: "#E2E8F0", borderRadius: 4, justifyContent: "flex-end", overflow: "hidden" },
+  barValue: { fontSize: 9, color: HT.muted, marginBottom: 2, minHeight: 12 },
+  barTrack: { width: 26, height: 120, backgroundColor: HT.border, borderRadius: 4, justifyContent: "flex-end", overflow: "hidden" },
   barFill: { width: "100%", borderTopLeftRadius: 4, borderTopRightRadius: 4 },
-  barLabel: { fontSize: 10, color: theme.color.muted, marginTop: 3, fontWeight: "600" },
+  barLabel: { fontSize: 10, color: HT.muted, marginTop: 3, fontWeight: "600" },
   // V38Z — clear red parse-error banner
   parseErrorBox: {
-    backgroundColor: "#FEF2F2",
+    backgroundColor: HT.dangerTint,
     borderWidth: 1,
-    borderColor: "#FCA5A5",
+    borderColor: '#FCA5A5',
     borderRadius: 8,
     padding: 12,
     marginVertical: 6,
@@ -340,12 +340,12 @@ const styles = StyleSheet.create({
   parseErrorTitle: {
     fontSize: 13,
     fontWeight: "800",
-    color: "#991B1B",
+    color: HT.danger,
     marginBottom: 4,
   },
   parseErrorMsg: {
     fontSize: 12,
-    color: "#7F1D1D",
+    color: HT.danger,
     lineHeight: 17,
   },
 });

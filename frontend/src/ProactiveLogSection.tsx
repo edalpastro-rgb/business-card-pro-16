@@ -5,6 +5,7 @@ import { View, Text, StyleSheet, Pressable, ActivityIndicator } from "react-nati
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { proactiveApi, ProactiveItem, KIND_ICON, KIND_COLOR } from "@/src/axonProactive";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const PURPLE = "#7C3AED";
 
@@ -58,16 +59,16 @@ export function ProactiveLogSection() {
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: "#FFF", borderRadius: 14, padding: 12, gap: 8, borderWidth: 1, borderColor: "#EDE9FE" },
+  card: { backgroundColor: HT.card, borderRadius: 14, padding: 12, gap: 8, borderWidth: 1, borderColor: HT.violetTint },
   head: { flexDirection: "row", alignItems: "center", gap: 10 },
-  icon: { width: 32, height: 32, borderRadius: 10, backgroundColor: "#F5F3FF", alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 15, fontWeight: "800", color: "#1B2B4B" },
-  intro: { fontSize: 11.5, color: "#64748B", marginTop: 1 },
+  icon: { width: 32, height: 32, borderRadius: 10, backgroundColor: HT.violetTint, alignItems: "center", justifyContent: "center" },
+  title: { fontSize: 15, fontWeight: "800", color: HT.text },
+  intro: { fontSize: 11.5, color: HT.muted, marginTop: 1 },
   iconBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 10 },
-  empty: { fontSize: 12.5, color: "#94A3B8", fontStyle: "italic", paddingVertical: 4 },
-  row: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, borderTopWidth: 1, borderTopColor: "#F1F5F9", minHeight: 48 },
-  rowTitle: { fontSize: 13, fontWeight: "700", color: "#1B2B4B" },
-  rowMeta: { fontSize: 11, color: "#64748B", marginTop: 1 },
+  empty: { fontSize: 12.5, color: HT.muted, fontStyle: "italic", paddingVertical: 4 },
+  row: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, borderTopWidth: 1, borderTopColor: HT.card2, minHeight: 48 },
+  rowTitle: { fontSize: 13, fontWeight: "700", color: HT.text },
+  rowMeta: { fontSize: 11, color: HT.muted, marginTop: 1 },
   more: { alignSelf: "center", paddingVertical: 8, paddingHorizontal: 12, minHeight: 40, justifyContent: "center" },
   moreTxt: { color: PURPLE, fontWeight: "800", fontSize: 13 },
 });

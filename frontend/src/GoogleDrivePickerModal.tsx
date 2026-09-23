@@ -13,6 +13,7 @@ import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 type DriveFile = {
   id: string;
   name: string;
@@ -30,7 +31,7 @@ function mimeIcon(mime?: string): { name: any; color: string } {
   if (m.includes("document") || m.includes("word")) return { name: "document-text", color: "#2563EB" };
   if (m.startsWith("image/")) return { name: "image", color: "#7C3AED" };
   if (m === "application/vnd.google-apps.folder") return { name: "folder", color: "#F59E0B" };
-  return { name: "document-outline", color: "#94A3B8" };
+  return { name: "document-outline", color: HT.muted };
 }
 
 export function GoogleDrivePickerModal({
@@ -153,7 +154,7 @@ export function GoogleDrivePickerModal({
                 <Text style={styles.sub}>Fonte file cloud per Axon</Text>
               )}
             </View>
-            <Pressable onPress={onClose} hitSlop={10}><Ionicons name="close" size={22} color={theme.color.onSurface} /></Pressable>
+            <Pressable onPress={onClose} hitSlop={10}><Ionicons name="close" size={22} color={HT.text} /></Pressable>
           </View>
 
           {!status.configured ? (
@@ -163,7 +164,7 @@ export function GoogleDrivePickerModal({
             </View>
           ) : !status.connected ? (
             <View style={styles.empty}>
-              <Ionicons name="link-outline" size={30} color={theme.color.muted} />
+              <Ionicons name="link-outline" size={30} color={HT.muted} />
               <Text style={styles.emptyTxt}>Google Drive non collegato. Vai in Impostazioni → Google Drive per collegarlo.</Text>
             </View>
           ) : (
@@ -181,7 +182,7 @@ export function GoogleDrivePickerModal({
                   </Pressable>
                   {folderPath.map((f, i) => (
                     <React.Fragment key={f.id}>
-                      <Ionicons name="chevron-forward" size={12} color={theme.color.muted} />
+                      <Ionicons name="chevron-forward" size={12} color={HT.muted} />
                       <Pressable
                         onPress={() => {
                           setFolderPath(folderPath.slice(0, i + 1));
@@ -197,19 +198,19 @@ export function GoogleDrivePickerModal({
                 </View>
               )}
               <View style={styles.searchBox}>
-                <Ionicons name="search" size={16} color="#94A3B8" />
+                <Ionicons name="search" size={16} color={HT.muted} />
                 <TextInput
                   value={q}
                   onChangeText={setQ}
                   onSubmitEditing={() => setSearchTick((t) => t + 1)}
                   placeholder="Cerca nei file autorizzati…"
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={HT.muted}
                   style={styles.searchInput}
                   autoCapitalize="none"
                 />
                 {q ? (
                   <Pressable onPress={() => { setQ(""); setSearchTick((t) => t + 1); }} hitSlop={6}>
-                    <Ionicons name="close-circle" size={16} color="#94A3B8" />
+                    <Ionicons name="close-circle" size={16} color={HT.muted} />
                   </Pressable>
                 ) : null}
               </View>
@@ -220,7 +221,7 @@ export function GoogleDrivePickerModal({
                 // V50.i — Nessuna cartella Axon scelta: guida al picker
                 <View style={styles.empty}>
                   <Ionicons name="folder-open-outline" size={30} color="#F59E0B" />
-                  <Text style={[styles.emptyTxt, { fontWeight: "800", color: theme.color.onSurface }]}>
+                  <Text style={[styles.emptyTxt, { fontWeight: "800", color: HT.text }]}>
                     Nessuna cartella Axon scelta
                   </Text>
                   <Text style={styles.emptyTxt}>
@@ -242,7 +243,7 @@ export function GoogleDrivePickerModal({
                 </View>
               ) : files.length === 0 ? (
                 <View style={styles.empty}>
-                  <Ionicons name="cloud-outline" size={30} color={theme.color.muted} />
+                  <Ionicons name="cloud-outline" size={30} color={HT.muted} />
                   <Text style={styles.emptyTxt}>File non presente nella cartella.{"\n"}Aggiungilo alla cartella Axon oppure cambia cartella dalle Impostazioni → Google Drive.</Text>
                   <Pressable
                     onPress={() => {
@@ -281,7 +282,7 @@ export function GoogleDrivePickerModal({
                             {f.size ? ` · ${Math.round(Number(f.size) / 1024)} KB` : ""}
                           </Text>
                         </View>
-                        {isDownloading ? <ActivityIndicator color="#0F9D58" /> : <Ionicons name="download-outline" size={18} color={theme.color.brandPrimary} />}
+                        {isDownloading ? <ActivityIndicator color="#0F9D58" /> : <Ionicons name="download-outline" size={18} color={HT.brand} />}
                       </Pressable>
                     );
                   })}
@@ -297,28 +298,28 @@ export function GoogleDrivePickerModal({
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: "#FFF", borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 16, paddingBottom: 30, maxHeight: "80%" },
+  sheet: { backgroundColor: HT.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 16, paddingBottom: 30, maxHeight: "80%" },
   hdr: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 },
-  badge: { width: 32, height: 32, borderRadius: 10, backgroundColor: "#0F9D58", alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 17, fontWeight: "800", color: theme.color.onSurface },
-  sub: { fontSize: 11, color: theme.color.muted, fontWeight: "600" },
-  searchBox: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#F1F5F9", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 8 },
+  badge: { width: 32, height: 32, borderRadius: 10, backgroundColor: '#0F9D58', alignItems: "center", justifyContent: "center" },
+  title: { fontSize: 17, fontWeight: "800", color: HT.text },
+  sub: { fontSize: 11, color: HT.muted, fontWeight: "600" },
+  searchBox: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: HT.card2, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 8 },
   // V50.q — Breadcrumb per navigazione cartelle Drive
   breadcrumb: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 4, marginBottom: 6, paddingHorizontal: 4 },
-  crumbBtn: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#EEF2FF", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, maxWidth: 140 },
+  crumbBtn: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: HT.violetTint, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, maxWidth: 140 },
   crumbTxt: { fontSize: 12, fontWeight: "700", color: theme.color.primary },
-  searchInput: { flex: 1, fontSize: 14, color: theme.color.onSurface, padding: 0 },
+  searchInput: { flex: 1, fontSize: 14, color: HT.text, padding: 0 },
   empty: { alignItems: "center", padding: 30, gap: 8 },
-  emptyTxt: { color: theme.color.muted, textAlign: "center", fontSize: 13, fontWeight: "600" },
-  row: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
+  emptyTxt: { color: HT.muted, textAlign: "center", fontSize: 13, fontWeight: "600" },
+  row: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: HT.card2 },
   icon16: { width: 22, height: 22 },
-  rowName: { fontSize: 14, fontWeight: "700", color: theme.color.onSurface },
-  rowMeta: { fontSize: 11, color: theme.color.muted, fontWeight: "600" },
+  rowName: { fontSize: 14, fontWeight: "700", color: HT.text },
+  rowMeta: { fontSize: 11, color: HT.muted, fontWeight: "600" },
   // V50.i — CTA per aprire il Google Picker
   pickerCta: {
     marginTop: 10, flexDirection: "row", alignItems: "center", gap: 8,
     paddingHorizontal: 18, paddingVertical: 12, borderRadius: 999,
-    backgroundColor: "#0F9D58",
+    backgroundColor: '#0F9D58',
   },
   pickerCtaTxt: { color: "#FFF", fontWeight: "900", fontSize: 13 },
 });

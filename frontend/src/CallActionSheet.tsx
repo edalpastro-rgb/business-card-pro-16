@@ -5,10 +5,10 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 import { cancelByTag } from "@/src/notifs";
 
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 export type CallOutcome = {
   id: string;
   name: string;
@@ -159,7 +159,7 @@ export function CallActionSheet({ visible, target, onClose, onCompleted }: Props
               {!!target.phone && <Text style={styles.phone}>{target.phone}</Text>}
             </View>
             <Pressable onPress={onClose} hitSlop={8}>
-              <Ionicons name="close" size={22} color={theme.color.onSurface} />
+              <Ionicons name="close" size={22} color={HT.text} />
             </Pressable>
           </View>
 
@@ -189,7 +189,7 @@ export function CallActionSheet({ visible, target, onClose, onCompleted }: Props
                     <Ionicons name={o.icon as any} size={16} color="#FFF" />
                   </View>
                   <Text style={styles.outcomeTxt}>{o.name}</Text>
-                  <Ionicons name="chevron-forward" size={16} color={theme.color.muted} />
+                  <Ionicons name="chevron-forward" size={16} color={HT.muted} />
                 </Pressable>
               ))}
               <TextInput
@@ -197,7 +197,7 @@ export function CallActionSheet({ visible, target, onClose, onCompleted }: Props
                 value={note}
                 onChangeText={setNote}
                 placeholder="Nota (opzionale)"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={HT.muted}
                 multiline
                 style={styles.noteInput}
               />
@@ -249,7 +249,7 @@ export function CallActionSheet({ visible, target, onClose, onCompleted }: Props
               ) : (
                 <>
                   <Pressable onPress={() => setShowPicker("date")} style={styles.dateBtn}>
-                    <Ionicons name="calendar" size={16} color={theme.color.brandPrimary} />
+                    <Ionicons name="calendar" size={16} color={HT.brand} />
                     <Text style={styles.dateBtnTxt}>
                       {rescheduleAt
                         ? rescheduleAt.toLocaleString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
@@ -274,7 +274,7 @@ export function CallActionSheet({ visible, target, onClose, onCompleted }: Props
                 value={note}
                 onChangeText={setNote}
                 placeholder="Nota (opzionale)"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={HT.muted}
                 multiline
                 style={styles.noteInput}
               />
@@ -301,41 +301,41 @@ export function CallActionSheet({ visible, target, onClose, onCompleted }: Props
 
 const styles = StyleSheet.create({
   wrap: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
-  card: { backgroundColor: theme.color.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "88%" },
-  head: { flexDirection: "row", alignItems: "center", padding: 16, borderBottomWidth: 1, borderBottomColor: theme.color.border, gap: 8 },
-  title: { fontSize: 17, fontWeight: "800", color: theme.color.onSurface },
-  sub: { fontSize: 13, color: theme.color.muted, marginTop: 2 },
-  phone: { fontSize: 14, color: theme.color.brandPrimary, marginTop: 4, fontWeight: "600" },
-  callBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#16A34A", paddingVertical: 16, borderRadius: 14 },
+  card: { backgroundColor: HT.card2, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "88%" },
+  head: { flexDirection: "row", alignItems: "center", padding: 16, borderBottomWidth: 1, borderBottomColor: HT.border, gap: 8 },
+  title: { fontSize: 17, fontWeight: "800", color: HT.text },
+  sub: { fontSize: 13, color: HT.muted, marginTop: 2 },
+  phone: { fontSize: 14, color: HT.brand, marginTop: 4, fontWeight: "600" },
+  callBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: '#16A34A', paddingVertical: 16, borderRadius: 14 },
   callBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 17 },
-  hint: { fontSize: 13, color: theme.color.muted, fontWeight: "600" },
-  outcomeBtn: { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderRadius: 12, padding: 12, backgroundColor: "#FFF" },
+  hint: { fontSize: 13, color: HT.muted, fontWeight: "600" },
+  outcomeBtn: { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderRadius: 12, padding: 12, backgroundColor: HT.card },
   outcomeIcon: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  outcomeTxt: { flex: 1, color: theme.color.onSurface, fontWeight: "700", fontSize: 14 },
-  noteInput: { backgroundColor: "#FFF", borderRadius: 12, borderWidth: 1, borderColor: theme.color.border, padding: 12, minHeight: 60, textAlignVertical: "top", color: theme.color.onSurface },
+  outcomeTxt: { flex: 1, color: HT.text, fontWeight: "700", fontSize: 14 },
+  noteInput: { backgroundColor: HT.card, borderRadius: 12, borderWidth: 1, borderColor: HT.border, padding: 12, minHeight: 60, textAlignVertical: "top", color: HT.text },
   linkBtn: { alignItems: "center", paddingVertical: 8 },
-  linkBtnTxt: { color: theme.color.brandPrimary, fontWeight: "600", fontSize: 13 },
+  linkBtnTxt: { color: HT.brand, fontWeight: "600", fontSize: 13 },
   quickRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  quickBtn: { paddingHorizontal: 14, paddingVertical: 10, backgroundColor: theme.color.surfaceTertiary, borderRadius: 20 },
-  quickBtnOn: { backgroundColor: theme.color.brandPrimary },
-  quickTxt: { color: theme.color.onSurface, fontWeight: "700", fontSize: 13 },
-  label: { fontSize: 12, color: theme.color.onSurfaceTertiary, fontWeight: "700", marginBottom: 6 },
-  dateBtn: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: theme.color.surfaceTertiary, padding: 12, borderRadius: 12 },
-  dateBtnTxt: { color: theme.color.onSurface, fontWeight: "600" },
-  primaryBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: theme.color.brandPrimary, paddingVertical: 12, borderRadius: 12 },
+  quickBtn: { paddingHorizontal: 14, paddingVertical: 10, backgroundColor: HT.card2, borderRadius: 20 },
+  quickBtnOn: { backgroundColor: HT.brand },
+  quickTxt: { color: HT.text, fontWeight: "700", fontSize: 13 },
+  label: { fontSize: 12, color: HT.text2, fontWeight: "700", marginBottom: 6 },
+  dateBtn: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: HT.card2, padding: 12, borderRadius: 12 },
+  dateBtnTxt: { color: HT.text, fontWeight: "600" },
+  primaryBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: HT.brand, paddingVertical: 12, borderRadius: 12 },
   primaryBtnTxt: { color: "#FFF", fontWeight: "800" },
-  secondaryBtn: { alignItems: "center", justifyContent: "center", paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: theme.color.border, backgroundColor: "#FFF" },
-  secondaryBtnTxt: { color: theme.color.onSurface, fontWeight: "700" },
+  secondaryBtn: { alignItems: "center", justifyContent: "center", paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: HT.border, backgroundColor: HT.card },
+  secondaryBtnTxt: { color: HT.text, fontWeight: "700" },
 });
 
 const webInputStyle: any = {
   width: "100%",
-  backgroundColor: theme.color.surface,
-  border: `1px solid ${theme.color.border}`,
+  backgroundColor: HT.card2,
+  border: `1px solid ${HT.border}`,
   borderRadius: 12,
   padding: "12px 14px",
   fontSize: 15,
-  color: theme.color.onSurface,
+  color: HT.text,
   fontFamily: "inherit",
   outline: "none",
 };

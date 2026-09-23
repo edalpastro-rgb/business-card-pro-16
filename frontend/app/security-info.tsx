@@ -6,7 +6,7 @@ import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { theme } from "@/src/theme";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Item = { icon: keyof typeof Ionicons.glyphMap; title: string; body: string; iconColor: string };
 
@@ -33,7 +33,7 @@ export default function SecurityInfoPage() {
     <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.iconBtn} testID="sec-back">
-          <Ionicons name="chevron-back" size={24} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={24} color={HT.text} />
         </Pressable>
         <View style={styles.headerCenter}>
           <Ionicons name="shield-checkmark" size={20} color="#3B82F6" />
@@ -60,7 +60,7 @@ export default function SecurityInfoPage() {
         {USAGE_ITEMS.map((it, i) => <SecCard key={i} item={it} testID={`use-${i}`} />)}
 
         <View style={styles.footNote}>
-          <Ionicons name="information-circle" size={18} color={theme.color.muted} />
+          <Ionicons name="information-circle" size={18} color={HT.muted} />
           <Text style={styles.footNoteTxt}>
             Hai dubbi o vuoi segnalare qualcosa? Contattaci dal bottone Assistenza sempre disponibile nel menu principale.
           </Text>
@@ -96,16 +96,16 @@ function SecCard({ item, testID }: { item: Item; testID?: string }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.color.surface },
+  container: { flex: 1, backgroundColor: HT.card2 },
   header: {
     flexDirection: "row", alignItems: "center",
     paddingHorizontal: 12, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: theme.color.divider,
-    backgroundColor: theme.color.surfaceSecondary,
+    borderBottomWidth: 1, borderBottomColor: HT.border,
+    backgroundColor: HT.card2,
   },
   iconBtn: { padding: 8, width: 40 },
   headerCenter: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
-  title: { fontSize: 17, fontWeight: "800", color: theme.color.onSurface },
+  title: { fontSize: 17, fontWeight: "800", color: HT.text },
   hero: {
     alignItems: "center", padding: 20, borderRadius: 16,
     backgroundColor: "#3B82F615", borderWidth: 1, borderColor: "#3B82F633",
@@ -116,16 +116,16 @@ const styles = StyleSheet.create({
     backgroundColor: "#3B82F625", alignItems: "center", justifyContent: "center",
     marginBottom: 12,
   },
-  heroTitle: { fontSize: 20, fontWeight: "900", color: theme.color.onSurface, textAlign: "center", lineHeight: 26 },
-  heroSub: { fontSize: 13, color: theme.color.muted, textAlign: "center", marginTop: 8, lineHeight: 19 },
+  heroTitle: { fontSize: 20, fontWeight: "900", color: HT.text, textAlign: "center", lineHeight: 26 },
+  heroSub: { fontSize: 13, color: HT.muted, textAlign: "center", marginTop: 8, lineHeight: 19 },
   sectionHead: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6, marginBottom: 10 },
   sectionHeadIcon: { width: 30, height: 30, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  sectionHeadTxt: { fontSize: 15, fontWeight: "800", color: theme.color.onSurface, flex: 1 },
+  sectionHeadTxt: { fontSize: 15, fontWeight: "800", color: HT.text, flex: 1 },
   card: {
     flexDirection: "row", gap: 12,
     padding: 14, borderRadius: 12,
-    backgroundColor: theme.color.surfaceSecondary,
-    borderWidth: 1, borderColor: theme.color.divider,
+    backgroundColor: HT.card2,
+    borderWidth: 1, borderColor: HT.border,
     marginBottom: 8,
   },
   cardIcon: {
@@ -133,12 +133,12 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
     borderWidth: 1,
   },
-  cardTitle: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface, marginBottom: 4 },
-  cardBody: { fontSize: 12, color: theme.color.muted, lineHeight: 17 },
+  cardTitle: { fontSize: 14, fontWeight: "800", color: HT.text, marginBottom: 4 },
+  cardBody: { fontSize: 12, color: HT.muted, lineHeight: 17 },
   footNote: {
     marginTop: 20, padding: 12, borderRadius: 10,
-    backgroundColor: theme.color.surfaceTertiary,
+    backgroundColor: HT.card2,
     flexDirection: "row", gap: 8, alignItems: "flex-start",
   },
-  footNoteTxt: { flex: 1, fontSize: 12, color: theme.color.muted, lineHeight: 17 },
+  footNoteTxt: { flex: 1, fontSize: 12, color: HT.muted, lineHeight: 17 },
 });

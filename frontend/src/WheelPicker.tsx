@@ -11,8 +11,8 @@ import {
   NativeScrollEvent,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { theme } from "@/src/theme";
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 export type WheelItem<T = any> = { value: T; label: string };
 
@@ -91,7 +91,7 @@ export function Wheel<T = any>({ items, value, onChange, testID }: WheelProps<T>
               <Text
                 style={[
                   styles.itemTxt,
-                  dist === 0 && { color: theme.color.brandPrimary, fontWeight: "700" },
+                  dist === 0 && { color: HT.brand, fontWeight: "700" },
                 ]}
                 numberOfLines={1}
               >
@@ -139,7 +139,7 @@ export function WheelPickerModal<T = any>({
           <View style={styles.head}>
             <Text style={styles.title}>{title}</Text>
             <Pressable onPress={onClose} hitSlop={8}>
-              <Ionicons name="close" size={22} color={theme.color.muted} />
+              <Ionicons name="close" size={22} color={HT.muted} />
             </Pressable>
           </View>
 
@@ -147,7 +147,7 @@ export function WheelPickerModal<T = any>({
 
           <View style={[styles.footer, { paddingBottom: bottomPad }]}>
             <Pressable onPress={onClose} style={[styles.btn, styles.btnGhost]}>
-              <Text style={[styles.btnTxt, { color: theme.color.muted }]}>Annulla</Text>
+              <Text style={[styles.btnTxt, { color: HT.muted }]}>Annulla</Text>
             </Pressable>
             <Pressable
               onPress={() => { onConfirm(tempValue); onClose(); }}
@@ -177,7 +177,7 @@ const styles = StyleSheet.create({
     height: ITEM_HEIGHT,
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: theme.color.border,
+    borderColor: HT.border,
     backgroundColor: "rgba(37, 99, 235, 0.06)",
     borderRadius: 8,
     zIndex: 1,
@@ -189,20 +189,20 @@ const styles = StyleSheet.create({
   },
   itemTxt: {
     fontSize: 17,
-    color: theme.color.onSurface,
+    color: HT.text,
   },
 
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center", padding: 16 },
   sheet: {
     width: "100%",
     maxWidth: 360,
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderRadius: 16,
     paddingVertical: 12,
     overflow: "hidden",
   },
   head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 6 },
-  title: { fontSize: 16, fontWeight: "700", color: theme.color.onSurface },
+  title: { fontSize: 16, fontWeight: "700", color: HT.text },
   footer: { flexDirection: "row", gap: 8, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 4 },
   btn: {
     flex: 1,
@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  btnGhost: { backgroundColor: "#F1F5F9" },
-  btnPrimary: { backgroundColor: theme.color.brandPrimary },
+  btnGhost: { backgroundColor: HT.card2 },
+  btnPrimary: { backgroundColor: HT.brand },
   btnTxt: { fontSize: 15, fontWeight: "700" },
 });

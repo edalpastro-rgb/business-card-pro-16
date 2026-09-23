@@ -18,6 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import { api } from "@/src/api";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type HAConfig = {
   connected: boolean;
@@ -181,11 +182,11 @@ export default function HomeAssistantScreen() {
             <StepLine n={5} text="Torna qui, premi 'Connetti' e incolla token + URL." />
           </View>
           <Pressable onPress={() => setShowEditor(true)} style={styles.connectBtn} testID="ha-connect">
-            <Ionicons name="link" size={18} color="#0F172A" />
+            <Ionicons name="link" size={18} color={HT.text} />
             <Text style={styles.connectTxt}>Connetti Home Assistant</Text>
           </Pressable>
           <View style={styles.oshint}>
-            <Ionicons name="information-circle-outline" size={16} color="#94A3B8" />
+            <Ionicons name="information-circle-outline" size={16} color={HT.muted} />
             <Text style={styles.oshintTxt}>
               Non hai ancora HA? Puoi installarlo su un Raspberry Pi, NAS Synology, mini PC
               o VM. Guida: home-assistant.io/installation
@@ -278,7 +279,7 @@ function EntityRow({ e, onToggle }: { e: HAEntity; onToggle: () => void }) {
       <Ionicons
         name={DOMAIN_ICONS[e.domain] || "cube-outline"}
         size={22}
-        color={on ? "#FBBF24" : "#94A3B8"}
+        color={on ? "#FBBF24" : HT.muted}
       />
       <View style={{ flex: 1 }}>
         <Text style={styles.entName} numberOfLines={1}>{e.friendly_name}</Text>
@@ -366,7 +367,7 @@ function HAEditor({ initial, onClose, onSaved }: {
               autoCorrect={false}
               keyboardType={Platform.OS === "ios" ? "url" : "default"}
               placeholder="http://192.168.1.100:8123"
-              placeholderTextColor="#64748B"
+              placeholderTextColor={HT.muted}
             />
             <Text style={styles.hint}>
               L&apos;IP + porta della tua istanza (locale o remota). Es. http://homeassistant.local:8123 oppure https://xxx.duckdns.org
@@ -384,7 +385,7 @@ function HAEditor({ initial, onClose, onSaved }: {
                 autoCorrect={false}
                 secureTextEntry={!showToken}
                 placeholder="Incolla qui il token…"
-                placeholderTextColor="#64748B"
+                placeholderTextColor={HT.muted}
                 multiline={showToken}
               />
               <Pressable
@@ -392,7 +393,7 @@ function HAEditor({ initial, onClose, onSaved }: {
                 style={styles.eyeBtn}
                 hitSlop={6}
               >
-                <Ionicons name={showToken ? "eye-off-outline" : "eye-outline"} size={18} color="#94A3B8" />
+                <Ionicons name={showToken ? "eye-off-outline" : "eye-outline"} size={18} color={HT.muted} />
               </Pressable>
             </View>
             <Text style={styles.hint}>
@@ -407,7 +408,7 @@ function HAEditor({ initial, onClose, onSaved }: {
               onChangeText={setLabel}
               style={styles.input}
               placeholder="Casa, Ufficio…"
-              placeholderTextColor="#64748B"
+              placeholderTextColor={HT.muted}
               maxLength={60}
             />
           </View>
@@ -427,10 +428,10 @@ function HAEditor({ initial, onClose, onSaved }: {
             testID="ha-save"
           >
             {saving ? (
-              <ActivityIndicator color="#0F172A" size="small" />
+              <ActivityIndicator color={HT.text} size="small" />
             ) : (
               <>
-                <Ionicons name="save" size={18} color="#0F172A" />
+                <Ionicons name="save" size={18} color={HT.text} />
                 <Text style={styles.connectTxt}>Salva e verifica</Text>
               </>
             )}
@@ -443,11 +444,11 @@ function HAEditor({ initial, onClose, onSaved }: {
 
 // ─── Styles ──────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#0F2438" },
+  root: { flex: 1, backgroundColor: '#0F2438' },
   header: {
     height: 52, flexDirection: "row", alignItems: "center",
     justifyContent: "space-between", paddingHorizontal: 12,
-    backgroundColor: "#0F2438",
+    backgroundColor: '#0F2438',
     borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.08)",
   },
   hBtn: { width: 30, height: 30, alignItems: "center", justifyContent: "center" },
@@ -456,7 +457,7 @@ const styles = StyleSheet.create({
 
   emptyHero: { alignItems: "center", padding: 20, gap: 8 },
   emptyTitle: { color: "#FFF", fontSize: 18, fontWeight: "800", marginTop: 12, textAlign: "center" },
-  emptySub: { color: "#94A3B8", fontSize: 13, textAlign: "center", lineHeight: 20 },
+  emptySub: { color: HT.muted, fontSize: 13, textAlign: "center", lineHeight: 20 },
 
   stepBox: {
     backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 14,
@@ -470,12 +471,12 @@ const styles = StyleSheet.create({
 
   connectBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    backgroundColor: "#FBBF24", paddingVertical: 14, borderRadius: 999,
+    backgroundColor: '#FBBF24', paddingVertical: 14, borderRadius: 999,
     shadowColor: "#000", shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 4,
   },
-  connectTxt: { color: "#0F172A", fontSize: 15, fontWeight: "900" },
+  connectTxt: { color: HT.text, fontSize: 15, fontWeight: "900" },
   oshint: { flexDirection: "row", alignItems: "flex-start", gap: 8, padding: 10 },
-  oshintTxt: { flex: 1, color: "#94A3B8", fontSize: 12, lineHeight: 18 },
+  oshintTxt: { flex: 1, color: HT.muted, fontSize: 12, lineHeight: 18 },
 
   statusBox: {
     flexDirection: "row", alignItems: "center", gap: 12,
@@ -483,7 +484,7 @@ const styles = StyleSheet.create({
     padding: 14, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
   },
   statusTitle: { color: "#FFF", fontSize: 15, fontWeight: "800" },
-  statusSub: { color: "#94A3B8", fontSize: 12, marginTop: 2 },
+  statusSub: { color: HT.muted, fontSize: 12, marginTop: 2 },
   statusErr: { color: "#EF4444", fontSize: 11, marginTop: 4 },
   disconnectBtn: { padding: 6 },
 
@@ -493,7 +494,7 @@ const styles = StyleSheet.create({
   },
   groupHead: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
   groupTitle: { color: "#FBBF24", fontSize: 13, fontWeight: "800", flex: 1 },
-  groupCount: { color: "#64748B", fontSize: 12, fontWeight: "700" },
+  groupCount: { color: HT.muted, fontSize: 12, fontWeight: "700" },
 
   entRow: {
     flexDirection: "row", alignItems: "center", gap: 10,
@@ -502,23 +503,23 @@ const styles = StyleSheet.create({
   },
   entRowOn: { borderColor: "rgba(251,191,36,0.4)", backgroundColor: "rgba(251,191,36,0.08)" },
   entName: { color: "#FFF", fontSize: 14, fontWeight: "700" },
-  entState: { color: "#94A3B8", fontSize: 11, marginTop: 2 },
+  entState: { color: HT.muted, fontSize: 11, marginTop: 2 },
   stateBadge: {
     paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8,
     backgroundColor: "rgba(148,163,184,0.15)",
   },
   stateBadgeOn: { backgroundColor: "rgba(251,191,36,0.25)" },
-  stateBadgeTxt: { color: "#94A3B8", fontSize: 11, fontWeight: "900" },
+  stateBadgeTxt: { color: HT.muted, fontSize: 11, fontWeight: "900" },
   stateBadgeTxtOn: { color: "#FBBF24" },
 
   // Editor
   editorOverlay: {
     position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: "#0F2438",
+    backgroundColor: '#0F2438',
   },
-  editorSafe: { flex: 1, backgroundColor: "#0F2438" },
+  editorSafe: { flex: 1, backgroundColor: '#0F2438' },
   fieldLabel: {
-    color: "#94A3B8", fontSize: 12, fontWeight: "700", marginBottom: 6,
+    color: HT.muted, fontSize: 12, fontWeight: "700", marginBottom: 6,
     textTransform: "uppercase", letterSpacing: 0.5,
   },
   input: {
@@ -526,7 +527,7 @@ const styles = StyleSheet.create({
     borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, color: "#FFF", fontSize: 14,
   },
   eyeBtn: { position: "absolute", right: 10, top: 10, padding: 4 },
-  hint: { color: "#64748B", fontSize: 11, marginTop: 6, fontStyle: "italic" },
+  hint: { color: HT.muted, fontSize: 11, marginTop: 6, fontStyle: "italic" },
   securityBox: {
     flexDirection: "row", alignItems: "center", gap: 10,
     backgroundColor: "rgba(34,197,94,0.08)", borderRadius: 10,

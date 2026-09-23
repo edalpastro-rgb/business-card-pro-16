@@ -17,7 +17,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import Svg, { Rect, Line, Text as SvgText } from "react-native-svg";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type MonthlyPoint = { month: string; count: number; approved: number; avg: number };
 type TopClient = {
@@ -74,7 +74,7 @@ export default function ReviewsAnalyticsPage() {
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.centered}><ActivityIndicator size="large" color={theme.color.brandPrimary} /></View>
+        <View style={styles.centered}><ActivityIndicator size="large" color={HT.brand} /></View>
       </SafeAreaView>
     );
   }
@@ -83,7 +83,7 @@ export default function ReviewsAnalyticsPage() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centered}>
-          <Ionicons name="alert-circle" size={48} color={theme.color.error} />
+          <Ionicons name="alert-circle" size={48} color={HT.danger} />
           <Text style={styles.errTxt}>{error}</Text>
           <Pressable style={styles.btn} onPress={load}>
             <Text style={styles.btnTxt}>Riprova</Text>
@@ -109,46 +109,46 @@ export default function ReviewsAnalyticsPage() {
       {/* Header */}
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.backBtn} testID="analytics-back">
-          <Ionicons name="chevron-back" size={24} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={24} color={HT.text} />
         </Pressable>
         <Text style={styles.title}>Analytics Recensioni</Text>
         <Pressable onPress={load} style={styles.reloadBtn}>
-          <Ionicons name="refresh" size={20} color={theme.color.brandPrimary} />
+          <Ionicons name="refresh" size={20} color={HT.brand} />
         </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll}>
         {/* KPI Cards */}
         <View style={styles.kpiRow}>
-          <View style={[styles.kpiCard, { backgroundColor: "#F59E0B" + "15" }]}>
+          <View style={[styles.kpiCard, { backgroundColor: '#F59E0B' + "15" }]}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
               <Ionicons name="star" size={20} color="#F59E0B" />
               <Text style={[styles.kpiVal, { color: "#F59E0B" }]}>{avg ? avg.toFixed(2) : "—"}</Text>
             </View>
             <Text style={styles.kpiLbl}>Media stelle</Text>
           </View>
-          <View style={[styles.kpiCard, { backgroundColor: theme.color.success + "15" }]}>
-            <Text style={[styles.kpiVal, { color: theme.color.success }]}>{data.total_approved}</Text>
+          <View style={[styles.kpiCard, { backgroundColor: HT.success + "15" }]}>
+            <Text style={[styles.kpiVal, { color: HT.success }]}>{data.total_approved}</Text>
             <Text style={styles.kpiLbl}>Approvate</Text>
           </View>
-          <View style={[styles.kpiCard, { backgroundColor: "#EA580C" + "15" }]}>
+          <View style={[styles.kpiCard, { backgroundColor: '#EA580C' + "15" }]}>
             <Text style={[styles.kpiVal, { color: "#EA580C" }]}>{data.total_pending}</Text>
             <Text style={styles.kpiLbl}>Da approvare</Text>
           </View>
         </View>
         <View style={styles.kpiRow}>
-          <View style={[styles.kpiCard, { backgroundColor: theme.color.brandPrimary + "15" }]}>
-            <Text style={[styles.kpiVal, { color: theme.color.brandPrimary }]}>
+          <View style={[styles.kpiCard, { backgroundColor: HT.brand + "15" }]}>
+            <Text style={[styles.kpiVal, { color: HT.brand }]}>
               {data.response_rate_pct != null ? data.response_rate_pct + "%" : "—"}
             </Text>
             <Text style={styles.kpiLbl}>Tasso risposta</Text>
           </View>
-          <View style={[styles.kpiCard, { backgroundColor: theme.color.info + "15" }]}>
-            <Text style={[styles.kpiVal, { color: theme.color.info }]}>{data.total_requests}</Text>
+          <View style={[styles.kpiCard, { backgroundColor: HT.axon + "15" }]}>
+            <Text style={[styles.kpiVal, { color: HT.axon }]}>{data.total_requests}</Text>
             <Text style={styles.kpiLbl}>Richieste totali</Text>
           </View>
-          <View style={[styles.kpiCard, { backgroundColor: theme.color.error + "15" }]}>
-            <Text style={[styles.kpiVal, { color: theme.color.error }]}>{data.total_rejected}</Text>
+          <View style={[styles.kpiCard, { backgroundColor: HT.danger + "15" }]}>
+            <Text style={[styles.kpiVal, { color: HT.danger }]}>{data.total_rejected}</Text>
             <Text style={styles.kpiLbl}>Respinte</Text>
           </View>
         </View>
@@ -189,7 +189,7 @@ export default function ReviewsAnalyticsPage() {
                   y1={chartH - t * chartH + 10}
                   x2={chartW - 20}
                   y2={chartH - t * chartH + 10}
-                  stroke={theme.color.divider}
+                  stroke={HT.border}
                   strokeWidth={1}
                   strokeDasharray={i === 0 ? undefined : "3,3"}
                 />
@@ -206,14 +206,14 @@ export default function ReviewsAnalyticsPage() {
                       width={barW}
                       height={h}
                       rx={3}
-                      fill={p.count > 0 ? theme.color.brandPrimary : theme.color.divider}
+                      fill={p.count > 0 ? HT.brand : HT.border}
                     />
                     {p.count > 0 ? (
                       <SvgText
                         x={x + barW / 2}
                         y={y - 4}
                         fontSize="9"
-                        fill={theme.color.brandPrimary}
+                        fill={HT.brand}
                         fontWeight="700"
                         textAnchor="middle"
                       >
@@ -224,7 +224,7 @@ export default function ReviewsAnalyticsPage() {
                       x={x + barW / 2}
                       y={chartH + 25}
                       fontSize="10"
-                      fill={theme.color.muted}
+                      fill={HT.muted}
                       textAnchor="middle"
                     >
                       {monthLabel(p.month)}
@@ -277,8 +277,8 @@ export default function ReviewsAnalyticsPage() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Stato richieste</Text>
           <View style={styles.statusGrid}>
-            <View style={[styles.statusChip, { backgroundColor: theme.color.muted + "22" }]}>
-              <Text style={[styles.statusChipVal, { color: theme.color.muted }]}>
+            <View style={[styles.statusChip, { backgroundColor: HT.muted + "22" }]}>
+              <Text style={[styles.statusChipVal, { color: HT.muted }]}>
                 {data.requests_by_status?.pending || 0}
               </Text>
               <Text style={styles.statusChipLbl}>In attesa</Text>
@@ -289,14 +289,14 @@ export default function ReviewsAnalyticsPage() {
               </Text>
               <Text style={styles.statusChipLbl}>Da inviare</Text>
             </View>
-            <View style={[styles.statusChip, { backgroundColor: theme.color.info + "22" }]}>
-              <Text style={[styles.statusChipVal, { color: theme.color.info }]}>
+            <View style={[styles.statusChip, { backgroundColor: HT.axon + "22" }]}>
+              <Text style={[styles.statusChipVal, { color: HT.axon }]}>
                 {data.requests_by_status?.sent || 0}
               </Text>
               <Text style={styles.statusChipLbl}>Inviate</Text>
             </View>
-            <View style={[styles.statusChip, { backgroundColor: theme.color.success + "22" }]}>
-              <Text style={[styles.statusChipVal, { color: theme.color.success }]}>
+            <View style={[styles.statusChip, { backgroundColor: HT.success + "22" }]}>
+              <Text style={[styles.statusChipVal, { color: HT.success }]}>
                 {data.requests_by_status?.responded || 0}
               </Text>
               <Text style={styles.statusChipLbl}>Risposte</Text>
@@ -311,23 +311,23 @@ export default function ReviewsAnalyticsPage() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.color.surface },
+  container: { flex: 1, backgroundColor: HT.card2 },
   header: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: theme.color.divider,
-    backgroundColor: theme.color.surfaceSecondary,
+    borderBottomColor: HT.border,
+    backgroundColor: HT.card2,
   },
   backBtn: { padding: 8 },
   reloadBtn: { padding: 8 },
-  title: { flex: 1, fontSize: 17, fontWeight: "800", color: theme.color.onSurface, textAlign: "center" },
+  title: { flex: 1, fontSize: 17, fontWeight: "800", color: HT.text, textAlign: "center" },
   scroll: { padding: 16, paddingBottom: 140 },
   centered: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
-  errTxt: { color: theme.color.error, marginTop: 8, textAlign: "center" },
-  btn: { marginTop: 14, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: theme.color.brandPrimary },
+  errTxt: { color: HT.danger, marginTop: 8, textAlign: "center" },
+  btn: { marginTop: 14, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: HT.brand },
   btnTxt: { color: "#FFF", fontWeight: "700" },
   kpiRow: { flexDirection: "row", gap: 10, marginBottom: 10 },
   kpiCard: {
@@ -339,33 +339,33 @@ const styles = StyleSheet.create({
     minHeight: 76,
   },
   kpiVal: { fontSize: 22, fontWeight: "800" },
-  kpiLbl: { fontSize: 11, color: theme.color.muted, fontWeight: "600", marginTop: 2, textAlign: "center" },
+  kpiLbl: { fontSize: 11, color: HT.muted, fontWeight: "600", marginTop: 2, textAlign: "center" },
   section: {
     marginTop: 16,
     padding: 16,
     borderRadius: 14,
-    backgroundColor: theme.color.surfaceSecondary,
+    backgroundColor: HT.card2,
     borderWidth: 1,
-    borderColor: theme.color.divider,
+    borderColor: HT.border,
   },
-  sectionTitle: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface },
-  sectionSub: { fontSize: 11, color: theme.color.muted, marginTop: 2, marginBottom: 6 },
+  sectionTitle: { fontSize: 14, fontWeight: "800", color: HT.text },
+  sectionSub: { fontSize: 11, color: HT.muted, marginTop: 2, marginBottom: 6 },
   distRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10 },
-  distLbl: { fontSize: 12, fontWeight: "700", color: theme.color.onSurface },
-  distBarBg: { flex: 1, height: 10, backgroundColor: theme.color.surfaceTertiary, borderRadius: 5, overflow: "hidden" },
-  distBarFg: { height: "100%", backgroundColor: "#F59E0B", borderRadius: 5 },
-  distCount: { width: 30, textAlign: "right", fontSize: 12, color: theme.color.onSurface, fontWeight: "700" },
-  topRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.color.divider },
+  distLbl: { fontSize: 12, fontWeight: "700", color: HT.text },
+  distBarBg: { flex: 1, height: 10, backgroundColor: HT.card2, borderRadius: 5, overflow: "hidden" },
+  distBarFg: { height: "100%", backgroundColor: '#F59E0B', borderRadius: 5 },
+  distCount: { width: 30, textAlign: "right", fontSize: 12, color: HT.text, fontWeight: "700" },
+  topRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: HT.border },
   topRank: {
     width: 30, height: 30, borderRadius: 15,
-    backgroundColor: theme.color.brandPrimary + "20",
+    backgroundColor: HT.brand + "20",
     alignItems: "center", justifyContent: "center",
   },
-  topRankTxt: { fontSize: 11, fontWeight: "800", color: theme.color.brandPrimary },
-  topName: { fontSize: 13, fontWeight: "700", color: theme.color.onSurface },
-  topExcerpt: { fontSize: 11, color: theme.color.muted, fontStyle: "italic", marginTop: 2 },
+  topRankTxt: { fontSize: 11, fontWeight: "800", color: HT.brand },
+  topName: { fontSize: 13, fontWeight: "700", color: HT.text },
+  topExcerpt: { fontSize: 11, color: HT.muted, fontStyle: "italic", marginTop: 2 },
   statusGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },
   statusChip: { flex: 1, minWidth: 70, padding: 10, borderRadius: 10, alignItems: "center" },
   statusChipVal: { fontSize: 18, fontWeight: "800" },
-  statusChipLbl: { fontSize: 10, color: theme.color.muted, fontWeight: "600", marginTop: 2 },
+  statusChipLbl: { fontSize: 10, color: HT.muted, fontWeight: "600", marginTop: 2 },
 });

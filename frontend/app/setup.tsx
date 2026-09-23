@@ -17,6 +17,7 @@ import { Step3Aree } from "@/src/wizard/Step3Aree"; // V50.z214 — Blocco 3 · 
 import { Step4ParlaNeo } from "@/src/wizard/Step4ParlaNeo"; // V50.z215 — Blocco 4 · Step 4
 import { Confetti } from "@/src/wizard/Confetti"; // V50.z216 — Blocco 5 · schermata finale
 import { PrivacyNote } from "@/src/wizard/PrivacyNote"; // V50.z217 — riga privacy (popup WOW + Step 4)
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const PURPLE = "#7C3AED";
 type Mode = "setup" | "full";
@@ -40,7 +41,7 @@ function WelcomePopup({ onPick }: { onPick: (m: Mode | "later") => void }) {
   useEffect(() => { pulse.value = withRepeat(withSequence(withTiming(1.08, { duration: 900, easing: Easing.inOut(Easing.ease) }), withTiming(1, { duration: 900, easing: Easing.inOut(Easing.ease) })), -1, true); }, [pulse]);
   const pulseStyle = useAnimatedStyle(() => ({ transform: [{ scale: pulse.value }] }));
   return (
-    <LinearGradient colors={["#4C1D95", "#7C3AED", "#2563EB"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.welcome} testID="setup-welcome">
+    <LinearGradient colors={[HT.violet, "#7C3AED", "#2563EB"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.welcome} testID="setup-welcome">
       <Animated.View entering={ZoomIn.duration(700).springify()} style={[styles.orb, pulseStyle]}>
         <Ionicons name="rocket" size={54} color="#FFF" />
       </Animated.View>
@@ -125,7 +126,7 @@ function CompletionScreen({ state, onRedo }: { state: SetupState; onRedo: () => 
   }, [left, goHome]);
   const skippedN = Object.values(state.steps).filter((s) => s.skipped).length;
   return (
-    <LinearGradient colors={state.mode === "setup" ? ["#065F46", "#059669"] : ["#4C1D95", "#059669"]} style={styles.welcome} testID="setup-done">
+    <LinearGradient colors={state.mode === "setup" ? [HT.success, "#059669"] : [HT.violet, "#059669"]} style={styles.welcome} testID="setup-done">
       <Confetti />
       <Animated.View entering={ZoomIn.duration(600).springify()} style={styles.orb}><Ionicons name="checkmark-done" size={54} color="#FFF" /></Animated.View>
       <Animated.Text entering={FadeInUp.delay(250)} style={styles.welcomeTitle} testID="setup-done-title">{c?.first_name ? `Fatto, ${c.first_name}!` : "Fatto!"}</Animated.Text>
@@ -209,13 +210,13 @@ export default function SetupScreen() {
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <Pressable onPress={back} hitSlop={10} style={styles.headBtn} testID="setup-back"><Ionicons name="arrow-back" size={22} color="#1B2B4B" /></Pressable>
+        <Pressable onPress={back} hitSlop={10} style={styles.headBtn} testID="setup-back"><Ionicons name="arrow-back" size={22} color={HT.text} /></Pressable>
         <View style={{ flex: 1 }}>
           <Text style={styles.headTitle}>{state.mode === "setup" ? "Set Up and Go" : "Full and Go"}</Text>
           <Text style={styles.headSub}>{state.mode === "setup" ? "L'essenziale, in pochi minuti" : "Configurazione completa · ogni area è saltabile"}</Text>
         </View>
         <Pressable onPress={async () => { await save({ status: "deferred" }); router.replace("/" as any); }} hitSlop={10} style={styles.headBtn} testID="setup-defer">
-          <Ionicons name="close" size={22} color="#64748B" />
+          <Ionicons name="close" size={22} color={HT.muted} />
         </Pressable>
       </View>
       <ProgressBar steps={steps} current={current} state={state} />
@@ -239,15 +240,15 @@ export default function SetupScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#FAF5FF" },
+  root: { flex: 1, backgroundColor: '#FAF5FF' },
   welcome: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 14 },
   orb: { width: 120, height: 120, borderRadius: 60, backgroundColor: "rgba(255,255,255,0.18)", alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "rgba(255,255,255,0.35)" },
   welcomeTitle: { color: "#FFF", fontSize: 34, fontWeight: "900", textAlign: "center", lineHeight: 40, marginTop: 8 },
   welcomeSub: { color: "#E9D5FF", fontSize: 15, textAlign: "center", lineHeight: 22, paddingHorizontal: 8 },
   welcomeBtns: { width: "100%", gap: 10, marginTop: 16 },
-  btnPrimary: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#FFF", borderRadius: 18, paddingHorizontal: 18, minHeight: 60 },
+  btnPrimary: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: HT.card, borderRadius: 18, paddingHorizontal: 18, minHeight: 60 },
   btnPrimaryTxt: { color: PURPLE, fontWeight: "900", fontSize: 17 },
-  btnHint: { fontSize: 11.5, color: "#64748B", marginTop: 1 },
+  btnHint: { fontSize: 11.5, color: HT.muted, marginTop: 1 },
   btnSecondary: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "rgba(255,255,255,0.14)", borderWidth: 1.5, borderColor: "rgba(255,255,255,0.6)", borderRadius: 18, paddingHorizontal: 18, minHeight: 60 },
   btnSecondaryTxt: { color: "#FFF", fontWeight: "900", fontSize: 17 },
   btnLater: { alignItems: "center", justifyContent: "center", minHeight: 48 },
@@ -260,27 +261,27 @@ const styles = StyleSheet.create({
   readingRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 },
   header: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 10 },
   headBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
-  headTitle: { fontSize: 17, fontWeight: "900", color: "#1B2B4B" },
-  headSub: { fontSize: 12, color: "#64748B" },
-  progressWrap: { paddingHorizontal: 16, paddingBottom: 10, gap: 10, backgroundColor: "#FAF5FF" },
-  progressTrack: { height: 8, borderRadius: 4, backgroundColor: "#EDE9FE", overflow: "hidden" },
+  headTitle: { fontSize: 17, fontWeight: "900", color: HT.text },
+  headSub: { fontSize: 12, color: HT.muted },
+  progressWrap: { paddingHorizontal: 16, paddingBottom: 10, gap: 10, backgroundColor: '#FAF5FF' },
+  progressTrack: { height: 8, borderRadius: 4, backgroundColor: HT.violetTint, overflow: "hidden" },
   progressFill: { height: 8, backgroundColor: PURPLE, borderRadius: 4 },
   progressDots: { flexDirection: "row", justifyContent: "space-between" },
   dotCol: { flex: 1, alignItems: "center", gap: 4 },
-  dot: { width: 26, height: 26, borderRadius: 13, backgroundColor: "#EDE9FE", alignItems: "center", justifyContent: "center" },
+  dot: { width: 26, height: 26, borderRadius: 13, backgroundColor: HT.violetTint, alignItems: "center", justifyContent: "center" },
   dotActive: { backgroundColor: PURPLE },
-  dotDone: { backgroundColor: "#059669" },
-  dotSkipped: { backgroundColor: "#94A3B8" },
+  dotDone: { backgroundColor: '#059669' },
+  dotSkipped: { backgroundColor: '#94A3B8' },
   dotTxt: { fontSize: 12, fontWeight: "800", color: PURPLE },
-  dotLabel: { fontSize: 10, color: "#64748B" },
-  progressTxt: { fontSize: 11.5, color: "#64748B", textAlign: "center", fontWeight: "700" },
-  stepBody: { backgroundColor: "#FFF", borderRadius: 18, padding: 18, gap: 8, borderWidth: 1, borderColor: "#EDE9FE" },
-  stepIcon: { width: 52, height: 52, borderRadius: 18, backgroundColor: "#F5F3FF", alignItems: "center", justifyContent: "center" },
-  stepTitle: { fontSize: 22, fontWeight: "900", color: "#1B2B4B" },
-  stepSub: { fontSize: 13.5, color: "#64748B", lineHeight: 19 },
-  footer: { position: "absolute", left: 0, right: 0, bottom: 0, padding: 16, gap: 6, backgroundColor: "#FAF5FF" },
+  dotLabel: { fontSize: 10, color: HT.muted },
+  progressTxt: { fontSize: 11.5, color: HT.muted, textAlign: "center", fontWeight: "700" },
+  stepBody: { backgroundColor: HT.card, borderRadius: 18, padding: 18, gap: 8, borderWidth: 1, borderColor: HT.violetTint },
+  stepIcon: { width: 52, height: 52, borderRadius: 18, backgroundColor: HT.violetTint, alignItems: "center", justifyContent: "center" },
+  stepTitle: { fontSize: 22, fontWeight: "900", color: HT.text },
+  stepSub: { fontSize: 13.5, color: HT.muted, lineHeight: 19 },
+  footer: { position: "absolute", left: 0, right: 0, bottom: 0, padding: 16, gap: 6, backgroundColor: '#FAF5FF' },
   primary: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: PURPLE, borderRadius: 16, minHeight: 52 },
   primaryTxt: { color: "#FFF", fontWeight: "900", fontSize: 16 },
   skip: { alignItems: "center", justifyContent: "center", minHeight: 44 },
-  skipTxt: { color: "#64748B", fontWeight: "700", fontSize: 14 },
+  skipTxt: { color: HT.muted, fontWeight: "700", fontSize: 14 },
 });

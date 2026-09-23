@@ -18,6 +18,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 // V50.z187 — bottoni organizzati per area/colore come nel menu Master (modulo isolato)
 import { edgeColor, groupEdgeActions, EdgeCategoryHeader } from "@/src/edgePanelCategories";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 // ── Elenco azioni disponibili ──────────────────────────────────────
 export type EdgeAction = {
@@ -56,7 +57,7 @@ export const EDGE_ACTIONS: EdgeAction[] = [
   { id: "banners", label: "Banner Evento", icon: "megaphone", color: "#F59E0B", href: "/event-banners" },
   { id: "ha", label: "Home Assistant", icon: "home-outline", color: "#3B82F6", href: "/axon-homeassistant" },
   { id: "meteo", label: "Meteo", icon: "partly-sunny", color: "#0EA5E9", href: "/meteo" }, // V50.z162
-  { id: "scanner", label: "Scanner", icon: "scan", color: "#475569", href: "/scanner" }, // V50.z287 — mancava tra le utility
+  { id: "scanner", label: "Scanner", icon: "scan", color: HT.text2, href: "/scanner" }, // V50.z287 — mancava tra le utility
 ];
 
 const KEY_IDS = "edge_panel_ids_v1";
@@ -254,7 +255,7 @@ export function EdgePanel() {
               style={[
                 styles.tabBar,
                 !discovered && { transform: [{ scaleX: scaleAnim }] },
-                !discovered && { backgroundColor: "#FBBF24", width: TAB_WIDTH + 2 },
+                !discovered && { backgroundColor: '#FBBF24', width: TAB_WIDTH + 2 },
               ]}
             />
           </Pressable>
@@ -286,13 +287,13 @@ export function EdgePanel() {
           <Ionicons name="apps" size={18} color="#FBBF24" />
           <Text style={styles.panelTitle}>Azioni rapide</Text>
           <Pressable onPress={() => setOpen(false)} hitSlop={10}>
-            <Ionicons name="close" size={22} color="#94A3B8" />
+            <Ionicons name="close" size={22} color={HT.muted} />
           </Pressable>
         </View>
         <ScrollView contentContainerStyle={styles.grid} showsVerticalScrollIndicator={false}>
           {actionsSelected.length === 0 ? (
             <View style={styles.empty}>
-              <Ionicons name="hand-left" size={30} color="#64748B" />
+              <Ionicons name="hand-left" size={30} color={HT.muted} />
               <Text style={styles.emptyTxt}>Nessuna azione ancora. Tocca &quot;Modifica&quot;.</Text>
             </View>
           ) : (
@@ -327,7 +328,7 @@ export function EdgePanel() {
             <View style={styles.editHead}>
               <Text style={styles.editTitle}>Scegli le scorciatoie</Text>
               <Pressable onPress={() => setEditOpen(false)} hitSlop={10}>
-                <Ionicons name="close" size={22} color="#94A3B8" />
+                <Ionicons name="close" size={22} color={HT.muted} />
               </Pressable>
             </View>
             <Text style={styles.editSub}>Tocca per aggiungere/rimuovere. Puoi averne quante vuoi.</Text>
@@ -345,7 +346,7 @@ export function EdgePanel() {
                     <Ionicons
                       name={on ? "checkmark-circle" : "add-circle-outline"}
                       size={22}
-                      color={on ? "#22C55E" : "#64748B"}
+                      color={on ? "#22C55E" : HT.muted}
                     />
                   </Pressable>
                   </React.Fragment>
@@ -404,7 +405,7 @@ const styles = StyleSheet.create({
     width: TAB_WIDTH,
     height: TAB_HEIGHT,
     borderRadius: 6,
-    backgroundColor: "#FBBF24",
+    backgroundColor: '#FBBF24',
     shadowColor: "#FBBF24",
     shadowOpacity: 0.9,
     shadowRadius: 12,
@@ -416,7 +417,7 @@ const styles = StyleSheet.create({
   },
   panel: {
     position: "absolute", top: 0, right: 0,
-    backgroundColor: "#0F2438",
+    backgroundColor: '#0F2438',
     zIndex: 260,
     borderTopLeftRadius: 20, borderBottomLeftRadius: 20,
     paddingTop: Platform.OS === "ios" ? 54 : 24,
@@ -449,7 +450,7 @@ const styles = StyleSheet.create({
     textAlign: "center", paddingHorizontal: 4,
   },
   empty: { padding: 20, alignItems: "center", gap: 8, width: "100%" },
-  emptyTxt: { color: "#64748B", fontSize: 12, textAlign: "center" },
+  emptyTxt: { color: HT.muted, fontSize: 12, textAlign: "center" },
   panelFoot: {
     padding: 12, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.06)",
   },
@@ -463,13 +464,13 @@ const styles = StyleSheet.create({
   // Edit modal
   editBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
   editSheet: {
-    backgroundColor: "#0F2438",
+    backgroundColor: '#0F2438',
     borderTopLeftRadius: 20, borderTopRightRadius: 20,
     padding: 14, paddingBottom: 24,
   },
   editHead: { flexDirection: "row", alignItems: "center", marginBottom: 4 },
   editTitle: { flex: 1, color: "#FFF", fontSize: 16, fontWeight: "800" },
-  editSub: { color: "#94A3B8", fontSize: 12, marginBottom: 12 },
+  editSub: { color: HT.muted, fontSize: 12, marginBottom: 12 },
   editRow: {
     flexDirection: "row", alignItems: "center", gap: 10,
     paddingVertical: 10, paddingHorizontal: 8,
@@ -489,7 +490,7 @@ const styles = StyleSheet.create({
   disableTxt: { color: "#EF4444", fontWeight: "700", fontSize: 13 },
   doneBtn: {
     flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: "center",
-    backgroundColor: "#FBBF24",
+    backgroundColor: '#FBBF24',
   },
-  doneTxt: { color: "#0F172A", fontWeight: "900", fontSize: 14 },
+  doneTxt: { color: HT.text, fontWeight: "900", fontSize: 14 },
 });

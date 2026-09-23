@@ -7,7 +7,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 import { useAuth } from "@/src/auth";
 import { notify } from "@/src/utils/notify";
 import { usePageBottomPadding, useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
@@ -15,6 +14,7 @@ import { CgymHeaderBanner } from "@/src/corporate-gym/CgymHeaderBanner";
 import { CgymTileIcon } from "@/src/corporate-gym/CgymTileIcon";
 import { CgymMyFeedbackCard } from "@/src/corporate-gym/CgymMyFeedbackCard";
 import { cgymApi, CgymSession, CgymType, CgymTeamRow, CGYM_TYPE_META, CGYM_ORANGE, fmtCgymDate, isPast } from "@/src/corporate-gym/api";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Member = { user_id: string; name?: string; email?: string; role?: string };
 
@@ -137,7 +137,7 @@ export default function CorporateGymHome() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable testID="cgym-back" onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/home" as any))} hitSlop={10}>
-          <Ionicons name="chevron-back" size={26} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={26} color={HT.text} />
         </Pressable>
         <Text style={styles.title}>Corporate Gym</Text>
         <Pressable testID="cgym-new" onPress={() => openNew()} hitSlop={10} style={styles.headBtn}>
@@ -182,7 +182,7 @@ export default function CorporateGymHome() {
           <ActivityIndicator color={CGYM_ORANGE} style={{ marginVertical: 20 }} />
         ) : visible.length === 0 ? (
           <View style={styles.empty} testID="cgym-empty">
-            <Ionicons name="barbell-outline" size={28} color={theme.color.muted} />
+            <Ionicons name="barbell-outline" size={28} color={HT.muted} />
             <Text style={styles.emptyTxt}>{filter === "todo" ? "Nessuna sessione da fare" : "Nessuna sessione completata"}</Text>
             {filter === "todo" && (
               <Pressable onPress={() => openNew()} style={styles.emptyBtn} testID="cgym-empty-new">
@@ -201,7 +201,7 @@ export default function CorporateGymHome() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.rowTitle} numberOfLines={1}>{s.title || m.label}</Text>
-                  <Text style={[styles.rowSub, late && { color: theme.color.error }]}>
+                  <Text style={[styles.rowSub, late && { color: HT.danger }]}>
                     {late ? "In ritardo · " : ""}{fmtCgymDate(s.scheduled_at)}
                     {s.mandatory ? " · Obbligatoria" : ""}
                     {s.assigned_by && s.assigned_by !== s.user_id ? " · dal Master" : ""}
@@ -220,18 +220,18 @@ export default function CorporateGymHome() {
                     >
                       <Ionicons name="mic" size={16} color="#FFF" />
                     </Pressable>
-                    <Pressable onPress={() => setStatus(s, "completata")} hitSlop={6} style={[styles.rowBtn, { backgroundColor: theme.color.success + "22" }]} testID={`cgym-done-${s.session_id}`} accessibilityLabel="Completa">
-                      <Ionicons name="checkmark" size={18} color={theme.color.success} />
+                    <Pressable onPress={() => setStatus(s, "completata")} hitSlop={6} style={[styles.rowBtn, { backgroundColor: HT.success + "22" }]} testID={`cgym-done-${s.session_id}`} accessibilityLabel="Completa">
+                      <Ionicons name="checkmark" size={18} color={HT.success} />
                     </Pressable>
                   </>
                 ) : (
                   <Pressable onPress={() => setStatus(s, "assegnata")} hitSlop={6} style={styles.rowBtn} testID={`cgym-reopen-${s.session_id}`} accessibilityLabel="Riapri">
-                    <Ionicons name="refresh" size={16} color={theme.color.muted} />
+                    <Ionicons name="refresh" size={16} color={HT.muted} />
                   </Pressable>
                 )}
                 {(isAdmin || s.assigned_by === s.user_id) && (
                   <Pressable onPress={() => remove(s)} hitSlop={6} style={styles.rowBtn} testID={`cgym-del-${s.session_id}`} accessibilityLabel="Elimina">
-                    <Ionicons name="trash-outline" size={16} color={theme.color.error} />
+                    <Ionicons name="trash-outline" size={16} color={HT.danger} />
                   </Pressable>
                 )}
               </View>
@@ -248,7 +248,7 @@ export default function CorporateGymHome() {
             <Pressable style={styles.cardHead} onPress={() => setTeamOpen((v) => !v)} testID="cgym-team-toggle">
               <Ionicons name="people" size={18} color="#EAB308" />
               <Text style={styles.cardTitle}>Quadro team</Text>
-              <Ionicons name={teamOpen ? "chevron-up" : "chevron-down"} size={18} color={theme.color.muted} />
+              <Ionicons name={teamOpen ? "chevron-up" : "chevron-down"} size={18} color={HT.muted} />
             </Pressable>
             {/* Blocco 3 — Assegnazioni Master · Blocco 4 — Statistiche */}
             <View style={{ flexDirection: "row", gap: 8 }}>
@@ -256,14 +256,14 @@ export default function CorporateGymHome() {
                 <Ionicons name="send" size={16} color="#FFF" />
                 <Text style={styles.assignTxt}>Assegna sessioni</Text>
               </Pressable>
-              <Pressable onPress={() => router.push("/corporate-gym/stats" as any)} style={[styles.assignBtn, { flex: 1, backgroundColor: theme.color.brandPrimary }]} testID="cgym-stats-open">
+              <Pressable onPress={() => router.push("/corporate-gym/stats" as any)} style={[styles.assignBtn, { flex: 1, backgroundColor: HT.brand }]} testID="cgym-stats-open">
                 <Ionicons name="stats-chart" size={16} color="#FFF" />
                 <Text style={styles.assignTxt}>Statistiche</Text>
               </Pressable>
             </View>
             {/* Manuali Google Drive (solo Master modifica la cartella) */}
             {user?.role === "owner" && !user.parent_user_id && (
-              <Pressable onPress={() => router.push("/corporate-gym/manuals-config" as any)} style={[styles.assignBtn, { backgroundColor: "#6D28D9" }]} testID="cgym-manuals-config-open">
+              <Pressable onPress={() => router.push("/corporate-gym/manuals-config" as any)} style={[styles.assignBtn, { backgroundColor: '#6D28D9' }]} testID="cgym-manuals-config-open">
                 <Ionicons name="book" size={16} color="#FFF" />
                 <Text style={styles.assignTxt}>Manuali · cartella Google Drive</Text>
                 <Ionicons name="chevron-forward" size={16} color="#FFF" />
@@ -302,7 +302,7 @@ export default function CorporateGymHome() {
           <View style={[styles.sheet, { paddingBottom: sheetPad }]} testID="cgym-new-sheet">
             <View style={styles.sheetHead}>
               <Text style={styles.sheetTitle}>Nuova sessione</Text>
-              <Pressable onPress={() => setNewOpen(false)} hitSlop={10} testID="cgym-new-close"><Ionicons name="close" size={22} color={theme.color.onSurface} /></Pressable>
+              <Pressable onPress={() => setNewOpen(false)} hitSlop={10} testID="cgym-new-close"><Ionicons name="close" size={22} color={HT.text} /></Pressable>
             </View>
             <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 460 }}>
               <Text style={styles.lbl}>Tipo</Text>
@@ -330,9 +330,9 @@ export default function CorporateGymHome() {
                 ))}
               </View>
               <Text style={styles.lbl}>Titolo (opzionale)</Text>
-              <TextInput value={nTitle} onChangeText={setNTitle} placeholder={CGYM_TYPE_META[nType].label} placeholderTextColor={theme.color.muted} style={styles.input} testID="cgym-new-title" />
+              <TextInput value={nTitle} onChangeText={setNTitle} placeholder={CGYM_TYPE_META[nType].label} placeholderTextColor={HT.muted} style={styles.input} testID="cgym-new-title" />
               <Pressable onPress={() => setNMandatory((v) => !v)} style={styles.toggleRow} testID="cgym-new-mandatory">
-                <Ionicons name={nMandatory ? "checkbox" : "square-outline"} size={22} color={nMandatory ? CGYM_ORANGE : theme.color.muted} />
+                <Ionicons name={nMandatory ? "checkbox" : "square-outline"} size={22} color={nMandatory ? CGYM_ORANGE : HT.muted} />
                 <Text style={styles.toggleTxt}>Obbligatoria (avviso in Home fino al completamento)</Text>
               </Pressable>
               {isAdmin && (
@@ -362,50 +362,50 @@ export default function CorporateGymHome() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.color.border, backgroundColor: theme.color.surfaceSecondary },
-  title: { fontSize: 18, fontWeight: "800", color: theme.color.onSurface },
+  root: { flex: 1, backgroundColor: HT.card2 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: HT.border, backgroundColor: HT.card2 },
+  title: { fontSize: 18, fontWeight: "800", color: HT.text },
   headBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: CGYM_ORANGE, alignItems: "center", justifyContent: "center" },
   grid: { flexDirection: "row", gap: 10, marginBottom: 16 },
-  tile: { flex: 1, backgroundColor: theme.color.surfaceSecondary, borderRadius: 14, borderWidth: 1, borderColor: theme.color.border, padding: 12, gap: 6, alignItems: "center" },
-  tileTitle: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface, textAlign: "center" },
-  tileSub: { fontSize: 12, color: theme.color.muted, textAlign: "center" },
+  tile: { flex: 1, backgroundColor: HT.card2, borderRadius: 14, borderWidth: 1, borderColor: HT.border, padding: 12, gap: 6, alignItems: "center" },
+  tileTitle: { fontSize: 14, fontWeight: "800", color: HT.text, textAlign: "center" },
+  tileSub: { fontSize: 12, color: HT.muted, textAlign: "center" },
   sectionHead: { gap: 8, marginBottom: 10 },
-  sectionTitle: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface },
-  segment: { flexDirection: "row", backgroundColor: theme.color.surfaceTertiary, borderRadius: 999, padding: 3 },
+  sectionTitle: { fontSize: 16, fontWeight: "800", color: HT.text },
+  segment: { flexDirection: "row", backgroundColor: HT.card2, borderRadius: 999, padding: 3 },
   segBtn: { flex: 1, paddingVertical: 7, borderRadius: 999, alignItems: "center" },
-  segBtnOn: { backgroundColor: theme.color.surfaceSecondary },
-  segTxt: { fontSize: 12, fontWeight: "700", color: theme.color.muted },
-  segTxtOn: { color: theme.color.onSurface },
-  empty: { alignItems: "center", padding: 24, gap: 8, backgroundColor: theme.color.surfaceSecondary, borderRadius: 14, borderWidth: 1, borderColor: theme.color.border, marginBottom: 14 },
-  emptyTxt: { color: theme.color.muted, fontSize: 13, textAlign: "center" },
+  segBtnOn: { backgroundColor: HT.card2 },
+  segTxt: { fontSize: 12, fontWeight: "700", color: HT.muted },
+  segTxtOn: { color: HT.text },
+  empty: { alignItems: "center", padding: 24, gap: 8, backgroundColor: HT.card2, borderRadius: 14, borderWidth: 1, borderColor: HT.border, marginBottom: 14 },
+  emptyTxt: { color: HT.muted, fontSize: 13, textAlign: "center" },
   emptyBtn: { marginTop: 4, backgroundColor: CGYM_ORANGE, paddingHorizontal: 16, paddingVertical: 9, borderRadius: 999 },
   emptyBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
-  row: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: theme.color.surfaceSecondary, borderRadius: 12, borderWidth: 1, borderColor: theme.color.border, padding: 10, marginBottom: 8 },
+  row: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: HT.card2, borderRadius: 12, borderWidth: 1, borderColor: HT.border, padding: 10, marginBottom: 8 },
   rowIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  rowTitle: { fontSize: 14, fontWeight: "700", color: theme.color.onSurface },
-  rowSub: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
-  rowBtn: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: theme.color.surfaceTertiary },
-  card: { backgroundColor: theme.color.surfaceSecondary, borderRadius: 14, borderWidth: 1, borderColor: theme.color.border, padding: 12, marginTop: 8 },
+  rowTitle: { fontSize: 14, fontWeight: "700", color: HT.text },
+  rowSub: { fontSize: 12, color: HT.muted, marginTop: 2 },
+  rowBtn: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: HT.card2 },
+  card: { backgroundColor: HT.card2, borderRadius: 14, borderWidth: 1, borderColor: HT.border, padding: 12, marginTop: 8 },
   cardHead: { flexDirection: "row", alignItems: "center", gap: 8 },
   assignBtn: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: CGYM_ORANGE, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 11, marginTop: 10, minHeight: 44 },
   assignTxt: { flex: 1, color: "#FFF", fontWeight: "800", fontSize: 13 },
-  cardTitle: { flex: 1, fontSize: 15, fontWeight: "800", color: theme.color.onSurface },
-  teamRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, borderTopWidth: 1, borderTopColor: theme.color.divider, marginTop: 8 },
+  cardTitle: { flex: 1, fontSize: 15, fontWeight: "800", color: HT.text },
+  teamRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, borderTopWidth: 1, borderTopColor: HT.border, marginTop: 8 },
   pill: { backgroundColor: CGYM_ORANGE, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
   pillTxt: { color: "#FFF", fontSize: 11, fontWeight: "800" },
   sheetBg: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: theme.color.surfaceSecondary, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16 },
+  sheet: { backgroundColor: HT.card2, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16 },
   sheetHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 },
-  sheetTitle: { fontSize: 17, fontWeight: "800", color: theme.color.onSurface },
-  lbl: { fontSize: 12, fontWeight: "800", color: theme.color.muted, marginTop: 12, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.4 },
+  sheetTitle: { fontSize: 17, fontWeight: "800", color: HT.text },
+  lbl: { fontSize: 12, fontWeight: "800", color: HT.muted, marginTop: 12, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.4 },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: theme.color.border, backgroundColor: theme.color.surface, maxWidth: "100%" },
-  chipOn: { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary },
-  chipTxt: { fontSize: 13, fontWeight: "700", color: theme.color.onSurface },
-  input: { borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: theme.color.onSurface, backgroundColor: theme.color.surface },
+  chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: HT.border, backgroundColor: HT.card2, maxWidth: "100%" },
+  chipOn: { backgroundColor: HT.brand, borderColor: HT.brand },
+  chipTxt: { fontSize: 13, fontWeight: "700", color: HT.text },
+  input: { borderWidth: 1, borderColor: HT.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: HT.text, backgroundColor: HT.card2 },
   toggleRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 14, minHeight: 44 },
-  toggleTxt: { flex: 1, fontSize: 13, color: theme.color.onSurface, fontWeight: "600" },
+  toggleTxt: { flex: 1, fontSize: 13, color: HT.text, fontWeight: "600" },
   saveBtn: { marginTop: 14, backgroundColor: CGYM_ORANGE, borderRadius: 12, paddingVertical: 14, alignItems: "center" },
   saveTxt: { color: "#FFF", fontWeight: "800", fontSize: 15 },
 });

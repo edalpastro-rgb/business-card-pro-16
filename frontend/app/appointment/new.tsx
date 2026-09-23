@@ -20,6 +20,7 @@ import { ModuleErrorBoundary } from "@/src/shared";
 import { AppointmentShareActions } from "@/src/AppointmentShareActions";
 import { pickCommonFile } from "@/src/utils/filePicker";
 import { useSafeBottom } from "@/src/hooks/useSafeBottom";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Attachment = {
   id: string;
@@ -54,10 +55,10 @@ const APPT_TYPE_COLORS: Record<string, string> = {
   "Personale": "#16A34A",      // verde
   "Riunione": "#2563EB",       // blu
   "Promemoria": "#F59E0B",     // giallo
-  "Altro": "#6B7280",          // grigio
+  "Altro": HT.muted,          // grigio
 };
 export function apptTypeColor(t?: string): string {
-  if (!t) return "#6B7280";
+  if (!t) return HT.muted;
   return APPT_TYPE_COLORS[t] || "#8B5CF6"; // custom types → purple fallback
 }
 const DEFAULT_PRODUCT_CATS = [
@@ -615,7 +616,7 @@ function NewAppointmentScreen() {
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
-        <Pressable testID="back-btn" onPress={() => router.back()} hitSlop={10}><Ionicons name="chevron-back" size={26} color={theme.color.onSurface} /></Pressable>
+        <Pressable testID="back-btn" onPress={() => router.back()} hitSlop={10}><Ionicons name="chevron-back" size={26} color={HT.text} /></Pressable>
         <Text style={styles.title}>{isEdit ? "Modifica appuntamento" : "Nuovo appuntamento"}</Text>
         <View style={{ width: 26 }} />
       </View>
@@ -623,7 +624,7 @@ function NewAppointmentScreen() {
 
         <View style={styles.card}>
           <Text style={styles.lbl}>Titolo *</Text>
-          <TextInput testID="ap-title" value={form.title} onChangeText={(t) => setForm({ ...form, title: t })} style={styles.input} placeholder="Titolo appuntamento" placeholderTextColor="#94A3B8" />
+          <TextInput testID="ap-title" value={form.title} onChangeText={(t) => setForm({ ...form, title: t })} style={styles.input} placeholder="Titolo appuntamento" placeholderTextColor={HT.muted} />
 
           <Text style={styles.lbl}>Area</Text>
           <View style={styles.pillsRow}>
@@ -665,20 +666,20 @@ function NewAppointmentScreen() {
                     active && { backgroundColor: c, borderColor: c },
                   ]}
                 >
-                  <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: c, marginRight: 6, borderWidth: active ? 2 : 0, borderColor: "#FFF" }} />
+                  <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: c, marginRight: 6, borderWidth: active ? 2 : 0, borderColor: HT.card }} />
                   <Ionicons name={active ? "checkmark-circle" : "ellipse-outline"} size={14} color={active ? "#FFF" : c} />
                   <Text style={[styles.pillTxt, active && styles.pillTxtActive, { marginLeft: 4 }]}>{t}</Text>
-                  {isCustom && <Ionicons name="pencil" size={10} color={active ? "#FFF" : theme.color.muted} style={{ marginLeft: 4 }} />}
+                  {isCustom && <Ionicons name="pencil" size={10} color={active ? "#FFF" : HT.muted} style={{ marginLeft: 4 }} />}
                 </Pressable>
               );
             })}
             <Pressable
               testID="ap-type-new"
               onPress={() => setTypeEditModal({ mode: "create", value: "" })}
-              style={[styles.pill, { flexDirection: "row", alignItems: "center", borderStyle: "dashed", borderColor: theme.color.brandPrimary }]}
+              style={[styles.pill, { flexDirection: "row", alignItems: "center", borderStyle: "dashed", borderColor: HT.brand }]}
             >
-              <Ionicons name="add" size={14} color={theme.color.brandPrimary} />
-              <Text style={[styles.pillTxt, { color: theme.color.brandPrimary, marginLeft: 4 }]}>Nuovo tipo</Text>
+              <Ionicons name="add" size={14} color={HT.brand} />
+              <Text style={[styles.pillTxt, { color: HT.brand, marginLeft: 4 }]}>Nuovo tipo</Text>
             </Pressable>
           </View>
 
@@ -725,11 +726,11 @@ function NewAppointmentScreen() {
             <>
               <View style={styles.dateRow}>
                 <Pressable testID="ap-date-btn" onPress={() => setShowPicker("date")} style={styles.dateBtn}>
-                  <Ionicons name="calendar-outline" size={18} color={theme.color.brandPrimary} />
+                  <Ionicons name="calendar-outline" size={18} color={HT.brand} />
                   <Text style={styles.dateBtnTxt}>{form.start_at.toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "short" })}</Text>
                 </Pressable>
                 <Pressable testID="ap-time-btn" onPress={() => setShowPicker("time")} style={styles.dateBtn}>
-                  <Ionicons name="time-outline" size={18} color={theme.color.brandPrimary} />
+                  <Ionicons name="time-outline" size={18} color={HT.brand} />
                   <Text style={styles.dateBtnTxt}>{form.start_at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text>
                 </Pressable>
               </View>
@@ -746,9 +747,9 @@ function NewAppointmentScreen() {
             onPress={() => setWheelPicker("duration")}
             style={styles.pickerBtn}
           >
-            <Ionicons name="hourglass-outline" size={18} color={theme.color.brandPrimary} />
+            <Ionicons name="hourglass-outline" size={18} color={HT.brand} />
             <Text style={styles.pickerBtnTxt}>{labelFor(DURATIONS, form.duration_min, `${form.duration_min} min`)}</Text>
-            <Ionicons name="chevron-forward" size={16} color={theme.color.muted} />
+            <Ionicons name="chevron-forward" size={16} color={HT.muted} />
           </Pressable>
 
           <Text style={styles.lbl}>Promemoria</Text>
@@ -757,9 +758,9 @@ function NewAppointmentScreen() {
             onPress={() => setWheelPicker("reminder")}
             style={styles.pickerBtn}
           >
-            <Ionicons name="notifications-outline" size={18} color={theme.color.brandPrimary} />
+            <Ionicons name="notifications-outline" size={18} color={HT.brand} />
             <Text style={styles.pickerBtnTxt}>{labelFor(REMINDERS, form.reminder_minutes, "Nessuno")}</Text>
-            <Ionicons name="chevron-forward" size={16} color={theme.color.muted} />
+            <Ionicons name="chevron-forward" size={16} color={HT.muted} />
           </Pressable>
 
           <Text style={styles.lbl}>Ricorrenza</Text>
@@ -824,7 +825,7 @@ function NewAppointmentScreen() {
         <View style={styles.card}>
           <View style={styles.switchRow}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Ionicons name="call" size={18} color={theme.color.brandPrimary} />
+              <Ionicons name="call" size={18} color={HT.brand} />
               <Text style={styles.switchLbl}>Telefonico</Text>
             </View>
             <Switch testID="ap-phone-switch" value={form.is_phone} onValueChange={(v) => setForm({ ...form, is_phone: v })} />
@@ -839,7 +840,7 @@ function NewAppointmentScreen() {
             style={styles.input}
             keyboardType="phone-pad"
             placeholder="+39 333 1234567"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={HT.muted}
           />
 
           <Text style={styles.lbl}>Telefono aziendale</Text>
@@ -850,7 +851,7 @@ function NewAppointmentScreen() {
             style={styles.input}
             keyboardType="phone-pad"
             placeholder="+39 02 12345678"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={HT.muted}
           />
 
           {form.is_phone ? (
@@ -863,7 +864,7 @@ function NewAppointmentScreen() {
                   style={[styles.phoneTargetChip, form.phone_target === "mobile" && styles.phoneTargetChipActive, !form.phone_mobile && { opacity: 0.4 }]}
                   disabled={!form.phone_mobile}
                 >
-                  <Ionicons name="phone-portrait" size={14} color={form.phone_target === "mobile" ? "#FFF" : theme.color.onSurface} />
+                  <Ionicons name="phone-portrait" size={14} color={form.phone_target === "mobile" ? "#FFF" : HT.text} />
                   <Text style={[styles.phoneTargetTxt, form.phone_target === "mobile" && { color: "#FFF" }]}>
                     Cellulare{form.phone_mobile ? "\n" + form.phone_mobile : ""}
                   </Text>
@@ -874,14 +875,14 @@ function NewAppointmentScreen() {
                   style={[styles.phoneTargetChip, form.phone_target === "work" && styles.phoneTargetChipActive, !form.phone_work && { opacity: 0.4 }]}
                   disabled={!form.phone_work}
                 >
-                  <Ionicons name="business" size={14} color={form.phone_target === "work" ? "#FFF" : theme.color.onSurface} />
+                  <Ionicons name="business" size={14} color={form.phone_target === "work" ? "#FFF" : HT.text} />
                   <Text style={[styles.phoneTargetTxt, form.phone_target === "work" && { color: "#FFF" }]}>
                     Aziendale{form.phone_work ? "\n" + form.phone_work : ""}
                   </Text>
                 </Pressable>
               </View>
               {!form.phone_mobile && !form.phone_work ? (
-                <Text style={{ fontSize: 12, color: theme.color.muted, marginTop: 6 }}>
+                <Text style={{ fontSize: 12, color: HT.muted, marginTop: 6 }}>
                   Inserisci almeno un numero sopra per selezionare quale chiamare.
                 </Text>
               ) : null}
@@ -896,7 +897,7 @@ function NewAppointmentScreen() {
             style={[styles.input, { minHeight: 50, textAlignVertical: "top" }]}
             multiline
             placeholder="Es. Via Roma 10, 20100 Milano MI"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={HT.muted}
           />
 
           {/* v2.16 — Structured address fields */}
@@ -909,7 +910,7 @@ function NewAppointmentScreen() {
                 onChangeText={(t) => setForm({ ...form, address_street: t })}
                 style={styles.input}
                 placeholder="Es. Via Roma"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={HT.muted}
               />
             </View>
             <View style={{ flex: 1 }}>
@@ -920,7 +921,7 @@ function NewAppointmentScreen() {
                 onChangeText={(t) => setForm({ ...form, address_number: t })}
                 style={styles.input}
                 placeholder="10"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={HT.muted}
               />
             </View>
           </View>
@@ -933,7 +934,7 @@ function NewAppointmentScreen() {
                 onChangeText={(t) => setForm({ ...form, address_zip: t.replace(/[^0-9]/g, "").slice(0, 5) })}
                 style={styles.input}
                 placeholder="20100"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={HT.muted}
                 keyboardType="number-pad"
                 maxLength={5}
               />
@@ -946,7 +947,7 @@ function NewAppointmentScreen() {
                 onChangeText={(t) => setForm({ ...form, address_city: t })}
                 style={styles.input}
                 placeholder="Milano"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={HT.muted}
               />
             </View>
             <View style={{ flex: 1 }}>
@@ -957,7 +958,7 @@ function NewAppointmentScreen() {
                 onChangeText={(t) => setForm({ ...form, address_province: t.toUpperCase().slice(0, 2) })}
                 style={styles.input}
                 placeholder="MI"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={HT.muted}
                 maxLength={2}
                 autoCapitalize="characters"
               />
@@ -971,43 +972,43 @@ function NewAppointmentScreen() {
             onChangeText={(t) => setForm({ ...form, email: t })}
             style={styles.input}
             placeholder="cliente@example.com"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={HT.muted}
             keyboardType="email-address"
             autoCapitalize="none"
           />
 
           <Text style={styles.lbl}>Luogo (visualizzato in agenda)</Text>
-          <TextInput testID="ap-location" value={form.location} onChangeText={(t) => setForm({ ...form, location: t })} style={styles.input} placeholder="Indirizzo o link videochiamata" placeholderTextColor="#94A3B8" />
+          <TextInput testID="ap-location" value={form.location} onChangeText={(t) => setForm({ ...form, location: t })} style={styles.input} placeholder="Indirizzo o link videochiamata" placeholderTextColor={HT.muted} />
 
           <Text style={styles.lbl}>Valore stimato (€)</Text>
-          <TextInput testID="ap-value" value={form.value_amount} onChangeText={(t) => setForm({ ...form, value_amount: t.replace(/[^0-9.]/g, "") })} style={styles.input} placeholder="0" placeholderTextColor="#94A3B8" keyboardType="decimal-pad" />
+          <TextInput testID="ap-value" value={form.value_amount} onChangeText={(t) => setForm({ ...form, value_amount: t.replace(/[^0-9.]/g, "") })} style={styles.input} placeholder="0" placeholderTextColor={HT.muted} keyboardType="decimal-pad" />
 
           <Text style={styles.lbl}>Note</Text>
-          <TextInput testID="ap-notes" value={form.notes} onChangeText={(t) => setForm({ ...form, notes: t })} style={[styles.input, { minHeight: 70, textAlignVertical: "top" }]} multiline placeholder="Note" placeholderTextColor="#94A3B8" />
+          <TextInput testID="ap-notes" value={form.notes} onChangeText={(t) => setForm({ ...form, notes: t })} style={[styles.input, { minHeight: 70, textAlignVertical: "top" }]} multiline placeholder="Note" placeholderTextColor={HT.muted} />
 
           <View style={{ marginTop: 8 }}>
             <Text style={styles.lbl}>Allegati (foto, audio, file)</Text>
             <View style={styles.mediaRow}>
-              <Pressable testID="ap-media-camera" onPress={() => addPhoto(true)} style={[styles.mediaBtn, { backgroundColor: "#E67700" }]}>
+              <Pressable testID="ap-media-camera" onPress={() => addPhoto(true)} style={[styles.mediaBtn, { backgroundColor: '#E67700' }]}>
                 <Ionicons name="camera" size={16} color="#FFF" />
                 <Text style={styles.mediaBtnTxt}>Scatta</Text>
               </Pressable>
-              <Pressable testID="ap-media-photo" onPress={() => addPhoto(false)} style={[styles.mediaBtn, { backgroundColor: "#7A2E8E" }]}>
+              <Pressable testID="ap-media-photo" onPress={() => addPhoto(false)} style={[styles.mediaBtn, { backgroundColor: '#7A2E8E' }]}>
                 <Ionicons name="images" size={16} color="#FFF" />
                 <Text style={styles.mediaBtnTxt}>Foto</Text>
               </Pressable>
               {!recording ? (
-                <Pressable testID="ap-media-audio" onPress={startRec} style={[styles.mediaBtn, { backgroundColor: "#C83232" }]}>
+                <Pressable testID="ap-media-audio" onPress={startRec} style={[styles.mediaBtn, { backgroundColor: '#C83232' }]}>
                   <Ionicons name="mic" size={16} color="#FFF" />
                   <Text style={styles.mediaBtnTxt}>Registra</Text>
                 </Pressable>
               ) : (
-                <Pressable testID="ap-media-audio-stop" onPress={stopRec} style={[styles.mediaBtn, { backgroundColor: "#DC2626" }]}>
+                <Pressable testID="ap-media-audio-stop" onPress={stopRec} style={[styles.mediaBtn, { backgroundColor: '#DC2626' }]}>
                   <Ionicons name="stop-circle" size={16} color="#FFF" />
                   <Text style={styles.mediaBtnTxt}>Stop</Text>
                 </Pressable>
               )}
-              <Pressable testID="ap-media-file" onPress={pickFile} style={[styles.mediaBtn, { backgroundColor: "#0B7285" }]}>
+              <Pressable testID="ap-media-file" onPress={pickFile} style={[styles.mediaBtn, { backgroundColor: '#0B7285' }]}>
                 <Ionicons name="attach" size={16} color="#FFF" />
                 <Text style={styles.mediaBtnTxt}>File</Text>
               </Pressable>
@@ -1019,13 +1020,13 @@ function NewAppointmentScreen() {
                     {a.kind === "photo" ? (
                       <Image source={{ uri: a.photo_base64 }} style={styles.attThumb} />
                     ) : (
-                      <View style={[styles.attThumb, { alignItems: "center", justifyContent: "center", backgroundColor: theme.color.surfaceTertiary }]}>
-                        <Ionicons name={a.kind === "audio" ? "musical-notes" : "document"} size={22} color={theme.color.muted} />
+                      <View style={[styles.attThumb, { alignItems: "center", justifyContent: "center", backgroundColor: HT.card2 }]}>
+                        <Ionicons name={a.kind === "audio" ? "musical-notes" : "document"} size={22} color={HT.muted} />
                       </View>
                     )}
                     <Text style={styles.attLabel} numberOfLines={1}>{a.kind === "audio" ? "Audio" : a.kind === "photo" ? "Foto" : (a.file_name || "File")}</Text>
                     <Pressable onPress={() => removeAttachment(a.id)} style={styles.attRm}>
-                      <Ionicons name="close-circle" size={18} color={theme.color.error} />
+                      <Ionicons name="close-circle" size={18} color={HT.danger} />
                     </Pressable>
                   </View>
                 ))}
@@ -1045,7 +1046,7 @@ function NewAppointmentScreen() {
                 testID="ap-broadcast-toggle"
                 value={broadcast.enabled}
                 onValueChange={(v) => setBroadcast({ ...broadcast, enabled: v })}
-                trackColor={{ true: theme.color.brandPrimary, false: "#E2E8F0" }}
+                trackColor={{ true: HT.brand, false: "#E2E8F0" }}
               />
             </View>
 
@@ -1059,7 +1060,7 @@ function NewAppointmentScreen() {
                       onPress={() => setBroadcast({ ...broadcast, scope: "all" })}
                       style={[styles.pill, broadcast.scope === "all" && styles.pillOn]}
                     >
-                      <Ionicons name="business" size={12} color={broadcast.scope === "all" ? "#FFF" : theme.color.muted} />
+                      <Ionicons name="business" size={12} color={broadcast.scope === "all" ? "#FFF" : HT.muted} />
                       <Text style={[styles.pillTxt, broadcast.scope === "all" && { color: "#FFF" }]}>Tutta l&apos;azienda</Text>
                     </Pressable>
                   )}
@@ -1068,7 +1069,7 @@ function NewAppointmentScreen() {
                     onPress={() => setBroadcast({ ...broadcast, scope: "subtree" })}
                     style={[styles.pill, broadcast.scope === "subtree" && styles.pillOn]}
                   >
-                    <Ionicons name="people" size={12} color={broadcast.scope === "subtree" ? "#FFF" : theme.color.muted} />
+                    <Ionicons name="people" size={12} color={broadcast.scope === "subtree" ? "#FFF" : HT.muted} />
                     <Text style={[styles.pillTxt, broadcast.scope === "subtree" && { color: "#FFF" }]}>Il mio team</Text>
                   </Pressable>
                   <Pressable
@@ -1076,7 +1077,7 @@ function NewAppointmentScreen() {
                     onPress={() => setBroadcast({ ...broadcast, scope: "custom" })}
                     style={[styles.pill, broadcast.scope === "custom" && styles.pillOn]}
                   >
-                    <Ionicons name="checkmark-done" size={12} color={broadcast.scope === "custom" ? "#FFF" : theme.color.muted} />
+                    <Ionicons name="checkmark-done" size={12} color={broadcast.scope === "custom" ? "#FFF" : HT.muted} />
                     <Text style={[styles.pillTxt, broadcast.scope === "custom" && { color: "#FFF" }]}>Selezione</Text>
                   </Pressable>
                 </View>
@@ -1166,15 +1167,15 @@ function NewAppointmentScreen() {
               value={typeEditModal?.value || ""}
               onChangeText={(t) => setTypeEditModal((m) => m ? { ...m, value: t } : m)}
               placeholder="Nome del tipo"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={HT.muted}
               autoFocus
               style={mstyles.input}
             />
             <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
-              <Pressable onPress={() => setTypeEditModal(null)} style={[mstyles.btn, { backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border }]}>
-                <Text style={{ color: theme.color.onSurface, fontWeight: "700" }}>Annulla</Text>
+              <Pressable onPress={() => setTypeEditModal(null)} style={[mstyles.btn, { backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border }]}>
+                <Text style={{ color: HT.text, fontWeight: "700" }}>Annulla</Text>
               </Pressable>
-              <Pressable testID="ap-type-modal-save" onPress={saveTypeEdit} disabled={!typeEditModal?.value?.trim()} style={[mstyles.btn, { backgroundColor: theme.color.brandPrimary, opacity: typeEditModal?.value?.trim() ? 1 : 0.5 }]}>
+              <Pressable testID="ap-type-modal-save" onPress={saveTypeEdit} disabled={!typeEditModal?.value?.trim()} style={[mstyles.btn, { backgroundColor: HT.brand, opacity: typeEditModal?.value?.trim() ? 1 : 0.5 }]}>
                 <Text style={{ color: "#FFF", fontWeight: "700" }}>{typeEditModal?.mode === "create" ? "Crea" : "Salva"}</Text>
               </Pressable>
             </View>
@@ -1241,19 +1242,19 @@ function NewAppointmentScreen() {
 
 const mstyles = StyleSheet.create({
   back: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center", padding: 20 },
-  card: { width: "100%", maxWidth: 420, backgroundColor: "#FFF", borderRadius: theme.radius.md, padding: 18 },
-  title: { fontSize: 18, fontWeight: "700", color: theme.color.onSurface, marginBottom: 6 },
-  hint: { color: theme.color.muted, fontSize: 12, marginBottom: 8, fontStyle: "italic" },
-  input: { backgroundColor: theme.color.surface, borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: theme.color.border, color: theme.color.onSurface, marginTop: 6 },
+  card: { width: "100%", maxWidth: 420, backgroundColor: HT.card, borderRadius: theme.radius.md, padding: 18 },
+  title: { fontSize: 18, fontWeight: "700", color: HT.text, marginBottom: 6 },
+  hint: { color: HT.muted, fontSize: 12, marginBottom: 8, fontStyle: "italic" },
+  input: { backgroundColor: HT.card2, borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: HT.border, color: HT.text, marginTop: 6 },
   btn: { flex: 1, paddingVertical: 12, borderRadius: theme.radius.md, alignItems: "center" },
   // v2.14 — Post-save Invia dettagli modal
   postSaveBack: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
-  postSaveCard: { backgroundColor: "#FFF", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 18 },
-  postSaveTitle: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface },
-  postSaveSub: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
-  checkCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#16A34A", alignItems: "center", justifyContent: "center" },
+  postSaveCard: { backgroundColor: HT.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 18 },
+  postSaveTitle: { fontSize: 16, fontWeight: "800", color: HT.text },
+  postSaveSub: { fontSize: 12, color: HT.muted, marginTop: 2 },
+  checkCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#16A34A', alignItems: "center", justifyContent: "center" },
   postSaveClose: { paddingVertical: 12, alignItems: "center", marginTop: 10 },
-  postSaveCloseTxt: { fontSize: 13, fontWeight: "700", color: theme.color.muted },
+  postSaveCloseTxt: { fontSize: 13, fontWeight: "700", color: HT.muted },
 });
 
 /**
@@ -1289,7 +1290,7 @@ function ApContactPicker({
     return (
       <View style={cpStyles.wrap} testID="ap-contact-picker">
         <View style={cpStyles.selectedRow}>
-          <Ionicons name="person-circle" size={22} color={theme.color.brandPrimary} />
+          <Ionicons name="person-circle" size={22} color={HT.brand} />
           <Text style={cpStyles.selectedTxt} numberOfLines={1}>
             {selected.first_name} {selected.last_name}
           </Text>
@@ -1299,7 +1300,7 @@ function ApContactPicker({
             hitSlop={8}
             style={cpStyles.clearBtn}
           >
-            <Ionicons name="close-circle" size={20} color={theme.color.error} />
+            <Ionicons name="close-circle" size={20} color={HT.danger} />
           </Pressable>
         </View>
       </View>
@@ -1309,7 +1310,7 @@ function ApContactPicker({
   return (
     <View style={cpStyles.wrap} testID="ap-contact-picker">
       <View style={cpStyles.inputRow}>
-        <Ionicons name="search" size={18} color={theme.color.muted} />
+        <Ionicons name="search" size={18} color={HT.muted} />
         <TextInput
           testID="ap-contact-search"
           value={q}
@@ -1317,14 +1318,14 @@ function ApContactPicker({
           onFocus={() => setFocused(true)}
           onBlur={() => setTimeout(() => setFocused(false), 150)}
           placeholder="Cerca un contatto per nome…"
-          placeholderTextColor={theme.color.muted}
+          placeholderTextColor={HT.muted}
           style={cpStyles.input}
           autoCorrect={false}
           autoCapitalize="words"
         />
         {q.length > 0 && (
           <Pressable onPress={() => setQ("")} hitSlop={8} style={cpStyles.clearBtn}>
-            <Ionicons name="close-circle" size={18} color={theme.color.muted} />
+            <Ionicons name="close-circle" size={18} color={HT.muted} />
           </Pressable>
         )}
       </View>
@@ -1338,11 +1339,11 @@ function ApContactPicker({
                 onPress={() => { onSelect(c.contact_id); setQ(""); setFocused(false); }}
                 style={[cpStyles.resultItem, idx === filtered.length - 1 && { borderBottomWidth: 0 }]}
               >
-                <Ionicons name="person" size={16} color={theme.color.brandPrimary} />
+                <Ionicons name="person" size={16} color={HT.brand} />
                 <Text style={cpStyles.resultTxt} numberOfLines={1}>
                   {c.first_name} {c.last_name}
                 </Text>
-                <Ionicons name="chevron-forward" size={16} color={theme.color.muted} />
+                <Ionicons name="chevron-forward" size={16} color={HT.muted} />
               </Pressable>
             ))}
           </View>
@@ -1359,45 +1360,45 @@ const cpStyles = StyleSheet.create({
   wrap: { position: "relative", zIndex: 5, marginTop: 4 },
   inputRow: {
     flexDirection: "row", alignItems: "center", gap: 8,
-    backgroundColor: "#FFF", borderRadius: theme.radius.md,
-    borderWidth: 1, borderColor: theme.color.border,
+    backgroundColor: HT.card, borderRadius: theme.radius.md,
+    borderWidth: 1, borderColor: HT.border,
     paddingHorizontal: 12, height: 44,
   },
-  input: { flex: 1, color: theme.color.onSurface, fontSize: 15, paddingVertical: 0 },
+  input: { flex: 1, color: HT.text, fontSize: 15, paddingVertical: 0 },
   clearBtn: { padding: 4 },
   selectedRow: {
     flexDirection: "row", alignItems: "center", gap: 8,
-    padding: 10, backgroundColor: theme.color.brandTertiary,
-    borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.brandPrimary,
+    padding: 10, backgroundColor: HT.brandTint,
+    borderRadius: theme.radius.md, borderWidth: 1, borderColor: HT.brand,
   },
-  selectedTxt: { flex: 1, color: theme.color.brandPrimary, fontWeight: "700", fontSize: 14 },
+  selectedTxt: { flex: 1, color: HT.brand, fontWeight: "700", fontSize: 14 },
   results: {
-    marginTop: 6, backgroundColor: "#FFF",
-    borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border,
+    marginTop: 6, backgroundColor: HT.card,
+    borderRadius: theme.radius.md, borderWidth: 1, borderColor: HT.border,
     overflow: "hidden",
   },
   resultItem: {
     flexDirection: "row", alignItems: "center", gap: 10,
     paddingHorizontal: 12, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: theme.color.divider,
+    borderBottomWidth: 1, borderBottomColor: HT.border,
   },
-  resultTxt: { flex: 1, color: theme.color.onSurface, fontWeight: "600", fontSize: 14 },
+  resultTxt: { flex: 1, color: HT.text, fontWeight: "600", fontSize: 14 },
   empty: {
     marginTop: 6, padding: 12,
-    backgroundColor: "#F1F5F9", borderRadius: theme.radius.md, alignItems: "center",
+    backgroundColor: HT.card2, borderRadius: theme.radius.md, alignItems: "center",
   },
-  emptyTxt: { color: theme.color.muted, fontSize: 12, fontStyle: "italic" },
+  emptyTxt: { color: HT.muted, fontSize: 12, fontStyle: "italic" },
 });
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
+  root: { flex: 1, backgroundColor: HT.card2 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12 },
-  title: { fontSize: 18, fontWeight: "700", color: theme.color.onSurface },
+  title: { fontSize: 18, fontWeight: "700", color: HT.text },
   content: { padding: 16, paddingBottom: 140 },
-  card: { backgroundColor: "#FFF", padding: 14, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border, marginTop: 12, gap: 4 },
-  sectionTitle: { fontSize: 12, fontWeight: "700", color: theme.color.brandPrimary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 },
-  lbl: { fontSize: 12, fontWeight: "600", color: theme.color.onSurfaceTertiary, marginTop: 10, marginBottom: 4 },
-  input: { backgroundColor: theme.color.surface, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: theme.color.onSurface },
+  card: { backgroundColor: HT.card, padding: 14, borderRadius: theme.radius.md, borderWidth: 1, borderColor: HT.border, marginTop: 12, gap: 4 },
+  sectionTitle: { fontSize: 12, fontWeight: "700", color: HT.brand, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 },
+  lbl: { fontSize: 12, fontWeight: "600", color: HT.text2, marginTop: 10, marginBottom: 4 },
+  input: { backgroundColor: HT.card2, borderRadius: theme.radius.md, borderWidth: 1, borderColor: HT.border, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: HT.text },
   pillsRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
   pickerBtn: {
     flexDirection: "row",
@@ -1405,34 +1406,34 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    backgroundColor: theme.color.surface,
+    backgroundColor: HT.card2,
     borderRadius: theme.radius.md,
     borderWidth: 1,
-    borderColor: theme.color.border,
+    borderColor: HT.border,
     marginTop: 2,
   },
-  pickerBtnTxt: { flex: 1, fontSize: 15, color: theme.color.onSurface, fontWeight: "600" },
-  pill: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: theme.radius.pill, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 4 },
-  pillOn: { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary },
-  pillTxt: { color: theme.color.onSurfaceTertiary, fontWeight: "600", fontSize: 12 },
+  pickerBtnTxt: { flex: 1, fontSize: 15, color: HT.text, fontWeight: "600" },
+  pill: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: theme.radius.pill, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 4 },
+  pillOn: { backgroundColor: HT.brand, borderColor: HT.brand },
+  pillTxt: { color: HT.text2, fontWeight: "600", fontSize: 12 },
   rowBetween: { flexDirection: "row", alignItems: "center", gap: 12 },
-  pillActive: { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary },
-  phoneTargetChip: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, paddingHorizontal: 8, borderRadius: 10, backgroundColor: "#F1F5F9", borderWidth: 1.5, borderColor: theme.color.border },
-  phoneTargetChipActive: { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary },
-  phoneTargetTxt: { fontSize: 12, fontWeight: "700", color: theme.color.onSurface, textAlign: "center" },
+  pillActive: { backgroundColor: HT.brand, borderColor: HT.brand },
+  phoneTargetChip: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, paddingHorizontal: 8, borderRadius: 10, backgroundColor: HT.card2, borderWidth: 1.5, borderColor: HT.border },
+  phoneTargetChipActive: { backgroundColor: HT.brand, borderColor: HT.brand },
+  phoneTargetTxt: { fontSize: 12, fontWeight: "700", color: HT.text, textAlign: "center" },
   pillTxtActive: { color: "#FFF" },
   dateRow: { flexDirection: "row", gap: 10, marginTop: 4 },
-  dateBtn: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: theme.color.surface, padding: 12, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border },
-  dateBtnTxt: { color: theme.color.onSurface, fontWeight: "600" },
+  dateBtn: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: HT.card2, padding: 12, borderRadius: theme.radius.md, borderWidth: 1, borderColor: HT.border },
+  dateBtnTxt: { color: HT.text, fontWeight: "600" },
   switchRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  switchLbl: { fontSize: 14, color: theme.color.onSurface, fontWeight: "600" },
-  saveBtn: { backgroundColor: theme.color.brandPrimary, paddingVertical: 14, borderRadius: theme.radius.md, alignItems: "center", justifyContent: "center", flexDirection: "row" },
+  switchLbl: { fontSize: 14, color: HT.text, fontWeight: "600" },
+  saveBtn: { backgroundColor: HT.brand, paddingVertical: 14, borderRadius: theme.radius.md, alignItems: "center", justifyContent: "center", flexDirection: "row" },
   saveBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 16, letterSpacing: 0.2 },
   // V29.ar — Sticky footer bar per il pulsante Salva sempre visibile
   stickyFooter: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: HT.card,
     borderTopWidth: 1,
-    borderTopColor: theme.color.border,
+    borderTopColor: HT.border,
     paddingHorizontal: 16,
     paddingTop: 12,
     // ombra top
@@ -1442,26 +1443,26 @@ const styles = StyleSheet.create({
       default: {},
     }),
   },
-  subCat: { fontSize: 12, fontWeight: "700", color: theme.color.onSurfaceTertiary, marginBottom: 6 },
-  hint: { fontSize: 11, color: theme.color.muted, marginTop: 8, fontStyle: "italic" },
+  subCat: { fontSize: 12, fontWeight: "700", color: HT.text2, marginBottom: 6 },
+  hint: { fontSize: 11, color: HT.muted, marginTop: 8, fontStyle: "italic" },
   mediaRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 6 },
   mediaBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10 },
   mediaBtnTxt: { color: "#FFF", fontWeight: "700", fontSize: 12 },
   attRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 },
-  attChip: { flexDirection: "column", alignItems: "center", gap: 4, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, padding: 6, width: 82 },
-  attThumb: { width: 68, height: 68, borderRadius: 8, backgroundColor: theme.color.surfaceTertiary },
-  attLabel: { fontSize: 10, color: theme.color.muted, textAlign: "center" },
-  attRm: { position: "absolute", top: -6, right: -6, backgroundColor: "#FFF", borderRadius: 10 },
+  attChip: { flexDirection: "column", alignItems: "center", gap: 4, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, borderRadius: 10, padding: 6, width: 82 },
+  attThumb: { width: 68, height: 68, borderRadius: 8, backgroundColor: HT.card2 },
+  attLabel: { fontSize: 10, color: HT.muted, textAlign: "center" },
+  attRm: { position: "absolute", top: -6, right: -6, backgroundColor: HT.card, borderRadius: 10 },
 });
 
 const webInputStyle: any = {
   width: "100%",
-  backgroundColor: theme.color.surface,
-  border: `1px solid ${theme.color.border}`,
+  backgroundColor: HT.card2,
+  border: `1px solid ${HT.border}`,
   borderRadius: 12,
   padding: "12px 14px",
   fontSize: 15,
-  color: theme.color.onSurface,
+  color: HT.text,
   fontFamily: "inherit",
   outline: "none",
 };

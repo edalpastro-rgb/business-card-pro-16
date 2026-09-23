@@ -4,10 +4,10 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ActivityIndicator, Platform, Linking } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { useAuth } from "@/src/auth";
 import { pushApi, PushStatus, syncPushDevice } from "@/src/pushBridge";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const AXON = "#7C3AED";
 
@@ -67,7 +67,7 @@ export function PushStatusCard() {
 
   const dev = st?.devices?.[0];
   const denied = dev?.permission === "denied";
-  const color = st?.level === "ok" ? theme.color.success : st?.level === "warn" ? theme.color.warning : theme.color.error;
+  const color = st?.level === "ok" ? HT.success : st?.level === "warn" ? HT.warning : HT.danger;
   const icon = st?.level === "ok" ? "checkmark-circle" : st?.level === "warn" ? "alert-circle" : "close-circle";
   const testPending = st?.last_test && ["scheduled", "firing", "queued"].includes(st.last_test.status);
 
@@ -77,7 +77,7 @@ export function PushStatusCard() {
         <Ionicons name="radio" size={18} color={AXON} />
         <Text style={styles.headTxt}>Stato canale push</Text>
         <Pressable onPress={load} hitSlop={10} testID="push-status-refresh" accessibilityLabel="Aggiorna stato">
-          <Ionicons name="refresh" size={18} color={theme.color.muted} />
+          <Ionicons name="refresh" size={18} color={HT.muted} />
         </Pressable>
       </View>
 
@@ -85,7 +85,7 @@ export function PushStatusCard() {
         <>
           <View style={styles.summaryRow}>
             <Ionicons name={icon as any} size={22} color={color} />
-            <Text style={[styles.summary, { color: theme.color.onSurface }]} testID="push-status-summary">{st.summary}</Text>
+            <Text style={[styles.summary, { color: HT.text }]} testID="push-status-summary">{st.summary}</Text>
           </View>
 
           {dev && (
@@ -100,7 +100,7 @@ export function PushStatusCard() {
           )}
 
           {st.last_test_label ? (
-            <View style={[styles.testBox, { borderColor: st.last_test?.status === "delivered" || st.last_test?.status === "sent" ? theme.color.success : theme.color.border }]} testID="push-last-test">
+            <View style={[styles.testBox, { borderColor: st.last_test?.status === "delivered" || st.last_test?.status === "sent" ? HT.success : HT.border }]} testID="push-last-test">
               {testPending ? <ActivityIndicator size="small" color={AXON} /> : <Ionicons name="flask" size={16} color={AXON} />}
               <Text style={styles.testTxt}>{st.last_test_label}</Text>
             </View>
@@ -108,7 +108,7 @@ export function PushStatusCard() {
 
           {/* V50.z220 — test dei livelli di urgenza (canali Android urgent_alerts / standard_alerts) */}
           <View style={styles.actions}>
-            <Pressable onPress={() => testUrgency("CRITICAL")} disabled={busy !== ""} style={[styles.btn, { backgroundColor: "#DC2626", opacity: busy ? 0.6 : 1 }]} testID="push-test-critical">
+            <Pressable onPress={() => testUrgency("CRITICAL")} disabled={busy !== ""} style={[styles.btn, { backgroundColor: '#DC2626', opacity: busy ? 0.6 : 1 }]} testID="push-test-critical">
               {busy === "urg" ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="warning-outline" size={16} color="#FFF" /><Text style={styles.btnTxt}>Test URGENTE (LED rosso)</Text></>}
             </Pressable>
             <Pressable onPress={() => testUrgency("HIGH")} disabled={busy !== ""} style={[styles.btn, styles.btnGhost]} testID="push-test-high">
@@ -120,7 +120,7 @@ export function PushStatusCard() {
               {busy === "test" ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="timer-outline" size={16} color="#FFF" /><Text style={styles.btnTxt}>Test push tra 2 minuti</Text></>}
             </Pressable>
             {denied ? (
-              <Pressable onPress={() => Linking.openSettings().catch(() => {})} style={[styles.btn, { backgroundColor: theme.color.error }]} testID="push-open-settings">
+              <Pressable onPress={() => Linking.openSettings().catch(() => {})} style={[styles.btn, { backgroundColor: HT.danger }]} testID="push-open-settings">
                 <Ionicons name="settings-outline" size={16} color="#FFF" /><Text style={styles.btnTxt}>Apri impostazioni</Text>
               </Pressable>
             ) : (
@@ -136,17 +136,17 @@ export function PushStatusCard() {
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: theme.color.surfaceSecondary, borderRadius: 14, borderWidth: 1, borderColor: "#C4B5FD", padding: 14, gap: 10 },
+  card: { backgroundColor: HT.card2, borderRadius: 14, borderWidth: 1, borderColor: '#C4B5FD', padding: 14, gap: 10 },
   head: { flexDirection: "row", alignItems: "center", gap: 8 },
-  headTxt: { flex: 1, fontSize: 13, fontWeight: "900", color: theme.color.muted, textTransform: "uppercase", letterSpacing: 0.5 },
+  headTxt: { flex: 1, fontSize: 13, fontWeight: "900", color: HT.muted, textTransform: "uppercase", letterSpacing: 0.5 },
   summaryRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
   summary: { flex: 1, fontSize: 14, fontWeight: "700", lineHeight: 20 },
   meta: { gap: 2, paddingLeft: 30 },
-  metaTxt: { fontSize: 12, color: theme.color.muted },
-  testBox: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderRadius: 10, padding: 10, backgroundColor: theme.color.surface },
-  testTxt: { flex: 1, fontSize: 13, fontWeight: "700", color: theme.color.onSurface },
+  metaTxt: { fontSize: 12, color: HT.muted },
+  testBox: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderRadius: 10, padding: 10, backgroundColor: HT.card2 },
+  testTxt: { flex: 1, fontSize: 13, fontWeight: "700", color: HT.text },
   actions: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
   btn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 11, minHeight: 46, minWidth: 140 },
-  btnGhost: { backgroundColor: theme.color.surface, borderWidth: 1, borderColor: "#C4B5FD" },
+  btnGhost: { backgroundColor: HT.card2, borderWidth: 1, borderColor: '#C4B5FD' },
   btnTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
 });

@@ -13,13 +13,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { MenuIcon, MenuIconName, LOCK_KEY_ICON } from "@/src/LockKeyIcon"; // V50.z237
 import { useRouter } from "expo-router";
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
-import { theme } from "@/src/theme";
 import { MENU_CATEGORIES } from "@/src/menuCategories";
 import { CgymDrawerBadge } from "@/src/corporate-gym/CgymDrawerBadge"; // Corporate Gym (Blocco 3)
 
 import { AxnDrawerBadge } from "@/src/AxnDrawerBadge"; // V50.z181 — notifiche push AxonOS
 import { AlarmDrawerBadge } from "@/src/AlarmIndicators"; // V50.z334 — «tra 25m» accanto a Timer & Sveglie
 import { openAxonRecommendations } from "@/src/axonProactive"; // V50.z334 — Consigli di Axon → chat
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 // Axon Drive — piccola icona automobile accanto al nome (solo UI)
 const AxonDriveCarBadge = () => <Ionicons name="car-sport" size={16} color="#7C3AED" style={{ marginRight: 6 }} />;
@@ -139,7 +139,7 @@ export function DrawerMenu({ visible, onClose }: { visible: boolean; onClose: ()
             <Text style={styles.brandSub}>Menu completo</Text>
           </View>
           <Pressable onPress={onClose} hitSlop={10} testID="drawer-close">
-            <Ionicons name="close" size={26} color={theme.color.onSurface} />
+            <Ionicons name="close" size={26} color={HT.text} />
           </Pressable>
         </View>
 
@@ -166,7 +166,7 @@ export function DrawerMenu({ visible, onClose }: { visible: boolean; onClose: ()
                   </View>
                   <Text style={styles.rowLabel} numberOfLines={1}>{it.label}</Text>
                   {it.badge ? <it.badge /> : null}
-                  <Ionicons name="chevron-forward" size={16} color={theme.color.muted} />
+                  <Ionicons name="chevron-forward" size={16} color={HT.muted} />
                 </Pressable>
               ))}
             </View>
@@ -180,7 +180,7 @@ export function DrawerMenu({ visible, onClose }: { visible: boolean; onClose: ()
 const styles = StyleSheet.create({
   drawer: {
     position: "absolute", left: 0, top: 0, bottom: 0,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: HT.card,
     borderTopRightRadius: 22, borderBottomRightRadius: 22,
     paddingHorizontal: 12,
     ...(Platform.OS === "web"
@@ -190,14 +190,14 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row", alignItems: "center", gap: 10,
     paddingHorizontal: 4, paddingBottom: 8,
-    borderBottomWidth: 1, borderBottomColor: "#F1F5F9",
+    borderBottomWidth: 1, borderBottomColor: HT.card2,
   },
   brandBadge: {
-    width: 34, height: 34, borderRadius: 17, backgroundColor: "#0F172A",
+    width: 34, height: 34, borderRadius: 17, backgroundColor: '#0F172A',
     alignItems: "center", justifyContent: "center",
   },
-  brandTitle: { fontSize: 15, fontWeight: "900", color: theme.color.onSurface, letterSpacing: -0.3 },
-  brandSub: { fontSize: 11, color: theme.color.muted, marginTop: 1 },
+  brandTitle: { fontSize: 15, fontWeight: "900", color: HT.text, letterSpacing: -0.3 },
+  brandSub: { fontSize: 11, color: HT.muted, marginTop: 1 },
 
   catHeaderRow: {
     flexDirection: "row", alignItems: "center", gap: 6,
@@ -210,11 +210,11 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row", alignItems: "center", gap: 12,
     paddingVertical: 10, paddingHorizontal: 6, borderRadius: 10,
-    borderBottomWidth: 1, borderBottomColor: "#F1F5F9",
+    borderBottomWidth: 1, borderBottomColor: HT.card2,
   },
   rowIcon: {
     width: 34, height: 34, borderRadius: 17,
     alignItems: "center", justifyContent: "center",
   },
-  rowLabel: { flex: 1, fontSize: 14, fontWeight: "700", color: "#0F172A" },
+  rowLabel: { flex: 1, fontSize: 14, fontWeight: "700", color: HT.text },
 });

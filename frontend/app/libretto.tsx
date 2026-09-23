@@ -25,7 +25,6 @@ import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system/legacy";
 import { Asset } from "expo-asset";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { LIBRETTO_SECTIONS, LIBRETTO_META, LibrettoSection, LibrettoMeta, LIBRETTO_IMAGE_MAP, resolveSectionImage, withCorporateGymSection } from "@/src/libretto/libretto-content";
 import { getAppVersion, getAppLastUpdateDate, buildVersionBadge } from "@/src/libretto/appVersion";
@@ -37,6 +36,7 @@ import { WowIntro } from "@/src/WowIntro";
 import { BrainPlus, brainPlusHtml, BRAIN_PLUS_SECTION_IDS } from "@/src/BrainPlus"; // V50.z190 — claim AxonOS Brain+
 import { BrandLogosBlock, tuttunizzatoreHtml } from "@/src/Tuttunizzatore"; // V50.z191 — loghi impilati + «Il tuo "Tuttunizzatore"»
 import { TourStories } from "@/src/TourStories"; // V50.z244 — Tour Guidato: 4 storie utente al posto delle slide funzionalità
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 const ADVISOR_LOGO = require("@/assets/images/advisoros-logo-transparent.png");
 const AXON_LOGO = require("@/assets/images/axonos-logo-light.png"); // V50.z228
 const ADVISOR_ICON = require("@/assets/images/advisoros-icon-1024.png");
@@ -419,7 +419,7 @@ export default function LibrettoScreen() {
             <Pressable
               onPress={() => router.push("/security-info" as any)}
               testID="onboarding-security-btn"
-              style={[styles.stickyBtn, { backgroundColor: "#3B82F6", marginBottom: 10 }]}
+              style={[styles.stickyBtn, { backgroundColor: '#3B82F6', marginBottom: 10 }]}
             >
               <Ionicons name="shield-checkmark" size={18} color="#FFF" />
               <Text style={styles.stickyBtnTxt}>🔒 Leggi la Sicurezza AdvisorOS</Text>
@@ -438,12 +438,12 @@ export default function LibrettoScreen() {
         >
           {exporting ? (
             <>
-              <ActivityIndicator color="#0F172A" size="small" />
+              <ActivityIndicator color={HT.text} size="small" />
               <Text style={styles.stickyPdfBtnTxt}>Generazione PDF in corso…</Text>
             </>
           ) : (
             <>
-              <Ionicons name="download" size={18} color="#0F172A" />
+              <Ionicons name="download" size={18} color={HT.text} />
               <Text style={styles.stickyPdfBtnTxt}>Scarica Manuale d&apos;uso PDF</Text>
             </>
           )}
@@ -544,7 +544,7 @@ function SectionCard({ section }: { section: LibrettoSection }) {
           </View>
         ) : null}
         {section.id === "chiusura" ? (
-          <View style={{ backgroundColor: "#0F2438", borderRadius: 14, paddingVertical: 22, paddingHorizontal: 16, marginTop: 8 }}>
+          <View style={{ backgroundColor: '#0F2438', borderRadius: 14, paddingVertical: 22, paddingHorizontal: 16, marginTop: 8 }}>
             <BrandLogosBlock advisorLogo={ADVISOR_LOGO} axonLogo={AXON_LOGO} width={150} dark testID="libretto-brand-block-close" />
           </View>
         ) : null}
@@ -554,14 +554,14 @@ function SectionCard({ section }: { section: LibrettoSection }) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#0F2438" },
+  root: { flex: 1, backgroundColor: '#0F2438' },
   headerBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 12,
     paddingVertical: 10,
-    backgroundColor: "#0F2438",
+    backgroundColor: '#0F2438',
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255,255,255,0.08)",
   },
@@ -593,18 +593,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: "#EA580C",
+    backgroundColor: '#EA580C',
     minWidth: 76,
     justifyContent: "center",
   },
   pdfBtnTxt: { color: "#FFF", fontWeight: "900", fontSize: 13 },
-  scroll: { flex: 1, backgroundColor: "#F8FAFC" },
+  scroll: { flex: 1, backgroundColor: HT.card2 },
   scrollContent: { paddingBottom: 60 },
   // Cover
   cover: {
     paddingVertical: 40,
     paddingHorizontal: 24,
-    backgroundColor: "#0F2438",
+    backgroundColor: '#0F2438',
     alignItems: "center",
   },
   coverTitle: {
@@ -627,17 +627,17 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: "rgba(251,191,36,0.15)",
     borderWidth: 1,
-    borderColor: "#FBBF24",
+    borderColor: '#FBBF24',
   },
   coverBadgeTxt: { color: "#FBBF24", fontSize: 11, fontWeight: "800", letterSpacing: 1.5 },
   // Sezioni
   sec: {
     marginHorizontal: 12,
     marginTop: 14,
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderRadius: 14,
     overflow: "hidden",
-    shadowColor: "#0F172A",
+    shadowColor: HT.text,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.06,
     shadowRadius: 12,
@@ -654,36 +654,36 @@ const styles = StyleSheet.create({
   secTitle: { color: "#FFF", fontSize: 17, fontWeight: "900", letterSpacing: -0.3 },
   secSub: { color: "rgba(255,255,255,0.9)", fontSize: 12, marginTop: 3 },
   secBody: { padding: 18 },
-  secP: { fontSize: 13.5, lineHeight: 21, color: "#0F172A", marginBottom: 10 },
+  secP: { fontSize: 13.5, lineHeight: 21, color: HT.text, marginBottom: 10 },
   highlight: { borderRadius: 14, padding: 16, marginBottom: 12 },
   highlightTxt: { color: "#FFF", fontSize: 18, lineHeight: 26, fontWeight: "900", letterSpacing: 0.2 },
   bullets: { gap: 8, marginTop: 6, marginBottom: 6 },
   bulletRow: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 48 },
   bulletIcon: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  bulletTxt: { flex: 1, fontSize: 15, fontWeight: "800", color: "#111820", lineHeight: 20 },
+  bulletTxt: { flex: 1, fontSize: 15, fontWeight: "800", color: HT.text, lineHeight: 20 },
   bannerImg: { width: "100%", height: 112, borderRadius: 10 },
   secIcons: { flexDirection: "row", justifyContent: "center", gap: 16, marginTop: 10 },
   secIcon: { alignItems: "center", gap: 4, width: 120 },
   secIconImg: { width: 110, height: 80 },
-  secIconLbl: { fontSize: 12, fontWeight: "800", color: "#111820", textAlign: "center" },
+  secIconLbl: { fontSize: 12, fontWeight: "800", color: HT.text, textAlign: "center" },
   screenshotWrap: {
     alignItems: "center",
     marginTop: 10,
     marginBottom: 6,
     padding: 8,
     borderRadius: 14,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: HT.card2,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: HT.border,
   },
   screenshotImg: {
     width: "88%",
     height: 260,
     borderRadius: 10,
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
   },
   mockup: {
-    backgroundColor: "#0F172A",
+    backgroundColor: '#0F172A',
     borderRadius: 10,
     padding: 14,
     marginTop: 8,
@@ -709,22 +709,22 @@ const styles = StyleSheet.create({
     gap: 8,
     padding: 10,
     borderRadius: 10,
-    backgroundColor: "#FEF3C7",
+    backgroundColor: HT.warningTint,
   },
   tipEmoji: { fontSize: 16 },
-  tipTxt: { flex: 1, fontSize: 12.5, color: "#78350F", lineHeight: 18 },
+  tipTxt: { flex: 1, fontSize: 12.5, color: "#FDBA74", lineHeight: 18 },
   warning: {
     marginTop: 12,
     flexDirection: "row",
     gap: 8,
     padding: 12,
     borderRadius: 10,
-    backgroundColor: "#FEF2F2",
+    backgroundColor: HT.dangerTint,
     borderLeftWidth: 4,
-    borderLeftColor: "#DC2626",
+    borderLeftColor: '#DC2626',
     alignItems: "flex-start",
   },
-  warningTxt: { flex: 1, fontSize: 12.5, color: "#7F1D1D", lineHeight: 18 },
+  warningTxt: { flex: 1, fontSize: 12.5, color: HT.danger, lineHeight: 18 },
   // Footer
   footerBox: {
     alignItems: "center",
@@ -733,7 +733,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   footerIcon: { width: 60, height: 60, borderRadius: 12, marginBottom: 6 },
-  footerTxt: { fontSize: 11, color: theme.color.muted, textAlign: "center" },
+  footerTxt: { fontSize: 11, color: HT.muted, textAlign: "center" },
   // V50.m — Sticky CTA per onboarding
   stickyCta: {
     position: "absolute",
@@ -745,7 +745,7 @@ const styles = StyleSheet.create({
   stickyBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
     paddingVertical: 15, borderRadius: 999,
-    backgroundColor: "#EA580C",
+    backgroundColor: '#EA580C',
     shadowColor: "#EA580C", shadowOpacity: 0.45, shadowRadius: 12, shadowOffset: { width: 0, height: 4 },
     elevation: 6,
   },
@@ -754,11 +754,11 @@ const styles = StyleSheet.create({
   stickyPdfBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
     paddingVertical: 14, borderRadius: 999,
-    backgroundColor: "#FBBF24",
+    backgroundColor: '#FBBF24',
     shadowColor: "#000", shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 3 },
     elevation: 4,
   },
-  stickyPdfBtnTxt: { color: "#0F172A", fontWeight: "900", fontSize: 14, letterSpacing: 0.2 },
+  stickyPdfBtnTxt: { color: HT.text, fontWeight: "900", fontSize: 14, letterSpacing: 0.2 },
   // V50.z6 — "Modifica libretto" (Super Master) come secondary btn sotto il PDF btn
   stickyEditBtn: {
     marginTop: 10,

@@ -3,6 +3,7 @@ import React from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 export function AxonMemoryEntryCard() {
   const router = useRouter();
@@ -19,8 +20,8 @@ export function AxonMemoryEntryCard() {
 }
 
 const styles = StyleSheet.create({
-  card: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#F5F3FF", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#DDD6FE" },
-  icon: { width: 40, height: 40, borderRadius: 12, backgroundColor: "#7C3AED", alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 15, fontWeight: "800", color: "#1B2B4B" },
-  sub: { fontSize: 12, color: "#64748B", marginTop: 2, lineHeight: 16 },
+  card: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: HT.violetTint, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: HT.violet + '66' },
+  icon: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#7C3AED', alignItems: "center", justifyContent: "center" },
+  title: { fontSize: 15, fontWeight: "800", color: HT.text },
+  sub: { fontSize: 12, color: HT.muted, marginTop: 2, lineHeight: 16 },
 });

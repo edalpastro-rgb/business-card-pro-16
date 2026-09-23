@@ -21,6 +21,7 @@ import { api } from "@/src/api";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { syncAlarmNotifs, removeAlarmNotifs, syncAllAlarms, getCustomSoundUri, type Alarm, type AlarmKind } from "@/src/alarmNotifs";
 import { useTimeFormat, formatHHMM, formatDateTime, formatHM } from "@/src/utils/timeFormat";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Tab = "timer" | "alarm" | "reminder";
 type Sound = { id: string; name: string; mime: string; size_bytes?: number; created_at: string };
@@ -187,7 +188,7 @@ export default function AxonAlarmsScreen() {
             style={[styles.tabBtn, tab === t.id && styles.tabBtnActive]}
             testID={`tab-${t.id}`}
           >
-            <Ionicons name={t.icon} size={16} color={tab === t.id ? "#0F172A" : "#94A3B8"} />
+            <Ionicons name={t.icon} size={16} color={tab === t.id ? HT.text : HT.muted} />
             <Text style={[styles.tabTxt, tab === t.id && styles.tabTxtActive]}>{t.label}</Text>
           </Pressable>
         ))}
@@ -231,7 +232,7 @@ export default function AxonAlarmsScreen() {
         style={[styles.fab, { bottom: bottomPad - 60 }]}
         testID="new-alarm-fab"
       >
-        <Ionicons name="add" size={26} color="#0F172A" />
+        <Ionicons name="add" size={26} color={HT.text} />
         <Text style={styles.fabTxt}>
           {tab === "timer" ? "Nuovo timer" : tab === "alarm" ? "Nuova sveglia" : "Nuovo promemoria"}
         </Text>
@@ -282,7 +283,7 @@ function AlarmRow({ a, onToggle, onEdit, onDelete, _tick, timeFmt }: {
         <Switch
           value={a.enabled}
           onValueChange={onToggle}
-          thumbColor={a.enabled ? "#FBBF24" : "#94A3B8"}
+          thumbColor={a.enabled ? "#FBBF24" : HT.muted}
           trackColor={{ true: "rgba(251,191,36,0.4)", false: "rgba(148,163,184,0.3)" }}
         />
         <Pressable onPress={onDelete} hitSlop={8} style={styles.trashBtn} testID={`del-${a.id}`}>
@@ -524,7 +525,7 @@ function AlarmEditor({ initial, initialKind, timeFmt, onClose, onSaved }: {
                 onChangeText={setLabel}
                 style={styles.input}
                 placeholder="es. Sveglia mattina"
-                placeholderTextColor="#64748B"
+                placeholderTextColor={HT.muted}
                 maxLength={120}
               />
             </Field>
@@ -587,7 +588,7 @@ function AlarmEditor({ initial, initialKind, timeFmt, onClose, onSaved }: {
                   }}>
                     <Ionicons name="time-outline" size={22} color="#FBBF24" />
                     <Text style={styles.timeTxt}>{formatHM(alarmDate.getHours(), alarmDate.getMinutes(), timeFmt)}</Text>
-                    <Ionicons name="chevron-forward" size={20} color="#64748B" />
+                    <Ionicons name="chevron-forward" size={20} color={HT.muted} />
                   </Pressable>
                   {Platform.OS === "ios" && showTimePicker && (
                     <DateTimePicker
@@ -700,7 +701,7 @@ function AlarmEditor({ initial, initialKind, timeFmt, onClose, onSaved }: {
                 }}>
                   <Ionicons name="calendar-outline" size={22} color="#FBBF24" />
                   <Text style={styles.timeTxt}>{formatWhen(reminderDate.toISOString(), timeFmt)}</Text>
-                  <Ionicons name="chevron-forward" size={20} color="#64748B" />
+                  <Ionicons name="chevron-forward" size={20} color={HT.muted} />
                 </Pressable>
                 {Platform.OS === "ios" && showDatePicker && (
                   <DateTimePicker
@@ -721,7 +722,7 @@ function AlarmEditor({ initial, initialKind, timeFmt, onClose, onSaved }: {
               <Pressable style={styles.timeBox} onPress={() => setShowSoundPicker(true)}>
                 <Ionicons name="musical-note-outline" size={22} color="#FBBF24" />
                 <Text style={styles.timeTxt}>{soundLabel}</Text>
-                <Ionicons name="chevron-forward" size={20} color="#64748B" />
+                <Ionicons name="chevron-forward" size={20} color={HT.muted} />
               </Pressable>
               {Platform.OS === "ios" && soundRef !== "default" && !soundRef.startsWith("preset:") ? (
                 <Text style={[styles.hint, { color: "#F59E0B" }]}>
@@ -734,7 +735,7 @@ function AlarmEditor({ initial, initialKind, timeFmt, onClose, onSaved }: {
             {/* V50.z78 — Volume slider */}
             <Field label={`Volume · ${Math.round(volume)}%`}>
               <View style={styles.volRow}>
-                <Ionicons name="volume-low" size={18} color="#94A3B8" />
+                <Ionicons name="volume-low" size={18} color={HT.muted} />
                 <Slider
                   style={{ flex: 1 }}
                   minimumValue={0}
@@ -758,7 +759,7 @@ function AlarmEditor({ initial, initialKind, timeFmt, onClose, onSaved }: {
                 onChangeText={setNote}
                 style={[styles.input, { height: 80, textAlignVertical: "top" }]}
                 placeholder="es. Ricordati di portare i documenti"
-                placeholderTextColor="#64748B"
+                placeholderTextColor={HT.muted}
                 multiline
                 maxLength={500}
               />
@@ -770,7 +771,7 @@ function AlarmEditor({ initial, initialKind, timeFmt, onClose, onSaved }: {
               <Switch
                 value={enabled}
                 onValueChange={setEnabled}
-                thumbColor={enabled ? "#FBBF24" : "#94A3B8"}
+                thumbColor={enabled ? "#FBBF24" : HT.muted}
                 trackColor={{ true: "rgba(251,191,36,0.4)", false: "rgba(148,163,184,0.3)" }}
               />
             </View>
@@ -779,7 +780,7 @@ function AlarmEditor({ initial, initialKind, timeFmt, onClose, onSaved }: {
               <Switch
                 value={vibrate}
                 onValueChange={setVibrate}
-                thumbColor={vibrate ? "#FBBF24" : "#94A3B8"}
+                thumbColor={vibrate ? "#FBBF24" : HT.muted}
                 trackColor={{ true: "rgba(251,191,36,0.4)", false: "rgba(148,163,184,0.3)" }}
               />
             </View>
@@ -794,10 +795,10 @@ function AlarmEditor({ initial, initialKind, timeFmt, onClose, onSaved }: {
               testID="save-alarm"
             >
               {saving ? (
-                <ActivityIndicator color="#0F172A" size="small" />
+                <ActivityIndicator color={HT.text} size="small" />
               ) : (
                 <>
-                  <Ionicons name="save" size={18} color="#0F172A" />
+                  <Ionicons name="save" size={18} color={HT.text} />
                   <Text style={styles.saveTxt}>Salva</Text>
                 </>
               )}
@@ -842,7 +843,7 @@ function AlarmEditor({ initial, initialKind, timeFmt, onClose, onSaved }: {
                     onPress={() => { setSoundRef(s.id); setShowSoundPicker(false); }}
                     style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}
                   >
-                    <Ionicons name="musical-note" size={22} color="#94A3B8" />
+                    <Ionicons name="musical-note" size={22} color={HT.muted} />
                     <Text style={styles.soundRowTxt} numberOfLines={1}>{s.name}</Text>
                     {soundRef === s.id ? <Ionicons name="checkmark" size={20} color="#22C55E" /> : null}
                   </Pressable>
@@ -957,11 +958,11 @@ function fmtHHMM24(d: Date): string {
 
 // ─── Styles ────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#0F2438" },
+  root: { flex: 1, backgroundColor: '#0F2438' },
   header: {
     height: 52, flexDirection: "row", alignItems: "center",
     justifyContent: "space-between", paddingHorizontal: 12,
-    backgroundColor: "#0F2438", borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.08)",
+    backgroundColor: '#0F2438', borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.08)",
   },
   hBtn: { width: 30, height: 30, alignItems: "center", justifyContent: "center" },
   headerTitle: { color: "#FFF", fontSize: 17, fontWeight: "800" },
@@ -975,19 +976,19 @@ const styles = StyleSheet.create({
 
   tabsBar: {
     flexDirection: "row", padding: 10, gap: 8,
-    backgroundColor: "#0F2438", borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)",
+    backgroundColor: '#0F2438', borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)",
   },
   tabBtn: {
     flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
     paddingVertical: 8, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.05)",
   },
-  tabBtnActive: { backgroundColor: "#FBBF24" },
-  tabTxt: { color: "#94A3B8", fontWeight: "700", fontSize: 13 },
-  tabTxtActive: { color: "#0F172A" },
+  tabBtnActive: { backgroundColor: '#FBBF24' },
+  tabTxt: { color: HT.muted, fontWeight: "700", fontSize: 13 },
+  tabTxtActive: { color: HT.text },
 
   emptyBox: { flex: 1, alignItems: "center", justifyContent: "center", padding: 30 },
   emptyTitle: { color: "#FFF", fontSize: 16, fontWeight: "800", marginTop: 12 },
-  emptySub: { color: "#94A3B8", fontSize: 13, marginTop: 6, textAlign: "center" },
+  emptySub: { color: HT.muted, fontSize: 13, marginTop: 6, textAlign: "center" },
 
   row: {
     flexDirection: "row", alignItems: "center", gap: 10,
@@ -998,21 +999,21 @@ const styles = StyleSheet.create({
   rowDisabled: { opacity: 0.55 },
   rowLeft: { flex: 1 },
   rowLabel: { color: "#FFF", fontSize: 15, fontWeight: "800" },
-  rowSub: { color: "#94A3B8", fontSize: 13, marginTop: 2 },
-  rowNote: { color: "#64748B", fontSize: 12, marginTop: 4, fontStyle: "italic" },
+  rowSub: { color: HT.muted, fontSize: 13, marginTop: 2 },
+  rowNote: { color: HT.muted, fontSize: 12, marginTop: 4, fontStyle: "italic" },
   rowActions: { flexDirection: "row", alignItems: "center", gap: 8 },
   trashBtn: { padding: 4 },
 
   fab: {
     position: "absolute", right: 16, left: 16,
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    backgroundColor: "#FBBF24", paddingVertical: 14, borderRadius: 999,
+    backgroundColor: '#FBBF24', paddingVertical: 14, borderRadius: 999,
     shadowColor: "#000", shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 6,
   },
-  fabTxt: { color: "#0F172A", fontWeight: "900", fontSize: 15 },
+  fabTxt: { color: HT.text, fontWeight: "900", fontSize: 15 },
 
   // Editor
-  fieldLabel: { color: "#94A3B8", fontSize: 12, fontWeight: "700", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 },
+  fieldLabel: { color: HT.muted, fontSize: 12, fontWeight: "700", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 },
   input: {
     backgroundColor: "rgba(255,255,255,0.06)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)",
     borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, color: "#FFF", fontSize: 15,
@@ -1028,19 +1029,19 @@ const styles = StyleSheet.create({
     flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 10,
     borderRadius: 10, backgroundColor: "rgba(255,255,255,0.06)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)",
   },
-  wdChipOn: { backgroundColor: "#FBBF24", borderColor: "#FBBF24" },
-  wdTxt: { color: "#94A3B8", fontSize: 12, fontWeight: "700" },
-  wdTxtOn: { color: "#0F172A" },
+  wdChipOn: { backgroundColor: '#FBBF24', borderColor: '#FBBF24' },
+  wdTxt: { color: HT.muted, fontSize: 12, fontWeight: "700" },
+  wdTxtOn: { color: HT.text },
   presetRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 },
   presetChip: {
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999,
     backgroundColor: "rgba(251,191,36,0.15)", borderWidth: 1, borderColor: "rgba(251,191,36,0.4)",
   },
   presetTxt: { color: "#FBBF24", fontSize: 12, fontWeight: "700" },
-  hint: { color: "#64748B", fontSize: 11, marginTop: 6, fontStyle: "italic" },
+  hint: { color: HT.muted, fontSize: 11, marginTop: 6, fontStyle: "italic" },
   rowThreeCols: { flexDirection: "row", gap: 8 },
   npCol: { flex: 1, alignItems: "center" },
-  npLabel: { color: "#94A3B8", fontSize: 11, fontWeight: "700", marginBottom: 4 },
+  npLabel: { color: HT.muted, fontSize: 11, fontWeight: "700", marginBottom: 4 },
   npBox: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 12,
@@ -1055,21 +1056,21 @@ const styles = StyleSheet.create({
   },
   switchLabel: { color: "#FFF", fontSize: 15, fontWeight: "700" },
   saveBar: {
-    padding: 14, backgroundColor: "#0F2438",
+    padding: 14, backgroundColor: '#0F2438',
     borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.08)",
   },
   saveBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    backgroundColor: "#FBBF24", paddingVertical: 14, borderRadius: 999,
+    backgroundColor: '#FBBF24', paddingVertical: 14, borderRadius: 999,
   },
-  saveTxt: { color: "#0F172A", fontSize: 15, fontWeight: "900" },
+  saveTxt: { color: HT.text, fontSize: 15, fontWeight: "900" },
 
   // Sound picker
   spBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
-  spSheet: { backgroundColor: "#0F2438", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16, paddingBottom: 28 },
-  dragHandle: { alignSelf: "center", width: 44, height: 4, borderRadius: 2, backgroundColor: "#334155", marginBottom: 8 },
+  spSheet: { backgroundColor: '#0F2438', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16, paddingBottom: 28 },
+  dragHandle: { alignSelf: "center", width: 44, height: 4, borderRadius: 2, backgroundColor: '#334155', marginBottom: 8 },
   spTitle: { color: "#FFF", fontSize: 16, fontWeight: "800", marginBottom: 12 },
-  spSectionLbl: { color: "#94A3B8", fontSize: 11, fontWeight: "700", textTransform: "uppercase", marginTop: 10, marginBottom: 4, letterSpacing: 0.5 },
+  spSectionLbl: { color: HT.muted, fontSize: 11, fontWeight: "700", textTransform: "uppercase", marginTop: 10, marginBottom: 4, letterSpacing: 0.5 },
   // V50.z78 — Volume slider row
   volRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 10 },
   soundRow: {

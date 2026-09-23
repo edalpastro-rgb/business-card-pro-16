@@ -14,6 +14,7 @@ import * as WebBrowser from "expo-web-browser";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -153,7 +154,7 @@ export default function OutlookScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={10} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={24} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={24} color={HT.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Outlook</Text>
         <View style={{ width: 30 }} />
@@ -252,7 +253,7 @@ export default function OutlookScreen() {
               <View style={styles.center}><ActivityIndicator size="large" color="#0078D4" /></View>
             ) : messages.length === 0 ? (
               <View style={styles.emptyBox}>
-                <Ionicons name="mail-open-outline" size={40} color={theme.color.muted} />
+                <Ionicons name="mail-open-outline" size={40} color={HT.muted} />
                 <Text style={styles.emptyTxt}>
                   {showAll ? "Nessuna mail nella tua Inbox" : "Nessuna mail non letta 🎉"}
                 </Text>
@@ -274,7 +275,7 @@ export default function OutlookScreen() {
                         </Text>
                       ) : null}
                       <View style={styles.msgFlags}>
-                        {m.has_attachments ? <Ionicons name="attach" size={14} color={theme.color.muted} /> : null}
+                        {m.has_attachments ? <Ionicons name="attach" size={14} color={HT.muted} /> : null}
                         {m.importance === "high" ? <Ionicons name="flame" size={14} color="#EF4444" /> : null}
                         {!m.is_read ? <View style={styles.unreadDot} /> : null}
                       </View>
@@ -313,47 +314,47 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.color.background },
   header: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: 12, paddingVertical: 10, backgroundColor: "#FFF",
-    borderBottomWidth: 1, borderBottomColor: theme.color.border,
+    paddingHorizontal: 12, paddingVertical: 10, backgroundColor: HT.card,
+    borderBottomWidth: 1, borderBottomColor: HT.border,
   },
   backBtn: { width: 30, height: 30, alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontSize: 17, fontWeight: "800", color: theme.color.onSurface },
+  headerTitle: { fontSize: 17, fontWeight: "800", color: HT.text },
   center: { padding: 40, alignItems: "center", justifyContent: "center" },
   warnBox: {
-    flexDirection: "row", gap: 12, padding: 14, backgroundColor: "#FEF3C7",
-    borderWidth: 1, borderColor: "#FCD34D", borderRadius: 12, alignItems: "flex-start",
+    flexDirection: "row", gap: 12, padding: 14, backgroundColor: HT.warningTint,
+    borderWidth: 1, borderColor: '#FCD34D', borderRadius: 12, alignItems: "flex-start",
   },
-  warnTitle: { fontSize: 14, fontWeight: "800", color: "#92400E" },
-  warnSub: { fontSize: 12, color: "#92400E", marginTop: 3, lineHeight: 17 },
+  warnTitle: { fontSize: 14, fontWeight: "800", color: "#FDBA74" },
+  warnSub: { fontSize: 12, color: "#FDBA74", marginTop: 3, lineHeight: 17 },
 
   introCard: {
-    backgroundColor: "#FFF", borderRadius: 16, padding: 20, gap: 10,
-    borderWidth: 1, borderColor: theme.color.border, alignItems: "center",
+    backgroundColor: HT.card, borderRadius: 16, padding: 20, gap: 10,
+    borderWidth: 1, borderColor: HT.border, alignItems: "center",
   },
   introIconBox: {
-    width: 64, height: 64, borderRadius: 16, backgroundColor: "#DBEAFE",
+    width: 64, height: 64, borderRadius: 16, backgroundColor: HT.axonTint,
     alignItems: "center", justifyContent: "center", marginBottom: 4,
   },
-  introTitle: { fontSize: 18, fontWeight: "800", color: theme.color.onSurface, textAlign: "center" },
-  introSub: { fontSize: 13, color: theme.color.muted, textAlign: "center", lineHeight: 18, marginBottom: 6 },
+  introTitle: { fontSize: 18, fontWeight: "800", color: HT.text, textAlign: "center" },
+  introSub: { fontSize: 13, color: HT.muted, textAlign: "center", lineHeight: 18, marginBottom: 6 },
   permList: { alignSelf: "stretch", gap: 8, marginVertical: 8 },
   permRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  permTxt: { fontSize: 12, color: theme.color.onSurface, flex: 1 },
+  permTxt: { fontSize: 12, color: HT.text, flex: 1 },
   connectBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
     marginTop: 8, paddingVertical: 14, borderRadius: 999, alignSelf: "stretch",
-    backgroundColor: "#0078D4",
+    backgroundColor: '#0078D4',
     shadowColor: "#0078D4", shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 4,
   },
   connectTxt: { color: "#FFF", fontWeight: "900", fontSize: 15, letterSpacing: 0.3 },
 
   connectedCard: {
-    backgroundColor: "#DCFCE7", borderWidth: 1, borderColor: "#86EFAC",
+    backgroundColor: HT.successTint, borderWidth: 1, borderColor: '#86EFAC',
     borderRadius: 12, padding: 12,
   },
   connectedRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   connectedIcon: {
-    width: 40, height: 40, borderRadius: 10, backgroundColor: "#FFF",
+    width: 40, height: 40, borderRadius: 10, backgroundColor: HT.card,
     alignItems: "center", justifyContent: "center",
   },
   connectedTitle: { fontSize: 12, fontWeight: "900", color: "#059669", letterSpacing: 0.5 },
@@ -362,29 +363,29 @@ const styles = StyleSheet.create({
   filterBar: { flexDirection: "row", alignItems: "center", gap: 8 },
   filterChip: {
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: HT.card2,
   },
-  filterChipOn: { backgroundColor: "#0078D4" },
-  filterTxt: { color: theme.color.onSurface, fontWeight: "700", fontSize: 12 },
+  filterChipOn: { backgroundColor: '#0078D4' },
+  filterTxt: { color: HT.text, fontWeight: "700", fontSize: 12 },
   filterTxtOn: { color: "#FFF" },
   reloadBtn: { padding: 6 },
 
   emptyBox: { padding: 40, alignItems: "center", gap: 8 },
-  emptyTxt: { fontSize: 13, color: theme.color.muted },
+  emptyTxt: { fontSize: 13, color: HT.muted },
 
   msgCard: {
-    padding: 12, borderRadius: 12, backgroundColor: "#FFF",
-    borderWidth: 1, borderColor: theme.color.border, gap: 6,
+    padding: 12, borderRadius: 12, backgroundColor: HT.card,
+    borderWidth: 1, borderColor: HT.border, gap: 6,
   },
-  msgUnread: { borderLeftWidth: 3, borderLeftColor: "#0078D4" },
+  msgUnread: { borderLeftWidth: 3, borderLeftColor: '#0078D4' },
   msgHead: { flexDirection: "row", gap: 8, alignItems: "flex-start" },
-  msgFrom: { fontSize: 13, fontWeight: "800", color: theme.color.onSurface },
-  msgSubj: { fontSize: 13, color: theme.color.onSurface, marginTop: 2 },
+  msgFrom: { fontSize: 13, fontWeight: "800", color: HT.text },
+  msgSubj: { fontSize: 13, color: HT.text, marginTop: 2 },
   msgMetaCol: { alignItems: "flex-end", gap: 4 },
-  msgDate: { fontSize: 10, color: theme.color.muted },
+  msgDate: { fontSize: 10, color: HT.muted },
   msgFlags: { flexDirection: "row", gap: 4, alignItems: "center" },
-  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#0078D4" },
-  msgPreview: { fontSize: 12, color: theme.color.muted, lineHeight: 17 },
+  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#0078D4' },
+  msgPreview: { fontSize: 12, color: HT.muted, lineHeight: 17 },
   openLink: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start" },
   openLinkTxt: { fontSize: 11, color: "#0078D4", fontWeight: "700" },
 });

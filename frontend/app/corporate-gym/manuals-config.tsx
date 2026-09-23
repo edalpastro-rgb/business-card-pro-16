@@ -5,13 +5,13 @@ import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
-import { theme } from "@/src/theme";
 import { notify, confirmAsync } from "@/src/utils/notify";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { CgymHeaderBanner } from "@/src/corporate-gym/CgymHeaderBanner";
 import { CGYM_ORANGE, CgymType } from "@/src/corporate-gym/api";
 import { cgymManualsApi, CgymManualsConfig, CgymManualRef, fmtManualDate } from "@/src/corporate-gym/manualsApi";
 import { CgymDrivePicker } from "@/src/corporate-gym/CgymDrivePicker";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 export default function CgymManualsConfigScreen() {
   const router = useRouter();
@@ -49,7 +49,7 @@ export default function CgymManualsConfigScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable testID="cgym-man-back" onPress={() => (router.canGoBack() ? router.back() : router.replace("/corporate-gym" as any))} hitSlop={10}>
-          <Ionicons name="chevron-back" size={26} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={26} color={HT.text} />
         </Pressable>
         <Text style={styles.title}>Manuali su Drive</Text>
         <View style={{ width: 26 }} />
@@ -59,10 +59,10 @@ export default function CgymManualsConfigScreen() {
         {loading || !cfg ? <ActivityIndicator color={CGYM_ORANGE} style={{ marginTop: 30 }} /> : (
           <>
             {!cfg.drive_configured ? (
-              <View style={[styles.card, styles.soft]}><Ionicons name="information-circle" size={18} color={theme.color.muted} /><Text style={styles.softTxt}>Google Drive non è configurato sul server: i manuali non sono disponibili, il resto del Gym funziona normalmente.</Text></View>
+              <View style={[styles.card, styles.soft]}><Ionicons name="information-circle" size={18} color={HT.muted} /><Text style={styles.softTxt}>Google Drive non è configurato sul server: i manuali non sono disponibili, il resto del Gym funziona normalmente.</Text></View>
             ) : !cfg.master_drive_connected ? (
               <View style={[styles.card, styles.soft]}>
-                <Ionicons name="information-circle" size={18} color={theme.color.muted} />
+                <Ionicons name="information-circle" size={18} color={HT.muted} />
                 <Text style={styles.softTxt}>Il Drive del Master non è collegato. {canEdit ? "Collegalo da Impostazioni → Google Drive per scegliere i manuali." : "Chiedi al Master di collegarlo."}</Text>
                 {canEdit && <Pressable onPress={() => router.push("/google-drive" as any)} style={styles.linkBtn} testID="cgym-man-go-drive"><Text style={styles.linkBtnTxt}>Apri Google Drive</Text></Pressable>}
               </View>
@@ -86,7 +86,7 @@ export default function CgymManualsConfigScreen() {
                   </View>
                 ) : (
                   <View style={styles.softInline} testID={`cgym-man-soft-${t.type}`}>
-                    <Ionicons name="information-circle-outline" size={16} color={theme.color.muted} />
+                    <Ionicons name="information-circle-outline" size={16} color={HT.muted} />
                     <Text style={styles.softTxt}>{t.soft_message || "Nessun manuale collegato"} — la sezione resta utilizzabile.</Text>
                   </View>
                 )}
@@ -108,7 +108,7 @@ export default function CgymManualsConfigScreen() {
                   <Text style={styles.cardTitle}>Pannello Master Coach</Text>
                   <Text style={styles.linkSub}>Personalizza ogni role-play (testo, immagine, durata, interventi, checklist, cliente simulato) e le fasi di sessione con i manuali per fase.</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+                <Ionicons name="chevron-forward" size={18} color={HT.muted} />
               </Pressable>
             )}
           </>
@@ -120,22 +120,22 @@ export default function CgymManualsConfigScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
+  root: { flex: 1, backgroundColor: HT.card2 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 },
-  title: { fontSize: 18, fontWeight: "800", color: theme.color.onSurface },
-  hint: { fontSize: 12.5, color: theme.color.muted, lineHeight: 18 },
-  card: { backgroundColor: "#FFF", borderRadius: 16, borderWidth: 1, borderColor: theme.color.border, padding: 14, gap: 10 },
-  cardTitle: { fontSize: 15, fontWeight: "800", color: theme.color.onSurface },
-  soft: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F8FAFC" },
-  softInline: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#F8FAFC", borderRadius: 10, padding: 8 },
-  softTxt: { flex: 1, fontSize: 12.5, color: theme.color.muted, lineHeight: 17 },
-  linkRow: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFFBEB", borderRadius: 10, padding: 8 },
-  linkName: { fontSize: 13.5, fontWeight: "800", color: theme.color.onSurface },
-  linkSub: { fontSize: 11.5, color: theme.color.muted, lineHeight: 16 },
+  title: { fontSize: 18, fontWeight: "800", color: HT.text },
+  hint: { fontSize: 12.5, color: HT.muted, lineHeight: 18 },
+  card: { backgroundColor: HT.card, borderRadius: 16, borderWidth: 1, borderColor: HT.border, padding: 14, gap: 10 },
+  cardTitle: { fontSize: 15, fontWeight: "800", color: HT.text },
+  soft: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: HT.card2 },
+  softInline: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: HT.card2, borderRadius: 10, padding: 8 },
+  softTxt: { flex: 1, fontSize: 12.5, color: HT.muted, lineHeight: 17 },
+  linkRow: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: HT.warningTint, borderRadius: 10, padding: 8 },
+  linkName: { fontSize: 13.5, fontWeight: "800", color: HT.text },
+  linkSub: { fontSize: 11.5, color: HT.muted, lineHeight: 16 },
   primaryBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: CGYM_ORANGE, borderRadius: 12, paddingHorizontal: 12, minHeight: 44 },
   primaryTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
-  ghostBtn: { borderWidth: 1, borderColor: theme.color.border, borderRadius: 12, paddingHorizontal: 12, minHeight: 44, justifyContent: "center" },
-  ghostTxt: { color: theme.color.muted, fontWeight: "800", fontSize: 13 },
+  ghostBtn: { borderWidth: 1, borderColor: HT.border, borderRadius: 12, paddingHorizontal: 12, minHeight: 44, justifyContent: "center" },
+  ghostTxt: { color: HT.muted, fontWeight: "800", fontSize: 13 },
   linkBtn: { minHeight: 36, justifyContent: "center", paddingHorizontal: 8 },
-  linkBtnTxt: { color: theme.color.brandPrimary, fontWeight: "800", fontSize: 12.5 },
+  linkBtnTxt: { color: HT.brand, fontWeight: "800", fontSize: 12.5 },
 });

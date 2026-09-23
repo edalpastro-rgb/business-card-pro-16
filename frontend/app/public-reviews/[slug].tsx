@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
 import Constants from "expo-constants";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const BACKEND = (
   process.env.EXPO_PUBLIC_BACKEND_URL ||
@@ -114,7 +115,7 @@ export default function PublicReviewsPage() {
 
         {(data?.reviews || []).length === 0 ? (
           <View style={styles.empty}>
-            <Ionicons name="star-outline" size={40} color="#94A3B8" />
+            <Ionicons name="star-outline" size={40} color={HT.muted} />
             <Text style={styles.emptyTxt}>Nessuna recensione approvata al momento.</Text>
           </View>
         ) : (
@@ -148,23 +149,23 @@ export default function PublicReviewsPage() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F8FAFC" },
+  container: { flex: 1, backgroundColor: HT.card2 },
   scroll: { padding: 20, paddingBottom: 60 },
   centered: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24 },
   hero: { alignItems: "center", paddingVertical: 24, marginBottom: 12 },
-  masterName: { fontSize: 26, fontWeight: "800", color: "#111820", textAlign: "center" },
-  heroSub: { fontSize: 14, color: "#6B7280", marginTop: 4 },
+  masterName: { fontSize: 26, fontWeight: "800", color: HT.text, textAlign: "center" },
+  heroSub: { fontSize: 14, color: HT.muted, marginTop: 4 },
   avgBox: { alignItems: "center", marginTop: 12, gap: 4 },
-  avgTxt: { fontSize: 14, color: "#374151", fontWeight: "700", marginTop: 4 },
+  avgTxt: { fontSize: 14, color: HT.text2, fontWeight: "700", marginTop: 4 },
   empty: { alignItems: "center", padding: 40 },
-  emptyTxt: { color: "#94A3B8", marginTop: 12, fontSize: 14 },
+  emptyTxt: { color: HT.muted, marginTop: 12, fontSize: 14 },
   card: {
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderRadius: 14,
     padding: 18,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: HT.border,
     shadowColor: "#000",
     shadowOpacity: 0.05,
     shadowRadius: 6,
@@ -172,10 +173,10 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   cardHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
-  cardDate: { fontSize: 11, color: "#94A3B8" },
-  reviewTxt: { fontSize: 15, color: "#111820", fontStyle: "italic", lineHeight: 22, marginTop: 6 },
-  author: { fontSize: 12, color: "#6B7280", marginTop: 10, fontWeight: "600" },
-  footer: { fontSize: 11, color: "#94A3B8", textAlign: "center", marginTop: 20 },
-  errorTitle: { fontSize: 18, fontWeight: "800", color: "#111820", marginTop: 12, textAlign: "center" },
-  errorSub: { fontSize: 13, color: "#6B7280", marginTop: 6, textAlign: "center" },
+  cardDate: { fontSize: 11, color: HT.muted },
+  reviewTxt: { fontSize: 15, color: HT.text, fontStyle: "italic", lineHeight: 22, marginTop: 6 },
+  author: { fontSize: 12, color: HT.muted, marginTop: 10, fontWeight: "600" },
+  footer: { fontSize: 11, color: HT.muted, textAlign: "center", marginTop: 20 },
+  errorTitle: { fontSize: 18, fontWeight: "800", color: HT.text, marginTop: 12, textAlign: "center" },
+  errorSub: { fontSize: 13, color: HT.muted, marginTop: 6, textAlign: "center" },
 });

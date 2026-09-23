@@ -9,6 +9,7 @@ import { api } from "@/src/api";
 import { notify, confirmAsync } from "@/src/utils/notify";
 import { AreaMiniWizard, type AreaCfg } from "@/src/AreaMiniWizard";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const PURPLE = "#7C3AED";
 const NEW_CUSTOM: AreaCfg = { key: "custom_new", title: "Nuova area personalizzata", icon: "sparkles", desc: "", on: true, custom: true, future: false, status: "incomplete", wizard: { steps: [{ id: "custom", kind: "custom", title: "Racconta ad AxonOS questa area" }] } };
@@ -54,23 +55,23 @@ export default function LeMieAreeScreen() {
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={10} testID="aree-back"><Ionicons name="chevron-back" size={26} color="#1B2B4B" /></Pressable>
+        <Pressable onPress={() => router.back()} hitSlop={10} testID="aree-back"><Ionicons name="chevron-back" size={26} color={HT.text} /></Pressable>
         <Text style={styles.hTitle}>Le mie aree</Text>
         <View style={{ width: 26 }} />
       </View>
       {!areas ? <ActivityIndicator color={PURPLE} style={{ marginTop: 30 }} /> : (
         <ScrollView contentContainerStyle={{ padding: 14, gap: 10, paddingBottom: bottomPad }}>
           <Text style={styles.intro}>Attiva ciò che usi. Ogni area con dati apre un mini-wizard (max 3 passi): prima «Carica foto, file o PDF», AxonOS legge tutto e ti chiede solo ciò che manca.</Text>
-          {incomplete > 0 && <View style={styles.banner} testID="aree-incomplete-banner"><Ionicons name="alert-circle" size={16} color="#B45309" /><Text style={styles.bannerTxt}>{incomplete} {incomplete === 1 ? "area attiva con configurazione incompleta" : "aree attive con configurazione incompleta"}</Text></View>}
+          {incomplete > 0 && <View style={styles.banner} testID="aree-incomplete-banner"><Ionicons name="alert-circle" size={16} color={HT.warning} /><Text style={styles.bannerTxt}>{incomplete} {incomplete === 1 ? "area attiva con configurazione incompleta" : "aree attive con configurazione incompleta"}</Text></View>}
 
           {builtin.map((a) => {
             const incompleteA = a.on && a.status === "incomplete";
             return (
-              <View key={a.key} style={[styles.row, incompleteA && { borderColor: "#FCD34D" }]} testID={`aree-row-${a.key}`}>
+              <View key={a.key} style={[styles.row, incompleteA && { borderColor: '#FCD34D' }]} testID={`aree-row-${a.key}`}>
                 <View style={[styles.icon, a.on && { backgroundColor: PURPLE }]}>
-                  <Ionicons name={a.icon as any} size={20} color={a.on ? "#FFF" : "#64748B"} />
+                  <Ionicons name={a.icon as any} size={20} color={a.on ? "#FFF" : HT.muted} />
                   {incompleteA && <View style={styles.dot} testID={`aree-incomplete-${a.key}`}><Ionicons name="alert" size={9} color="#FFF" /></View>}
-                  {a.on && a.status === "complete" && <View style={[styles.dot, { backgroundColor: "#16A34A" }]}><Ionicons name="checkmark" size={9} color="#FFF" /></View>}
+                  {a.on && a.status === "complete" && <View style={[styles.dot, { backgroundColor: '#16A34A' }]}><Ionicons name="checkmark" size={9} color="#FFF" /></View>}
                 </View>
                 <View style={{ flex: 1, gap: 2 }}>
                   <Text style={styles.title} numberOfLines={1}>{a.title}</Text>
@@ -91,7 +92,7 @@ export default function LeMieAreeScreen() {
           <Text style={styles.section}>✨ Aree personalizzate</Text>
           {customs.map((a) => (
             <View key={a.key} style={styles.row} testID={`aree-row-${a.key}`}>
-              <View style={[styles.icon, { backgroundColor: "#C2410C" }]}><Ionicons name="sparkles" size={20} color="#FFF" /></View>
+              <View style={[styles.icon, { backgroundColor: '#C2410C' }]}><Ionicons name="sparkles" size={20} color="#FFF" /></View>
               <View style={{ flex: 1, gap: 2 }}>
                 <Text style={styles.title} numberOfLines={1}>{a.title}</Text>
                 <Text style={styles.desc} numberOfLines={2}>{a.desc || "Nessuna descrizione"}{a.custom_area?.sites?.length ? ` · ${a.custom_area.sites.length} fonti web` : ""}{a.custom_area?.deadlines?.length ? ` · ${a.custom_area.deadlines.length} scadenze` : ""}</Text>
@@ -111,21 +112,21 @@ export default function LeMieAreeScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F8FAFC" },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "#FFF", borderBottomWidth: 1, borderBottomColor: "#E2E8F0" },
-  hTitle: { fontSize: 17, fontWeight: "900", color: "#1B2B4B" },
-  intro: { fontSize: 12.5, color: "#64748B", lineHeight: 17 },
-  banner: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFFBEB", borderRadius: 12, padding: 10, borderWidth: 1, borderColor: "#FDE68A" },
-  bannerTxt: { color: "#92400E", fontWeight: "800", fontSize: 12.5, flex: 1 },
-  row: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#FFF", borderRadius: 16, padding: 12, borderWidth: 1.5, borderColor: "#E2E8F0" },
-  icon: { width: 44, height: 44, borderRadius: 14, backgroundColor: "#E2E8F0", alignItems: "center", justifyContent: "center" },
-  dot: { position: "absolute", right: -4, top: -4, width: 16, height: 16, borderRadius: 8, backgroundColor: "#F59E0B", alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "#FFF" },
-  title: { fontSize: 15, fontWeight: "800", color: "#1B2B4B" },
-  desc: { fontSize: 12, color: "#64748B", lineHeight: 16 },
-  incTxt: { fontSize: 11, fontWeight: "900", color: "#B45309" },
+  root: { flex: 1, backgroundColor: HT.card2 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 12, backgroundColor: HT.card, borderBottomWidth: 1, borderBottomColor: HT.border },
+  hTitle: { fontSize: 17, fontWeight: "900", color: HT.text },
+  intro: { fontSize: 12.5, color: HT.muted, lineHeight: 17 },
+  banner: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: HT.warningTint, borderRadius: 12, padding: 10, borderWidth: 1, borderColor: HT.warning + '66' },
+  bannerTxt: { color: "#FDBA74", fontWeight: "800", fontSize: 12.5, flex: 1 },
+  row: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: HT.card, borderRadius: 16, padding: 12, borderWidth: 1.5, borderColor: HT.border },
+  icon: { width: 44, height: 44, borderRadius: 14, backgroundColor: HT.border, alignItems: "center", justifyContent: "center" },
+  dot: { position: "absolute", right: -4, top: -4, width: 16, height: 16, borderRadius: 8, backgroundColor: '#F59E0B', alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: HT.card },
+  title: { fontSize: 15, fontWeight: "800", color: HT.text },
+  desc: { fontSize: 12, color: HT.muted, lineHeight: 16 },
+  incTxt: { fontSize: 11, fontWeight: "900", color: HT.warning },
   cfgBtn: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 32, alignSelf: "flex-start" },
   cfgTxt: { color: PURPLE, fontWeight: "800", fontSize: 12.5 },
-  section: { fontSize: 13, fontWeight: "900", color: "#4C1D95", marginTop: 8 },
-  addBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 50, borderRadius: 14, backgroundColor: "#C2410C" },
+  section: { fontSize: 13, fontWeight: "900", color: HT.violet, marginTop: 8 },
+  addBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 50, borderRadius: 14, backgroundColor: '#C2410C' },
   addTxt: { color: "#FFF", fontWeight: "900", fontSize: 14.5 },
 });

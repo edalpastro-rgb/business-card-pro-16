@@ -4,10 +4,10 @@ import { useAudioRecorder, RecordingPresets } from "expo-audio"; // V50.z255 —
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
-import { theme } from "@/src/theme";
 import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 type Contact = { contact_id: string; first_name: string; last_name: string; contact_code?: string; phone?: string };
 type Group = { group_id: string; name: string; color: string; member_count?: number };
 
@@ -368,7 +368,7 @@ export function MasterVoiceRecorder({
           <View style={[styles.reviewSheet, { paddingBottom: bottomPad }]}>
             <View style={styles.reviewHeader}>
               <Text style={styles.reviewTitle}>Salva registrazione</Text>
-              <Pressable onPress={() => setConfirmClose(true)} testID="voice-close-btn"><Ionicons name="close" size={22} color={theme.color.onSurface} /></Pressable>
+              <Pressable onPress={() => setConfirmClose(true)} testID="voice-close-btn"><Ionicons name="close" size={22} color={HT.text} /></Pressable>
             </View>
 
             <ScrollView contentContainerStyle={{ paddingBottom: 20 }} keyboardShouldPersistTaps="handled">
@@ -381,7 +381,7 @@ export function MasterVoiceRecorder({
                   <Text style={styles.audioName} numberOfLines={1}>{title || "Nota vocale"}</Text>
                   <Text style={styles.audioMeta}>Durata {mmss}{sizeKb ? ` · ${sizeKb}` : ""}</Text>
                 </View>
-                <Pressable onPress={retry} style={[styles.circleBtn, { backgroundColor: "#F59E0B" }]} testID="voice-retry-btn">
+                <Pressable onPress={retry} style={[styles.circleBtn, { backgroundColor: '#F59E0B' }]} testID="voice-retry-btn">
                   <Ionicons name="refresh" size={20} color="#FFF" />
                 </Pressable>
               </View>
@@ -421,7 +421,7 @@ export function MasterVoiceRecorder({
               <Pressable onPress={() => setShowContacts((v) => !v)} style={styles.destGroupHeader} testID="dest-contacts-toggle">
                 <Ionicons name="person" size={20} color="#0891B2" />
                 <Text style={styles.destGroupTitle}>Clienti {pickedContactIds.size > 0 ? `· ${pickedContactIds.size} selezionati` : ""}</Text>
-                <Ionicons name={showContacts ? "chevron-up" : "chevron-down"} size={20} color={theme.color.muted} />
+                <Ionicons name={showContacts ? "chevron-up" : "chevron-down"} size={20} color={HT.muted} />
               </Pressable>
               {showContacts && (
                 <View style={styles.destBox}>
@@ -454,7 +454,7 @@ export function MasterVoiceRecorder({
               <Pressable onPress={() => setShowGroups((v) => !v)} style={styles.destGroupHeader} testID="dest-groups-toggle">
                 <Ionicons name="people" size={20} color="#059669" />
                 <Text style={styles.destGroupTitle}>Gruppi {pickedGroupIds.size > 0 ? `· ${pickedGroupIds.size} selezionati` : ""}</Text>
-                <Ionicons name={showGroups ? "chevron-up" : "chevron-down"} size={20} color={theme.color.muted} />
+                <Ionicons name={showGroups ? "chevron-up" : "chevron-down"} size={20} color={HT.muted} />
               </Pressable>
               {showGroups && (
                 <View style={styles.destBox}>
@@ -486,14 +486,14 @@ export function MasterVoiceRecorder({
 
             {/* Bottom actions */}
             <View style={[styles.footer, { paddingBottom: 12 + safeBottom }]}>
-              <Pressable onPress={() => setConfirmClose(true)} disabled={saving} style={[styles.footerBtn, { backgroundColor: "#F1F5F9" }]} testID="voice-cancel-btn">
+              <Pressable onPress={() => setConfirmClose(true)} disabled={saving} style={[styles.footerBtn, { backgroundColor: HT.card2 }]} testID="voice-cancel-btn">
                 <Ionicons name="trash-outline" size={18} color="#DC2626" />
                 <Text style={[styles.footerTxt, { color: "#DC2626" }]}>Scarta</Text>
               </Pressable>
               <Pressable
                 onPress={save}
                 disabled={saving || totalTargets === 0}
-                style={[styles.footerBtn, { backgroundColor: totalTargets === 0 ? "#94A3B8" : "#16A34A", flex: 2 }]}
+                style={[styles.footerBtn, { backgroundColor: totalTargets === 0 ? HT.muted : "#16A34A", flex: 2 }]}
                 testID="voice-save-btn"
               >
                 {saving ? <ActivityIndicator color="#FFF" /> : (
@@ -518,10 +518,10 @@ export function MasterVoiceRecorder({
             <Text style={styles.confirmT}>Scartare la registrazione?</Text>
             <Text style={styles.confirmSub}>L&apos;audio non salvato andrà perso.</Text>
             <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
-              <Pressable onPress={() => setConfirmClose(false)} style={[styles.footerBtn, { backgroundColor: "#F1F5F9", flex: 1 }]} testID="confirm-keep">
-                <Text style={[styles.footerTxt, { color: theme.color.onSurface }]}>Torna indietro</Text>
+              <Pressable onPress={() => setConfirmClose(false)} style={[styles.footerBtn, { backgroundColor: HT.card2, flex: 1 }]} testID="confirm-keep">
+                <Text style={[styles.footerTxt, { color: HT.text }]}>Torna indietro</Text>
               </Pressable>
-              <Pressable onPress={discardAll} style={[styles.footerBtn, { backgroundColor: "#DC2626", flex: 1 }]} testID="confirm-discard">
+              <Pressable onPress={discardAll} style={[styles.footerBtn, { backgroundColor: '#DC2626', flex: 1 }]} testID="confirm-discard">
                 <Text style={[styles.footerTxt, { color: "#FFF" }]}>Scarta</Text>
               </Pressable>
             </View>
@@ -559,53 +559,53 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#DC2626",
+    backgroundColor: '#DC2626',
     borderRadius: 20,
     paddingHorizontal: 14,
     paddingVertical: 8,
     marginTop: 4,
     alignSelf: "center",
   },
-  recDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: "#FFF" },
+  recDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: HT.card },
   recIndicatorTxt: { color: "#FFF", fontWeight: "700", fontSize: 12 },
   fab: {
     width: 76, height: 76, borderRadius: 38, alignItems: "center", justifyContent: "center",
     shadowColor: "#000", shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6,
   },
-  fabHint: { marginTop: 10, fontSize: 12, color: theme.color.muted, fontWeight: "600", fontVariant: ["tabular-nums"] },
+  fabHint: { marginTop: 10, fontSize: 12, color: HT.muted, fontWeight: "600", fontVariant: ["tabular-nums"] },
   modalRoot: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
-  reviewSheet: { backgroundColor: "#FFF", borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 16, paddingBottom: 24, maxHeight: "90%" },
+  reviewSheet: { backgroundColor: HT.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 16, paddingBottom: 24, maxHeight: "90%" },
   reviewHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
-  reviewTitle: { fontSize: 17, fontWeight: "800", color: theme.color.onSurface },
+  reviewTitle: { fontSize: 17, fontWeight: "800", color: HT.text },
   audioCard: {
     flexDirection: "row", alignItems: "center",
-    backgroundColor: "#F5F3FF", borderRadius: 14, padding: 12,
-    borderWidth: 2, borderColor: "#DDD6FE",
+    backgroundColor: HT.violetTint, borderRadius: 14, padding: 12,
+    borderWidth: 2, borderColor: HT.violet + '66',
   },
   circleBtn: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
-  audioName: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface },
-  audioMeta: { fontSize: 11, color: theme.color.muted, marginTop: 2, fontVariant: ["tabular-nums"] },
-  label: { fontSize: 12, fontWeight: "700", color: theme.color.muted, marginTop: 16, marginBottom: 6, textTransform: "uppercase", letterSpacing: 1 },
-  hint: { fontSize: 11, color: theme.color.muted, marginBottom: 10 },
-  input: { borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, padding: 12, fontSize: 14, color: theme.color.onSurface, backgroundColor: theme.color.surface },
-  destRow: { flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 12, marginBottom: 8, backgroundColor: "#F8FAFC", borderWidth: 1.5, borderColor: theme.color.border },
-  destRowActive: { borderColor: "#7C3AED", backgroundColor: "#F5F3FF" },
-  destLabel: { fontSize: 13, fontWeight: "800", color: theme.color.onSurface },
-  destHint: { fontSize: 11, color: theme.color.muted, marginTop: 2 },
-  destGroupHeader: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 12, marginBottom: 4, backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: theme.color.border },
-  destGroupTitle: { flex: 1, fontSize: 13, fontWeight: "800", color: theme.color.onSurface },
-  destBox: { backgroundColor: "#FAFBFF", padding: 10, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: theme.color.border },
+  audioName: { fontSize: 14, fontWeight: "800", color: HT.text },
+  audioMeta: { fontSize: 11, color: HT.muted, marginTop: 2, fontVariant: ["tabular-nums"] },
+  label: { fontSize: 12, fontWeight: "700", color: HT.muted, marginTop: 16, marginBottom: 6, textTransform: "uppercase", letterSpacing: 1 },
+  hint: { fontSize: 11, color: HT.muted, marginBottom: 10 },
+  input: { borderWidth: 1, borderColor: HT.border, borderRadius: 10, padding: 12, fontSize: 14, color: HT.text, backgroundColor: HT.card2 },
+  destRow: { flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 12, marginBottom: 8, backgroundColor: HT.card2, borderWidth: 1.5, borderColor: HT.border },
+  destRowActive: { borderColor: '#7C3AED', backgroundColor: HT.violetTint },
+  destLabel: { fontSize: 13, fontWeight: "800", color: HT.text },
+  destHint: { fontSize: 11, color: HT.muted, marginTop: 2 },
+  destGroupHeader: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 12, marginBottom: 4, backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border },
+  destGroupTitle: { flex: 1, fontSize: 13, fontWeight: "800", color: HT.text },
+  destBox: { backgroundColor: '#FAFBFF', padding: 10, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: HT.border },
   pickRow: { flexDirection: "row", alignItems: "center", paddingVertical: 8, paddingHorizontal: 6, borderRadius: 8 },
-  pickRowActive: { backgroundColor: "#FFF" },
-  pickName: { fontSize: 13, fontWeight: "700", color: theme.color.onSurface },
-  pickSub: { fontSize: 11, color: theme.color.muted, marginTop: 1 },
+  pickRowActive: { backgroundColor: HT.card },
+  pickName: { fontSize: 13, fontWeight: "700", color: HT.text },
+  pickSub: { fontSize: 11, color: HT.muted, marginTop: 1 },
   cbox: { width: 22, height: 22, borderRadius: 5, borderWidth: 2, alignItems: "center", justifyContent: "center" },
-  emptyLine: { textAlign: "center", padding: 12, fontSize: 12, color: theme.color.muted, fontStyle: "italic" },
+  emptyLine: { textAlign: "center", padding: 12, fontSize: 12, color: HT.muted, fontStyle: "italic" },
   footer: { flexDirection: "row", gap: 10, marginTop: 10 },
   footerBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", padding: 14, borderRadius: 12, gap: 6 },
   footerTxt: { fontWeight: "800", fontSize: 14 },
   confirmRoot: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", padding: 20 },
-  confirmBox: { backgroundColor: "#FFF", borderRadius: 18, padding: 20 },
-  confirmT: { fontSize: 17, fontWeight: "800", color: theme.color.onSurface, textAlign: "center", marginTop: 10 },
-  confirmSub: { fontSize: 12, color: theme.color.muted, textAlign: "center", marginTop: 6 },
+  confirmBox: { backgroundColor: HT.card, borderRadius: 18, padding: 20 },
+  confirmT: { fontSize: 17, fontWeight: "800", color: HT.text, textAlign: "center", marginTop: 10 },
+  confirmSub: { fontSize: 12, color: HT.muted, textAlign: "center", marginTop: 6 },
 });

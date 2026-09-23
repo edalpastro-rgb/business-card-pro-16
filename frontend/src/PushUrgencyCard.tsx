@@ -4,18 +4,18 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { theme } from "@/src/theme";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Urg = "CRITICAL" | "HIGH" | "NORMAL";
 type Rule = { id: string; label: string; match: string; urgency: Urg };
 type Cfg = { levels: Urg[]; urgency_map: Record<string, Urg>; custom_rules: Rule[]; labels: Record<string, string>; defaults: Record<string, Urg>; dnd_bypass: boolean };
 
 const LV: Record<Urg, { dot: string; name: string; color: string; bg: string }> = {
-  CRITICAL: { dot: "🔴", name: "Critica", color: "#B91C1C", bg: "#FEE2E2" },
-  HIGH: { dot: "🟠", name: "Alta", color: "#C2410C", bg: "#FFEDD5" },
-  NORMAL: { dot: "⚪", name: "Normale", color: "#475569", bg: "#F1F5F9" },
+  CRITICAL: { dot: "🔴", name: "Critica", color: HT.danger, bg: HT.dangerTint },
+  HIGH: { dot: "🟠", name: "Alta", color: "#FDBA74", bg: HT.brandTint },
+  NORMAL: { dot: "⚪", name: "Normale", color: HT.text2, bg: HT.card2 },
 };
 
 export function PushUrgencyCard() {
@@ -54,7 +54,7 @@ export function PushUrgencyCard() {
           <Text style={styles.headTxt}>Priorità degli avvisi</Text>
           <Text style={styles.sub}>{critN} {critN === 1 ? "urgenza critica" : "urgenze critiche"} (LED rosso, suona sempre, anche di notte) · tocca per {open ? "chiudere" : "modificare"}</Text>
         </View>
-        {saving ? <ActivityIndicator size="small" color="#DC2626" /> : <Ionicons name={open ? "chevron-up" : "chevron-down"} size={18} color={theme.color.muted} />}
+        {saving ? <ActivityIndicator size="small" color="#DC2626" /> : <Ionicons name={open ? "chevron-up" : "chevron-down"} size={18} color={HT.muted} />}
       </Pressable>
 
       {open && (
@@ -86,11 +86,11 @@ export function PushUrgencyCard() {
             <View key={r.id} style={styles.ruleRow} testID={`push-rule-${r.id}`}>
               <Text style={styles.ruleDot}>{LV[r.urgency].dot}</Text>
               <Text style={styles.ruleTxt} numberOfLines={1}>«{r.match}» → {LV[r.urgency].name}</Text>
-              <Pressable onPress={() => delRule(r.id)} hitSlop={8} style={styles.del} testID={`push-rule-del-${r.id}`}><Ionicons name="trash-outline" size={16} color={theme.color.muted} /></Pressable>
+              <Pressable onPress={() => delRule(r.id)} hitSlop={8} style={styles.del} testID={`push-rule-del-${r.id}`}><Ionicons name="trash-outline" size={16} color={HT.muted} /></Pressable>
             </View>
           ))}
           <View style={styles.addRow}>
-            <TextInput value={newMatch} onChangeText={setNewMatch} placeholder="Parola chiave dell'avviso…" placeholderTextColor="#94A3B8" style={styles.input} onSubmitEditing={addRule} returnKeyType="done" testID="push-rule-input" />
+            <TextInput value={newMatch} onChangeText={setNewMatch} placeholder="Parola chiave dell'avviso…" placeholderTextColor={HT.muted} style={styles.input} onSubmitEditing={addRule} returnKeyType="done" testID="push-rule-input" />
             <View style={styles.chips}>
               {(["CRITICAL", "HIGH", "NORMAL"] as Urg[]).map((u) => (
                 <Pressable key={u} onPress={() => setNewUrg(u)} style={[styles.chip, newUrg === u && { backgroundColor: LV[u].bg, borderColor: LV[u].color }]} testID={`push-rule-urg-${u}`}><Text style={styles.chipTxt}>{LV[u].dot}</Text></Pressable>
@@ -107,23 +107,23 @@ export function PushUrgencyCard() {
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: theme.color.surfaceSecondary, borderRadius: 14, borderWidth: 1, borderColor: "#FECACA", padding: 14, gap: 10 },
+  card: { backgroundColor: HT.card2, borderRadius: 14, borderWidth: 1, borderColor: HT.danger + '66', padding: 14, gap: 10 },
   head: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 44 },
-  headTxt: { fontSize: 13, fontWeight: "900", color: theme.color.muted, textTransform: "uppercase", letterSpacing: 0.5 },
-  sub: { fontSize: 11.5, color: theme.color.muted, lineHeight: 15 },
-  section: { fontSize: 12, fontWeight: "800", color: theme.color.onSurface, marginTop: 4 },
+  headTxt: { fontSize: 13, fontWeight: "900", color: HT.muted, textTransform: "uppercase", letterSpacing: 0.5 },
+  sub: { fontSize: 11.5, color: HT.muted, lineHeight: 15 },
+  section: { fontSize: 12, fontWeight: "800", color: HT.text, marginTop: 4 },
   row: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 44 },
-  rowLabel: { flex: 1, fontSize: 12.5, color: theme.color.onSurface, fontWeight: "600" },
+  rowLabel: { flex: 1, fontSize: 12.5, color: HT.text, fontWeight: "600" },
   chips: { flexDirection: "row", gap: 6 },
-  chip: { width: 40, height: 40, borderRadius: 12, borderWidth: 1.5, borderColor: theme.color.border, backgroundColor: theme.color.surface, alignItems: "center", justifyContent: "center" },
+  chip: { width: 40, height: 40, borderRadius: 12, borderWidth: 1.5, borderColor: HT.border, backgroundColor: HT.card2, alignItems: "center", justifyContent: "center" },
   chipTxt: { fontSize: 15 },
-  legend: { fontSize: 11, color: theme.color.muted, textAlign: "right" },
-  ruleRow: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 40, backgroundColor: theme.color.surface, borderRadius: 10, paddingHorizontal: 10, borderWidth: 1, borderColor: theme.color.border },
+  legend: { fontSize: 11, color: HT.muted, textAlign: "right" },
+  ruleRow: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 40, backgroundColor: HT.card2, borderRadius: 10, paddingHorizontal: 10, borderWidth: 1, borderColor: HT.border },
   ruleDot: { fontSize: 13 },
-  ruleTxt: { flex: 1, fontSize: 12.5, color: theme.color.onSurface, fontWeight: "600" },
+  ruleTxt: { flex: 1, fontSize: 12.5, color: HT.text, fontWeight: "600" },
   del: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
   addRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  input: { flex: 1, minHeight: 44, borderRadius: 10, borderWidth: 1, borderColor: theme.color.border, backgroundColor: theme.color.surface, paddingHorizontal: 10, fontSize: 13, color: theme.color.onSurface },
-  addBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 44, borderRadius: 12, backgroundColor: "#DC2626" },
+  input: { flex: 1, minHeight: 44, borderRadius: 10, borderWidth: 1, borderColor: HT.border, backgroundColor: HT.card2, paddingHorizontal: 10, fontSize: 13, color: HT.text },
+  addBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 44, borderRadius: 12, backgroundColor: '#DC2626' },
   addTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
 });

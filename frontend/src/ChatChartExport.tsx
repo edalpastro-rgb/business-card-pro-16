@@ -24,6 +24,7 @@ import React, { useMemo, useState } from "react";
 import { View, Text, StyleSheet, Pressable, Modal, useWindowDimensions, ScrollView, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LineChart, BarChart, PieChart } from "react-native-chart-kit";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 export type ChartSpec =
   | {
@@ -74,7 +75,7 @@ function pieDataToKit(spec: Extract<ChartSpec, { type: "pie" }>) {
     name: s.name,
     population: Number(s.value) || 0,
     color: s.color || DEFAULT_PALETTE[i % DEFAULT_PALETTE.length],
-    legendFontColor: "#334155",
+    legendFontColor: HT.text2,
     legendFontSize: 11,
   }));
 }
@@ -251,9 +252,9 @@ const styles = StyleSheet.create({
     marginTop: 8,
     padding: 10,
     borderRadius: 12,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: HT.card,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: HT.border,
   },
   header: {
     flexDirection: "row",
@@ -270,7 +271,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   badgeTxt: { fontSize: 10, fontWeight: "800", letterSpacing: 0.4 },
-  title: { flex: 1, fontSize: 13, fontWeight: "800", color: "#1B2B4B" },
+  title: { flex: 1, fontSize: 13, fontWeight: "800", color: HT.text },
   expandBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -279,7 +280,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 8,
     borderWidth: 1.5,
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
   },
   expandTxt: { fontSize: 11, fontWeight: "800" },
   chartBox: { alignItems: "center", justifyContent: "center" },
@@ -317,7 +318,7 @@ const styles = StyleSheet.create({
   fullChartBox: {
     padding: 12,
     borderRadius: 16,
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     alignSelf: "center",
   },
 });

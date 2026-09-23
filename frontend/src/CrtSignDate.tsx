@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { View, Text, StyleSheet, Pressable, Platform, ActivityIndicator } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
-import { theme } from "@/src/theme";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const toIso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const fromIso = (v: string) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v || ""); return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null; };
@@ -20,19 +20,19 @@ export function CrtSignDate({ value, effective, onChange, busy }: { value: strin
       <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
         {Platform.OS === "web" ? (
           <View style={[s.box, { flex: 1 }]}>
-            <Ionicons name="calendar" size={18} color={theme.color.brandPrimary} />
+            <Ionicons name="calendar" size={18} color={HT.brand} />
             {/* @ts-expect-error web-only */}
-            <input type="date" data-testid="crt-sign-date-web" value={value || ""} onChange={(e: any) => onChange(e.target.value || "")} style={{ flex: 1, border: "none", background: "transparent", fontSize: 15, color: "#0F172A", outline: "none", fontFamily: "inherit" }} />
+            <input type="date" data-testid="crt-sign-date-web" value={value || ""} onChange={(e: any) => onChange(e.target.value || "")} style={{ flex: 1, border: "none", background: "transparent", fontSize: 15, color: HT.text, outline: "none", fontFamily: "inherit" }} />
           </View>
         ) : (
           <Pressable onPress={() => setShow(true)} style={[s.box, { flex: 1 }]} testID="crt-sign-date-open">
-            <Ionicons name="calendar" size={18} color={theme.color.brandPrimary} />
-            <Text style={{ flex: 1, fontSize: 15, color: theme.color.onSurface }}>{effective}</Text>
-            <Ionicons name="chevron-down" size={16} color={theme.color.muted} />
+            <Ionicons name="calendar" size={18} color={HT.brand} />
+            <Text style={{ flex: 1, fontSize: 15, color: HT.text }}>{effective}</Text>
+            <Ionicons name="chevron-down" size={16} color={HT.muted} />
           </Pressable>
         )}
-        {busy ? <ActivityIndicator color={theme.color.brandPrimary} /> : value ? (
-          <Pressable onPress={() => onChange("")} hitSlop={6} style={s.clear} testID="crt-sign-date-clear" accessibilityLabel="Usa la data di compilazione"><Ionicons name="close-circle" size={22} color={theme.color.muted} /></Pressable>
+        {busy ? <ActivityIndicator color={HT.brand} /> : value ? (
+          <Pressable onPress={() => onChange("")} hitSlop={6} style={s.clear} testID="crt-sign-date-clear" accessibilityLabel="Usa la data di compilazione"><Ionicons name="close-circle" size={22} color={HT.muted} /></Pressable>
         ) : null}
       </View>
       <Text style={s.hint}>{effective} · {relTxt}</Text>
@@ -50,7 +50,7 @@ export function CrtSignDate({ value, effective, onChange, busy }: { value: strin
 }
 
 const s = StyleSheet.create({
-  box: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, paddingHorizontal: 10, minHeight: 44 },
+  box: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, borderRadius: 10, paddingHorizontal: 10, minHeight: 44 },
   clear: { width: 40, height: 44, alignItems: "center", justifyContent: "center" },
-  hint: { fontSize: 12, color: theme.color.muted },
+  hint: { fontSize: 12, color: HT.muted },
 });

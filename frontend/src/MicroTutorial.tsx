@@ -20,6 +20,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { View, Text, StyleSheet, Animated, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "@/src/theme";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const C = theme.color;
 
@@ -101,7 +102,7 @@ const styles = StyleSheet.create({
     marginVertical: 12,
   },
   card: {
-    backgroundColor: "#F8FAFC",
+    backgroundColor: HT.card2,
     borderRadius: 16,
     padding: 20,
     width: "100%",
@@ -109,7 +110,7 @@ const styles = StyleSheet.create({
     minHeight: 200,
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: HT.border,
   },
   iconBg: {
     width: 64,
@@ -125,7 +126,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   stepPill: {
-    backgroundColor: "#EEF2FF",
+    backgroundColor: HT.violetTint,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
@@ -155,7 +156,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#CBD5E1",
+    backgroundColor: HT.borderStrong,
   },
 });
 

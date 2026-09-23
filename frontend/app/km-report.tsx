@@ -9,10 +9,10 @@ import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { api } from "@/src/api";
 import { notify, confirmAsync } from "@/src/utils/notify";
 import { useAuth } from "@/src/auth";
-import { theme } from "@/src/theme";
 import { KmEntry, KmDay, exportKmReportPdf, fmtKm, monthLabel } from "@/src/utils/kmReportPdf";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
-const SKY = "#0EA5E9"; const NAVY = "#1B2B4B";
+const SKY = "#0EA5E9"; const NAVY = HT.text;
 type Totals = { today_km: number; today_visits: number; week_km: number; week_visits: number; month_km: number; month_visits: number; selected_month_km: number; selected_month_visits: number; week_start: string; week_end: string; today: string };
 type Resp = { month: string; items: KmEntry[]; by_day: KmDay[]; totals: Totals };
 
@@ -92,7 +92,7 @@ export default function KmReportScreen() {
 
         {data && !grouped.length ? (
           <View style={styles.empty} testID="km-empty">
-            <Ionicons name="speedometer-outline" size={42} color="#94A3B8" />
+            <Ionicons name="speedometer-outline" size={42} color={HT.muted} />
             <Text style={styles.emptyTitle}>Nessun km registrato in {monthLabel(month)}</Text>
             <Text style={styles.emptyTxt}>Calcola un Giro Ottimale e, dopo ogni visita, tocca «Visita completata»: i km della tratta finiranno qui automaticamente.</Text>
             <Pressable onPress={() => router.push("/optimal-route" as any)} style={[styles.cta, { alignSelf: "center", paddingHorizontal: 18 }]} testID="km-empty-cta"><Ionicons name="car-sport" size={16} color="#FFF" /><Text style={styles.ctaTxt}>Apri Giro Ottimale</Text></Pressable>
@@ -107,7 +107,7 @@ export default function KmReportScreen() {
             </View>
             {d.entries.map((e) => (
               <View key={e.entry_id} style={styles.entry} testID={`km-entry-${e.entry_id}`}>
-                <View style={[styles.dot, e.seq === 0 && { backgroundColor: "#16A34A" }]}><Text style={styles.dotTxt}>{e.seq === 0 ? "🏁" : e.seq}</Text></View>
+                <View style={[styles.dot, e.seq === 0 && { backgroundColor: '#16A34A' }]}><Text style={styles.dotTxt}>{e.seq === 0 ? "🏁" : e.seq}</Text></View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.eName}>{e.contact_name}{e.seq === 0 ? " (rientro)" : ""}</Text>
                   {!!(e.address || e.origin_label) && <Text style={styles.eMeta} numberOfLines={1}>📍 {e.address || e.origin_label}</Text>}
@@ -138,28 +138,28 @@ function TotalCard({ label, km, visits, sub, testID }: { label: string; km: numb
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
+  root: { flex: 1, backgroundColor: HT.card2 },
   header: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: NAVY, paddingHorizontal: 14, paddingVertical: 12 },
   title: { color: "#FFF", fontSize: 18, fontWeight: "900" }, sub: { color: "#CBD5E1", fontSize: 11, marginTop: 1 },
   headBtn: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.15)" },
   cards: { flexDirection: "row", gap: 8 },
-  card: { flex: 1, backgroundColor: "#FFF", borderRadius: 14, padding: 12, borderWidth: 1, borderColor: theme.color.border, minHeight: 92 },
+  card: { flex: 1, backgroundColor: HT.card, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: HT.border, minHeight: 92 },
   cardLabel: { fontSize: 11, fontWeight: "800", color: SKY, textTransform: "uppercase", letterSpacing: 0.4 },
-  cardKm: { fontSize: 22, fontWeight: "900", color: NAVY, marginTop: 4 }, cardUnit: { fontSize: 12, fontWeight: "700", color: theme.color.muted },
-  cardSub: { fontSize: 10, color: theme.color.muted, marginTop: 2 },
-  monthRow: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF", borderRadius: 14, padding: 8, borderWidth: 1, borderColor: theme.color.border },
-  mBtn: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: theme.color.surfaceTertiary },
-  mTitle: { fontSize: 15, fontWeight: "900", color: NAVY, textTransform: "capitalize" }, mMeta: { fontSize: 11, color: theme.color.muted, marginTop: 1 },
+  cardKm: { fontSize: 22, fontWeight: "900", color: NAVY, marginTop: 4 }, cardUnit: { fontSize: 12, fontWeight: "700", color: HT.muted },
+  cardSub: { fontSize: 10, color: HT.muted, marginTop: 2 },
+  monthRow: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: HT.card, borderRadius: 14, padding: 8, borderWidth: 1, borderColor: HT.border },
+  mBtn: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: HT.card2 },
+  mTitle: { fontSize: 15, fontWeight: "900", color: NAVY, textTransform: "capitalize" }, mMeta: { fontSize: 11, color: HT.muted, marginTop: 1 },
   cta: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: SKY, borderRadius: 12, minHeight: 48, paddingHorizontal: 14 },
   ctaTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
-  empty: { alignItems: "center", gap: 10, padding: 24, backgroundColor: "#FFF", borderRadius: 14, borderWidth: 1, borderColor: theme.color.border, marginTop: 8 },
-  emptyTitle: { fontSize: 15, fontWeight: "800", color: NAVY, textAlign: "center" }, emptyTxt: { fontSize: 12, color: theme.color.muted, textAlign: "center", lineHeight: 17 },
-  day: { backgroundColor: "#FFF", borderRadius: 14, borderWidth: 1, borderColor: theme.color.border, overflow: "hidden" },
-  dayHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10, backgroundColor: "#F8FAFC", borderBottomWidth: 1, borderBottomColor: theme.color.border },
+  empty: { alignItems: "center", gap: 10, padding: 24, backgroundColor: HT.card, borderRadius: 14, borderWidth: 1, borderColor: HT.border, marginTop: 8 },
+  emptyTitle: { fontSize: 15, fontWeight: "800", color: NAVY, textAlign: "center" }, emptyTxt: { fontSize: 12, color: HT.muted, textAlign: "center", lineHeight: 17 },
+  day: { backgroundColor: HT.card, borderRadius: 14, borderWidth: 1, borderColor: HT.border, overflow: "hidden" },
+  dayHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10, backgroundColor: HT.card2, borderBottomWidth: 1, borderBottomColor: HT.border },
   dayTitle: { fontSize: 13, fontWeight: "800", color: NAVY, textTransform: "capitalize" }, dayKm: { fontSize: 12, fontWeight: "900", color: SKY },
-  entry: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.color.divider, minHeight: 52 },
-  dot: { width: 26, height: 26, borderRadius: 13, backgroundColor: "#FF6B35", alignItems: "center", justifyContent: "center" }, dotTxt: { color: "#FFF", fontWeight: "900", fontSize: 12 },
-  eName: { fontSize: 13, fontWeight: "700", color: NAVY }, eMeta: { fontSize: 11, color: theme.color.muted, marginTop: 1 },
-  eKm: { fontSize: 13, fontWeight: "900", color: NAVY }, del: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: "#FEF2F2" },
-  note: { fontSize: 11, color: theme.color.muted, lineHeight: 16, marginTop: 4 },
+  entry: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: HT.border, minHeight: 52 },
+  dot: { width: 26, height: 26, borderRadius: 13, backgroundColor: '#FF6B35', alignItems: "center", justifyContent: "center" }, dotTxt: { color: "#FFF", fontWeight: "900", fontSize: 12 },
+  eName: { fontSize: 13, fontWeight: "700", color: NAVY }, eMeta: { fontSize: 11, color: HT.muted, marginTop: 1 },
+  eKm: { fontSize: 13, fontWeight: "900", color: NAVY }, del: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: HT.dangerTint },
+  note: { fontSize: 11, color: HT.muted, lineHeight: 16, marginTop: 4 },
 });

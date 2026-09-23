@@ -9,6 +9,7 @@ import { api, getToken } from "@/src/api";
 
 const backendUrl = () => (process.env.EXPO_PUBLIC_BACKEND_URL || (Constants.expoConfig?.extra as any)?.backendUrl || "").replace(/\/$/, "");
 import { notify } from "@/src/utils/notify";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 export type Stats = {
   month: string; month_label: string; total: number; count: number; has_history: boolean; avg_6m: number;
@@ -79,14 +80,14 @@ export function ExpenseStatsTab({ sphere, month, color }: { sphere: "business" |
           {st.habits.slice(0, 7).map((h) => (
             <View key={h.category} style={[styles.rowBetween, { marginTop: 8 }]} testID={`axe-stats-habit-${h.category}`}>
               <Text style={styles.catLbl}>{h.label}</Text>
-              <Text style={styles.catVal}>{h.share_avg}% → <Text style={{ color: h.share_now > h.share_avg + 5 ? "#DC2626" : h.share_now < h.share_avg - 5 ? "#16A34A" : "#1B2B4B", fontWeight: "900" }}>{h.share_now}%</Text></Text>
+              <Text style={styles.catVal}>{h.share_avg}% → <Text style={{ color: h.share_now > h.share_avg + 5 ? "#DC2626" : h.share_now < h.share_avg - 5 ? "#16A34A" : HT.text, fontWeight: "900" }}>{h.share_now}%</Text></Text>
             </View>
           ))}
         </View>
       )}
 
-      <View style={[styles.card, { backgroundColor: "#FAF5FF", borderColor: "#DDD6FE" }]} testID="axe-stats-insights">
-        <Text style={[styles.secTitle, { color: "#6D28D9" }]}>💡 Cosa dice AxonOS</Text>
+      <View style={[styles.card, { backgroundColor: '#FAF5FF', borderColor: HT.violet + '66' }]} testID="axe-stats-insights">
+        <Text style={[styles.secTitle, { color: HT.violet }]}>💡 Cosa dice AxonOS</Text>
         {st.insights.length === 0 ? <Text style={styles.empty}>Aggiungi qualche scontrino: dal secondo mese arrivano confronti e risparmio.</Text> : st.insights.map((t, i) => <Text key={i} style={styles.insight}>• {t}</Text>)}
       </View>
     </View>
@@ -124,7 +125,7 @@ export function ExpenseArchiveTab({ sphere, color, onChanged }: { sphere: "busin
                 <Text style={styles.repMeta}>{r.count} spese · {eur(r.total)} · {Object.entries(r.by_category).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${k} ${v.toFixed(0)}€`).join(" · ")}</Text>
                 <Text style={[styles.repMeta, { color }]}>Apri PDF · in I miei file</Text>
               </Pressable>
-              <Pressable onPress={() => reopen(r)} hitSlop={8} style={styles.iconBtn} testID={`axe-archive-reopen-${r.month}`}><Ionicons name="lock-open-outline" size={18} color="#64748B" /></Pressable>
+              <Pressable onPress={() => reopen(r)} hitSlop={8} style={styles.iconBtn} testID={`axe-archive-reopen-${r.month}`}><Ionicons name="lock-open-outline" size={18} color={HT.muted} /></Pressable>
             </View>
           ))}
         </View>
@@ -134,31 +135,31 @@ export function ExpenseArchiveTab({ sphere, color, onChanged }: { sphere: "busin
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: "#FFF", borderRadius: 16, padding: 14, borderWidth: 1, borderColor: "#E2E8F0" },
-  big: { fontSize: 30, fontWeight: "900", color: "#1B2B4B" },
-  sub: { fontSize: 12.5, color: "#64748B", fontWeight: "700", marginTop: 2 },
-  deltaBox: { flex: 1, backgroundColor: "#F8FAFC", borderRadius: 12, padding: 10, gap: 2 },
-  deltaLbl: { fontSize: 11, color: "#64748B", fontWeight: "800", textTransform: "uppercase" },
-  deltaTot: { fontSize: 15, fontWeight: "900", color: "#1B2B4B" },
+  card: { backgroundColor: HT.card, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: HT.border },
+  big: { fontSize: 30, fontWeight: "900", color: HT.text },
+  sub: { fontSize: 12.5, color: HT.muted, fontWeight: "700", marginTop: 2 },
+  deltaBox: { flex: 1, backgroundColor: HT.card2, borderRadius: 12, padding: 10, gap: 2 },
+  deltaLbl: { fontSize: 11, color: HT.muted, fontWeight: "800", textTransform: "uppercase" },
+  deltaTot: { fontSize: 15, fontWeight: "900", color: HT.text },
   deltaVal: { fontSize: 12, fontWeight: "800" },
-  deltaNa: { fontSize: 12, color: "#94A3B8", fontWeight: "700" },
-  secTitle: { fontSize: 13.5, fontWeight: "900", color: "#1B2B4B" },
+  deltaNa: { fontSize: 12, color: HT.muted, fontWeight: "700" },
+  secTitle: { fontSize: 13.5, fontWeight: "900", color: HT.text },
   chart: { flexDirection: "row", alignItems: "flex-end", gap: 4, height: 118, marginTop: 10 },
   col: { flex: 1, alignItems: "center", justifyContent: "flex-end", gap: 4 },
   bar: { width: "100%", borderRadius: 4 },
-  colLbl: { fontSize: 9, color: "#64748B", fontWeight: "700" },
+  colLbl: { fontSize: 9, color: HT.muted, fontWeight: "700" },
   rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  catLbl: { fontSize: 13, fontWeight: "800", color: "#1B2B4B" },
-  catVal: { fontSize: 12.5, fontWeight: "700", color: "#475569" },
-  track: { height: 8, borderRadius: 4, backgroundColor: "#F1F5F9", marginTop: 4, overflow: "hidden" },
+  catLbl: { fontSize: 13, fontWeight: "800", color: HT.text },
+  catVal: { fontSize: 12.5, fontWeight: "700", color: HT.text2 },
+  track: { height: 8, borderRadius: 4, backgroundColor: HT.card2, marginTop: 4, overflow: "hidden" },
   fill: { height: 8, borderRadius: 4 },
-  insight: { fontSize: 13, color: "#4C1D95", lineHeight: 19, marginTop: 6, fontWeight: "600" },
-  empty: { color: "#64748B", fontSize: 13, textAlign: "center", paddingVertical: 12 },
-  yearTitle: { fontSize: 16, fontWeight: "900", color: "#1B2B4B" },
-  yearTot: { fontSize: 14, fontWeight: "900", color: "#475569" },
-  repRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, borderTopWidth: 1, borderTopColor: "#F1F5F9", marginTop: 8 },
+  insight: { fontSize: 13, color: HT.violet, lineHeight: 19, marginTop: 6, fontWeight: "600" },
+  empty: { color: HT.muted, fontSize: 13, textAlign: "center", paddingVertical: 12 },
+  yearTitle: { fontSize: 16, fontWeight: "900", color: HT.text },
+  yearTot: { fontSize: 14, fontWeight: "900", color: HT.text2 },
+  repRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, borderTopWidth: 1, borderTopColor: HT.card2, marginTop: 8 },
   repIcon: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  repTitle: { fontSize: 14, fontWeight: "800", color: "#1B2B4B" },
-  repMeta: { fontSize: 11.5, color: "#64748B", fontWeight: "600", marginTop: 1 },
+  repTitle: { fontSize: 14, fontWeight: "800", color: HT.text },
+  repMeta: { fontSize: 11.5, color: HT.muted, fontWeight: "600", marginTop: 1 },
   iconBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
 });

@@ -6,8 +6,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Row = { course_id: string; title: string; course_date: string; manager: string; recipients: number; reads: number; yes: number; no: number; participation_pct: number; test_responses: number; avg_score_pct: number | null; areas: string[] };
 type Bucket = { key: string; label: string; courses: number; recipients: number; reads: number; yes: number; no: number; tests: number; participation_pct: number; read_pct: number; avg_score_pct: number | null };
@@ -35,9 +35,9 @@ export default function CoursesDashboard() {
   );
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.surface }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: HT.card2 }}>
       <View style={s.header}>
-        <Pressable onPress={() => router.back()} hitSlop={10} style={s.hBtn}><Ionicons name="chevron-back" size={24} color={theme.color.onSurface} /></Pressable>
+        <Pressable onPress={() => router.back()} hitSlop={10} style={s.hBtn}><Ionicons name="chevron-back" size={24} color={HT.text} /></Pressable>
         <View style={{ flex: 1 }}><Text style={s.title}>Dashboard Azienda · Corsi</Text><Text style={s.sub}>Vista globale con filtri Manager, area/gruppo, periodo</Text></View>
       </View>
       <ScrollView contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: pagePad }}>
@@ -51,8 +51,8 @@ export default function CoursesDashboard() {
           {(d?.filters.areas || []).map((a) => <Pressable key={a} onPress={() => setArea(a)} style={[s.chip, area === a && s.chipOn]} testID={`dash-area-${a}`}><Text style={[s.chipTxt, area === a && { color: "#FFF" }]}>{a}</Text></Pressable>)}
         </ScrollView>
         <View style={{ flexDirection: "row", gap: 8 }}>
-          <TextInput value={from} onChangeText={setFrom} placeholder="Dal (AAAA-MM-GG)" placeholderTextColor={theme.color.muted} style={s.input} testID="dash-from" />
-          <TextInput value={to} onChangeText={setTo} placeholder="Al (AAAA-MM-GG)" placeholderTextColor={theme.color.muted} style={s.input} testID="dash-to" />
+          <TextInput value={from} onChangeText={setFrom} placeholder="Dal (AAAA-MM-GG)" placeholderTextColor={HT.muted} style={s.input} testID="dash-from" />
+          <TextInput value={to} onChangeText={setTo} placeholder="Al (AAAA-MM-GG)" placeholderTextColor={HT.muted} style={s.input} testID="dash-to" />
         </View>
         {loading || !d ? <ActivityIndicator color="#7C3AED" style={{ marginTop: 20 }} /> : (<>
           <View style={{ flexDirection: "row", gap: 8 }} testID="dash-totals">
@@ -65,7 +65,7 @@ export default function CoursesDashboard() {
           <Text style={s.section}>Corsi ({d.courses.length})</Text>
           {d.courses.map((r) => (
             <Pressable key={r.course_id} onPress={() => router.push(`/courses/${r.course_id}` as any)} style={s.card} testID={`dash-course-${r.course_id}`}>
-              <Text style={{ fontWeight: "900", color: theme.color.onSurface }}>{r.title}</Text>
+              <Text style={{ fontWeight: "900", color: HT.text }}>{r.title}</Text>
               <Text style={s.hint}>{r.course_date ? r.course_date.split("-").reverse().join("/") + " · " : ""}{r.manager} · {r.areas.join(", ")}</Text>
               <Text style={s.hint}>👥 {r.recipients} iscritti · 👀 {r.reads} letto · ✅ {r.yes} / ❌ {r.no} ({r.participation_pct}%) · 📝 {r.test_responses} test{r.avg_score_pct != null ? ` · media ${r.avg_score_pct}%` : ""}</Text>
             </Pressable>
@@ -77,12 +77,12 @@ export default function CoursesDashboard() {
 }
 
 const s = StyleSheet.create({
-  header: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderBottomWidth: 1, borderBottomColor: theme.color.border },
-  hBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" }, title: { fontSize: 17, fontWeight: "900", color: theme.color.onSurface }, sub: { fontSize: 12, color: theme.color.muted },
-  section: { fontSize: 14, fontWeight: "900", color: theme.color.onSurface }, hint: { fontSize: 12, color: theme.color.muted, lineHeight: 17 },
-  chip: { paddingHorizontal: 12, minHeight: 36, borderRadius: 18, borderWidth: 1, borderColor: theme.color.border, alignItems: "center", justifyContent: "center", backgroundColor: "#FFF" }, chipOn: { backgroundColor: "#7C3AED", borderColor: "#7C3AED" }, chipTxt: { fontSize: 12, fontWeight: "800", color: theme.color.onSurface },
-  input: { flex: 1, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, paddingHorizontal: 10, minHeight: 42, fontSize: 13, color: theme.color.onSurface },
-  stat: { flex: 1, backgroundColor: "#FAF5FF", borderRadius: 10, padding: 8, alignItems: "center" }, statN: { fontSize: 16, fontWeight: "900", color: "#6B21A8" }, statL: { fontSize: 9, color: theme.color.muted },
-  card: { backgroundColor: "#FFF", borderRadius: 12, borderWidth: 1, borderColor: theme.color.border, padding: 12, gap: 4 },
-  bRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: theme.color.border }, bLabel: { flex: 1, fontWeight: "800", color: theme.color.onSurface, fontSize: 13 }, bVal: { fontSize: 12, color: theme.color.muted, fontWeight: "700" },
+  header: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderBottomWidth: 1, borderBottomColor: HT.border },
+  hBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" }, title: { fontSize: 17, fontWeight: "900", color: HT.text }, sub: { fontSize: 12, color: HT.muted },
+  section: { fontSize: 14, fontWeight: "900", color: HT.text }, hint: { fontSize: 12, color: HT.muted, lineHeight: 17 },
+  chip: { paddingHorizontal: 12, minHeight: 36, borderRadius: 18, borderWidth: 1, borderColor: HT.border, alignItems: "center", justifyContent: "center", backgroundColor: HT.card }, chipOn: { backgroundColor: '#7C3AED', borderColor: '#7C3AED' }, chipTxt: { fontSize: 12, fontWeight: "800", color: HT.text },
+  input: { flex: 1, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, borderRadius: 10, paddingHorizontal: 10, minHeight: 42, fontSize: 13, color: HT.text },
+  stat: { flex: 1, backgroundColor: '#FAF5FF', borderRadius: 10, padding: 8, alignItems: "center" }, statN: { fontSize: 16, fontWeight: "900", color: "#6B21A8" }, statL: { fontSize: 9, color: HT.muted },
+  card: { backgroundColor: HT.card, borderRadius: 12, borderWidth: 1, borderColor: HT.border, padding: 12, gap: 4 },
+  bRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: HT.border }, bLabel: { flex: 1, fontWeight: "800", color: HT.text, fontSize: 13 }, bVal: { fontSize: 12, color: HT.muted, fontWeight: "700" },
 });

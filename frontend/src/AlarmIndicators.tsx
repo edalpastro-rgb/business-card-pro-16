@@ -127,7 +127,7 @@ export function AlarmDrawerBadge() {
   if (!next) return null;
   return (
     <View style={styles.badge} testID="drawer-alarm-badge">
-      <Ionicons name={iconFor(next.alarm.kind)} size={12} color="#B45309" />
+      <Ionicons name={iconFor(next.alarm.kind)} size={12} color={HT.warning} />
       <Text style={styles.badgeTxt}>{relativeShort(next.when)}</Text>
     </View>
   );
@@ -136,6 +136,6 @@ export function AlarmDrawerBadge() {
 const styles = StyleSheet.create({
   iconBtn: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: HT.glass, position: "relative" },
   dot: { position: "absolute", top: 6, right: 6, width: 7, height: 7, borderRadius: 4, backgroundColor: HT.warning },
-  badge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: "#FEF3C7", marginRight: 6 },
-  badgeTxt: { fontSize: 11, fontWeight: "800", color: "#B45309" },
+  badge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: HT.warningTint, marginRight: 6 },
+  badgeTxt: { fontSize: 11, fontWeight: "800", color: HT.warning },
 });

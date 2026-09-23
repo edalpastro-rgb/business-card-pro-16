@@ -7,9 +7,10 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const AXON = "#8B5CF6";
-const AXON_DARK = "#6D28D9";
+const AXON_DARK = HT.violet;
 export const PROGRESS_SHOW_AFTER_MS = 700; // V50.z306 — regola «rispondi subito»: entro 1 s dico che ci sto ragionando
 export const PROGRESS_CONTEXT_AFTER_MS = 3000; // da qui in poi frase contestuale (GME, PDF, CRM…)
 
@@ -117,7 +118,7 @@ export function AxonProgressBubble({ text, elapsed, assistantName }: { text: str
 const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "flex-end", gap: 6, marginTop: 4 },
   avatar: { width: 24, height: 24, borderRadius: 12, backgroundColor: AXON, alignItems: "center", justifyContent: "center" },
-  bubble: { maxWidth: "84%", backgroundColor: "#F5F3FF", borderRadius: 16, borderBottomLeftRadius: 4, paddingHorizontal: 12, paddingVertical: 9, borderWidth: 1, borderColor: "#DDD6FE", gap: 4 },
+  bubble: { maxWidth: "84%", backgroundColor: HT.violetTint, borderRadius: 16, borderBottomLeftRadius: 4, paddingHorizontal: 12, paddingVertical: 9, borderWidth: 1, borderColor: HT.violet + '66', gap: 4 },
   line: { flexDirection: "row", alignItems: "center", gap: 8 },
   txt: { flex: 1, fontSize: 14, color: "#3B2A6B", fontStyle: "italic", lineHeight: 19 },
   meta: { fontSize: 11, color: "#7C6FA8", paddingLeft: 28 },

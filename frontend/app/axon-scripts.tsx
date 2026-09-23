@@ -19,6 +19,7 @@ import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Script = {
   script_id: string;
@@ -32,12 +33,12 @@ type Script = {
 
 const CATEGORIES: { id: string; label: string; emoji: string; color: string }[] = [
   { id: "apertura_chiamata", label: "Apertura chiamata", emoji: "📞", color: "#0F9D58" },
-  { id: "email_freddo", label: "Email a freddo", emoji: "✉️", color: "#1D4ED8" },
+  { id: "email_freddo", label: "Email a freddo", emoji: "✉️", color: HT.axon },
   { id: "gestione_obiezione", label: "Gestione obiezioni", emoji: "🛡️", color: "#DC2626" },
   { id: "closing", label: "Closing", emoji: "🎯", color: "#7C3AED" },
   { id: "follow_up", label: "Follow-up", emoji: "🔁", color: "#EA580C" },
   { id: "primo_incontro", label: "Primo incontro", emoji: "🤝", color: "#0891B2" },
-  { id: "altro", label: "Altro", emoji: "📚", color: "#64748B" },
+  { id: "altro", label: "Altro", emoji: "📚", color: HT.muted },
 ];
 
 function catInfo(id: string) {
@@ -193,18 +194,18 @@ export default function AxonScriptsScreen() {
       <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: bottomInset }}>
         {visible.length === 0 ? (
           <View style={styles.emptyBox}>
-            <Ionicons name="book-outline" size={40} color="#64748B" />
+            <Ionicons name="book-outline" size={40} color={HT.muted} />
             <Text style={styles.emptyTitle}>Nessuno script</Text>
             <Text style={styles.emptyTxt}>
               Crea la tua libreria personale di script vincenti. Axon li userà come modello quando gli chiedi di scrivere email, aperture, gestioni obiezioni.
             </Text>
             <Pressable onPress={() => setCreating(true)} style={styles.emptyCta}>
-              <Ionicons name="add" size={18} color="#0F172A" />
+              <Ionicons name="add" size={18} color={HT.text} />
               <Text style={styles.emptyCtaTxt}>Crea primo script</Text>
             </Pressable>
             {/* V50.z6 — Import ben visibile sotto (non più solo nell'header
                 coperto dal FAB Aiuto). */}
-            <Pressable onPress={() => setShowImport(true)} style={[styles.emptyCta, { backgroundColor: "#0F9D58", marginTop: 10 }]} testID="script-import-btn-empty">
+            <Pressable onPress={() => setShowImport(true)} style={[styles.emptyCta, { backgroundColor: '#0F9D58', marginTop: 10 }]} testID="script-import-btn-empty">
               <Ionicons name="cloud-download" size={18} color="#FFF" />
               <Text style={[styles.emptyCtaTxt, { color: "#FFF" }]}>Importa da Drive / File / Testo</Text>
             </Pressable>
@@ -226,15 +227,15 @@ export default function AxonScriptsScreen() {
                   </View>
                 ) : null}
                 <View style={styles.actions}>
-                  <Pressable onPress={() => copyContent(s)} style={[styles.actionBtn, { backgroundColor: "#0F9D58" }]}>
+                  <Pressable onPress={() => copyContent(s)} style={[styles.actionBtn, { backgroundColor: '#0F9D58' }]}>
                     <Ionicons name="copy" size={14} color="#FFF" />
                     <Text style={styles.actionTxt}>Copia</Text>
                   </Pressable>
-                  <Pressable onPress={() => setEditing(s)} style={[styles.actionBtn, { backgroundColor: "#FBBF24" }]}>
-                    <Ionicons name="create-outline" size={14} color="#0F172A" />
-                    <Text style={[styles.actionTxt, { color: "#0F172A" }]}>Modifica</Text>
+                  <Pressable onPress={() => setEditing(s)} style={[styles.actionBtn, { backgroundColor: '#FBBF24' }]}>
+                    <Ionicons name="create-outline" size={14} color={HT.text} />
+                    <Text style={[styles.actionTxt, { color: HT.text }]}>Modifica</Text>
                   </Pressable>
-                  <Pressable onPress={() => del(s.script_id)} style={[styles.actionBtn, { backgroundColor: "#FEE2E2" }]}>
+                  <Pressable onPress={() => del(s.script_id)} style={[styles.actionBtn, { backgroundColor: HT.dangerTint }]}>
                     <Ionicons name="trash" size={14} color="#DC2626" />
                   </Pressable>
                 </View>
@@ -259,39 +260,39 @@ export default function AxonScriptsScreen() {
             <Text style={styles.chooserTitle}>📥 Importa script da…</Text>
 
             <Pressable onPress={importFromDrive} style={styles.chooserItem}>
-              <View style={[styles.chooserIcon, { backgroundColor: "#0F9D58" }]}><Ionicons name="logo-google" size={20} color="#FFF" /></View>
+              <View style={[styles.chooserIcon, { backgroundColor: '#0F9D58' }]}><Ionicons name="logo-google" size={20} color="#FFF" /></View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.chooserItemTitle}>Google Drive</Text>
                 <Text style={styles.chooserItemSub}>Da una cartella condivisa (batch)</Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              <Ionicons name="chevron-forward" size={18} color={HT.muted} />
             </Pressable>
 
             <Pressable onPress={importFromDropbox} style={styles.chooserItem}>
-              <View style={[styles.chooserIcon, { backgroundColor: "#0061FF" }]}><Ionicons name="cube" size={20} color="#FFF" /></View>
+              <View style={[styles.chooserIcon, { backgroundColor: '#0061FF' }]}><Ionicons name="cube" size={20} color="#FFF" /></View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.chooserItemTitle}>Dropbox</Text>
                 <Text style={styles.chooserItemSub}>In arrivo</Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              <Ionicons name="chevron-forward" size={18} color={HT.muted} />
             </Pressable>
 
             <Pressable onPress={importFromDevice} style={styles.chooserItem}>
-              <View style={[styles.chooserIcon, { backgroundColor: "#EA580C" }]}><Ionicons name="document" size={20} color="#FFF" /></View>
+              <View style={[styles.chooserIcon, { backgroundColor: '#EA580C' }]}><Ionicons name="document" size={20} color="#FFF" /></View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.chooserItemTitle}>File dal telefono/PC</Text>
                 <Text style={styles.chooserItemSub}>PDF, DOCX, TXT dal dispositivo</Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              <Ionicons name="chevron-forward" size={18} color={HT.muted} />
             </Pressable>
 
             <Pressable onPress={() => { setShowImport(false); setShowPaste(true); }} style={styles.chooserItem}>
-              <View style={[styles.chooserIcon, { backgroundColor: "#7C3AED" }]}><Ionicons name="clipboard" size={20} color="#FFF" /></View>
+              <View style={[styles.chooserIcon, { backgroundColor: '#7C3AED' }]}><Ionicons name="clipboard" size={20} color="#FFF" /></View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.chooserItemTitle}>Incolla testo</Text>
                 <Text style={styles.chooserItemSub}>Da appunti o chat</Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              <Ionicons name="chevron-forward" size={18} color={HT.muted} />
             </Pressable>
 
             <Pressable onPress={() => setShowImport(false)} style={styles.chooserCancel}>
@@ -320,12 +321,12 @@ export default function AxonScriptsScreen() {
                 multiline
                 style={[styles.input, { minHeight: 300, textAlignVertical: "top" }]}
                 placeholder="Incolla script, email, discorsi, appunti…"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={HT.muted}
                 autoFocus
               />
               <Pressable onPress={importFromText} disabled={importing || !pasteText.trim()} style={[styles.saveBtn, (importing || !pasteText.trim()) && { opacity: 0.6 }]}>
-                {importing ? <ActivityIndicator color="#0F172A" /> : (
-                  <><Ionicons name="sparkles" size={16} color="#0F172A" /><Text style={styles.saveBtnTxt}>Analizza e importa</Text></>
+                {importing ? <ActivityIndicator color={HT.text} /> : (
+                  <><Ionicons name="sparkles" size={16} color={HT.text} /><Text style={styles.saveBtnTxt}>Analizza e importa</Text></>
                 )}
               </Pressable>
             </ScrollView>
@@ -395,7 +396,7 @@ function ScriptEditor({ script, onClose, onSaved }: { script: Script | null; onC
               ))}
             </ScrollView>
             <Text style={styles.formLabel}>Titolo</Text>
-            <TextInput value={title} onChangeText={setTitle} style={styles.input} placeholder="Es. Apertura freddo bolletta luce" placeholderTextColor="#94A3B8" />
+            <TextInput value={title} onChangeText={setTitle} style={styles.input} placeholder="Es. Apertura freddo bolletta luce" placeholderTextColor={HT.muted} />
             <Text style={styles.formLabel}>Contenuto</Text>
             <TextInput
               value={content}
@@ -403,13 +404,13 @@ function ScriptEditor({ script, onClose, onSaved }: { script: Script | null; onC
               style={[styles.input, { minHeight: 180, textAlignVertical: "top" }]}
               multiline
               placeholder="Ciao [Nome], sono [Consulente]. Ho notato la sua ultima bolletta e volevo mostrarle come…"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={HT.muted}
             />
             <Text style={styles.formLabel}>Tag (separati da virgola)</Text>
-            <TextInput value={tags} onChangeText={setTags} style={styles.input} placeholder="freddo, bolletta, luce" placeholderTextColor="#94A3B8" />
+            <TextInput value={tags} onChangeText={setTags} style={styles.input} placeholder="freddo, bolletta, luce" placeholderTextColor={HT.muted} />
             <Pressable onPress={save} disabled={saving} style={[styles.saveBtn, saving && { opacity: 0.6 }]} testID="script-save-btn">
-              {saving ? <ActivityIndicator color="#0F172A" /> : (
-                <><Ionicons name="save" size={16} color="#0F172A" /><Text style={styles.saveBtnTxt}>Salva</Text></>
+              {saving ? <ActivityIndicator color={HT.text} /> : (
+                <><Ionicons name="save" size={16} color={HT.text} /><Text style={styles.saveBtnTxt}>Salva</Text></>
               )}
             </Pressable>
           </ScrollView>
@@ -420,7 +421,7 @@ function ScriptEditor({ script, onClose, onSaved }: { script: Script | null; onC
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#0F2438" },
+  root: { flex: 1, backgroundColor: '#0F2438' },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   header: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
@@ -429,20 +430,20 @@ const styles = StyleSheet.create({
   },
   hBtn: { padding: 6, minWidth: 30 },
   hTitle: { color: "#FFF", fontSize: 16, fontWeight: "900" },
-  filters: { maxHeight: 44, backgroundColor: "#0B1B2C", borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)" },
+  filters: { maxHeight: 44, backgroundColor: '#0B1B2C', borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)" },
   filterPill: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.08)" },
-  filterPillActive: { backgroundColor: "#FBBF24" },
+  filterPillActive: { backgroundColor: '#FBBF24' },
   filterTxt: { color: "rgba(255,255,255,0.8)", fontWeight: "700", fontSize: 12 },
-  filterTxtActive: { color: "#0F172A" },
+  filterTxtActive: { color: HT.text },
   card: {
-    backgroundColor: "#FFF", padding: 12, borderRadius: 12, marginBottom: 10,
+    backgroundColor: HT.card, padding: 12, borderRadius: 12, marginBottom: 10,
     borderLeftWidth: 4,
   },
   cardHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  catBadge: { color: "#64748B", fontSize: 11, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5 },
-  usedTxt: { color: "#94A3B8", fontSize: 10 },
-  title: { color: "#0F172A", fontSize: 15, fontWeight: "900", marginTop: 4 },
-  content: { color: "#334155", fontSize: 13, marginTop: 4, lineHeight: 18 },
+  catBadge: { color: HT.muted, fontSize: 11, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5 },
+  usedTxt: { color: HT.muted, fontSize: 10 },
+  title: { color: HT.text, fontSize: 15, fontWeight: "900", marginTop: 4 },
+  content: { color: HT.text2, fontSize: 13, marginTop: 4, lineHeight: 18 },
   tagsRow: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 6 },
   tag: { color: "#7C3AED", fontSize: 11, fontWeight: "700" },
   actions: { flexDirection: "row", gap: 6, marginTop: 8 },
@@ -451,28 +452,28 @@ const styles = StyleSheet.create({
   emptyBox: { alignItems: "center", padding: 30, gap: 10 },
   emptyTitle: { color: "#FFF", fontSize: 16, fontWeight: "900" },
   emptyTxt: { color: "rgba(255,255,255,0.7)", fontSize: 12, textAlign: "center", lineHeight: 17 },
-  emptyCta: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, backgroundColor: "#FBBF24", paddingHorizontal: 14, paddingVertical: 10, borderRadius: 999 },
-  emptyCtaTxt: { color: "#0F172A", fontWeight: "900", fontSize: 13 },
+  emptyCta: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, backgroundColor: '#FBBF24', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 999 },
+  emptyCtaTxt: { color: HT.text, fontWeight: "900", fontSize: 13 },
 
   // Editor
   formLabel: { color: "rgba(255,255,255,0.85)", fontSize: 11, fontWeight: "800", textTransform: "uppercase", marginTop: 8 },
-  input: { backgroundColor: "#FFF", borderRadius: 10, padding: 10, color: "#0F172A", fontSize: 14 },
+  input: { backgroundColor: HT.card, borderRadius: 10, padding: 10, color: HT.text, fontSize: 14 },
   saveBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
-    backgroundColor: "#FBBF24", paddingVertical: 12, borderRadius: 999, marginTop: 12,
+    backgroundColor: '#FBBF24', paddingVertical: 12, borderRadius: 999, marginTop: 12,
   },
-  saveBtnTxt: { color: "#0F172A", fontWeight: "900", fontSize: 14 },
+  saveBtnTxt: { color: HT.text, fontWeight: "900", fontSize: 14 },
 
   // V50.w — Import chooser
   chooserBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
-  chooserCard: { backgroundColor: "#0F2438", padding: 14, borderTopLeftRadius: 20, borderTopRightRadius: 20, gap: 8, paddingBottom: 30 },
+  chooserCard: { backgroundColor: '#0F2438', padding: 14, borderTopLeftRadius: 20, borderTopRightRadius: 20, gap: 8, paddingBottom: 30 },
   chooserTitle: { color: "#FFF", fontSize: 16, fontWeight: "900", marginBottom: 6, textAlign: "center" },
   chooserItem: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 12 },
   chooserIcon: { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   chooserItemTitle: { color: "#FFF", fontWeight: "800", fontSize: 14 },
   chooserItemSub: { color: "rgba(255,255,255,0.6)", fontSize: 11, marginTop: 2 },
   chooserCancel: { alignItems: "center", padding: 12, marginTop: 4 },
-  chooserCancelTxt: { color: "#94A3B8", fontWeight: "700", fontSize: 13 },
+  chooserCancelTxt: { color: HT.muted, fontWeight: "700", fontSize: 13 },
 
   overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center", gap: 10 },
   overlayTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },

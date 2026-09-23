@@ -11,10 +11,10 @@ import * as FileSystem from "expo-file-system/legacy";
 import { launchLibraryUniversal, launchCameraUniversal } from "@/src/utils/imagePickerCompat";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
-import { theme } from "@/src/theme";
 import { shareDataUri } from "@/src/share";
 import { openInAppLink } from "@/src/utils/openInAppLink";
 import { ModuleErrorBoundary } from "@/src/shared";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Message = {
   message_id: string; channel_id: string; sender_id: string; sender_name: string;
@@ -201,7 +201,7 @@ function ChatDetailScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={10}>
-          <Ionicons name="chevron-back" size={26} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={26} color={HT.text} />
         </Pressable>
         <View style={{ flex: 1, marginLeft: 8 }}>
           <Text style={styles.title} numberOfLines={1}>{channelTitle}</Text>
@@ -227,7 +227,7 @@ function ChatDetailScreen() {
                   {item.kind === "text" && <Text style={mine ? styles.txtMine : styles.txtOther}>{item.text}</Text>}
                   {item.kind === "audio" && (
                     <Pressable onPress={() => playAudio(item)} style={styles.audioBtn}>
-                      <Ionicons name="play-circle" size={28} color={mine ? "#FFF" : theme.color.brandPrimary} />
+                      <Ionicons name="play-circle" size={28} color={mine ? "#FFF" : HT.brand} />
                       <Text style={mine ? styles.txtMine : styles.txtOther}>Vocale</Text>
                     </Pressable>
                   )}
@@ -242,7 +242,7 @@ function ChatDetailScreen() {
                       }}
                       style={styles.fileBtn}
                     >
-                      <Ionicons name="document" size={22} color={mine ? "#FFF" : theme.color.brandPrimary} />
+                      <Ionicons name="document" size={22} color={mine ? "#FFF" : HT.brand} />
                       <View style={{ flex: 1 }}>
                         <Text style={[mine ? styles.txtMine : styles.txtOther, { fontWeight: "700" }]} numberOfLines={1}>{item.file_name || "File"}</Text>
                         <Text style={[mine ? styles.txtMine : styles.txtOther, { fontSize: 11, opacity: 0.75 }]}>{Math.round((item.file_size || 0) / 1024)} KB</Text>
@@ -256,11 +256,11 @@ function ChatDetailScreen() {
                       if (u.startsWith("http")) openInAppLink(router, u, { title: item.link_title });
                       else Linking.openURL(u).catch(() => {});
                     }} style={styles.linkBox}>
-                      <Ionicons name="link" size={18} color={mine ? "#FFF" : theme.color.brandPrimary} />
+                      <Ionicons name="link" size={18} color={mine ? "#FFF" : HT.brand} />
                       <Text style={[mine ? styles.txtMine : styles.txtOther, { fontWeight: "700" }]} numberOfLines={2}>{item.link_title || item.link_url}</Text>
                     </Pressable>
                   )}
-                  <Text style={[styles.time, { color: mine ? "rgba(255,255,255,0.7)" : theme.color.muted }]}>
+                  <Text style={[styles.time, { color: mine ? "rgba(255,255,255,0.7)" : HT.muted }]}>
                     {new Date(item.created_at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
                   </Text>
                 </Pressable>
@@ -272,23 +272,23 @@ function ChatDetailScreen() {
 
         <View style={styles.inputBar}>
           <Pressable testID="chat-attach-photo" onPress={() => pickPhoto(false)} style={styles.iconBtn}>
-            <Ionicons name="image" size={22} color={theme.color.brandPrimary} />
+            <Ionicons name="image" size={22} color={HT.brand} />
           </Pressable>
           <Pressable testID="chat-attach-camera" onPress={() => pickPhoto(true)} style={styles.iconBtn}>
-            <Ionicons name="camera" size={22} color={theme.color.brandPrimary} />
+            <Ionicons name="camera" size={22} color={HT.brand} />
           </Pressable>
           <Pressable testID="chat-attach-file" onPress={pickFile} style={styles.iconBtn}>
-            <Ionicons name="attach" size={22} color={theme.color.brandPrimary} />
+            <Ionicons name="attach" size={22} color={HT.brand} />
           </Pressable>
           <Pressable testID="chat-attach-link" onPress={promptLink} style={styles.iconBtn}>
-            <Ionicons name="link" size={22} color={theme.color.brandPrimary} />
+            <Ionicons name="link" size={22} color={HT.brand} />
           </Pressable>
           <TextInput
             testID="chat-input"
             value={text}
             onChangeText={setText}
             placeholder="Scrivi un messaggio..."
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={HT.muted}
             style={styles.input}
             multiline
             onSubmitEditing={sendText}
@@ -298,7 +298,7 @@ function ChatDetailScreen() {
               {busy ? <ActivityIndicator color="#FFF" size="small" /> : <Ionicons name="send" size={20} color="#FFF" />}
             </Pressable>
           ) : (
-            <Pressable testID="chat-rec-toggle" onPress={recording ? stopRec : startRec} style={[styles.sendBtn, { backgroundColor: recording ? theme.color.error : theme.color.warning }]}>
+            <Pressable testID="chat-rec-toggle" onPress={recording ? stopRec : startRec} style={[styles.sendBtn, { backgroundColor: recording ? HT.danger : HT.warning }]}>
               <Ionicons name={recording ? "stop" : "mic"} size={20} color="#FFF" />
             </Pressable>
           )}
@@ -309,25 +309,25 @@ function ChatDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
-  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.color.border, backgroundColor: "#FFF" },
-  title: { fontSize: 16, fontWeight: "700", color: theme.color.onSurface },
-  subtitle: { fontSize: 11, color: theme.color.muted },
+  root: { flex: 1, backgroundColor: HT.card2 },
+  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: HT.border, backgroundColor: HT.card },
+  title: { fontSize: 16, fontWeight: "700", color: HT.text },
+  subtitle: { fontSize: 11, color: HT.muted },
   msgWrap: { marginBottom: 6 },
-  senderName: { fontSize: 11, color: theme.color.muted, marginBottom: 2, marginLeft: 6 },
+  senderName: { fontSize: 11, color: HT.muted, marginBottom: 2, marginLeft: 6 },
   bubble: { maxWidth: "80%", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, gap: 4 },
-  bubbleMine: { backgroundColor: theme.color.brandPrimary, borderBottomRightRadius: 4 },
-  bubbleOther: { backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, borderBottomLeftRadius: 4 },
+  bubbleMine: { backgroundColor: HT.brand, borderBottomRightRadius: 4 },
+  bubbleOther: { backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, borderBottomLeftRadius: 4 },
   txtMine: { color: "#FFF", fontSize: 14, lineHeight: 20 },
-  txtOther: { color: theme.color.onSurface, fontSize: 14, lineHeight: 20 },
+  txtOther: { color: HT.text, fontSize: 14, lineHeight: 20 },
   time: { fontSize: 10, alignSelf: "flex-end", marginTop: 2 },
   audioBtn: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 2 },
   msgPhoto: { width: 220, height: 220, borderRadius: 10 },
   fileBtn: { flexDirection: "row", alignItems: "center", gap: 8, minWidth: 200 },
   linkBox: { flexDirection: "row", alignItems: "center", gap: 8 },
-  empty: { textAlign: "center", color: theme.color.muted, marginTop: 40, fontStyle: "italic" },
-  inputBar: { flexDirection: "row", alignItems: "flex-end", gap: 4, paddingHorizontal: 8, paddingVertical: 8, paddingBottom: Platform.OS === "ios" ? 20 : 8, backgroundColor: "#FFF", borderTopWidth: 1, borderTopColor: theme.color.border },
+  empty: { textAlign: "center", color: HT.muted, marginTop: 40, fontStyle: "italic" },
+  inputBar: { flexDirection: "row", alignItems: "flex-end", gap: 4, paddingHorizontal: 8, paddingVertical: 8, paddingBottom: Platform.OS === "ios" ? 20 : 8, backgroundColor: HT.card, borderTopWidth: 1, borderTopColor: HT.border },
   iconBtn: { padding: 8 },
-  input: { flex: 1, minHeight: 40, maxHeight: 120, backgroundColor: theme.color.surface, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8, color: theme.color.onSurface, borderWidth: 1, borderColor: theme.color.border },
-  sendBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.color.brandPrimary, alignItems: "center", justifyContent: "center" },
+  input: { flex: 1, minHeight: 40, maxHeight: 120, backgroundColor: HT.card2, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8, color: HT.text, borderWidth: 1, borderColor: HT.border },
+  sendBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: HT.brand, alignItems: "center", justifyContent: "center" },
 });

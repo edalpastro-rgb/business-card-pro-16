@@ -12,6 +12,7 @@ import { api, getToken } from "@/src/api";
 import { notify } from "@/src/utils/notify";
 import { ExpenseStatsTab, ExpenseArchiveTab } from "@/src/ExpenseHistory"; // V50.z229 — storico spese
 import Constants from "expo-constants";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Sphere = "business" | "home";
 type Expense = { expense_id: string; merchant: string; amount: number; date: string; category: string; payment?: string | null; user_name?: string; file_path?: string | null; status?: "open" | "discarded" | "closed"; needs_review?: boolean };
@@ -148,9 +149,9 @@ export default function AxonExpensesScreen() {
         {tab === "stats" ? (
           <>
             <View style={styles.monthRow}>
-              <Pressable onPress={() => { const d = new Date(month + "-01T00:00:00"); d.setMonth(d.getMonth() - 1); setMonth(d.toISOString().slice(0, 7)); }} hitSlop={10} style={styles.arrow} testID="axe-month-prev"><Ionicons name="chevron-back" size={20} color="#1B2B4B" /></Pressable>
+              <Pressable onPress={() => { const d = new Date(month + "-01T00:00:00"); d.setMonth(d.getMonth() - 1); setMonth(d.toISOString().slice(0, 7)); }} hitSlop={10} style={styles.arrow} testID="axe-month-prev"><Ionicons name="chevron-back" size={20} color={HT.text} /></Pressable>
               <Text style={styles.monthTxt}>{monthLabel}</Text>
-              <Pressable onPress={() => { const d = new Date(month + "-01T00:00:00"); d.setMonth(d.getMonth() + 1); setMonth(d.toISOString().slice(0, 7)); }} hitSlop={10} style={styles.arrow} testID="axe-month-next"><Ionicons name="chevron-forward" size={20} color="#1B2B4B" /></Pressable>
+              <Pressable onPress={() => { const d = new Date(month + "-01T00:00:00"); d.setMonth(d.getMonth() + 1); setMonth(d.toISOString().slice(0, 7)); }} hitSlop={10} style={styles.arrow} testID="axe-month-next"><Ionicons name="chevron-forward" size={20} color={HT.text} /></Pressable>
             </View>
             <ExpenseStatsTab sphere={sphere} month={month} color={color} />
           </>
@@ -167,9 +168,9 @@ export default function AxonExpensesScreen() {
               </Pressable>
             </View>
             <View style={styles.monthRow}>
-              <Pressable onPress={() => { const d = new Date(month + "-01T00:00:00"); d.setMonth(d.getMonth() - 1); setMonth(d.toISOString().slice(0, 7)); }} hitSlop={10} style={styles.arrow} testID="axe-month-prev"><Ionicons name="chevron-back" size={20} color="#1B2B4B" /></Pressable>
+              <Pressable onPress={() => { const d = new Date(month + "-01T00:00:00"); d.setMonth(d.getMonth() - 1); setMonth(d.toISOString().slice(0, 7)); }} hitSlop={10} style={styles.arrow} testID="axe-month-prev"><Ionicons name="chevron-back" size={20} color={HT.text} /></Pressable>
               <Text style={styles.monthTxt}>{new Date(month + "-01T00:00:00").toLocaleDateString("it-IT", { month: "long", year: "numeric" })}</Text>
-              <Pressable onPress={() => { const d = new Date(month + "-01T00:00:00"); d.setMonth(d.getMonth() + 1); setMonth(d.toISOString().slice(0, 7)); }} hitSlop={10} style={styles.arrow} testID="axe-month-next"><Ionicons name="chevron-forward" size={20} color="#1B2B4B" /></Pressable>
+              <Pressable onPress={() => { const d = new Date(month + "-01T00:00:00"); d.setMonth(d.getMonth() + 1); setMonth(d.toISOString().slice(0, 7)); }} hitSlop={10} style={styles.arrow} testID="axe-month-next"><Ionicons name="chevron-forward" size={20} color={HT.text} /></Pressable>
             </View>
             {!data ? <ActivityIndicator color={color} /> : (
               <>
@@ -182,8 +183,8 @@ export default function AxonExpensesScreen() {
                 {data.can_export_team && data.team.length > 0 && (
                   <View style={styles.card} testID="axe-team">
                     <Text style={styles.secTitle}>Team (Master) — tocca per vedere/esportare</Text>
-                    <Pressable onPress={() => setTeamUser(null)} style={[styles.teamRow, !teamUser && { backgroundColor: "#EFF6FF" }]}><Text style={styles.teamName}>Tutto il team</Text></Pressable>
-                    {data.team.map((t) => <Pressable key={t.user_id} onPress={() => setTeamUser(t.user_id)} style={[styles.teamRow, teamUser === t.user_id && { backgroundColor: "#EFF6FF" }]} testID={`axe-team-${t.user_id}`}><Text style={styles.teamName}>{t.name || t.user_id}</Text><Text style={styles.teamTot}>{t.count} · {t.total.toFixed(2)} €</Text></Pressable>)}
+                    <Pressable onPress={() => setTeamUser(null)} style={[styles.teamRow, !teamUser && { backgroundColor: HT.axonTint }]}><Text style={styles.teamName}>Tutto il team</Text></Pressable>
+                    {data.team.map((t) => <Pressable key={t.user_id} onPress={() => setTeamUser(t.user_id)} style={[styles.teamRow, teamUser === t.user_id && { backgroundColor: HT.axonTint }]} testID={`axe-team-${t.user_id}`}><Text style={styles.teamName}>{t.name || t.user_id}</Text><Text style={styles.teamTot}>{t.count} · {t.total.toFixed(2)} €</Text></Pressable>)}
                   </View>
                 )}
                 {data.items.length === 0 ? <Text style={styles.empty}>Nessuna spesa in questo mese. Fotografa uno scontrino: Axon fa il resto.</Text> : (
@@ -195,7 +196,7 @@ export default function AxonExpensesScreen() {
                           <Pressable onPress={() => setDeselected(selected.length === openItems.length ? new Set(openItems.map((e) => e.expense_id)) : new Set())} hitSlop={8} testID="axe-select-all">
                             <Ionicons name={selected.length === openItems.length ? "checkbox" : "square-outline"} size={22} color={color} />
                           </Pressable>
-                          <Text style={{ flex: 1, fontWeight: "800", color: "#1B2B4B", fontSize: 13 }}>{selected.length}/{openItems.length} ricevute selezionate · {selectedTotal.toFixed(2).replace(".", ",")} €</Text>
+                          <Text style={{ flex: 1, fontWeight: "800", color: HT.text, fontSize: 13 }}>{selected.length}/{openItems.length} ricevute selezionate · {selectedTotal.toFixed(2).replace(".", ",")} €</Text>
                         </View>
                         <Pressable onPress={closeMonth} disabled={!selected.length || busy === "close"} style={[styles.pdfBtn, { backgroundColor: selected.length ? color : "#CBD5E1" }]} testID="axe-close-month">
                           {busy === "close" ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="lock-closed" size={16} color="#FFF" /><Text style={styles.pdfTxt}>Chiudi mese → PDF «Note spese {monthLabel}»</Text></>}
@@ -211,17 +212,17 @@ export default function AxonExpensesScreen() {
                           <Text style={styles.rowMeta}>{e.date} · {e.category}{e.payment ? ` · ${e.payment}` : ""}{e.user_name && data.can_export_team ? ` · ${e.user_name}` : ""}</Text>
                         </View>
                         <Text style={[styles.rowAmt, { color }]}>{e.amount.toFixed(2).replace(".", ",")} €</Text>
-                        <Pressable onPress={() => setStatus(e, "discarded")} hitSlop={6} style={styles.iconBtn} testID={`axe-discard-${e.expense_id}`} accessibilityLabel="Scarta"><Ionicons name="close-circle-outline" size={20} color="#B45309" /></Pressable>
-                        <Pressable onPress={() => toggleSphere(e)} hitSlop={6} style={styles.iconBtn} testID={`axe-swap-${e.expense_id}`}><Ionicons name="swap-horizontal" size={18} color="#64748B" /></Pressable>
+                        <Pressable onPress={() => setStatus(e, "discarded")} hitSlop={6} style={styles.iconBtn} testID={`axe-discard-${e.expense_id}`} accessibilityLabel="Scarta"><Ionicons name="close-circle-outline" size={20} color={HT.warning} /></Pressable>
+                        <Pressable onPress={() => toggleSphere(e)} hitSlop={6} style={styles.iconBtn} testID={`axe-swap-${e.expense_id}`}><Ionicons name="swap-horizontal" size={18} color={HT.muted} /></Pressable>
                         <Pressable onPress={() => removeExpense(e)} hitSlop={6} style={styles.iconBtn} testID={`axe-del-${e.expense_id}`}><Ionicons name="trash-outline" size={18} color="#DC2626" /></Pressable>
                       </View>
                     ))}
                     {closedItems.length > 0 && <Text style={styles.groupLbl}>🔒 Incluse nel mese chiuso ({closedItems.length}) — riapri dall&apos;Archivio per modificarle</Text>}
                     {closedItems.map((e) => (
-                      <View key={e.expense_id} style={[styles.row, { backgroundColor: "#F8FAFC" }]} testID={`axe-item-${e.expense_id}`}>
-                        <Ionicons name="lock-closed" size={18} color="#94A3B8" />
-                        <View style={{ flex: 1 }}><Text style={[styles.rowTitle, { color: "#64748B" }]}>{e.merchant}</Text><Text style={styles.rowMeta}>{e.date} · {e.category}</Text></View>
-                        <Text style={[styles.rowAmt, { color: "#64748B" }]}>{e.amount.toFixed(2).replace(".", ",")} €</Text>
+                      <View key={e.expense_id} style={[styles.row, { backgroundColor: HT.card2 }]} testID={`axe-item-${e.expense_id}`}>
+                        <Ionicons name="lock-closed" size={18} color={HT.muted} />
+                        <View style={{ flex: 1 }}><Text style={[styles.rowTitle, { color: HT.muted }]}>{e.merchant}</Text><Text style={styles.rowMeta}>{e.date} · {e.category}</Text></View>
+                        <Text style={[styles.rowAmt, { color: HT.muted }]}>{e.amount.toFixed(2).replace(".", ",")} €</Text>
                       </View>
                     ))}
                     {discardedItems.length > 0 && (
@@ -229,9 +230,9 @@ export default function AxonExpensesScreen() {
                     )}
                     {showDiscarded && discardedItems.map((e) => (
                       <View key={e.expense_id} style={[styles.row, { opacity: 0.7 }]} testID={`axe-item-${e.expense_id}`}>
-                        <Ionicons name="close-circle" size={18} color="#B45309" />
+                        <Ionicons name="close-circle" size={18} color={HT.warning} />
                         <View style={{ flex: 1 }}><Text style={[styles.rowTitle, { textDecorationLine: "line-through" }]}>{e.merchant}</Text><Text style={styles.rowMeta}>{e.date} · {e.category}</Text></View>
-                        <Text style={[styles.rowAmt, { color: "#94A3B8" }]}>{e.amount.toFixed(2).replace(".", ",")} €</Text>
+                        <Text style={[styles.rowAmt, { color: HT.muted }]}>{e.amount.toFixed(2).replace(".", ",")} €</Text>
                         <Pressable onPress={() => setStatus(e, "open")} hitSlop={6} style={styles.iconBtn} testID={`axe-restore-${e.expense_id}`}><Ionicons name="refresh" size={18} color="#16A34A" /></Pressable>
                         <Pressable onPress={() => removeExpense(e)} hitSlop={6} style={styles.iconBtn} testID={`axe-del-${e.expense_id}`}><Ionicons name="trash-outline" size={18} color="#DC2626" /></Pressable>
                       </View>
@@ -251,7 +252,7 @@ export default function AxonExpensesScreen() {
             <Text style={styles.hint}>Nessuna connessione alla banca: Axon legge solo il file che alleghi, categorizza i movimenti e produce il report qui e in Sezione Report.</Text>
             {open && (
               <View style={[styles.card, { borderColor: color + "66" }]} testID="axe-statement-detail">
-                <View style={{ flexDirection: "row", alignItems: "center" }}><Text style={[styles.secTitle, { flex: 1 }]}>{open.bank || "Estratto conto"} · {open.period || ""}</Text><Pressable onPress={() => setOpen(null)} hitSlop={8}><Ionicons name="close" size={20} color="#64748B" /></Pressable></View>
+                <View style={{ flexDirection: "row", alignItems: "center" }}><Text style={[styles.secTitle, { flex: 1 }]}>{open.bank || "Estratto conto"} · {open.period || ""}</Text><Pressable onPress={() => setOpen(null)} hitSlop={8}><Ionicons name="close" size={20} color={HT.muted} /></Pressable></View>
                 <View style={styles.kpis}>
                   <View style={styles.kpi}><Text style={styles.kpiL}>Entrate</Text><Text style={[styles.kpiV, { color: "#059669" }]}>{open.income.toFixed(2)} €</Text></View>
                   <View style={styles.kpi}><Text style={styles.kpiL}>Uscite</Text><Text style={[styles.kpiV, { color: "#DC2626" }]}>{open.outcome.toFixed(2)} €</Text></View>
@@ -259,7 +260,7 @@ export default function AxonExpensesScreen() {
                 </View>
                 {(open.by_category || []).slice(0, 8).map((c, i) => <Text key={i} style={styles.line}>• {c.categoria}: {Number(c.totale).toFixed(2)} € ({c.n})</Text>)}
                 {(open.insights || []).map((s, i) => <Text key={`i${i}`} style={styles.insight}>💡 {s}</Text>)}
-                {(open.anomalies || []).map((s, i) => <Text key={`a${i}`} style={[styles.insight, { color: "#B45309" }]}>⚠️ {s}</Text>)}
+                {(open.anomalies || []).map((s, i) => <Text key={`a${i}`} style={[styles.insight, { color: HT.warning }]}>⚠️ {s}</Text>)}
                 {(open.movements || []).slice(0, 40).map((m, i) => <Text key={`m${i}`} style={styles.mov}>{m.data} · {m.descrizione} · <Text style={{ fontWeight: "800", color: Number(m.importo) < 0 ? "#DC2626" : "#059669" }}>{Number(m.importo).toFixed(2)} €</Text> · {m.categoria}</Text>)}
               </View>
             )}
@@ -267,7 +268,7 @@ export default function AxonExpensesScreen() {
               <Pressable key={s.report_id} onPress={async () => setOpen(await api<Statement>(`/axon/expenses/statements/${s.report_id}`))} style={styles.row} testID={`axe-statement-${s.report_id}`}>
                 <Ionicons name="document-text" size={20} color={color} />
                 <View style={{ flex: 1 }}><Text style={styles.rowTitle}>{s.bank || "Estratto conto"} · {s.period || ""}</Text><Text style={styles.rowMeta}>Entrate {s.income.toFixed(2)} € · Uscite {s.outcome.toFixed(2)} € · {new Date(s.created_at).toLocaleDateString("it-IT")}</Text></View>
-                <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+                <Ionicons name="chevron-forward" size={16} color={HT.muted} />
               </Pressable>
             ))}
           </>
@@ -278,37 +279,37 @@ export default function AxonExpensesScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F4F5FA" },
+  root: { flex: 1, backgroundColor: '#F4F5FA' },
   header: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 12 },
   title: { color: "#FFF", fontWeight: "800", fontSize: 17 }, sub: { color: "#FFFFFFCC", fontSize: 12 },
   sphereRow: { flexDirection: "row", gap: 8, padding: 12, paddingBottom: 4 },
-  sphereBtn: { flex: 1, minHeight: 44, borderRadius: 12, borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#FFF", alignItems: "center", justifyContent: "center" },
-  sphereTxt: { fontWeight: "800", color: "#1B2B4B", fontSize: 13 },
+  sphereBtn: { flex: 1, minHeight: 44, borderRadius: 12, borderWidth: 1.5, borderColor: HT.border, backgroundColor: HT.card, alignItems: "center", justifyContent: "center" },
+  sphereTxt: { fontWeight: "800", color: HT.text, fontSize: 13 },
   tabs: { flexDirection: "row", paddingHorizontal: 12 },
   tab: { flex: 1, minHeight: 44, alignItems: "center", justifyContent: "center", borderBottomWidth: 3, borderBottomColor: "transparent" },
-  tabTxt: { fontWeight: "800", color: "#64748B", fontSize: 13.5 },
+  tabTxt: { fontWeight: "800", color: HT.muted, fontSize: 13.5 },
   actions: { flexDirection: "row", gap: 8 },
   big: { flex: 1, minHeight: 64, borderRadius: 16, alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 8 },
-  ghost: { backgroundColor: "#FFF", borderWidth: 1.5 },
+  ghost: { backgroundColor: HT.card, borderWidth: 1.5 },
   bigTxt: { color: "#FFF", fontWeight: "800", fontSize: 12.5, textAlign: "center" },
   monthRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 12 },
-  arrow: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 20, backgroundColor: "#FFF" },
-  monthTxt: { fontSize: 15, fontWeight: "800", color: "#1B2B4B", textTransform: "capitalize", minWidth: 150, textAlign: "center" },
-  card: { backgroundColor: "#FFF", borderRadius: 16, borderWidth: 1.5, borderColor: "#EEF0F6", padding: 14, gap: 8 },
-  total: { fontSize: 32, fontWeight: "900", color: "#1B2B4B" }, totalSub: { fontSize: 12.5, color: "#64748B" },
+  arrow: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 20, backgroundColor: HT.card },
+  monthTxt: { fontSize: 15, fontWeight: "800", color: HT.text, textTransform: "capitalize", minWidth: 150, textAlign: "center" },
+  card: { backgroundColor: HT.card, borderRadius: 16, borderWidth: 1.5, borderColor: '#EEF0F6', padding: 14, gap: 8 },
+  total: { fontSize: 32, fontWeight: "900", color: HT.text }, totalSub: { fontSize: 12.5, color: HT.muted },
   cats: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  chip: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 5 }, chipTxt: { fontSize: 12, fontWeight: "700", color: "#1B2B4B" },
+  chip: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 5 }, chipTxt: { fontSize: 12, fontWeight: "700", color: HT.text },
   pdfBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 46, borderRadius: 12, marginTop: 4 }, pdfTxt: { color: "#FFF", fontWeight: "800", fontSize: 13.5 },
-  secTitle: { fontSize: 12.5, fontWeight: "800", color: "#64748B", textTransform: "uppercase", letterSpacing: 0.4 },
-  teamRow: { flexDirection: "row", alignItems: "center", minHeight: 44, paddingHorizontal: 10, borderRadius: 10 }, teamName: { flex: 1, fontWeight: "700", color: "#1B2B4B", fontSize: 13.5 }, teamTot: { fontWeight: "800", color: "#1B2B4B", fontSize: 13 },
-  row: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#FFF", borderRadius: 12, borderWidth: 1, borderColor: "#EEF0F6", padding: 10, minHeight: 56 },
-  catDot: { width: 8, height: 8, borderRadius: 4 }, rowTitle: { fontSize: 14, fontWeight: "700", color: "#1B2B4B" }, rowMeta: { fontSize: 11.5, color: "#64748B", marginTop: 1 }, rowAmt: { fontSize: 15, fontWeight: "900" },
+  secTitle: { fontSize: 12.5, fontWeight: "800", color: HT.muted, textTransform: "uppercase", letterSpacing: 0.4 },
+  teamRow: { flexDirection: "row", alignItems: "center", minHeight: 44, paddingHorizontal: 10, borderRadius: 10 }, teamName: { flex: 1, fontWeight: "700", color: HT.text, fontSize: 13.5 }, teamTot: { fontWeight: "800", color: HT.text, fontSize: 13 },
+  row: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: HT.card, borderRadius: 12, borderWidth: 1, borderColor: '#EEF0F6', padding: 10, minHeight: 56 },
+  catDot: { width: 8, height: 8, borderRadius: 4 }, rowTitle: { fontSize: 14, fontWeight: "700", color: HT.text }, rowMeta: { fontSize: 11.5, color: HT.muted, marginTop: 1 }, rowAmt: { fontSize: 15, fontWeight: "900" },
   iconBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
-  hintTxt: { fontSize: 11.5, color: "#64748B", marginTop: 8, lineHeight: 15 }, // V50.z229
-  groupLbl: { fontSize: 12.5, fontWeight: "800", color: "#64748B", marginTop: 6 },
+  hintTxt: { fontSize: 11.5, color: HT.muted, marginTop: 8, lineHeight: 15 }, // V50.z229
+  groupLbl: { fontSize: 12.5, fontWeight: "800", color: HT.muted, marginTop: 6 },
   groupBtn: { minHeight: 40, justifyContent: "center" },
-  empty: { fontSize: 13, color: "#94A3B8", fontStyle: "italic", textAlign: "center", paddingVertical: 12 },
-  hint: { fontSize: 12, color: "#64748B", lineHeight: 17 },
-  kpis: { flexDirection: "row", gap: 8 }, kpi: { flex: 1, backgroundColor: "#F8FAFC", borderRadius: 10, padding: 8, alignItems: "center" }, kpiL: { fontSize: 11, color: "#64748B" }, kpiV: { fontSize: 15, fontWeight: "900", color: "#1B2B4B" },
-  line: { fontSize: 13, color: "#1B2B4B" }, insight: { fontSize: 12.5, color: "#1E3A8A", lineHeight: 17 }, mov: { fontSize: 11.5, color: "#334155", borderTopWidth: 1, borderTopColor: "#F1F5F9", paddingTop: 4 },
+  empty: { fontSize: 13, color: HT.muted, fontStyle: "italic", textAlign: "center", paddingVertical: 12 },
+  hint: { fontSize: 12, color: HT.muted, lineHeight: 17 },
+  kpis: { flexDirection: "row", gap: 8 }, kpi: { flex: 1, backgroundColor: HT.card2, borderRadius: 10, padding: 8, alignItems: "center" }, kpiL: { fontSize: 11, color: HT.muted }, kpiV: { fontSize: 15, fontWeight: "900", color: HT.text },
+  line: { fontSize: 13, color: HT.text }, insight: { fontSize: 12.5, color: HT.axon, lineHeight: 17 }, mov: { fontSize: 11.5, color: HT.text2, borderTopWidth: 1, borderTopColor: HT.card2, paddingTop: 4 },
 });

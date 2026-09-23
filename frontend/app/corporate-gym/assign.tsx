@@ -5,12 +5,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 import { useAuth } from "@/src/auth";
 import { notify, confirmAsync } from "@/src/utils/notify";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { CgymTileIcon } from "@/src/corporate-gym/CgymTileIcon";
 import { cgymAssignApi, CgymAssignment, CgymType, CGYM_TYPE_META, CGYM_ORANGE, toYMD } from "@/src/corporate-gym/api";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Member = { user_id: string; name?: string; email?: string; role?: string };
 
@@ -106,7 +106,7 @@ export default function CgymAssignScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable testID="cgym-assign-back" onPress={() => (router.canGoBack() ? router.back() : router.replace("/corporate-gym" as any))} hitSlop={10}>
-          <Ionicons name="chevron-back" size={26} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={26} color={HT.text} />
         </Pressable>
         <Text style={styles.title}>Assegna sessioni</Text>
         <View style={{ width: 26 }} />
@@ -116,7 +116,7 @@ export default function CgymAssignScreen() {
           <Text style={styles.lbl}>A chi</Text>
           <View style={styles.chips}>
             <Pressable onPress={() => setTeam(true)} style={[styles.chip, team && styles.chipOn]} testID="cgym-assign-team">
-              <Ionicons name="people" size={14} color={team ? "#FFF" : theme.color.onSurface} />
+              <Ionicons name="people" size={14} color={team ? "#FFF" : HT.text} />
               <Text style={[styles.chipTxt, team && { color: "#FFF" }]}>Tutto il team ({members.length})</Text>
             </Pressable>
             {members.map((m) => {
@@ -157,13 +157,13 @@ export default function CgymAssignScreen() {
               </Pressable>
             ))}
           </View>
-          <TextInput value={dueCustom} onChangeText={setDueCustom} placeholder="oppure data GG/MM/AAAA" placeholderTextColor={theme.color.muted} style={styles.input} keyboardType="numbers-and-punctuation" testID="cgym-assign-due-custom" />
+          <TextInput value={dueCustom} onChangeText={setDueCustom} placeholder="oppure data GG/MM/AAAA" placeholderTextColor={HT.muted} style={styles.input} keyboardType="numbers-and-punctuation" testID="cgym-assign-due-custom" />
 
           <Text style={styles.lbl}>Titolo (opzionale)</Text>
-          <TextInput value={title} onChangeText={setTitle} placeholder={CGYM_TYPE_META[type].label} placeholderTextColor={theme.color.muted} style={styles.input} testID="cgym-assign-title" />
+          <TextInput value={title} onChangeText={setTitle} placeholder={CGYM_TYPE_META[type].label} placeholderTextColor={HT.muted} style={styles.input} testID="cgym-assign-title" />
 
           <View style={styles.preview} testID="cgym-assign-preview">
-            <Ionicons name="calculator-outline" size={16} color={theme.color.brandPrimary} />
+            <Ionicons name="calculator-outline" size={16} color={HT.brand} />
             <Text style={styles.previewTxt}>
               {nTargets} {nTargets === 1 ? "collaboratore" : "collaboratori"} × {days} {days === 1 ? "giorno" : "giorni"} × {perDay}/gg = <Text style={{ fontWeight: "900" }}>{total} sessioni</Text> · scadenza {toYMD(dueDate).split("-").reverse().join("/")}
             </Text>
@@ -188,25 +188,25 @@ export default function CgymAssignScreen() {
                   <CgymTileIcon type={p.type} size={36} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.planTitle} numberOfLines={1}>{p.title}</Text>
-                    <Text style={[styles.planSub, p.overdue && { color: theme.color.error }]}>
+                    <Text style={[styles.planSub, p.overdue && { color: HT.danger }]}>
                       {p.target === "team" ? "Tutto il team" : `${p.user_ids.length} collaborator${p.user_ids.length === 1 ? "e" : "i"}`} · {p.per_day}/gg · scad. {fmtDue(p.due_date)}{p.overdue ? " · in ritardo" : ""}
                     </Text>
                   </View>
-                  <Text style={[styles.planPct, pct >= 1 && { color: theme.color.success }]}>{p.sessions_done}/{p.sessions_total}</Text>
-                  <Ionicons name={open ? "chevron-up" : "chevron-down"} size={16} color={theme.color.muted} />
+                  <Text style={[styles.planPct, pct >= 1 && { color: HT.success }]}>{p.sessions_done}/{p.sessions_total}</Text>
+                  <Ionicons name={open ? "chevron-up" : "chevron-down"} size={16} color={HT.muted} />
                 </Pressable>
-                <View style={styles.barBg}><View style={[styles.barFill, { width: `${Math.round(pct * 100)}%`, backgroundColor: pct >= 1 ? theme.color.success : CGYM_ORANGE }]} /></View>
+                <View style={styles.barBg}><View style={[styles.barFill, { width: `${Math.round(pct * 100)}%`, backgroundColor: pct >= 1 ? HT.success : CGYM_ORANGE }]} /></View>
                 {open && (
                   <View style={{ marginTop: 8, gap: 6 }}>
                     {(p.per_user || []).map((u) => (
                       <View key={u.user_id} style={styles.userRow}>
-                        <Ionicons name={u.done >= u.total && u.total > 0 ? "checkmark-circle" : "ellipse-outline"} size={16} color={u.done >= u.total && u.total > 0 ? theme.color.success : theme.color.muted} />
+                        <Ionicons name={u.done >= u.total && u.total > 0 ? "checkmark-circle" : "ellipse-outline"} size={16} color={u.done >= u.total && u.total > 0 ? HT.success : HT.muted} />
                         <Text style={styles.userName} numberOfLines={1}>{u.name}</Text>
                         <Text style={styles.userPct}>{u.done}/{u.total}</Text>
                       </View>
                     ))}
                     <Pressable onPress={() => remove(p)} style={styles.delBtn} testID={`cgym-plan-del-${p.assignment_id}`}>
-                      <Ionicons name="trash-outline" size={15} color={theme.color.error} />
+                      <Ionicons name="trash-outline" size={15} color={HT.danger} />
                       <Text style={styles.delTxt}>Elimina piano</Text>
                     </Pressable>
                   </View>
@@ -221,34 +221,34 @@ export default function CgymAssignScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.color.border, backgroundColor: theme.color.surfaceSecondary },
-  title: { fontSize: 18, fontWeight: "800", color: theme.color.onSurface },
-  card: { backgroundColor: theme.color.surfaceSecondary, borderRadius: 16, borderWidth: 1, borderColor: theme.color.border, padding: 14, marginBottom: 18 },
-  lbl: { fontSize: 12, fontWeight: "800", color: theme.color.muted, marginTop: 10, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.4 },
-  hint: { fontSize: 11, color: theme.color.muted, marginTop: 6 },
+  root: { flex: 1, backgroundColor: HT.card2 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: HT.border, backgroundColor: HT.card2 },
+  title: { fontSize: 18, fontWeight: "800", color: HT.text },
+  card: { backgroundColor: HT.card2, borderRadius: 16, borderWidth: 1, borderColor: HT.border, padding: 14, marginBottom: 18 },
+  lbl: { fontSize: 12, fontWeight: "800", color: HT.muted, marginTop: 10, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.4 },
+  hint: { fontSize: 11, color: HT.muted, marginTop: 6 },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  chip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 999, borderWidth: 1, borderColor: theme.color.border, backgroundColor: theme.color.surface, minHeight: 40, maxWidth: "100%" },
-  chipOn: { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary },
-  chipTxt: { fontSize: 13, fontWeight: "700", color: theme.color.onSurface },
-  typeChip: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14, borderWidth: 2, borderColor: theme.color.border, backgroundColor: theme.color.surface },
-  input: { borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: theme.color.onSurface, backgroundColor: theme.color.surface, marginTop: 8, minHeight: 44 },
-  preview: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: theme.color.brandTertiary, borderRadius: 10, padding: 10, marginTop: 14 },
-  previewTxt: { flex: 1, fontSize: 12, color: theme.color.brandPrimary, fontWeight: "700", lineHeight: 17 },
+  chip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 999, borderWidth: 1, borderColor: HT.border, backgroundColor: HT.card2, minHeight: 40, maxWidth: "100%" },
+  chipOn: { backgroundColor: HT.brand, borderColor: HT.brand },
+  chipTxt: { fontSize: 13, fontWeight: "700", color: HT.text },
+  typeChip: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14, borderWidth: 2, borderColor: HT.border, backgroundColor: HT.card2 },
+  input: { borderWidth: 1, borderColor: HT.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: HT.text, backgroundColor: HT.card2, marginTop: 8, minHeight: 44 },
+  preview: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: HT.brandTint, borderRadius: 10, padding: 10, marginTop: 14 },
+  previewTxt: { flex: 1, fontSize: 12, color: HT.brand, fontWeight: "700", lineHeight: 17 },
   saveBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 12, backgroundColor: CGYM_ORANGE, borderRadius: 12, paddingVertical: 14, minHeight: 48 },
   saveTxt: { color: "#FFF", fontWeight: "800", fontSize: 15 },
-  sectionTitle: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface, marginBottom: 10 },
-  emptyTxt: { color: theme.color.muted, fontSize: 13, textAlign: "center", paddingVertical: 12 },
-  plan: { backgroundColor: theme.color.surfaceSecondary, borderRadius: 14, borderWidth: 1, borderColor: theme.color.border, padding: 12, marginBottom: 10 },
+  sectionTitle: { fontSize: 16, fontWeight: "800", color: HT.text, marginBottom: 10 },
+  emptyTxt: { color: HT.muted, fontSize: 13, textAlign: "center", paddingVertical: 12 },
+  plan: { backgroundColor: HT.card2, borderRadius: 14, borderWidth: 1, borderColor: HT.border, padding: 12, marginBottom: 10 },
   planHead: { flexDirection: "row", alignItems: "center", gap: 10 },
-  planTitle: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface },
-  planSub: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
+  planTitle: { fontSize: 14, fontWeight: "800", color: HT.text },
+  planSub: { fontSize: 12, color: HT.muted, marginTop: 2 },
   planPct: { fontSize: 14, fontWeight: "900", color: CGYM_ORANGE },
-  barBg: { height: 5, borderRadius: 3, backgroundColor: theme.color.surfaceTertiary, marginTop: 10, overflow: "hidden" },
+  barBg: { height: 5, borderRadius: 3, backgroundColor: HT.card2, marginTop: 10, overflow: "hidden" },
   barFill: { height: 5, borderRadius: 3 },
   userRow: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 28 },
-  userName: { flex: 1, fontSize: 13, color: theme.color.onSurface, fontWeight: "600" },
-  userPct: { fontSize: 12, color: theme.color.muted, fontWeight: "800" },
+  userName: { flex: 1, fontSize: 13, color: HT.text, fontWeight: "600" },
+  userPct: { fontSize: 12, color: HT.muted, fontWeight: "800" },
   delBtn: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", paddingVertical: 8, paddingHorizontal: 4, minHeight: 40 },
-  delTxt: { color: theme.color.error, fontWeight: "800", fontSize: 12 },
+  delTxt: { color: HT.danger, fontWeight: "800", fontSize: 12 },
 });

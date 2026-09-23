@@ -12,6 +12,7 @@ import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Change = { from: string | null; to: string };
 type Proposal = {
@@ -129,7 +130,7 @@ export default function MailCrmProposalsScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={10} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={24} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={24} color={HT.text} />
         </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Auto-CRM da Mail</Text>
@@ -224,7 +225,7 @@ export default function MailCrmProposalsScreen() {
           <View style={styles.empty}><ActivityIndicator size="large" color="#7C3AED" /></View>
         ) : items.length === 0 ? (
           <View style={styles.empty}>
-            <Ionicons name="checkmark-done" size={44} color={theme.color.muted} />
+            <Ionicons name="checkmark-done" size={44} color={HT.muted} />
             <Text style={styles.emptyTxt}>Nessuna proposta {filter === "pending" ? "in attesa" : ""}</Text>
             <Text style={styles.emptyHint}>Tocca &quot;SCANSIONA MAIL ORA&quot; per cercare aggiornamenti da mail recenti</Text>
           </View>
@@ -245,7 +246,7 @@ export default function MailCrmProposalsScreen() {
                 {delta.from ? (
                   <View style={styles.diffBox}>
                     <Text style={styles.diffOld} numberOfLines={2}>{delta.from}</Text>
-                    <Ionicons name="arrow-forward" size={14} color={theme.color.muted} />
+                    <Ionicons name="arrow-forward" size={14} color={HT.muted} />
                     <Text style={styles.diffNew} numberOfLines={2}>{delta.to}</Text>
                   </View>
                 ) : (
@@ -266,7 +267,7 @@ export default function MailCrmProposalsScreen() {
               </View>
             ) : (
               <View style={[styles.statusPill, p.status === "accepted" ? styles.statusOk : styles.statusRej]}>
-                <Text style={[styles.statusTxt, p.status === "accepted" ? { color: "#065F46" } : { color: "#991B1B" }]}>
+                <Text style={[styles.statusTxt, p.status === "accepted" ? { color: HT.success } : { color: HT.danger }]}>
                   {p.status === "accepted" ? "✓ APPLICATA" : "✗ RIFIUTATA"}
                 </Text>
               </View>
@@ -282,75 +283,75 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.color.background },
   header: {
     flexDirection: "row", alignItems: "center", gap: 8,
-    paddingHorizontal: 12, paddingVertical: 10, backgroundColor: "#FFF",
-    borderBottomWidth: 1, borderBottomColor: theme.color.border,
+    paddingHorizontal: 12, paddingVertical: 10, backgroundColor: HT.card,
+    borderBottomWidth: 1, borderBottomColor: HT.border,
   },
   backBtn: { width: 30, height: 30, alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface },
-  headerSub: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
-  scanBarWrap: { padding: 12, backgroundColor: "#FFF" },
+  headerTitle: { fontSize: 16, fontWeight: "800", color: HT.text },
+  headerSub: { fontSize: 12, color: HT.muted, marginTop: 2 },
+  scanBarWrap: { padding: 12, backgroundColor: HT.card },
   scanBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    paddingVertical: 12, borderRadius: 999, backgroundColor: "#7C3AED",
+    paddingVertical: 12, borderRadius: 999, backgroundColor: '#7C3AED',
     shadowColor: "#7C3AED", shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 3,
   },
   scanBtnTxt: { color: "#FFF", fontSize: 14, fontWeight: "900", letterSpacing: 1 },
   filterBar: {
     flexDirection: "row", gap: 8, padding: 10,
-    borderBottomWidth: 1, borderBottomColor: theme.color.border, backgroundColor: "#FFF",
+    borderBottomWidth: 1, borderBottomColor: HT.border, backgroundColor: HT.card,
   },
-  filterChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: "#F1F5F9" },
-  filterChipOn: { backgroundColor: "#7C3AED" },
-  filterTxt: { color: theme.color.onSurface, fontWeight: "700", fontSize: 12 },
+  filterChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: HT.card2 },
+  filterChipOn: { backgroundColor: '#7C3AED' },
+  filterTxt: { color: HT.text, fontWeight: "700", fontSize: 12 },
   filterTxtOn: { color: "#FFF" },
   empty: { padding: 40, alignItems: "center", gap: 6 },
-  emptyTxt: { color: theme.color.onSurface, fontSize: 15, fontWeight: "700" },
-  emptyHint: { color: theme.color.muted, fontSize: 12, textAlign: "center", maxWidth: 250 },
+  emptyTxt: { color: HT.text, fontSize: 15, fontWeight: "700" },
+  emptyHint: { color: HT.muted, fontSize: 12, textAlign: "center", maxWidth: 250 },
   card: {
-    padding: 12, borderRadius: 12, backgroundColor: "#FFF",
-    borderWidth: 1, borderColor: theme.color.border, gap: 6,
+    padding: 12, borderRadius: 12, backgroundColor: HT.card,
+    borderWidth: 1, borderColor: HT.border, gap: 6,
   },
   cardHead: { flexDirection: "row", gap: 10, alignItems: "flex-start" },
-  contactName: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface },
-  mailSub: { fontSize: 11, color: theme.color.muted, marginTop: 1 },
+  contactName: { fontSize: 14, fontWeight: "800", color: HT.text },
+  mailSub: { fontSize: 11, color: HT.muted, marginTop: 1 },
   changesTitle: { fontSize: 12, fontWeight: "800", color: "#7C3AED", marginTop: 6 },
-  changeRow: { paddingVertical: 6, borderTopWidth: 1, borderTopColor: theme.color.border },
-  changeField: { fontSize: 11, fontWeight: "700", color: theme.color.muted, marginBottom: 3 },
+  changeRow: { paddingVertical: 6, borderTopWidth: 1, borderTopColor: HT.border },
+  changeField: { fontSize: 11, fontWeight: "700", color: HT.muted, marginBottom: 3 },
   diffBox: { flexDirection: "row", alignItems: "center", gap: 6 },
-  diffOld: { flex: 1, fontSize: 12, color: "#991B1B", textDecorationLine: "line-through" },
-  diffNew: { flex: 1, fontSize: 13, color: "#065F46", fontWeight: "700" },
+  diffOld: { flex: 1, fontSize: 12, color: HT.danger, textDecorationLine: "line-through" },
+  diffNew: { flex: 1, fontSize: 13, color: HT.success, fontWeight: "700" },
   btnRow: { flexDirection: "row", gap: 8, marginTop: 10 },
   rejBtn: {
     flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4,
-    paddingVertical: 10, borderRadius: 10, backgroundColor: "#FEE2E2",
+    paddingVertical: 10, borderRadius: 10, backgroundColor: HT.dangerTint,
   },
   rejTxt: { color: "#DC2626", fontWeight: "800", fontSize: 13 },
   accBtn: {
     flex: 2, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4,
-    paddingVertical: 10, borderRadius: 10, backgroundColor: "#7C3AED",
+    paddingVertical: 10, borderRadius: 10, backgroundColor: '#7C3AED',
   },
   accTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
   statusPill: { marginTop: 6, alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
-  statusOk: { backgroundColor: "#DCFCE7" },
-  statusRej: { backgroundColor: "#FEE2E2" },
+  statusOk: { backgroundColor: HT.successTint },
+  statusRej: { backgroundColor: HT.dangerTint },
   statusTxt: { fontSize: 11, fontWeight: "900" },
   // V50.z24 — scheduler card
   schedCard: {
     marginTop: 10, padding: 10, borderRadius: 12,
-    backgroundColor: "#F5F3FF", borderWidth: 1, borderColor: "#DDD6FE", gap: 6,
+    backgroundColor: HT.violetTint, borderWidth: 1, borderColor: HT.violet + '66', gap: 6,
   },
   schedHead: { flexDirection: "row", alignItems: "center", gap: 6 },
-  schedTitle: { fontSize: 13, fontWeight: "800", color: "#5B21B6" },
-  schedLabel: { fontSize: 11, fontWeight: "700", color: theme.color.muted, marginTop: 4 },
+  schedTitle: { fontSize: 13, fontWeight: "800", color: HT.violet },
+  schedLabel: { fontSize: 11, fontWeight: "700", color: HT.muted, marginTop: 4 },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 },
   intervalChip: {
     paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999,
-    backgroundColor: "#FFF", borderWidth: 1, borderColor: "#DDD6FE",
+    backgroundColor: HT.card, borderWidth: 1, borderColor: HT.violet + '66',
   },
-  intervalChipOn: { backgroundColor: "#7C3AED", borderColor: "#7C3AED" },
-  intervalTxt: { fontSize: 11, fontWeight: "700", color: "#5B21B6" },
+  intervalChipOn: { backgroundColor: '#7C3AED', borderColor: '#7C3AED' },
+  intervalTxt: { fontSize: 11, fontWeight: "700", color: HT.violet },
   intervalTxtOn: { color: "#FFF" },
   schedInfoRow: { marginTop: 6, gap: 2 },
-  schedInfo: { fontSize: 11, color: theme.color.muted },
-  schedError: { fontSize: 11, color: "#B91C1C", fontWeight: "700" },
+  schedInfo: { fontSize: 11, color: HT.muted },
+  schedError: { fontSize: 11, color: HT.danger, fontWeight: "700" },
 });

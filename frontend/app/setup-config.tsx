@@ -11,6 +11,7 @@ import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { SetupProcessingBadge } from "@/src/SetupProcessingBadge";
 import { FutureInterestsAlert } from "@/src/FutureInterestsAlert"; // V50.z219
 import type { Sphere } from "@/src/wizard/Step2Sfera";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const PURPLE = "#7C3AED";
 type Area = { key: string; sphere: string; icon: string; title: string; desc: string; future: boolean; on: boolean };
@@ -58,7 +59,7 @@ export default function SetupConfigScreen() {
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/impostazioni" as any))} hitSlop={10} style={styles.headBtn} testID="setup-config-back"><Ionicons name="arrow-back" size={22} color="#1B2B4B" /></Pressable>
+        <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/impostazioni" as any))} hitSlop={10} style={styles.headBtn} testID="setup-config-back"><Ionicons name="arrow-back" size={22} color={HT.text} /></Pressable>
         <View style={{ flex: 1 }}>
           <Text style={styles.headTitle}>La mia configurazione Set Up</Text>
           <Text style={styles.headSub}>{cfg.mode_label || "Non ancora iniziata"} · modificabile sempre · sincronizzata con AxonOS</Text>
@@ -67,7 +68,7 @@ export default function SetupConfigScreen() {
       <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: pagePad }} testID="setup-config">
         <SetupProcessingBadge />
         <FutureInterestsAlert />
-        <View style={styles.infoBox}><Ionicons name="sync" size={16} color="#4C1D95" /><Text style={styles.infoTxt}>Ogni modifica qui, in Anagrafica o in chat con AxonOS si aggiorna ovunque, subito. Non serve riavviare l'app.</Text></View>
+        <View style={styles.infoBox}><Ionicons name="sync" size={16} color={HT.violet} /><Text style={styles.infoTxt}>Ogni modifica qui, in Anagrafica o in chat con AxonOS si aggiorna ovunque, subito. Non serve riavviare l'app.</Text></View>
 
         {/* Sfera */}
         <View style={styles.card}>
@@ -89,12 +90,12 @@ export default function SetupConfigScreen() {
           {!sphere && <Text style={styles.muted}>Scegli prima una sfera.</Text>}
           {cfg.areas.map((a) => (
             <View key={a.key} style={styles.areaRow} testID={`setup-config-area-${a.key}`}>
-              <View style={[styles.areaIcon, a.on && { backgroundColor: a.future ? "#C2410C" : PURPLE }]}><Ionicons name={a.icon as any} size={18} color={a.on ? "#FFF" : "#64748B"} /></View>
+              <View style={[styles.areaIcon, a.on && { backgroundColor: a.future ? "#FDBA74" : PURPLE }]}><Ionicons name={a.icon as any} size={18} color={a.on ? "#FFF" : HT.muted} /></View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.areaTitle} numberOfLines={1}>{a.title}</Text>
                 <Text style={styles.areaDesc} numberOfLines={1}>{a.future ? "Interesse futuro · ti avviso quando è pronto" : a.desc}</Text>
               </View>
-              <Switch value={a.on} onValueChange={(v) => toggleArea(a.key, v)} trackColor={{ true: a.future ? "#C2410C" : PURPLE, false: "#CBD5E1" }} thumbColor={Platform.OS === "android" ? "#FFF" : undefined} testID={`setup-config-switch-${a.key}`} />
+              <Switch value={a.on} onValueChange={(v) => toggleArea(a.key, v)} trackColor={{ true: a.future ? "#FDBA74" : PURPLE, false: "#CBD5E1" }} thumbColor={Platform.OS === "android" ? "#FFF" : undefined} testID={`setup-config-switch-${a.key}`} />
             </View>
           ))}
         </View>
@@ -118,7 +119,7 @@ export default function SetupConfigScreen() {
           <KV k="Dati confermati" v={String(cfg.talk.proposals_accepted)} />
           <KV k="Cose imparate" v={`${cfg.talk.facts_accepted} · memoria AxonOS: ${cfg.memory_items} voci`} />
           {cfg.talk.proposals_pending > 0 && (
-            <Pressable onPress={() => reopen(4)} style={styles.btnWarn} testID="setup-config-pending"><Ionicons name="alert-circle" size={16} color="#B45309" /><Text style={styles.btnWarnTxt}>{cfg.talk.proposals_pending} proposte da confermare · un tap ciascuna</Text></Pressable>
+            <Pressable onPress={() => reopen(4)} style={styles.btnWarn} testID="setup-config-pending"><Ionicons name="alert-circle" size={16} color={HT.warning} /><Text style={styles.btnWarnTxt}>{cfg.talk.proposals_pending} proposte da confermare · un tap ciascuna</Text></Pressable>
           )}
           {cfg.talk.files.length > 0 && (
             <View style={{ gap: 6 }}>
@@ -139,7 +140,7 @@ export default function SetupConfigScreen() {
             <Pressable key={w.title} onPress={() => router.push(w.route as any)} style={styles.whereRow} testID={`setup-config-where-${w.title}`}>
               <Ionicons name={w.icon as any} size={18} color={PURPLE} />
               <View style={{ flex: 1 }}><Text style={styles.areaTitle}>{w.title}</Text><Text style={styles.areaDesc}>{w.text}</Text></View>
-              <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+              <Ionicons name="chevron-forward" size={16} color={HT.muted} />
             </Pressable>
           ))}
         </View>
@@ -151,7 +152,7 @@ export default function SetupConfigScreen() {
             const st = cfg.state.steps?.[String(i + 1)];
             return (
               <Pressable key={t} onPress={() => reopen(i + 1)} style={styles.stepRow} testID={`setup-config-step-${i + 1}`}>
-                <Ionicons name={st?.done ? "checkmark-circle" : st?.skipped ? "remove-circle" : "ellipse-outline"} size={20} color={st?.done ? "#059669" : st?.skipped ? "#94A3B8" : "#CBD5E1"} />
+                <Ionicons name={st?.done ? "checkmark-circle" : st?.skipped ? "remove-circle" : "ellipse-outline"} size={20} color={st?.done ? "#059669" : st?.skipped ? HT.muted : "#CBD5E1"} />
                 <Text style={[styles.areaTitle, { flex: 1 }]}>{i + 1} · {t}</Text>
                 <Text style={styles.link}>{st?.done ? "Rivedi" : st?.skipped ? "Completa" : "Apri"}</Text>
               </Pressable>
@@ -173,39 +174,39 @@ function Row({ icon, title, right }: { icon: keyof typeof Ionicons.glyphMap; tit
   );
 }
 function KV({ k, v }: { k: string; v?: string | null }) {
-  return <View style={styles.kv}><Text style={styles.k}>{k}</Text><Text style={[styles.v, !v && { color: "#94A3B8", fontWeight: "500" }]} numberOfLines={2}>{v || "—"}</Text></View>;
+  return <View style={styles.kv}><Text style={styles.k}>{k}</Text><Text style={[styles.v, !v && { color: HT.muted, fontWeight: "500" }]} numberOfLines={2}>{v || "—"}</Text></View>;
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#FAF5FF" },
+  root: { flex: 1, backgroundColor: '#FAF5FF' },
   header: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 10 },
   headBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
-  headTitle: { fontSize: 17, fontWeight: "900", color: "#1B2B4B" },
-  headSub: { fontSize: 12, color: "#64748B" },
-  infoBox: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#F5F3FF", borderRadius: 14, padding: 12, borderWidth: 1, borderColor: "#DDD6FE" },
-  infoTxt: { flex: 1, fontSize: 12.5, color: "#4C1D95", lineHeight: 17, fontWeight: "600" },
-  card: { backgroundColor: "#FFF", borderRadius: 18, padding: 14, gap: 10, borderWidth: 1, borderColor: "#EDE9FE" },
+  headTitle: { fontSize: 17, fontWeight: "900", color: HT.text },
+  headSub: { fontSize: 12, color: HT.muted },
+  infoBox: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: HT.violetTint, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: HT.violet + '66' },
+  infoTxt: { flex: 1, fontSize: 12.5, color: HT.violet, lineHeight: 17, fontWeight: "600" },
+  card: { backgroundColor: HT.card, borderRadius: 18, padding: 14, gap: 10, borderWidth: 1, borderColor: HT.violetTint },
   rowHead: { flexDirection: "row", alignItems: "center", gap: 10 },
-  rowIcon: { width: 36, height: 36, borderRadius: 12, backgroundColor: "#F5F3FF", alignItems: "center", justifyContent: "center" },
-  rowTitle: { flex: 1, fontSize: 16, fontWeight: "900", color: "#1B2B4B" },
+  rowIcon: { width: 36, height: 36, borderRadius: 12, backgroundColor: HT.violetTint, alignItems: "center", justifyContent: "center" },
+  rowTitle: { flex: 1, fontSize: 16, fontWeight: "900", color: HT.text },
   link: { color: PURPLE, fontWeight: "800", fontSize: 13 },
-  chip: { flex: 1, alignItems: "center", justifyContent: "center", minHeight: 44, borderRadius: 12, borderWidth: 1.5, borderColor: "#DDD6FE", backgroundColor: "#FAF5FF" },
+  chip: { flex: 1, alignItems: "center", justifyContent: "center", minHeight: 44, borderRadius: 12, borderWidth: 1.5, borderColor: HT.violet + '66', backgroundColor: '#FAF5FF' },
   chipOn: { backgroundColor: PURPLE, borderColor: PURPLE },
-  chipTxt: { fontWeight: "800", color: "#4C1D95", fontSize: 13 },
-  muted: { fontSize: 12, color: "#64748B" },
+  chipTxt: { fontWeight: "800", color: HT.violet, fontSize: 13 },
+  muted: { fontSize: 12, color: HT.muted },
   areaRow: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 52 },
-  areaIcon: { width: 36, height: 36, borderRadius: 12, backgroundColor: "#E2E8F0", alignItems: "center", justifyContent: "center" },
-  areaTitle: { fontSize: 14, fontWeight: "800", color: "#1B2B4B" },
-  areaDesc: { fontSize: 11.5, color: "#64748B" },
+  areaIcon: { width: 36, height: 36, borderRadius: 12, backgroundColor: HT.border, alignItems: "center", justifyContent: "center" },
+  areaTitle: { fontSize: 14, fontWeight: "800", color: HT.text },
+  areaDesc: { fontSize: 11.5, color: HT.muted },
   kv: { flexDirection: "row", gap: 10, alignItems: "flex-start" },
-  k: { width: 110, fontSize: 12.5, color: "#64748B", fontWeight: "700" },
-  v: { flex: 1, fontSize: 13.5, color: "#1B2B4B", fontWeight: "700" },
+  k: { width: 110, fontSize: 12.5, color: HT.muted, fontWeight: "700" },
+  v: { flex: 1, fontSize: 13.5, color: HT.text, fontWeight: "700" },
   btnAlt: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 44, borderRadius: 12, borderWidth: 1.5, borderColor: PURPLE },
   btnAltTxt: { color: PURPLE, fontWeight: "800", fontSize: 13.5 },
-  btnWarn: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 44, borderRadius: 12, backgroundColor: "#FFFBEB", borderWidth: 1, borderColor: "#FCD34D", paddingHorizontal: 12 },
-  btnWarnTxt: { color: "#B45309", fontWeight: "800", fontSize: 13, flex: 1 },
+  btnWarn: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 44, borderRadius: 12, backgroundColor: HT.warningTint, borderWidth: 1, borderColor: '#FCD34D', paddingHorizontal: 12 },
+  btnWarnTxt: { color: HT.warning, fontWeight: "800", fontSize: 13, flex: 1 },
   fileRow: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 36 },
-  fileName: { flex: 1, fontSize: 13, color: "#1B2B4B", fontWeight: "600" },
+  fileName: { flex: 1, fontSize: 13, color: HT.text, fontWeight: "600" },
   whereRow: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 52 },
   stepRow: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 44 },
 });

@@ -7,12 +7,12 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { uriToBase64DataUrl } from "@/src/utils/media";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { GoogleDrivePickerModal } from "@/src/GoogleDrivePickerModal";
 import { DropboxPickerModal } from "@/src/DropboxPickerModal";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 export type FormTemplate = { template_id: string; name: string; notes?: string; page_count: number; field_count: number; field_source: string; created_at: string };
 
@@ -64,9 +64,9 @@ export default function FormTemplatesScreen() {
   const remove = async (t: FormTemplate) => { try { await api(`/form-templates/${t.template_id}`, { method: "DELETE" }); await load(); } catch (e: any) { notify("Modelli", e?.message || ""); } };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.surface }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: HT.card2 }}>
       <View style={s.header}>
-        <Pressable onPress={() => router.back()} hitSlop={10} style={s.hBtn}><Ionicons name="chevron-back" size={24} color={theme.color.onSurface} /></Pressable>
+        <Pressable onPress={() => router.back()} hitSlop={10} style={s.hBtn}><Ionicons name="chevron-back" size={24} color={HT.text} /></Pressable>
         <View style={{ flex: 1 }}><Text style={s.title}>Modelli moduli</Text><Text style={s.sub}>PDF da compilare automaticamente con i dati del cliente</Text></View>
       </View>
       <ScrollView contentContainerStyle={{ padding: 14, gap: 14, paddingBottom: pagePad }}>
@@ -79,12 +79,12 @@ export default function FormTemplatesScreen() {
               <Pressable onPress={() => setDrive(true)} style={s.srcBtn} testID="ft-src-drive"><Ionicons name="logo-google" size={18} color="#2563EB" /><Text style={s.srcTxt}>Drive</Text></Pressable>
               <Pressable onPress={() => setDropbox(true)} style={s.srcBtn} testID="ft-src-dropbox"><Ionicons name="cube-outline" size={18} color="#0061FF" /><Text style={s.srcTxt}>Dropbox</Text></Pressable>
             </View>
-            {picked ? <View style={s.pickedRow} testID="ft-picked"><Ionicons name="document" size={18} color="#DC2626" /><Text style={{ flex: 1, fontWeight: "700", color: theme.color.onSurface }} numberOfLines={1}>{picked.name}</Text><Pressable onPress={() => setPicked(null)} hitSlop={8}><Ionicons name="close-circle" size={18} color={theme.color.muted} /></Pressable></View> : null}
-            <TextInput value={name} onChangeText={setName} placeholder="Nome del modello (es. Contratto luce Enel)" placeholderTextColor={theme.color.muted} style={s.input} testID="ft-name" />
-            <TextInput value={notes} onChangeText={setNotes} placeholder="Note / regole di compilazione (opzionale)" placeholderTextColor={theme.color.muted} style={[s.input, { minHeight: 60 }]} multiline testID="ft-notes" />
+            {picked ? <View style={s.pickedRow} testID="ft-picked"><Ionicons name="document" size={18} color="#DC2626" /><Text style={{ flex: 1, fontWeight: "700", color: HT.text }} numberOfLines={1}>{picked.name}</Text><Pressable onPress={() => setPicked(null)} hitSlop={8}><Ionicons name="close-circle" size={18} color={HT.muted} /></Pressable></View> : null}
+            <TextInput value={name} onChangeText={setName} placeholder="Nome del modello (es. Contratto luce Enel)" placeholderTextColor={HT.muted} style={s.input} testID="ft-name" />
+            <TextInput value={notes} onChangeText={setNotes} placeholder="Note / regole di compilazione (opzionale)" placeholderTextColor={HT.muted} style={[s.input, { minHeight: 60 }]} multiline testID="ft-notes" />
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
               <Switch value={isExample} onValueChange={setIsExample} testID="ft-example-switch" />
-              <Text style={{ flex: 1, fontSize: 13, color: theme.color.onSurface }}>Il PDF è un <Text style={{ fontWeight: "800" }}>esempio già compilato</Text> (Axon usa i valori scritti come regola di posizione)</Text>
+              <Text style={{ flex: 1, fontSize: 13, color: HT.text }}>Il PDF è un <Text style={{ fontWeight: "800" }}>esempio già compilato</Text> (Axon usa i valori scritti come regola di posizione)</Text>
             </View>
             {busy ? <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}><ActivityIndicator color="#7C3AED" /><Text style={s.hint}>{busy}</Text></View> : null}
             <Pressable onPress={create} disabled={!!busy || !picked} style={[s.primary, (!picked || !!busy) && { opacity: 0.5 }]} testID="ft-create"><Ionicons name="sparkles" size={16} color="#FFF" /><Text style={s.primaryTxt}>Analizza con Axon e crea modello</Text></Pressable>
@@ -100,7 +100,7 @@ export default function FormTemplatesScreen() {
               <Text style={s.rowMeta}>{t.page_count} pag. · {t.field_count} campi · {t.field_source === "acroform" ? "campi PDF" : "rilevati da Axon"}</Text>
             </View>
             {isMaster ? <Pressable onPress={() => remove(t)} hitSlop={8} style={{ padding: 6 }} testID={`ft-del-${t.template_id}`}><Ionicons name="trash-outline" size={18} color="#DC2626" /></Pressable> : null}
-            <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+            <Ionicons name="chevron-forward" size={18} color={HT.muted} />
           </Pressable>
         ))}
       </ScrollView>
@@ -111,19 +111,19 @@ export default function FormTemplatesScreen() {
 }
 
 const s = StyleSheet.create({
-  header: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderBottomWidth: 1, borderBottomColor: theme.color.border },
+  header: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderBottomWidth: 1, borderBottomColor: HT.border },
   hBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 18, fontWeight: "900", color: theme.color.onSurface }, sub: { fontSize: 12, color: theme.color.muted },
-  card: { backgroundColor: "#FAF5FF", borderRadius: 16, borderWidth: 1, borderColor: "#E9D5FF", padding: 14, gap: 10 },
-  section: { fontSize: 14, fontWeight: "900", color: theme.color.onSurface },
-  hint: { fontSize: 12, color: theme.color.muted, lineHeight: 17 },
-  srcBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 44, borderRadius: 10, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border },
-  srcTxt: { fontSize: 12, fontWeight: "800", color: theme.color.onSurface },
-  pickedRow: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF", borderRadius: 10, padding: 10, borderWidth: 1, borderColor: theme.color.border },
-  input: { backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, paddingHorizontal: 12, minHeight: 44, fontSize: 14, color: theme.color.onSurface },
-  primary: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#7C3AED", borderRadius: 12, minHeight: 48 },
+  title: { fontSize: 18, fontWeight: "900", color: HT.text }, sub: { fontSize: 12, color: HT.muted },
+  card: { backgroundColor: '#FAF5FF', borderRadius: 16, borderWidth: 1, borderColor: '#E9D5FF', padding: 14, gap: 10 },
+  section: { fontSize: 14, fontWeight: "900", color: HT.text },
+  hint: { fontSize: 12, color: HT.muted, lineHeight: 17 },
+  srcBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 44, borderRadius: 10, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border },
+  srcTxt: { fontSize: 12, fontWeight: "800", color: HT.text },
+  pickedRow: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: HT.card, borderRadius: 10, padding: 10, borderWidth: 1, borderColor: HT.border },
+  input: { backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, borderRadius: 10, paddingHorizontal: 12, minHeight: 44, fontSize: 14, color: HT.text },
+  primary: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: '#7C3AED', borderRadius: 12, minHeight: 48 },
   primaryTxt: { color: "#FFF", fontWeight: "900", fontSize: 14 },
-  row: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 14, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, minHeight: 60 },
-  rowIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: "#F3E8FF", alignItems: "center", justifyContent: "center" },
-  rowTitle: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface }, rowMeta: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
+  row: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 14, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, minHeight: 60 },
+  rowIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#F3E8FF', alignItems: "center", justifyContent: "center" },
+  rowTitle: { fontSize: 14, fontWeight: "800", color: HT.text }, rowMeta: { fontSize: 12, color: HT.muted, marginTop: 2 },
 });

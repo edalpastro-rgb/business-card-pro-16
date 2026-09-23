@@ -4,10 +4,10 @@ import { View, Text, Pressable, ActivityIndicator, Platform } from "react-native
 import { Ionicons } from "@expo/vector-icons";
 import * as Print from "expo-print";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 import { notify, confirmAsync } from "@/src/utils/notify";
 import { shareDataUri } from "@/src/share";
 import { crtStyles as s } from "@/app/crt/index";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Props = { practiceId: string; contactName: string; hasPdf: boolean; busy: string | null; run: (key: string, fn: () => Promise<void>, ok?: string) => Promise<void>; onQr: () => void; onMerge: () => void };
 
@@ -51,9 +51,9 @@ export function CrtSaveShareBlock({ practiceId, contactName, hasPdf, busy, run, 
       <Text style={s.section}>BLOCCO 4 · Salvataggio e condivisione</Text>
       <Text style={s.hint}>Ogni salvataggio chiede conferma e destinazione.{hasPdf ? "" : " Genera prima il documento unico nel Blocco 3."}</Text>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-        <Btn k="merge" icon="folder-open" label="Salva nella cartella cliente" sub="Allegati del contatto" color="#15803D" onPress={() => void saveClient()} testID="crt-save-client" />
+        <Btn k="merge" icon="folder-open" label="Salva nella cartella cliente" sub="Allegati del contatto" color={HT.success} onPress={() => void saveClient()} testID="crt-save-client" />
         <Btn k="save-master" icon="server" label="Salva nel database Master" sub="Master Files › Documenti" color="#7C3AED" onPress={() => void saveMaster()} testID="crt-save-master" />
-        <Btn k="share" icon="share-social" label="Condividi" sub="Email · WhatsApp · link/QR" color={theme.color.brandPrimary} onPress={() => void share()} testID="crt-share" />
+        <Btn k="share" icon="share-social" label="Condividi" sub="Email · WhatsApp · link/QR" color={HT.brand} onPress={() => void share()} testID="crt-share" />
         <Btn k="print" icon="print" label="Stampa" sub="WiFi/AirPrint o via email" color="#0F766E" onPress={() => void print()} testID="crt-print" />
       </View>
     </View>

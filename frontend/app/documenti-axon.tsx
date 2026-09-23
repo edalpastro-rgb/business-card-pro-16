@@ -18,12 +18,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
-import { theme } from "@/src/theme";
 import { notify, confirmAsync } from "@/src/utils/notify";
 import { pickCommonFile } from "@/src/utils/filePicker";
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 import * as FileSystem from "expo-file-system/legacy";
 import { KbEntryEditorModal, KB_CATEGORIES, type KbCategory } from "@/src/KbEntryEditorModal";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type MasterDoc = {
   doc_id: string;
@@ -191,7 +191,7 @@ export default function DocumentiAxonScreen() {
       {/* Info box */}
       <View style={styles.infoBox}>
         <View style={styles.infoIconWrap}>
-          <Ionicons name="bulb" size={16} color="#B45309" />
+          <Ionicons name="bulb" size={16} color={HT.warning} />
         </View>
         <Text style={styles.infoTxt}>
           Carica PDF/testi o scrivi FAQ, dati ricorrenti e note: prima di ogni risposta Axon cerca automaticamente
@@ -202,7 +202,7 @@ export default function DocumentiAxonScreen() {
 
       {!isMaster && (
         <View style={styles.readonlyBox}>
-          <Ionicons name="lock-closed" size={14} color="#64748B" />
+          <Ionicons name="lock-closed" size={14} color={HT.muted} />
           <Text style={styles.readonlyTxt}>
             Solo il Master può caricare o eliminare documenti. Ma Axon userà comunque quelli caricati
             dal tuo Master per rispondere alle tue domande.
@@ -229,13 +229,13 @@ export default function DocumentiAxonScreen() {
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120, gap: 12 }}>
         {loading && (
           <View style={{ alignItems: "center", paddingVertical: 40 }}>
-            <ActivityIndicator color={theme.color.brandPrimary} />
+            <ActivityIndicator color={HT.brand} />
           </View>
         )}
 
         {!loading && items.length === 0 && (
           <View style={styles.emptyBox}>
-            <Ionicons name="documents-outline" size={40} color="#94A3B8" />
+            <Ionicons name="documents-outline" size={40} color={HT.muted} />
             <Text style={styles.emptyTitle}>Knowledge base vuota</Text>
             <Text style={styles.emptyTxt}>
               {isMaster
@@ -280,7 +280,7 @@ export default function DocumentiAxonScreen() {
                   <Pressable
                     onPress={() => { setEditorDoc(d); setEditorOpen(true); }}
                     hitSlop={8}
-                    style={[styles.docDelBtn, { backgroundColor: "#F3E8FF" }]}
+                    style={[styles.docDelBtn, { backgroundColor: '#F3E8FF' }]}
                     testID={`doc-edit-${d.doc_id}`}
                     accessibilityLabel={isText ? "Modifica voce" : "Rinomina documento"}
                   >
@@ -307,7 +307,7 @@ export default function DocumentiAxonScreen() {
         <View style={[styles.fabRow, { bottom: 96 + bottomPad - 24 }]}>
           <Pressable
             onPress={() => { setEditorDoc(null); setEditorOpen(true); }}
-            style={[styles.fab, { backgroundColor: "#1B2B4B", shadowColor: "#1B2B4B" }]}
+            style={[styles.fab, { backgroundColor: '#1B2B4B', shadowColor: HT.text }]}
             testID="kb-new-entry-fab"
           >
             <Ionicons name="add-circle" size={20} color="#FFF" />
@@ -337,14 +337,14 @@ export default function DocumentiAxonScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F8FAFC" },
+  container: { flex: 1, backgroundColor: HT.card2 },
   header: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    backgroundColor: "#7C3AED",
+    backgroundColor: '#7C3AED',
   },
   backBtn: {
     width: 36,
@@ -361,8 +361,8 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     flexDirection: "row",
     gap: 10,
-    backgroundColor: "#FEF3C7",
-    borderColor: "#FDE68A",
+    backgroundColor: HT.warningTint,
+    borderColor: HT.warning + '66',
     borderWidth: 1,
     borderRadius: 14,
     padding: 12,
@@ -372,45 +372,45 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: "#FEF3C7",
-    borderColor: "#FDE68A",
+    backgroundColor: HT.warningTint,
+    borderColor: HT.warning + '66',
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },
-  infoTxt: { flex: 1, fontSize: 12, color: "#78350F", lineHeight: 17 },
+  infoTxt: { flex: 1, fontSize: 12, color: "#FDBA74", lineHeight: 17 },
   readonlyBox: {
     marginTop: 8,
     marginHorizontal: 16,
     flexDirection: "row",
     gap: 8,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: HT.card2,
     borderRadius: 12,
     padding: 10,
     alignItems: "center",
   },
-  readonlyTxt: { flex: 1, fontSize: 11, color: "#475569", lineHeight: 16 },
+  readonlyTxt: { flex: 1, fontSize: 11, color: HT.text2, lineHeight: 16 },
   emptyBox: {
     alignItems: "center",
     gap: 6,
     padding: 32,
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: HT.border,
     borderStyle: "dashed",
   },
-  emptyTitle: { fontSize: 15, fontWeight: "700", color: "#334155", marginTop: 8 },
-  emptyTxt: { fontSize: 12, color: "#64748B", textAlign: "center", maxWidth: 260 },
+  emptyTitle: { fontSize: 15, fontWeight: "700", color: HT.text2, marginTop: 8 },
+  emptyTxt: { fontSize: 12, color: HT.muted, textAlign: "center", maxWidth: 260 },
   docCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderRadius: 14,
     padding: 12,
     borderWidth: 1,
-    borderColor: "#EEF2F7",
+    borderColor: '#EEF2F7',
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -421,18 +421,18 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: "#F3E8FF",
+    backgroundColor: '#F3E8FF',
     alignItems: "center",
     justifyContent: "center",
   },
-  docName: { fontSize: 14, fontWeight: "700", color: "#0F172A" },
+  docName: { fontSize: 14, fontWeight: "700", color: HT.text },
   docMeta: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", marginTop: 3 },
-  docMetaTxt: { fontSize: 11, color: "#64748B", marginRight: 4 },
+  docMetaTxt: { fontSize: 11, color: HT.muted, marginRight: 4 },
   docDelBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#FEE2E2",
+    backgroundColor: HT.dangerTint,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -443,7 +443,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 14,
     borderRadius: 999,
-    backgroundColor: "#7C3AED",
+    backgroundColor: '#7C3AED',
     shadowColor: "#7C3AED",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.35,
@@ -455,9 +455,9 @@ const styles = StyleSheet.create({
   fabTxt: { color: "#FFF", fontWeight: "800", fontSize: 14, letterSpacing: -0.2 },
   rulesBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, minHeight: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.18)" },
   rulesBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 12 },
-  filterChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: "#DDD6FE", backgroundColor: "#FFF", minHeight: 32, justifyContent: "center" },
-  filterChipOn: { backgroundColor: "#7C3AED", borderColor: "#7C3AED" },
+  filterChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: HT.violet + '66', backgroundColor: HT.card, minHeight: 32, justifyContent: "center" },
+  filterChipOn: { backgroundColor: '#7C3AED', borderColor: '#7C3AED' },
   filterTxt: { fontSize: 12, fontWeight: "700", color: "#7C3AED" },
-  catBadge: { backgroundColor: "#F3E8FF", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 1, marginRight: 6 },
+  catBadge: { backgroundColor: '#F3E8FF', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 1, marginRight: 6 },
   catBadgeTxt: { fontSize: 10, fontWeight: "800", color: "#7C3AED" },
 });

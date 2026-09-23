@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Modal, TextInput, Pressable, ActivityIndicator, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { theme } from "@/src/theme";
 import { useSafeBottom } from "@/src/hooks/useSafeBottom";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Props = {
   visible: boolean;
@@ -40,7 +40,7 @@ export function SaveConfirmModal({ visible, title, subtitle, defaultName, extens
     }
   };
 
-  const accent = color || theme.color.brandPrimary;
+  const accent = color || HT.brand;
 
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onCancel}>
@@ -62,7 +62,7 @@ export function SaveConfirmModal({ visible, title, subtitle, defaultName, extens
               value={name}
               onChangeText={setName}
               placeholder="Nome file"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={HT.muted}
               autoFocus
               style={styles.input}
               editable={!busy}
@@ -71,8 +71,8 @@ export function SaveConfirmModal({ visible, title, subtitle, defaultName, extens
             <Text style={styles.ext}>{extension}</Text>
           </View>
           <View style={styles.actions}>
-            <Pressable testID="save-confirm-cancel" onPress={onCancel} disabled={busy} style={[styles.btn, { backgroundColor: "#F1F5F9" }]}>
-              <Text style={[styles.btnTxt, { color: theme.color.onSurface }]}>Annulla</Text>
+            <Pressable testID="save-confirm-cancel" onPress={onCancel} disabled={busy} style={[styles.btn, { backgroundColor: HT.card2 }]}>
+              <Text style={[styles.btnTxt, { color: HT.text }]}>Annulla</Text>
             </Pressable>
             <Pressable testID="save-confirm-ok" onPress={submit} disabled={busy || !name.trim()} style={[styles.btn, { backgroundColor: accent, opacity: (busy || !name.trim()) ? 0.6 : 1 }]}>
               {busy ? <ActivityIndicator color="#FFF" size="small" /> : <Text style={[styles.btnTxt, { color: "#FFF" }]}>Salva</Text>}
@@ -99,15 +99,15 @@ export function suggestFileName(contactName: string | undefined, kind: string, w
 
 const styles = StyleSheet.create({
   back: { flex: 1, backgroundColor: "rgba(15,23,42,0.6)", justifyContent: "center", padding: 20 },
-  card: { backgroundColor: "#FFF", borderRadius: 16, padding: 18 },
+  card: { backgroundColor: HT.card, borderRadius: 16, padding: 18 },
   head: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 14 },
   icoBox: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface },
-  sub: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
-  lbl: { fontSize: 12, fontWeight: "700", color: theme.color.muted, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.4 },
-  inputRow: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, paddingHorizontal: 10, backgroundColor: "#F8FAFC" },
-  input: { flex: 1, paddingVertical: Platform.OS === "ios" ? 12 : 8, fontSize: 14, color: theme.color.onSurface },
-  ext: { fontSize: 13, color: theme.color.muted, fontFamily: Platform.select({ ios: "Courier", android: "monospace" }) },
+  title: { fontSize: 16, fontWeight: "800", color: HT.text },
+  sub: { fontSize: 12, color: HT.muted, marginTop: 2 },
+  lbl: { fontSize: 12, fontWeight: "700", color: HT.muted, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.4 },
+  inputRow: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: HT.border, borderRadius: 10, paddingHorizontal: 10, backgroundColor: HT.card2 },
+  input: { flex: 1, paddingVertical: Platform.OS === "ios" ? 12 : 8, fontSize: 14, color: HT.text },
+  ext: { fontSize: 13, color: HT.muted, fontFamily: Platform.select({ ios: "Courier", android: "monospace" }) },
   actions: { flexDirection: "row", gap: 8, marginTop: 14 },
   btn: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   btnTxt: { fontSize: 14, fontWeight: "800" },

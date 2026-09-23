@@ -19,8 +19,9 @@ import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
-const C = { primary: "#FF6B35", primarySoft: "#FFF1E9", navy: "#1B2B4B", muted: "#94A3B8", success: "#16A34A" };
+const C = { primary: "#FF6B35", primarySoft: "#FFF1E9", navy: HT.text, muted: HT.muted, success: "#16A34A" };
 
 type Props = {
   visible: boolean;
@@ -249,15 +250,15 @@ export function CallScriptOverlay({ visible, onClose, contactName, contactPhone 
                         <Text style={styles.waBadgeTxt}>per questo script</Text>
                       </View>
                     ) : (
-                      <View style={[styles.waBadge, { backgroundColor: "#DBEAFE" }]}>
-                        <Text style={[styles.waBadgeTxt, { color: "#1E40AF" }]}>predefinito</Text>
+                      <View style={[styles.waBadge, { backgroundColor: HT.axonTint }]}>
+                        <Text style={[styles.waBadgeTxt, { color: HT.axon }]}>predefinito</Text>
                       </View>
                     )}
                   </View>
                   <Text style={[styles.waTxt, { fontSize: Math.max(12, fontSize - 2) }]} testID="call-script-wa-text">{renderedWa}</Text>
                   <View style={styles.waActionRow}>
                     <Pressable onPress={copyWaMessage} style={styles.waCopyBtn} testID="call-script-wa-copy">
-                      <Ionicons name="copy-outline" size={14} color="#166534" />
+                      <Ionicons name="copy-outline" size={14} color={HT.success} />
                       <Text style={styles.waCopyBtnTxt}>Copia</Text>
                     </Pressable>
                     {(contactPhone || "").trim() ? (
@@ -292,15 +293,15 @@ const styles = StyleSheet.create({
   },
   card: {
     flex: 1,
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,
     overflow: "hidden",
     borderTopWidth: 1,
-    borderTopColor: "#EEF0F4",
+    borderTopColor: HT.border,
   },
-  hdr: { paddingTop: 6, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: "#EEF0F4", backgroundColor: "#FFF" },
-  grabber: { alignSelf: "center", width: 42, height: 4, borderRadius: 2, backgroundColor: "#CBD5E1", marginBottom: 6 },
+  hdr: { paddingTop: 6, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: HT.border, backgroundColor: HT.card },
+  grabber: { alignSelf: "center", width: 42, height: 4, borderRadius: 2, backgroundColor: HT.borderStrong, marginBottom: 6 },
   hdrRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14 },
   hdrIcon: { width: 30, height: 30, borderRadius: 9, backgroundColor: C.primary, alignItems: "center", justifyContent: "center" },
   title: { fontSize: 15, fontWeight: "800", color: C.navy, letterSpacing: -0.2 },
@@ -308,32 +309,32 @@ const styles = StyleSheet.create({
   zoomBtn: { width: 30, height: 30, borderRadius: 8, backgroundColor: C.primarySoft, alignItems: "center", justifyContent: "center" },
   chipsScroll: { paddingHorizontal: 14, paddingTop: 10 },
   chipsRow: { gap: 8, paddingRight: 20 },
-  chip: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: "#FFF", borderWidth: 1.5, borderColor: C.primary },
+  chip: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: HT.card, borderWidth: 1.5, borderColor: C.primary },
   chipTxt: { fontSize: 12, fontWeight: "800", color: C.primary },
   // V29.ao — Riga chiamata compatta: banner verde grande + bottone WhatsApp
   callRow: { flexDirection: "row", alignItems: "stretch", gap: 8, paddingHorizontal: 14, marginTop: 8 },
   whatsBtn: {
     width: 54,
     borderRadius: 12,
-    backgroundColor: "#25D366",
+    backgroundColor: '#25D366',
     alignItems: "center",
     justifyContent: "center",
   },
-  phoneCard: { flex: 1, flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#DCFCE7", padding: 12, borderRadius: 12 },
+  phoneCard: { flex: 1, flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: HT.successTint, padding: 12, borderRadius: 12 },
   phoneIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: C.success, alignItems: "center", justifyContent: "center" },
-  phoneLbl: { fontSize: 11, fontWeight: "700", color: "#166534", textTransform: "uppercase", letterSpacing: 0.5 },
+  phoneLbl: { fontSize: 11, fontWeight: "700", color: HT.success, textTransform: "uppercase", letterSpacing: 0.5 },
   phoneNum: { fontSize: 22, fontWeight: "900", color: C.navy, letterSpacing: -0.5, marginTop: 2 },
   scriptTxt: { color: C.navy, fontWeight: "500" },
-  waCard: { marginTop: 18, padding: 12, backgroundColor: "#F0FDF4", borderRadius: 12, borderWidth: 1, borderColor: "#86EFAC", gap: 8 },
+  waCard: { marginTop: 18, padding: 12, backgroundColor: HT.successTint, borderRadius: 12, borderWidth: 1, borderColor: '#86EFAC', gap: 8 },
   waHeader: { flexDirection: "row", alignItems: "center", gap: 6 },
-  waHeaderTxt: { flex: 1, fontSize: 12, fontWeight: "800", color: "#166534", textTransform: "uppercase", letterSpacing: 0.5 },
-  waBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999, backgroundColor: "#DCFCE7" },
-  waBadgeTxt: { fontSize: 9, fontWeight: "800", color: "#166534" },
+  waHeaderTxt: { flex: 1, fontSize: 12, fontWeight: "800", color: HT.success, textTransform: "uppercase", letterSpacing: 0.5 },
+  waBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999, backgroundColor: HT.successTint },
+  waBadgeTxt: { fontSize: 9, fontWeight: "800", color: HT.success },
   waTxt: { color: C.navy, fontWeight: "500", lineHeight: 20 },
   waActionRow: { flexDirection: "row", gap: 8, marginTop: 4 },
-  waCopyBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, backgroundColor: "#DCFCE7", borderWidth: 1, borderColor: "#86EFAC" },
-  waCopyBtnTxt: { fontSize: 12, fontWeight: "700", color: "#166534" },
-  waSendBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 9, borderRadius: 8, backgroundColor: "#16A34A" },
+  waCopyBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, backgroundColor: HT.successTint, borderWidth: 1, borderColor: '#86EFAC' },
+  waCopyBtnTxt: { fontSize: 12, fontWeight: "700", color: HT.success },
+  waSendBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 9, borderRadius: 8, backgroundColor: '#16A34A' },
   waSendBtnTxt: { fontSize: 13, fontWeight: "800", color: "#FFF" },
   empty: { alignItems: "center", padding: 30, gap: 8 },
   emptyTxt: { color: C.navy, fontWeight: "800", fontSize: 14 },

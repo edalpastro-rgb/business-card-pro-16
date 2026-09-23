@@ -2,9 +2,9 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, Switch, TextInput, ActivityIndicator, Linking, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { VD_DEFAULT, VisitDetectionSettings as VDS, VisitMode, loadVisitSettings, saveVisitSettings, ensureLocationPermission } from "@/src/visitDetection";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const SKY = "#0EA5E9";
 const STAY = [5, 10, 15, 20, 30];
@@ -54,7 +54,7 @@ export function VisitDetectionSettings() {
         <Switch value={s.enabled} onValueChange={toggle} trackColor={{ true: SKY }} testID="vd-enabled" />
       </View>
       {perm === "blocked" && (
-        <Pressable onPress={() => Linking.openSettings()} style={styles.warn} testID="vd-open-settings"><Ionicons name="warning" size={16} color="#B45309" /><Text style={styles.warnTxt}>Permesso posizione bloccato · tocca per aprire le impostazioni</Text></Pressable>
+        <Pressable onPress={() => Linking.openSettings()} style={styles.warn} testID="vd-open-settings"><Ionicons name="warning" size={16} color={HT.warning} /><Text style={styles.warnTxt}>Permesso posizione bloccato · tocca per aprire le impostazioni</Text></Pressable>
       )}
 
       <Text style={styles.label}>SOGLIA DI PERMANENZA</Text>
@@ -74,9 +74,9 @@ export function VisitDetectionSettings() {
           const on = s.mode === m.id;
           return (
             <Pressable key={m.id} onPress={() => persist({ mode: m.id })} style={[styles.mode, on && styles.modeOn]} testID={`vd-mode-${m.id}`}>
-              <Ionicons name={m.icon} size={18} color={on ? SKY : theme.color.muted} />
+              <Ionicons name={m.icon} size={18} color={on ? SKY : HT.muted} />
               <View style={{ flex: 1 }}><Text style={[styles.modeTitle, on && { color: SKY }]}>{m.label}</Text><Text style={styles.hint}>{m.desc}</Text></View>
-              <Ionicons name={on ? "radio-button-on" : "radio-button-off"} size={18} color={on ? SKY : theme.color.muted} />
+              <Ionicons name={on ? "radio-button-on" : "radio-button-off"} size={18} color={on ? SKY : HT.muted} />
             </Pressable>
           );
         })}
@@ -86,7 +86,7 @@ export function VisitDetectionSettings() {
         <>
           <Text style={styles.label}>ORARIO RECAP SERALE</Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-            <TextInput value={s.recap_time} onChangeText={(v) => persist({ recap_time: v })} placeholder="18:30" placeholderTextColor={theme.color.muted} style={styles.time} maxLength={5} keyboardType={Platform.OS === "web" ? undefined : "numbers-and-punctuation"} testID="vd-recap-time" />
+            <TextInput value={s.recap_time} onChangeText={(v) => persist({ recap_time: v })} placeholder="18:30" placeholderTextColor={HT.muted} style={styles.time} maxLength={5} keyboardType={Platform.OS === "web" ? undefined : "numbers-and-punctuation"} testID="vd-recap-time" />
             <Text style={styles.hint}>Formato HH:MM · lista delle soste con spunte pre-selezionate</Text>
           </View>
         </>
@@ -104,14 +104,14 @@ function Pill({ on, label, onPress, testID }: { on: boolean; label: string; onPr
 
 const styles = StyleSheet.create({
   rowBetween: { flexDirection: "row", alignItems: "center", gap: 12 },
-  title: { fontSize: 15, fontWeight: "800", color: theme.color.onSurface },
-  hint: { fontSize: 11, color: theme.color.muted, lineHeight: 15, marginTop: 2 },
-  label: { fontSize: 11, fontWeight: "800", color: theme.color.muted, letterSpacing: 0.4, marginTop: 14, marginBottom: 6 },
+  title: { fontSize: 15, fontWeight: "800", color: HT.text },
+  hint: { fontSize: 11, color: HT.muted, lineHeight: 15, marginTop: 2 },
+  label: { fontSize: 11, fontWeight: "800", color: HT.muted, letterSpacing: 0.4, marginTop: 14, marginBottom: 6 },
   pills: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  pill: { paddingHorizontal: 12, minHeight: 36, justifyContent: "center", borderRadius: 18, borderWidth: 1, borderColor: theme.color.border, backgroundColor: theme.color.surface },
-  pillOn: { backgroundColor: SKY, borderColor: SKY }, pillTxt: { fontSize: 12, fontWeight: "700", color: theme.color.onSurface },
-  mode: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 12, borderWidth: 1, borderColor: theme.color.border, backgroundColor: theme.color.surface, minHeight: 52 },
-  modeOn: { borderColor: SKY, backgroundColor: "#E0F2FE" }, modeTitle: { fontSize: 13, fontWeight: "800", color: theme.color.onSurface },
-  time: { width: 84, textAlign: "center", fontSize: 16, fontWeight: "800", color: theme.color.onSurface, backgroundColor: theme.color.surface, borderRadius: 10, borderWidth: 1, borderColor: theme.color.border, minHeight: 44 },
-  warn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FEF3C7", borderRadius: 10, padding: 10, marginTop: 8 }, warnTxt: { flex: 1, fontSize: 12, color: "#92400E", fontWeight: "700" },
+  pill: { paddingHorizontal: 12, minHeight: 36, justifyContent: "center", borderRadius: 18, borderWidth: 1, borderColor: HT.border, backgroundColor: HT.card2 },
+  pillOn: { backgroundColor: SKY, borderColor: SKY }, pillTxt: { fontSize: 12, fontWeight: "700", color: HT.text },
+  mode: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 12, borderWidth: 1, borderColor: HT.border, backgroundColor: HT.card2, minHeight: 52 },
+  modeOn: { borderColor: SKY, backgroundColor: HT.axonTint }, modeTitle: { fontSize: 13, fontWeight: "800", color: HT.text },
+  time: { width: 84, textAlign: "center", fontSize: 16, fontWeight: "800", color: HT.text, backgroundColor: HT.card2, borderRadius: 10, borderWidth: 1, borderColor: HT.border, minHeight: 44 },
+  warn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: HT.warningTint, borderRadius: 10, padding: 10, marginTop: 8 }, warnTxt: { flex: 1, fontSize: 12, color: "#FDBA74", fontWeight: "700" },
 });

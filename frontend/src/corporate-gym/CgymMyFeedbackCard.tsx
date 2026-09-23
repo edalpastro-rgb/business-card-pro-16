@@ -3,9 +3,9 @@ import React, { useCallback, useState } from "react";
 import { View, Text, Pressable, StyleSheet, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
-import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { cgymStatsApi, CgymAiReport, CgymAgentFeedback, CGYM_ORANGE } from "@/src/corporate-gym/api";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const FOCUS_LABEL: Record<string, string> = {
   ascolto: "Ascolto ed empatia", riformulazione: "Riformulazione", valore: "Valore e numeri", chiusura: "Chiusura e appuntamento", tono: "Tono e chiarezza",
@@ -47,18 +47,18 @@ export function CgymMyFeedbackCard({ userId, hasSessions }: { userId: string; ha
             {c ? (c.suggested_focus ? `Focus: ${FOCUS_LABEL[c.suggested_focus] || c.suggested_focus} · ${when}` : when) : hasSessions ? "Scopri dove migliorare in base alle tue sessioni" : "Completa una sessione per ricevere il tuo feedback"}
           </Text>
         </View>
-        <Ionicons name={open ? "chevron-up" : "chevron-down"} size={18} color={theme.color.muted} />
+        <Ionicons name={open ? "chevron-up" : "chevron-down"} size={18} color={HT.muted} />
       </Pressable>
 
       {open && (
         <View style={{ marginTop: 10, gap: 8 }}>
           {c ? (
             <>
-              {!!c.character && (<View style={styles.charBox}><Ionicons name="person" size={14} color={theme.color.brandPrimary} /><Text style={styles.charTxt}>{c.character}</Text></View>)}
+              {!!c.character && (<View style={styles.charBox}><Ionicons name="person" size={14} color={HT.brand} /><Text style={styles.charTxt}>{c.character}</Text></View>)}
               <Block title="Dove migliorare" icon="arrow-up-circle" color={CGYM_ORANGE} items={c.where_to_improve} />
-              <Block title="Azioni per questa settimana" icon="construct" color={theme.color.brandPrimary} items={c.corrective_actions} />
-              <Block title="I tuoi punti di forza" icon="checkmark-circle" color={theme.color.success} items={c.strengths} />
-              {!!c.encouragement && (<View style={styles.encBox}><Ionicons name="heart" size={14} color={theme.color.success} /><Text style={styles.encTxt}>{c.encouragement}</Text></View>)}
+              <Block title="Azioni per questa settimana" icon="construct" color={HT.brand} items={c.corrective_actions} />
+              <Block title="I tuoi punti di forza" icon="checkmark-circle" color={HT.success} items={c.strengths} />
+              {!!c.encouragement && (<View style={styles.encBox}><Ionicons name="heart" size={14} color={HT.success} /><Text style={styles.encTxt}>{c.encouragement}</Text></View>)}
             </>
           ) : (
             <Text style={styles.empty}>{hasSessions ? "Nessun feedback ancora generato: chiedilo ad AxonOS." : "Completa almeno una sessione o un role-play per ottenere un feedback personale."}</Text>
@@ -86,18 +86,18 @@ function Block({ title, icon, color, items }: { title: string; icon: any; color:
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: theme.color.surfaceSecondary, borderRadius: 14, borderWidth: 1, borderColor: CGYM_ORANGE + "55", padding: 12, marginTop: 8 },
+  card: { backgroundColor: HT.card2, borderRadius: 14, borderWidth: 1, borderColor: CGYM_ORANGE + "55", padding: 12, marginTop: 8 },
   head: { flexDirection: "row", alignItems: "center", gap: 10 },
   iconWrap: { width: 36, height: 36, borderRadius: 10, backgroundColor: CGYM_ORANGE + "22", alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 15, fontWeight: "800", color: theme.color.onSurface },
-  sub: { fontSize: 12, color: theme.color.muted, marginTop: 1 },
-  charBox: { flexDirection: "row", gap: 8, backgroundColor: theme.color.brandTertiary, borderRadius: 10, padding: 10 },
-  charTxt: { flex: 1, fontSize: 13, color: theme.color.brandPrimary, fontWeight: "600", lineHeight: 19, fontStyle: "italic" },
+  title: { fontSize: 15, fontWeight: "800", color: HT.text },
+  sub: { fontSize: 12, color: HT.muted, marginTop: 1 },
+  charBox: { flexDirection: "row", gap: 8, backgroundColor: HT.brandTint, borderRadius: 10, padding: 10 },
+  charTxt: { flex: 1, fontSize: 13, color: HT.brand, fontWeight: "600", lineHeight: 19, fontStyle: "italic" },
   blockHead: { fontSize: 12, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.3 },
-  item: { fontSize: 13, color: theme.color.onSurface, lineHeight: 19 },
-  encBox: { flexDirection: "row", gap: 8, backgroundColor: theme.color.success + "18", borderRadius: 10, padding: 10 },
-  encTxt: { flex: 1, fontSize: 13, color: theme.color.onSurface, lineHeight: 19 },
-  empty: { fontSize: 12, color: theme.color.muted, lineHeight: 17 },
+  item: { fontSize: 13, color: HT.text, lineHeight: 19 },
+  encBox: { flexDirection: "row", gap: 8, backgroundColor: HT.success + "18", borderRadius: 10, padding: 10 },
+  encTxt: { flex: 1, fontSize: 13, color: HT.text, lineHeight: 19 },
+  empty: { fontSize: 12, color: HT.muted, lineHeight: 17 },
   genBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: CGYM_ORANGE, borderRadius: 12, paddingVertical: 11, minHeight: 44 },
   genTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
 });

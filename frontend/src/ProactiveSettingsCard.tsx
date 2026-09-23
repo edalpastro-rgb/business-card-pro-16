@@ -6,9 +6,9 @@ import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, Switch, TextInput, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { proactiveApi, ProactiveConfig } from "@/src/axonProactive";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const AXON = "#7C3AED";
 const DAYS = ["L", "M", "M", "G", "V", "S", "D"];
@@ -40,7 +40,7 @@ function TimeField({ value, onCommit, testID }: { value: string; onCommit: (v: s
   const [v, setV] = useState(value);
   useEffect(() => { setV(value); }, [value]);
   const commit = () => { if (v !== value && /^\d{1,2}[:.]\d{2}$/.test(v.trim())) onCommit(v.trim().replace(".", ":")); else setV(value); };
-  return <TextInput value={v} onChangeText={setV} onBlur={commit} onSubmitEditing={commit} placeholder="HH:MM" placeholderTextColor="#94A3B8" style={[styles.input, { width: 64 }]} testID={testID} />;
+  return <TextInput value={v} onChangeText={setV} onBlur={commit} onSubmitEditing={commit} placeholder="HH:MM" placeholderTextColor={HT.muted} style={[styles.input, { width: 64 }]} testID={testID} />;
 }
 
 export function ProactiveSettingsCard() {
@@ -109,7 +109,7 @@ export function ProactiveSettingsCard() {
         <Text style={styles.hint}>Il Master ha fissato un tetto di {cfg.effective_max_suggestions_per_day} suggerimenti al giorno per il team.</Text>
       )}
       <View style={styles.row}>
-        <Ionicons name="moon" size={18} color="#64748B" style={{ width: 26 }} />
+        <Ionicons name="moon" size={18} color={HT.muted} style={{ width: 26 }} />
         <Text style={styles.label}>Silenzio dalle</Text>
         <TimeField value={cfg.quiet_start} onCommit={(v) => save({ quiet_start: v })} testID="proactive-quiet-start" />
         <Text style={styles.label}>alle</Text>
@@ -142,21 +142,21 @@ export function ProactiveSettingsCard() {
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: theme.color.surfaceSecondary, borderRadius: 14, borderWidth: 1, borderColor: "#C4B5FD", padding: 14, gap: 10 },
+  card: { backgroundColor: HT.card2, borderRadius: 14, borderWidth: 1, borderColor: '#C4B5FD', padding: 14, gap: 10 },
   head: { flexDirection: "row", alignItems: "center", gap: 8 },
-  headTxt: { flex: 1, fontSize: 13, fontWeight: "900", color: theme.color.muted, textTransform: "uppercase", letterSpacing: 0.5 },
+  headTxt: { flex: 1, fontSize: 13, fontWeight: "900", color: HT.muted, textTransform: "uppercase", letterSpacing: 0.5 },
   link: { color: AXON, fontWeight: "800", fontSize: 13 },
-  intro: { fontSize: 12.5, color: theme.color.muted, lineHeight: 17 },
+  intro: { fontSize: 12.5, color: HT.muted, lineHeight: 17 },
   row: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 44 },
-  label: { fontSize: 13.5, color: theme.color.onSurface, fontWeight: "600", flexShrink: 1 },
-  input: { backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, paddingHorizontal: 8, minHeight: 40, fontSize: 13.5, color: theme.color.onSurface, textAlign: "center" },
-  suffix: { fontSize: 12, color: theme.color.muted },
+  label: { fontSize: 13.5, color: HT.text, fontWeight: "600", flexShrink: 1 },
+  input: { backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border, borderRadius: 10, paddingHorizontal: 8, minHeight: 40, fontSize: 13.5, color: HT.text, textAlign: "center" },
+  suffix: { fontSize: 12, color: HT.muted },
   daysRow: { flexDirection: "row", gap: 6, paddingLeft: 26 },
-  day: { width: 34, height: 34, borderRadius: 17, backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border, alignItems: "center", justifyContent: "center" },
-  dayTxt: { fontSize: 12, fontWeight: "800", color: theme.color.muted },
-  secTitle: { fontSize: 12, fontWeight: "800", color: theme.color.muted, textTransform: "uppercase", letterSpacing: 0.4, marginTop: 6 },
-  hint: { fontSize: 11.5, color: theme.color.muted, fontStyle: "italic" },
+  day: { width: 34, height: 34, borderRadius: 17, backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border, alignItems: "center", justifyContent: "center" },
+  dayTxt: { fontSize: 12, fontWeight: "800", color: HT.muted },
+  secTitle: { fontSize: 12, fontWeight: "800", color: HT.muted, textTransform: "uppercase", letterSpacing: 0.4, marginTop: 6 },
+  hint: { fontSize: 11.5, color: HT.muted, fontStyle: "italic" },
   targets: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  target: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: theme.color.surface, borderRadius: 10, borderWidth: 1, borderColor: theme.color.border, paddingHorizontal: 10, minHeight: 44, flexGrow: 1 },
-  targetLbl: { fontSize: 12.5, fontWeight: "700", color: theme.color.onSurface, flex: 1 },
+  target: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: HT.card2, borderRadius: 10, borderWidth: 1, borderColor: HT.border, paddingHorizontal: 10, minHeight: 44, flexGrow: 1 },
+  targetLbl: { fontSize: 12.5, fontWeight: "700", color: HT.text, flex: 1 },
 });

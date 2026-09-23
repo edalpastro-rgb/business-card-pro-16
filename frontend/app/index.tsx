@@ -3,8 +3,8 @@ import { View, ActivityIndicator, StyleSheet, Platform } from "react-native";
 import { Redirect } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@/src/auth";
-import { theme } from "@/src/theme";
 import { LANDING_SEEN_KEY } from "@/src/landing/landingSeen";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 export default function Index() {
   const { user, loading } = useAuth();
@@ -18,7 +18,7 @@ export default function Index() {
   if (loading || (!user && landingSeen === null)) {
     return (
       <View style={styles.center} testID="app-loading">
-        <ActivityIndicator size="large" color={theme.color.brandPrimary} />
+        <ActivityIndicator size="large" color={HT.brand} />
       </View>
     );
   }
@@ -31,5 +31,5 @@ export default function Index() {
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.color.surface },
+  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: HT.card2 },
 });

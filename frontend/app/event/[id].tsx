@@ -9,6 +9,7 @@ import { notify } from "@/src/utils/notify";
 import { FileViewer } from "@/src/FileViewer";
 import { ShareSheet, type ShareTarget } from "@/src/ShareSheet";
 import { ModuleErrorBoundary } from "@/src/shared";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 function pad(n: number): string { return String(n).padStart(2, "0"); }
 
@@ -97,12 +98,12 @@ function EventScreen() {
       <SafeAreaView style={styles.root} edges={["top"]}>
         <View style={styles.header}>
           <Pressable testID="back-btn" onPress={() => router.back()} hitSlop={10}>
-            <Ionicons name="chevron-back" size={26} color={theme.color.onSurface} />
+            <Ionicons name="chevron-back" size={26} color={HT.text} />
           </Pressable>
           <Text style={styles.title}>Evento</Text>
           <View style={{ width: 26 }} />
         </View>
-        <ActivityIndicator style={{ marginTop: 40 }} color={theme.color.brandPrimary} />
+        <ActivityIndicator style={{ marginTop: 40 }} color={HT.brand} />
       </SafeAreaView>
     );
   }
@@ -110,7 +111,7 @@ function EventScreen() {
   if (!ev) {
     return (
       <SafeAreaView style={styles.root} edges={["top"]}>
-        <Text style={{ padding: 20, color: theme.color.muted }}>Evento non disponibile.</Text>
+        <Text style={{ padding: 20, color: HT.muted }}>Evento non disponibile.</Text>
       </SafeAreaView>
     );
   }
@@ -122,11 +123,11 @@ function EventScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable testID="back-btn" onPress={() => router.back()} hitSlop={10}>
-          <Ionicons name="chevron-back" size={26} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={26} color={HT.text} />
         </Pressable>
         <Text style={styles.title} numberOfLines={1}>Evento</Text>
         <Pressable testID="event-share-link" onPress={sharePublicLink} hitSlop={10}>
-          <Ionicons name="share-social" size={22} color={theme.color.brandPrimary} />
+          <Ionicons name="share-social" size={22} color={HT.brand} />
         </Pressable>
       </View>
 
@@ -135,7 +136,7 @@ function EventScreen() {
           {cover ? (
             <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} resizeMode="cover" />
           ) : (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: "#1E3A5F" }]} />
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: '#1E3A5F' }]} />
           )}
           <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.5)" }]} />
           <View style={styles.heroInner}>
@@ -157,11 +158,11 @@ function EventScreen() {
         </View>
 
         <View style={{ padding: 16, gap: 10 }}>
-          <Pressable testID="event-open-program" onPress={openProgram} style={[styles.actionBtn, { backgroundColor: "#F59E0B" }]}>
+          <Pressable testID="event-open-program" onPress={openProgram} style={[styles.actionBtn, { backgroundColor: '#F59E0B' }]}>
             <Ionicons name="document-text" size={18} color="#FFF" />
             <Text style={styles.actionTxt}>Apri il programma</Text>
           </Pressable>
-          <Pressable testID="event-share-public" onPress={sharePublicLink} style={[styles.actionBtn, { backgroundColor: "#7C3AED" }]}>
+          <Pressable testID="event-share-public" onPress={sharePublicLink} style={[styles.actionBtn, { backgroundColor: '#7C3AED' }]}>
             <Ionicons name="link" size={18} color="#FFF" />
             <Text style={styles.actionTxt}>Condividi link pubblico</Text>
           </Pressable>
@@ -199,8 +200,8 @@ function CdBox({ n, l }: { n: number; l: string }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.color.bg },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.color.border, backgroundColor: theme.color.surface },
-  title: { fontSize: 18, fontWeight: "800", color: theme.color.onSurface },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: HT.border, backgroundColor: HT.card2 },
+  title: { fontSize: 18, fontWeight: "800", color: HT.text },
   hero: { width: "100%", height: 320, overflow: "hidden" },
   heroInner: { flex: 1, justifyContent: "flex-end", padding: 22 },
   heroTitle: { color: "#FFF", fontSize: 26, fontWeight: "900", lineHeight: 30, textShadowColor: "rgba(0,0,0,0.5)", textShadowRadius: 4 },

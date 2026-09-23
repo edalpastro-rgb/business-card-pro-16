@@ -59,7 +59,7 @@ export function AxonOSLogo({ size = 44, style, onDark, testID }: LogoProps) {
   return (
     <View
       testID={testID || "axon-os-logo"}
-      style={[styles.wrap, { width: w, height: h, borderRadius: Math.round(size * 0.2), backgroundColor: "#E6EBEE", overflow: "hidden" }, style as any]}
+      style={[styles.wrap, { width: w, height: h, borderRadius: Math.round(size * 0.2), backgroundColor: '#E6EBEE', overflow: "hidden" }, style as any]}
     >
       <Image source={AXONOS_LOGO_LIGHT} style={{ width: w, height: h }} resizeMode="contain" />
     </View>

@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, Image, ActivityIndicator, StyleSheet, NativeSyntheticEvent, NativeScrollEvent } from "react-native";
 import { Gesture, GestureDetector, ScrollView } from "react-native-gesture-handler";
 import Animated, { useSharedValue, useAnimatedStyle, runOnJS } from "react-native-reanimated";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const A4 = 1.414;
 const GAP = 6;
@@ -173,7 +174,7 @@ export function PdfPagesZoom({ pages, total, busy, winW, winH, onLoadMore, fetch
                       <Image
                         key={i}
                         source={{ uri: `data:image/jpeg;base64,${hiRes[i] || p}` }}
-                        style={{ width: pageW, height: pageW * A4, backgroundColor: "#FFF", marginBottom: GAP }}
+                        style={{ width: pageW, height: pageW * A4, backgroundColor: HT.card, marginBottom: GAP }}
                         resizeMode="contain"
                         testID={`fileviewer-pdf-page-${i}`}
                       />
@@ -198,7 +199,7 @@ export function PdfPagesZoom({ pages, total, busy, winW, winH, onLoadMore, fetch
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#111" },
+  root: { flex: 1, backgroundColor: '#111' },
   loading: { padding: 24, alignItems: "center", gap: 8 },
   loadingTxt: { color: "#CBD5E1", fontSize: 13 },
   pill: { position: "absolute", bottom: 14, alignSelf: "center", backgroundColor: "rgba(0,0,0,0.65)", paddingHorizontal: 14, paddingVertical: 7, borderRadius: 16 },

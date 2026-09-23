@@ -9,6 +9,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const PURPLE = "#7C3AED";
 type Insight = { id: string; category: string; kind: "faq" | "topic" | "gap"; insight: string; frequency: number; updated_at: string; enabled: boolean; reviewed: boolean; source_sessions?: number };
@@ -98,7 +99,7 @@ export default function AxonInsightsScreen() {
           </View>
         )}
         <View style={styles.privacyBox}>
-          <Ionicons name="shield-checkmark" size={16} color="#065F46" />
+          <Ionicons name="shield-checkmark" size={16} color={HT.success} />
           <Text style={styles.privacyTxt}>Ogni conversazione conclusa viene analizzata in background: nomi, cifre, date, contatti, contratti e riferimenti personali vengono rimossi automaticamente (doppio filtro) prima del salvataggio. Axon usa questi insight come contesto per rispondere meglio nel tempo.{stats?.last_run_at ? ` Ultima analisi: ${new Date(stats.last_run_at).toLocaleString("it-IT")}.` : ""}</Text>
         </View>
 
@@ -118,8 +119,8 @@ export default function AxonInsightsScreen() {
           ))}
         </View>
         <View style={styles.search}>
-          <Ionicons name="search" size={16} color="#64748B" />
-          <TextInput value={q} onChangeText={setQ} placeholder="Cerca negli insight…" placeholderTextColor="#94A3B8" style={styles.searchInput} testID="insights-search" />
+          <Ionicons name="search" size={16} color={HT.muted} />
+          <TextInput value={q} onChangeText={setQ} placeholder="Cerca negli insight…" placeholderTextColor={HT.muted} style={styles.searchInput} testID="insights-search" />
         </View>
 
         {loading && items.length === 0 ? <ActivityIndicator color={PURPLE} style={{ marginTop: 30 }} /> : items.length === 0 ? (
@@ -146,8 +147,8 @@ export default function AxonInsightsScreen() {
               <Text style={styles.cardMeta}>{it.reviewed ? "✓ revisionato" : "da revisionare"} · {new Date(it.updated_at).toLocaleDateString("it-IT")}</Text>
               <View style={{ flexDirection: "row", gap: 4 }}>
                 {!it.reviewed && <Pressable onPress={() => patch(it.id, { reviewed: true } as any)} hitSlop={6} style={styles.iconBtn} testID={`insight-review-${it.id}`}><Ionicons name="checkmark-done" size={18} color="#059669" /></Pressable>}
-                <Pressable onPress={() => { setEditId(it.id); setEditTxt(it.insight); }} hitSlop={6} style={styles.iconBtn} testID={`insight-edit-${it.id}`}><Ionicons name="create-outline" size={18} color="#1B2B4B" /></Pressable>
-                <Pressable onPress={() => patch(it.id, { enabled: !it.enabled } as any)} hitSlop={6} style={styles.iconBtn} testID={`insight-toggle-${it.id}`}><Ionicons name={it.enabled ? "eye" : "eye-off"} size={18} color={it.enabled ? PURPLE : "#94A3B8"} /></Pressable>
+                <Pressable onPress={() => { setEditId(it.id); setEditTxt(it.insight); }} hitSlop={6} style={styles.iconBtn} testID={`insight-edit-${it.id}`}><Ionicons name="create-outline" size={18} color={HT.text} /></Pressable>
+                <Pressable onPress={() => patch(it.id, { enabled: !it.enabled } as any)} hitSlop={6} style={styles.iconBtn} testID={`insight-toggle-${it.id}`}><Ionicons name={it.enabled ? "eye" : "eye-off"} size={18} color={it.enabled ? PURPLE : HT.muted} /></Pressable>
                 <Pressable onPress={() => remove(it.id)} hitSlop={6} style={styles.iconBtn} testID={`insight-delete-${it.id}`}><Ionicons name="trash-outline" size={18} color="#DC2626" /></Pressable>
               </View>
             </View>
@@ -156,7 +157,7 @@ export default function AxonInsightsScreen() {
 
         {items.length > 0 && (
           <Pressable onPress={removeAll} style={styles.dangerBtn} testID="insights-delete-all">
-            <Ionicons name="trash" size={16} color="#B91C1C" /><Text style={styles.dangerTxt}>Svuota tutto il knowledge base appreso</Text>
+            <Ionicons name="trash" size={16} color={HT.danger} /><Text style={styles.dangerTxt}>Svuota tutto il knowledge base appreso</Text>
           </Pressable>
         )}
       </ScrollView>
@@ -165,40 +166,40 @@ export default function AxonInsightsScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F5F3FF" },
+  root: { flex: 1, backgroundColor: HT.violetTint },
   header: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: PURPLE },
   title: { color: "#FFF", fontWeight: "800", fontSize: 17 },
   sub: { color: "#E9D5FF", fontSize: 11, marginTop: 1 },
-  runBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FFF", paddingHorizontal: 12, minHeight: 40, borderRadius: 12 },
+  runBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: HT.card, paddingHorizontal: 12, minHeight: 40, borderRadius: 12 },
   runTxt: { color: PURPLE, fontWeight: "800", fontSize: 12 },
   statsRow: { flexDirection: "row", gap: 8 },
-  statBox: { flex: 1, backgroundColor: "#FFF", borderRadius: 12, padding: 10, alignItems: "center", borderWidth: 1, borderColor: "#E9D5FF" },
+  statBox: { flex: 1, backgroundColor: HT.card, borderRadius: 12, padding: 10, alignItems: "center", borderWidth: 1, borderColor: '#E9D5FF' },
   statNum: { fontSize: 20, fontWeight: "800", color: PURPLE },
-  statLbl: { fontSize: 10, color: "#64748B", marginTop: 2, fontWeight: "700" },
-  privacyBox: { flexDirection: "row", gap: 8, backgroundColor: "#ECFDF5", borderRadius: 12, padding: 10, borderWidth: 1, borderColor: "#A7F3D0" },
-  privacyTxt: { flex: 1, fontSize: 11.5, color: "#065F46", lineHeight: 16 },
-  chip: { paddingHorizontal: 12, minHeight: 34, borderRadius: 17, backgroundColor: "#FFF", borderWidth: 1, borderColor: "#DDD6FE", justifyContent: "center" },
+  statLbl: { fontSize: 10, color: HT.muted, marginTop: 2, fontWeight: "700" },
+  privacyBox: { flexDirection: "row", gap: 8, backgroundColor: HT.successTint, borderRadius: 12, padding: 10, borderWidth: 1, borderColor: '#A7F3D0' },
+  privacyTxt: { flex: 1, fontSize: 11.5, color: HT.success, lineHeight: 16 },
+  chip: { paddingHorizontal: 12, minHeight: 34, borderRadius: 17, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.violet + '66', justifyContent: "center" },
   chipOn: { backgroundColor: PURPLE, borderColor: PURPLE },
   chipTxt: { fontSize: 12, fontWeight: "700", color: PURPLE },
-  kindChip: { flex: 1, minHeight: 36, borderRadius: 10, borderWidth: 1.5, alignItems: "center", justifyContent: "center", backgroundColor: "#FFF" },
+  kindChip: { flex: 1, minHeight: 36, borderRadius: 10, borderWidth: 1.5, alignItems: "center", justifyContent: "center", backgroundColor: HT.card },
   kindTxt: { fontSize: 12, fontWeight: "800" },
-  search: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF", borderRadius: 12, paddingHorizontal: 12, minHeight: 44, borderWidth: 1, borderColor: "#E5E7EB" },
-  searchInput: { flex: 1, fontSize: 14, color: "#1B2B4B", paddingVertical: 8 },
+  search: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: HT.card, borderRadius: 12, paddingHorizontal: 12, minHeight: 44, borderWidth: 1, borderColor: HT.border },
+  searchInput: { flex: 1, fontSize: 14, color: HT.text, paddingVertical: 8 },
   empty: { alignItems: "center", gap: 10, padding: 30 },
-  emptyTxt: { textAlign: "center", color: "#64748B", fontSize: 13, lineHeight: 19 },
-  card: { backgroundColor: "#FFF", borderRadius: 14, padding: 12, gap: 8, borderWidth: 1, borderColor: "#EDE9FE" },
+  emptyTxt: { textAlign: "center", color: HT.muted, fontSize: 13, lineHeight: 19 },
+  card: { backgroundColor: HT.card, borderRadius: 14, padding: 12, gap: 8, borderWidth: 1, borderColor: HT.violetTint },
   cardTop: { flexDirection: "row", alignItems: "center", gap: 8 },
   kindDot: { width: 8, height: 8, borderRadius: 4 },
-  cardCat: { flex: 1, fontSize: 11, fontWeight: "800", color: "#64748B", textTransform: "uppercase", letterSpacing: 0.4 },
-  freq: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#F5F3FF", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  cardCat: { flex: 1, fontSize: 11, fontWeight: "800", color: HT.muted, textTransform: "uppercase", letterSpacing: 0.4 },
+  freq: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: HT.violetTint, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   freqTxt: { fontSize: 11, fontWeight: "800", color: PURPLE },
-  cardTxt: { fontSize: 14, lineHeight: 20, color: "#1B2B4B" },
+  cardTxt: { fontSize: 14, lineHeight: 20, color: HT.text },
   cardFoot: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  cardMeta: { fontSize: 11, color: "#94A3B8" },
+  cardMeta: { fontSize: 11, color: HT.muted },
   iconBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 10 },
-  editInput: { backgroundColor: "#F8FAFC", borderRadius: 10, borderWidth: 1, borderColor: "#E5E7EB", padding: 10, minHeight: 70, fontSize: 14, color: "#1B2B4B", textAlignVertical: "top" },
-  smallBtn: { flex: 1, minHeight: 40, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "#F1F5F9" },
-  smallBtnTxt: { fontWeight: "800", color: "#1B2B4B", fontSize: 13 },
-  dangerBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 46, borderRadius: 12, borderWidth: 1, borderColor: "#FCA5A5", backgroundColor: "#FEF2F2", marginTop: 8 },
-  dangerTxt: { color: "#B91C1C", fontWeight: "800", fontSize: 13 },
+  editInput: { backgroundColor: HT.card2, borderRadius: 10, borderWidth: 1, borderColor: HT.border, padding: 10, minHeight: 70, fontSize: 14, color: HT.text, textAlignVertical: "top" },
+  smallBtn: { flex: 1, minHeight: 40, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: HT.card2 },
+  smallBtnTxt: { fontWeight: "800", color: HT.text, fontSize: 13 },
+  dangerBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 46, borderRadius: 12, borderWidth: 1, borderColor: '#FCA5A5', backgroundColor: HT.dangerTint, marginTop: 8 },
+  dangerTxt: { color: HT.danger, fontWeight: "800", fontSize: 13 },
 });

@@ -23,6 +23,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "@/src/api";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type ActiveCall = {
   contactName?: string;
@@ -283,7 +284,7 @@ export function CallTimerBar() {
             onPress={() => { setMenuOpen(false); dismiss(); }}
             style={styles.menuItem}
           >
-            <Ionicons name="close-circle" size={16} color="#94A3B8" />
+            <Ionicons name="close-circle" size={16} color={HT.muted} />
             <Text style={styles.menuItemTxt}>Chiudi senza registrare durata</Text>
           </Pressable>
         </View>
@@ -306,17 +307,17 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#16A34A",
+    backgroundColor: '#16A34A',
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 14,
     ...Platform.select({
-      ios: { shadowColor: "#0F172A", shadowOpacity: 0.25, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
+      ios: { shadowColor: HT.text, shadowOpacity: 0.25, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
       android: { elevation: 8 },
       default: { boxShadow: "0 4px 12px rgba(15,23,42,0.25)" as any },
     }),
   },
-  dot: { position: "absolute", left: 14, width: 8, height: 8, borderRadius: 4, backgroundColor: "#FFF", opacity: 0.6 },
+  dot: { position: "absolute", left: 14, width: 8, height: 8, borderRadius: 4, backgroundColor: HT.card, opacity: 0.6 },
   info: { flex: 1, minWidth: 0, marginLeft: 4 },
   name: { color: "#FFF", fontSize: 13, fontWeight: "800", letterSpacing: -0.2 },
   phone: { color: "rgba(255,255,255,0.8)", fontSize: 10, fontWeight: "600" },
@@ -331,7 +332,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "#DC2626",
+    backgroundColor: '#DC2626',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
@@ -340,16 +341,16 @@ const styles = StyleSheet.create({
   moreBtn: { padding: 4 },
   menu: {
     marginTop: 4,
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderRadius: 10,
     padding: 6,
     alignSelf: "flex-end",
     ...Platform.select({
-      ios: { shadowColor: "#0F172A", shadowOpacity: 0.18, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
+      ios: { shadowColor: HT.text, shadowOpacity: 0.18, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
       android: { elevation: 6 },
       default: { boxShadow: "0 4px 12px rgba(15,23,42,0.15)" as any },
     }),
   },
   menuItem: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 8 },
-  menuItemTxt: { fontSize: 12, color: "#1B2B4B", fontWeight: "700" },
+  menuItemTxt: { fontSize: 12, color: HT.text, fontWeight: "700" },
 });

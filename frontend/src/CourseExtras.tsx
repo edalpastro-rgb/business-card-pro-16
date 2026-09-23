@@ -4,9 +4,9 @@ import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Switch } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { VoiceDictationButton } from "@/src/VoiceDictationButton";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Q = { id?: string; text: string; type: "mcq" | "open"; options: string[]; correct?: number | null };
 type Quiz = { questions: Q[]; reminder_days?: number; my_response?: { score: number; total: number; timestamp: string } | null; stats?: { responses: number; avg_score_pct: number | null; avg_duration_s: number; by_user: Record<string, { name?: string; score: number; total: number; open_answers: Record<string, string> }> } };
@@ -47,13 +47,13 @@ export function CourseQuizSection({ courseId, isCreator }: { courseId: string; i
             {qs.map((q, i) => (
               <View key={i} style={s.qBox}>
                 <View style={s.rowH}><Text style={s.qNum}>Domanda {i + 1}</Text><Pressable onPress={() => upd(i, { type: q.type === "mcq" ? "open" : "mcq" })} style={s.miniBtn}><Text style={s.miniTxt}>{q.type === "mcq" ? "Scelta multipla" : "Risposta aperta"}</Text></Pressable><Pressable onPress={() => setQs((l) => l.filter((_, k) => k !== i))} hitSlop={8}><Ionicons name="trash-outline" size={18} color="#DC2626" /></Pressable></View>
-                <TextInput value={q.text} onChangeText={(v) => upd(i, { text: v })} placeholder="Testo della domanda" placeholderTextColor={theme.color.muted} style={s.input} multiline testID={`quiz-q-${i}`} />
+                <TextInput value={q.text} onChangeText={(v) => upd(i, { text: v })} placeholder="Testo della domanda" placeholderTextColor={HT.muted} style={s.input} multiline testID={`quiz-q-${i}`} />
                 {q.type === "mcq" ? (<>
                   {q.options.map((o, k) => (
                     <View key={k} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                      <Pressable onPress={() => upd(i, { correct: k })} hitSlop={6} testID={`quiz-q-${i}-correct-${k}`}><Ionicons name={q.correct === k ? "checkmark-circle" : "ellipse-outline"} size={22} color={q.correct === k ? "#059669" : theme.color.muted} /></Pressable>
-                      <TextInput value={o} onChangeText={(v) => upd(i, { options: q.options.map((x, j) => (j === k ? v : x)) })} placeholder={`Opzione ${k + 1}`} placeholderTextColor={theme.color.muted} style={[s.input, { flex: 1, minHeight: 40 }]} testID={`quiz-q-${i}-opt-${k}`} />
-                      {q.options.length > 2 ? <Pressable onPress={() => upd(i, { options: q.options.filter((_, j) => j !== k), correct: q.correct === k ? 0 : q.correct })} hitSlop={6}><Ionicons name="close" size={18} color={theme.color.muted} /></Pressable> : null}
+                      <Pressable onPress={() => upd(i, { correct: k })} hitSlop={6} testID={`quiz-q-${i}-correct-${k}`}><Ionicons name={q.correct === k ? "checkmark-circle" : "ellipse-outline"} size={22} color={q.correct === k ? "#059669" : HT.muted} /></Pressable>
+                      <TextInput value={o} onChangeText={(v) => upd(i, { options: q.options.map((x, j) => (j === k ? v : x)) })} placeholder={`Opzione ${k + 1}`} placeholderTextColor={HT.muted} style={[s.input, { flex: 1, minHeight: 40 }]} testID={`quiz-q-${i}-opt-${k}`} />
+                      {q.options.length > 2 ? <Pressable onPress={() => upd(i, { options: q.options.filter((_, j) => j !== k), correct: q.correct === k ? 0 : q.correct })} hitSlop={6}><Ionicons name="close" size={18} color={HT.muted} /></Pressable> : null}
                     </View>
                   ))}
                   {q.options.length < 8 ? <Pressable onPress={() => upd(i, { options: [...q.options, ""] })} style={s.miniBtn}><Ionicons name="add" size={14} color="#7C3AED" /><Text style={s.miniTxt}>Opzione</Text></Pressable> : null}
@@ -68,8 +68,8 @@ export function CourseQuizSection({ courseId, isCreator }: { courseId: string; i
             <Text style={s.hint}>Reminder se non completato:</Text>
             <View style={{ flexDirection: "row", gap: 8 }}>{[0, 1, 3, 7].map((d) => <Pressable key={d} onPress={() => setReminder(d)} style={[s.chip, reminder === d && s.chipOn]}><Text style={[s.chipTxt, reminder === d && { color: "#FFF" }]}>{d === 0 ? "Off" : `${d} gg`}</Text></Pressable>)}</View>
             <View style={{ flexDirection: "row", gap: 8 }}>
-              <Pressable onPress={() => { setEditing(false); setQs(quiz.questions); }} style={[s.btn, { backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border }]}><Text style={{ fontWeight: "800", color: theme.color.muted }}>Annulla</Text></Pressable>
-              <Pressable onPress={saveQuiz} disabled={busy} style={[s.btn, { flex: 1, backgroundColor: "#7C3AED" }]} testID="quiz-save">{busy ? <ActivityIndicator color="#FFF" /> : <Text style={{ fontWeight: "900", color: "#FFF" }}>Salva test</Text>}</Pressable>
+              <Pressable onPress={() => { setEditing(false); setQs(quiz.questions); }} style={[s.btn, { backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border }]}><Text style={{ fontWeight: "800", color: HT.muted }}>Annulla</Text></Pressable>
+              <Pressable onPress={saveQuiz} disabled={busy} style={[s.btn, { flex: 1, backgroundColor: '#7C3AED' }]} testID="quiz-save">{busy ? <ActivityIndicator color="#FFF" /> : <Text style={{ fontWeight: "900", color: "#FFF" }}>Salva test</Text>}</Pressable>
             </View>
           </View>
         ) : qs.length === 0 ? <Text style={s.hint}>Nessun test: crea domande a scelta multipla con una risposta aperta finale.</Text> : (
@@ -82,8 +82,8 @@ export function CourseQuizSection({ courseId, isCreator }: { courseId: string; i
             </View>
             {Object.entries(quiz.stats?.by_user || {}).map(([uid, r]) => (
               <View key={uid} style={s.qBox}>
-                <Text style={{ fontWeight: "800", color: theme.color.onSurface }}>{r.name || uid} · {r.score}/{r.total}</Text>
-                {Object.entries(r.open_answers || {}).map(([qid, a]) => <Text key={qid} style={s.hint}>💬 {qs.find((q) => q.id === qid)?.text}: <Text style={{ color: theme.color.onSurface }}>{a}</Text></Text>)}
+                <Text style={{ fontWeight: "800", color: HT.text }}>{r.name || uid} · {r.score}/{r.total}</Text>
+                {Object.entries(r.open_answers || {}).map(([qid, a]) => <Text key={qid} style={s.hint}>💬 {qs.find((q) => q.id === qid)?.text}: <Text style={{ color: HT.text }}>{a}</Text></Text>)}
               </View>
             ))}
           </View>
@@ -100,15 +100,15 @@ export function CourseQuizSection({ courseId, isCreator }: { courseId: string; i
       <Text style={s.section}>📝 Test del corso ({quiz.questions.length} domande)</Text>
       {quiz.questions.map((q, i) => (
         <View key={q.id} style={s.qBox}>
-          <Text style={{ fontWeight: "800", color: theme.color.onSurface }}>{i + 1}. {q.text}</Text>
+          <Text style={{ fontWeight: "800", color: HT.text }}>{i + 1}. {q.text}</Text>
           {q.type === "mcq" ? q.options.map((o, k) => (
             <Pressable key={k} onPress={() => { if (!started) setStarted(Date.now()); setAnswers((a) => ({ ...a, [q.id!]: k })); }} style={[s.opt, answers[q.id!] === k && s.optOn]} testID={`quiz-answer-${i}-${k}`}>
-              <Ionicons name={answers[q.id!] === k ? "radio-button-on" : "radio-button-off"} size={18} color="#7C3AED" /><Text style={{ flex: 1, color: theme.color.onSurface }}>{o}</Text>
+              <Ionicons name={answers[q.id!] === k ? "radio-button-on" : "radio-button-off"} size={18} color="#7C3AED" /><Text style={{ flex: 1, color: HT.text }}>{o}</Text>
             </Pressable>
-          )) : <TextInput value={answers[q.id!] || ""} onChangeText={(v) => { if (!started) setStarted(Date.now()); setAnswers((a) => ({ ...a, [q.id!]: v })); }} placeholder="La tua risposta" placeholderTextColor={theme.color.muted} style={[s.input, { minHeight: 70 }]} multiline testID={`quiz-open-${i}`} />}
+          )) : <TextInput value={answers[q.id!] || ""} onChangeText={(v) => { if (!started) setStarted(Date.now()); setAnswers((a) => ({ ...a, [q.id!]: v })); }} placeholder="La tua risposta" placeholderTextColor={HT.muted} style={[s.input, { minHeight: 70 }]} multiline testID={`quiz-open-${i}`} />}
         </View>
       ))}
-      <Pressable onPress={submit} disabled={busy} style={[s.btn, { backgroundColor: "#7C3AED" }]} testID="quiz-submit">{busy ? <ActivityIndicator color="#FFF" /> : <Text style={{ fontWeight: "900", color: "#FFF" }}>Invia risposte</Text>}</Pressable>
+      <Pressable onPress={submit} disabled={busy} style={[s.btn, { backgroundColor: '#7C3AED' }]} testID="quiz-submit">{busy ? <ActivityIndicator color="#FFF" /> : <Text style={{ fontWeight: "900", color: "#FFF" }}>Invia risposte</Text>}</Pressable>
     </View>
   );
 }
@@ -147,8 +147,8 @@ export function CourseReportSection({ courseId }: { courseId: string }) {
         <View style={{ gap: 8 }}>
           <Text style={s.hint}>Registra a voce la relazione: Axon la trascrive, poi la organizza in riassunto, punti salienti, azioni, feedback e proposte. Puoi correggere tutto.</Text>
           <VoiceDictationButton label={transcript ? "Registra ancora (aggiunge)" : "Registra relazione"} onTranscript={(t) => setTranscript((x) => (x ? x + " " + t : t))} testID="report-dictate" />
-          <TextInput value={transcript} onChangeText={setTranscript} placeholder="Trascrizione (modificabile)…" placeholderTextColor={theme.color.muted} style={[s.input, { minHeight: 90 }]} multiline testID="report-transcript" />
-          <Pressable onPress={organize} disabled={busy} style={[s.btn, { backgroundColor: "#7C3AED" }]} testID="report-organize">{busy ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="sparkles" size={16} color="#FFF" /><Text style={{ fontWeight: "900", color: "#FFF" }}>{rep ? "Riorganizza con Axon" : "Organizza con Axon"}</Text></>}</Pressable>
+          <TextInput value={transcript} onChangeText={setTranscript} placeholder="Trascrizione (modificabile)…" placeholderTextColor={HT.muted} style={[s.input, { minHeight: 90 }]} multiline testID="report-transcript" />
+          <Pressable onPress={organize} disabled={busy} style={[s.btn, { backgroundColor: '#7C3AED' }]} testID="report-organize">{busy ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="sparkles" size={16} color="#FFF" /><Text style={{ fontWeight: "900", color: "#FFF" }}>{rep ? "Riorganizza con Axon" : "Organizza con Axon"}</Text></>}</Pressable>
         </View>
       ) : null}
       {rep ? (
@@ -168,15 +168,15 @@ export function CourseReportSection({ courseId }: { courseId: string }) {
 }
 
 const s = StyleSheet.create({
-  card: { backgroundColor: "#FFF", borderRadius: 14, borderWidth: 1, borderColor: "#E9D5FF", padding: 12, gap: 10 },
-  rowH: { flexDirection: "row", alignItems: "center", gap: 8 }, section: { flex: 1, fontSize: 14, fontWeight: "900", color: theme.color.onSurface },
-  hint: { fontSize: 12, color: theme.color.muted, lineHeight: 17 }, lbl: { fontSize: 12, fontWeight: "900", color: "#6B21A8", textTransform: "uppercase" },
-  body: { fontSize: 14, color: theme.color.onSurface, lineHeight: 20 }, li: { fontSize: 14, color: theme.color.onSurface, lineHeight: 20 },
-  miniBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, minHeight: 34, borderRadius: 8, backgroundColor: "#F3E8FF" }, miniTxt: { fontSize: 12, fontWeight: "800", color: "#7C3AED" },
-  qBox: { backgroundColor: "#FAF5FF", borderRadius: 10, padding: 10, gap: 6 }, qNum: { flex: 1, fontWeight: "900", color: "#6B21A8" },
-  input: { backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, borderRadius: 8, paddingHorizontal: 10, minHeight: 44, fontSize: 14, color: theme.color.onSurface },
-  chip: { paddingHorizontal: 12, minHeight: 36, borderRadius: 18, borderWidth: 1, borderColor: theme.color.border, alignItems: "center", justifyContent: "center", backgroundColor: "#FFF" }, chipOn: { backgroundColor: "#7C3AED", borderColor: "#7C3AED" }, chipTxt: { fontSize: 12, fontWeight: "800", color: theme.color.onSurface },
+  card: { backgroundColor: HT.card, borderRadius: 14, borderWidth: 1, borderColor: '#E9D5FF', padding: 12, gap: 10 },
+  rowH: { flexDirection: "row", alignItems: "center", gap: 8 }, section: { flex: 1, fontSize: 14, fontWeight: "900", color: HT.text },
+  hint: { fontSize: 12, color: HT.muted, lineHeight: 17 }, lbl: { fontSize: 12, fontWeight: "900", color: "#6B21A8", textTransform: "uppercase" },
+  body: { fontSize: 14, color: HT.text, lineHeight: 20 }, li: { fontSize: 14, color: HT.text, lineHeight: 20 },
+  miniBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, minHeight: 34, borderRadius: 8, backgroundColor: '#F3E8FF' }, miniTxt: { fontSize: 12, fontWeight: "800", color: "#7C3AED" },
+  qBox: { backgroundColor: '#FAF5FF', borderRadius: 10, padding: 10, gap: 6 }, qNum: { flex: 1, fontWeight: "900", color: "#6B21A8" },
+  input: { backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, borderRadius: 8, paddingHorizontal: 10, minHeight: 44, fontSize: 14, color: HT.text },
+  chip: { paddingHorizontal: 12, minHeight: 36, borderRadius: 18, borderWidth: 1, borderColor: HT.border, alignItems: "center", justifyContent: "center", backgroundColor: HT.card }, chipOn: { backgroundColor: '#7C3AED', borderColor: '#7C3AED' }, chipTxt: { fontSize: 12, fontWeight: "800", color: HT.text },
   btn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 46, borderRadius: 12, paddingHorizontal: 14 },
-  stat: { flex: 1, backgroundColor: "#FAF5FF", borderRadius: 10, padding: 10, alignItems: "center" }, statN: { fontSize: 18, fontWeight: "900", color: "#6B21A8" }, statL: { fontSize: 10, color: theme.color.muted, textAlign: "center" },
-  opt: { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: theme.color.border, backgroundColor: "#FFF", minHeight: 44 }, optOn: { borderColor: "#7C3AED", backgroundColor: "#F5F3FF" },
+  stat: { flex: 1, backgroundColor: '#FAF5FF', borderRadius: 10, padding: 10, alignItems: "center" }, statN: { fontSize: 18, fontWeight: "900", color: "#6B21A8" }, statL: { fontSize: 10, color: HT.muted, textAlign: "center" },
+  opt: { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: HT.border, backgroundColor: HT.card, minHeight: 44 }, optOn: { borderColor: '#7C3AED', backgroundColor: HT.violetTint },
 });

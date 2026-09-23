@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, Pressable, Linking, Platform, TextInput } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "@/src/theme";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 /**
  * v2.14 — Shared "Invia dettagli" panel for appointments.
@@ -117,13 +118,13 @@ export function AppointmentShareActions({ appt, contact, compact = false }: Prop
   return (
     <View style={[styles.card, compact && styles.cardCompact]}>
       <View style={styles.hdr}>
-        <Ionicons name="paper-plane" size={18} color={theme.color.brandPrimary} />
+        <Ionicons name="paper-plane" size={18} color={HT.brand} />
         <Text style={styles.title}>Invia dettagli al cliente</Text>
       </View>
       <Text style={styles.hint}>Condividi data, ora e luogo dell&apos;appuntamento via Email, WhatsApp o SMS.</Text>
       <View style={styles.editRow}>
         <Pressable testID="appt-share-edit-toggle" onPress={() => setEditing((v) => !v)} style={styles.editBtn} hitSlop={6}>
-          <Ionicons name={editing ? "chevron-up" : "create-outline"} size={14} color={theme.color.brandPrimary} />
+          <Ionicons name={editing ? "chevron-up" : "create-outline"} size={14} color={HT.brand} />
           <Text style={styles.editBtnTxt}>{editing ? "Nascondi testo" : (isCustom ? "Testo personalizzato · modifica" : "Personalizza messaggio")}</Text>
         </Pressable>
         {isCustom && (
@@ -141,7 +142,7 @@ export function AppointmentShareActions({ appt, contact, compact = false }: Prop
           textAlignVertical="top"
           style={styles.msgInput}
           placeholder="Testo del messaggio…"
-          placeholderTextColor={theme.color.muted}
+          placeholderTextColor={HT.muted}
         />
       )}
       <View style={styles.btnRow}>
@@ -149,7 +150,7 @@ export function AppointmentShareActions({ appt, contact, compact = false }: Prop
           testID="appt-share-email"
           onPress={openEmail}
           disabled={!hasEmail}
-          style={[styles.btn, { backgroundColor: theme.color.brandPrimary }, !hasEmail && { opacity: 0.4 }]}
+          style={[styles.btn, { backgroundColor: HT.brand }, !hasEmail && { opacity: 0.4 }]}
         >
           <Ionicons name="mail" size={16} color="#FFF" />
           <Text style={styles.btnTxt}>Email</Text>
@@ -158,7 +159,7 @@ export function AppointmentShareActions({ appt, contact, compact = false }: Prop
           testID="appt-share-whatsapp"
           onPress={openWhatsapp}
           disabled={!hasWa}
-          style={[styles.btn, { backgroundColor: "#25D366" }, !hasWa && { opacity: 0.4 }]}
+          style={[styles.btn, { backgroundColor: '#25D366' }, !hasWa && { opacity: 0.4 }]}
         >
           <Ionicons name="logo-whatsapp" size={16} color="#FFF" />
           <Text style={styles.btnTxt}>WhatsApp</Text>
@@ -183,18 +184,18 @@ export function AppointmentShareActions({ appt, contact, compact = false }: Prop
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: theme.color.surface, borderRadius: 12, padding: 14, marginTop: 12, borderWidth: 1, borderColor: theme.color.border },
+  card: { backgroundColor: HT.card2, borderRadius: 12, padding: 14, marginTop: 12, borderWidth: 1, borderColor: HT.border },
   cardCompact: { padding: 10, marginTop: 8 },
   hdr: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
-  title: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface },
-  hint: { fontSize: 11, color: theme.color.muted, marginBottom: 10, lineHeight: 15 },
+  title: { fontSize: 14, fontWeight: "800", color: HT.text },
+  hint: { fontSize: 11, color: HT.muted, marginBottom: 10, lineHeight: 15 },
   btnRow: { flexDirection: "row", gap: 6 },
   btn: { flex: 1, paddingVertical: 10, borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
   btnTxt: { color: "#FFF", fontWeight: "800", fontSize: 12 },
-  warn: { marginTop: 8, fontSize: 11, color: "#B45309", fontStyle: "italic" },
+  warn: { marginTop: 8, fontSize: 11, color: HT.warning, fontStyle: "italic" },
   editRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
   editBtn: { flexDirection: "row", alignItems: "center", gap: 5, minHeight: 28 },
-  editBtnTxt: { fontSize: 12, fontWeight: "700", color: theme.color.brandPrimary },
-  resetTxt: { fontSize: 12, fontWeight: "700", color: theme.color.muted, textDecorationLine: "underline" },
-  msgInput: { minHeight: 120, maxHeight: 220, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, padding: 10, fontSize: 13, lineHeight: 18, color: theme.color.onSurface, marginBottom: 10 },
+  editBtnTxt: { fontSize: 12, fontWeight: "700", color: HT.brand },
+  resetTxt: { fontSize: 12, fontWeight: "700", color: HT.muted, textDecorationLine: "underline" },
+  msgInput: { minHeight: 120, maxHeight: 220, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, borderRadius: 10, padding: 10, fontSize: 13, lineHeight: 18, color: HT.text, marginBottom: 10 },
 });

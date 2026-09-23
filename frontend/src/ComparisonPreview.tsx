@@ -4,7 +4,7 @@
 import React, { useMemo, useState } from "react";
 import { View, Text, StyleSheet, Platform, ActivityIndicator } from "react-native";
 import { WebView } from "react-native-webview";
-import { theme } from "@/src/theme";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 /** Report di esempio con la stessa forma della risposta di /bills/comparison (1 fornitura luce). */
 export const SAMPLE_COMPARISON_REPORT = {
@@ -64,7 +64,7 @@ export function ComparisonPreview({ html, layout, height = 300, testID = "compar
   return (
     <View style={[styles.frame, { height }]} onLayout={(e) => setWidth(Math.round(e.nativeEvent.layout.width))} testID={testID}>
       {!scaled ? (
-        <ActivityIndicator color={theme.color.muted} style={{ marginTop: 40 }} />
+        <ActivityIndicator color={HT.muted} style={{ marginTop: 40 }} />
       ) : Platform.OS === "web" ? (
         // eslint-disable-next-line react-native/no-inline-styles
         <iframe title="Anteprima comparativa" srcDoc={scaled} style={{ width: "100%", height: "100%", border: "none", background: "transparent" }} />
@@ -79,7 +79,7 @@ export function ComparisonPreview({ html, layout, height = 300, testID = "compar
 }
 
 const styles = StyleSheet.create({
-  frame: { borderRadius: 12, borderWidth: 1, borderColor: theme.color.border, overflow: "hidden", backgroundColor: theme.color.surfaceTertiary, position: "relative" },
+  frame: { borderRadius: 12, borderWidth: 1, borderColor: HT.border, overflow: "hidden", backgroundColor: HT.card2, position: "relative" },
   badge: { position: "absolute", top: 8, right: 8, backgroundColor: "rgba(17,24,32,0.72)", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   badgeTxt: { color: "#FFF", fontSize: 10, fontWeight: "700", letterSpacing: 0.3 },
 });

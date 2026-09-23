@@ -117,9 +117,9 @@ export function WeatherAlertsCard() {
 }
 
 function sevStyle(sev: string) {
-  if (sev === "red") return { backgroundColor: "#DC2626" };
-  if (sev === "orange") return { backgroundColor: "#EA580C" };
-  return { backgroundColor: "#CA8A04" };
+  if (sev === "red") return { backgroundColor: '#DC2626' };
+  if (sev === "orange") return { backgroundColor: '#EA580C' };
+  return { backgroundColor: '#CA8A04' };
 }
 
 const styles = StyleSheet.create({
