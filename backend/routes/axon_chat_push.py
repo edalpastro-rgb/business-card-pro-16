@@ -68,6 +68,16 @@ async def _acp_deliver(alarm: dict, reason: str = "tick") -> bool:
         title = f"🔔 Promemoria: {label or 'Promemoria'}"
         body = alarm.get("note") or f"AxonOS ti ricorda: {label or 'promemoria'}."
     tenant = await _acp_tenant_of(alarm["user_id"])
+    ln = alarm.get("local_notif") or {}
+    if ln.get("trigger_at") and ln.get("trigger_at") == alarm.get("trigger_at"):
+        # V50.z333 — notifica locale già sul telefono (suono+vibrazione): solo voce in-app, niente push doppio/muto
+        await db.axon_notifications.insert_one({
+            "notif_id": f"axn_{uuid.uuid4().hex[:12]}", "user_id": alarm["user_id"], "tenant_id": tenant, "kind": "reminder", "title": title, "body": body,
+            "data": {"deeplink": "/axon-alarms", "alarmId": alarm["id"], "alarm_kind": kind, "tag": f"alarm_{alarm['id']}"},
+            "created_at": utcnow(), "read": False, "read_at": None, "push_sent": False, "dedupe_key": f"alarm:{alarm['id']}:{alarm.get('trigger_at')}", "team_copy_of": None,
+        })
+        logger.info("[axn-chat-push] %s %s: notifica locale sul device → push saltato", kind, alarm["id"])
+        return True
     r = await axon_notify(alarm["user_id"], tenant, "reminder", title, body, "/axon-alarms",
                           dedupe_key=f"alarm:{alarm['id']}:{alarm.get('trigger_at')}",
                           extra={"alarmId": alarm["id"], "alarm_kind": kind, "tag": f"alarm_{alarm['id']}"}, team_copy=False)

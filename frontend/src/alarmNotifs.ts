@@ -14,12 +14,14 @@ import { Platform } from "react-native";
 import { storage } from "@/src/utils/storage";
 import { api } from "@/src/api";
 import { ensureNotifPermission } from "@/src/notifs";
-import { isPushRegistered } from "@/src/pushRegister";
 
 export type AlarmKind = "timer" | "alarm" | "reminder";
 
 // V50.z13 — Notification handler: forza sound+banner anche in foreground.
 // Idempotente: la prima chiamata configura il canale Android + handler globale.
+// V50.z333 — nuovo id canale: su Android le proprietà di un canale sono congelate alla creazione; «axon-alarms» poteva essere nato
+// senza bypass DnD / vibrazione → v2 garantisce MAX + suono + vibrazione + DnD.
+export const ALARM_CHANNEL = "axon-alarms-v2";
 let _handlerConfigured = false;
 export async function configureAlarmNotifications(): Promise<void> {
   if (_handlerConfigured || Platform.OS === "web") return;
@@ -34,7 +36,7 @@ export async function configureAlarmNotifications(): Promise<void> {
       }),
     });
     if (Platform.OS === "android") {
-      await Notifications.setNotificationChannelAsync("axon-alarms", {
+      await Notifications.setNotificationChannelAsync(ALARM_CHANNEL, {
         name: "Sveglie Axon",
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 400, 200, 400, 200, 400],
@@ -133,28 +135,18 @@ export async function syncAlarmNotifs(a: Alarm): Promise<void> {
   await cancelAlarmNotifs(a.id);
   if (!a.enabled) return;
 
-  // V50.z184 — Promemoria e timer: se il token push è registrato li consegna il SERVER
-  // (push AxonOS al trigger_at, anche ad app chiusa / telefono cambiato) → niente
-  // notifica locale per evitare il doppione. Le sveglie restano locali (DnD, suono).
-  if ((a.kind === "reminder" || a.kind === "timer") && isPushRegistered()) return;
-
-  // Assicura canale Android con vibrazione
-  if (Platform.OS === "android") {
-    try {
-      await Notifications.setNotificationChannelAsync("axon-alarms", {
-        name: "Sveglie Axon",
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: a.vibrate ? [0, 400, 200, 400, 200, 400] : [0],
-        sound: "default",
-        enableVibrate: a.vibrate,
-      });
-    } catch { /* ignore */ }
-  }
+  // V50.z333 — Timer e promemoria: SEMPRE notifica locale sul canale «Sveglie Axon» (MAX, suono, vibrazione, bypass DnD):
+  // il push del server (V50.z184) su Android arrivava senza suono né vibrazione (canale del provider). Dopo la schedulazione
+  // avvisiamo il server (`local_notif`) che salta il push → nessun doppione; se la schedulazione fallisce resta il push di riserva.
+  await configureAlarmNotifications();
 
   const commonContent = {
     title: a.label || (a.kind === "timer" ? "Timer scaduto" : a.kind === "alarm" ? "Sveglia" : "Promemoria"),
     body: a.note || (a.kind === "timer" ? "Il tuo timer è scaduto" : a.kind === "alarm" ? "È ora di svegliarsi" : "Promemoria da Axon"),
     sound: "default" as const,
+    vibrate: a.vibrate === false ? undefined : [0, 400, 200, 400, 200, 400],
+    priority: Notifications.AndroidNotificationPriority.MAX,
+    sticky: false,
     data: { tag: `alarm_${a.id}`, alarmId: a.id, kind: a.kind, soundRef: a.sound_ref },
   };
 
@@ -170,7 +162,7 @@ export async function syncAlarmNotifs(a: Alarm): Promise<void> {
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DATE,
           date: when,
-          channelId: Platform.OS === "android" ? "axon-alarms" : undefined,
+          channelId: Platform.OS === "android" ? ALARM_CHANNEL : undefined,
         } as any,
       });
       newIds.push(nid);
@@ -188,7 +180,7 @@ export async function syncAlarmNotifs(a: Alarm): Promise<void> {
           trigger: {
             type: Notifications.SchedulableTriggerInputTypes.DATE,
             date: when,
-            channelId: Platform.OS === "android" ? "axon-alarms" : undefined,
+            channelId: Platform.OS === "android" ? ALARM_CHANNEL : undefined,
           } as any,
         });
         newIds.push(nid);
@@ -208,7 +200,7 @@ export async function syncAlarmNotifs(a: Alarm): Promise<void> {
               weekday: (wd + 1) as number, // 0=Dom → 1
               hour: H,
               minute: M,
-              channelId: Platform.OS === "android" ? "axon-alarms" : undefined,
+              channelId: Platform.OS === "android" ? ALARM_CHANNEL : undefined,
             } as any,
           });
           newIds.push(nid);
@@ -218,6 +210,10 @@ export async function syncAlarmNotifs(a: Alarm): Promise<void> {
   }
 
   if (newIds.length > 0) await saveNotifIds(a.id, newIds);
+  // V50.z333 — comunica al server che la notifica locale è pronta (timer/promemoria) → niente push doppio
+  if ((a.kind === "timer" || a.kind === "reminder") && newIds.length > 0) {
+    try { await api(`/axon/alarms/${a.id}`, { method: "PUT", body: { local_notif: true } }); } catch { /* il push resta di riserva */ }
+  }
 }
 
 /**

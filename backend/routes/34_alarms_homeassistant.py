@@ -152,6 +152,10 @@ async def update_axon_alarm(alarm_id: str, payload: Dict[str, Any] = Body(...), 
         updates["sound_ref"] = (payload.get("sound_ref") or "default").strip() or "default"
     if "vibrate" in payload:
         updates["vibrate"] = bool(payload["vibrate"])
+    # V50.z333 — il telefono ha schedulato la notifica LOCALE (canale «Sveglie Axon»: suono + vibrazione garantiti) per questo
+    # trigger_at → il server non invia il push (che su Android arrivava muto) ma resta di riserva se il trigger cambia.
+    if "local_notif" in payload:
+        updates["local_notif"] = {"trigger_at": existing.get("trigger_at"), "at": utcnow().isoformat()} if payload.get("local_notif") else None
     # V50.z78 — Volume 0-100
     if "volume" in payload:
         try:
@@ -167,6 +171,7 @@ async def update_axon_alarm(alarm_id: str, payload: Dict[str, Any] = Body(...), 
             raise HTTPException(status_code=400, detail="duration_seconds non valido")
         updates["duration_seconds"] = dur
         updates["trigger_at"] = (utcnow() + timedelta(seconds=dur)).isoformat()
+        updates["local_notif"] = None  # V50.z333 — nuovo trigger: il telefono deve rischedulare
     elif kind == "alarm":
         if "time" in payload:
             t = (payload.get("time") or "").strip()
