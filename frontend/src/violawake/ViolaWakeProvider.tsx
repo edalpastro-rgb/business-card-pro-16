@@ -203,7 +203,7 @@ export function ViolaWakeProvider({ children }: { children: React.ReactNode }) {
 
   const startEngine = useCallback(async () => {
     if (!supported) { setState("unsupported"); return; }
-    if (!hasKey) { setState("needs_key"); return; }
+    // V50.z341 — senza chiave Picovoice si usa il riconoscimento vocale di sistema (nessun blocco «needs_key»)
     const perm = await getMicPermission();
     setPermission(perm);
     if (!perm.granted) { setState("no_permission"); return; }
@@ -231,7 +231,7 @@ export function ViolaWakeProvider({ children }: { children: React.ReactNode }) {
       setState("error");
       void violaApi.logEvent("error", { detail: `start: ${String(e?.message || e).slice(0, 200)}` });
     }
-  }, [supported, hasKey, handleWake]);
+  }, [supported, handleWake]);
 
   // Avvio/arresto automatico in base a modulo azienda + impostazione utente
   const shouldRun = !!user && !!settings?.enabled && !!module?.enabled;

@@ -463,3 +463,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z340 — Temi su TUTTE le schermate: src/theme.ts `theme.color` ora deriva da ACTIVE/HT (surface→bg, surfaceSecondary→card, onSurface→text, brandPrimary→accent…); conversione meccanica (scripts/darkify_contacts.py + fix JSX/hex) su 227 file app/ e src/ (esclusi landing, palette). Fix manuali: import HT in multi-line import (libretto-editor, BillAnalysisConfigModal, VisitDetectionBridge), chiavi hex oggetto in master.tsx, ternari hex non quotati (setup-config, AxonToneLevelPicker). tsc: nessun nuovo errore. Anteprima live in ThemePicker: tap card → mini-Home nella palette (testID theme-live-preview-<id>) + bottone theme-apply «Applica tema X» (salva + reload); la spunta resta sul tema attivo."
+
+  - agent: "main"
+    message: "V50.z341 — ViolaWake fallback senza Picovoice: src/violawake/speechWakeEngine.native.ts (expo-speech-recognition continuo, trigger «viola»), wakeEngine.native.ts sceglie Porcupine se accessKey altrimenti speech engine, provider senza gate needs_key, pagina viola-wake con info motore. Solo build nativa; web mostra «Non disponibile qui» (verificato screenshot)."

@@ -6789,3 +6789,14 @@ Sostituita ovunque la tagline «Il sistema operativo che potenzia il tuo cervell
 - Conversione meccanica (`scripts/darkify_contacts.py` + fix quoting JSX/hex) su 227 file app/+src/ (esclusi landing e file palette). Fix manuali: import HT dentro import multi-riga (libretto-editor, BillAnalysisConfigModal, VisitDetectionBridge), chiavi hex di oggetto in master.tsx, ternari hex (setup-config, AxonToneLevelPicker). Nessun nuovo errore tsc.
 - Anteprima live (`src/ThemePicker.tsx`): tap card → stato `selected` + mini-Home nella palette (`theme-live-preview-<id>`) + bottone `theme-apply` «Applica tema X» (persist + PUT /me/theme + reload). Spunta resta sul tema attivo finché non si applica.
 - Test iteration_106: picker/apply/reverse OK; tour midnight+luce su Master, Report, Contatti, Fatture, Alarms, Email config, Impostazioni, Help center, form nuovo contatto/appuntamento/telefonata senza crash né testo illeggibile.
+
+## V50.z341 — ViolaWake: fallback wake-word SENZA Picovoice — DONE (scelta utente: opzione 3 «entrambi»)
+- Picovoice ha rifiutato il trial gratuito 2 volte (serve business case commerciale / trial a pagamento via sales). Chiave `EXPO_PUBLIC_PICOVOICE_ACCESS_KEY` resta come upgrade futuro.
+- `src/violawake/speechWakeEngine.native.ts`: motore wake-word con `expo-speech-recognition` (3.1.3, NON aggiornare) in ascolto continuo it-IT (on-device quando disponibile), trigger quando la trascrizione contiene «viola» (+ varianti), auto-restart su end/error con backoff, stop su not-allowed.
+- `wakeEngine.native.ts`: `createWakeEngine` → senza accessKey usa il motore speech, con chiave usa Porcupine. `ViolaWakeProvider.tsx`: rimosso il blocco `needs_key`. `app/viola-wake.tsx`: info box `viola-engine-fallback` + copy aggiornato.
+- Limiti: iOS solo app in primo piano (Apple), Android anche a schermo bloccato via foreground service esistente; possibile bip di sistema; consumo batteria maggiore di Porcupine. Testabile SOLO con build nativa (APK/IPA) — non su web/Expo Go.
+
+## Smoke test post-fork (Giugno 2026)
+- Backend `/api/health`, login JWT, `/api/contacts`, `/api/email/config`: OK
+- Frontend: landing → login → intro → Home dashboard renderizzata correttamente (tema attivo Midnight). Nessuna regressione rilevata.
+- Preview URL corrente: business-card-pro-16.preview.emergentagent.com

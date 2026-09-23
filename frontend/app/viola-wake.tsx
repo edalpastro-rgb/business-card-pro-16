@@ -16,7 +16,7 @@ const C = theme.color;
 const VIOLA = "#8B5CF6"; // identità Viola/Axon (uguale in chiaro e scuro)
 
 const STATE_LABEL: Record<ViolaState, string> = {
-  off: "Spento", unsupported: "Non disponibile qui", needs_key: "Manca la chiave Picovoice", no_permission: "Microfono non autorizzato",
+  off: "Spento", unsupported: "Non disponibile qui", needs_key: "Motore non configurato", no_permission: "Microfono non autorizzato",
   starting: "Avvio…", listening: "In ascolto", capturing: "Ti ascolto…", thinking: "Elaboro…", speaking: "Sto rispondendo", error: "Errore",
 };
 const STATE_COLOR: Partial<Record<ViolaState, string>> = { listening: C.success, capturing: C.error, speaking: VIOLA, thinking: C.warning, error: C.error, no_permission: C.warning, needs_key: C.warning };
@@ -91,9 +91,9 @@ export default function ViolaWakeScreen() {
             </View>
           ) : null}
           {v.supported && !v.hasKey ? (
-            <View style={s.infoBox}>
-              <Ionicons name="key" size={16} color={C.warning} />
-              <Text style={s.infoTxt}>Manca la chiave Picovoice (EXPO_PUBLIC_PICOVOICE_ACCESS_KEY) e i file «Viola» (.ppn). Si ottengono gratis da console.picovoice.ai; poi serve una nuova build.</Text>
+            <View style={s.infoBox} testID="viola-engine-fallback">
+              <Ionicons name="ear-outline" size={16} color={C.info} />
+              <Text style={s.infoTxt}>Motore: riconoscimento vocale del telefono in ascolto continuo (nessuna chiave, nessun costo). Su iOS resta attivo con l'app in primo piano; su Android anche a schermo bloccato. Inserendo la chiave Picovoice (EXPO_PUBLIC_PICOVOICE_ACCESS_KEY) l'app passa da sola a Porcupine offline.</Text>
             </View>
           ) : null}
         </View>
@@ -125,7 +125,7 @@ export default function ViolaWakeScreen() {
             <View style={{ flex: 1 }} />
             {busy === "user" ? <ActivityIndicator color={VIOLA} /> : <Switch value={userOn} disabled={!moduleOn} onValueChange={toggleUser} trackColor={{ true: VIOLA }} testID="viola-user-switch" />}
           </View>
-          <Text style={s.hint}>Il microfono resta sul telefono: Porcupine riconosce «Viola» offline, niente audio al cloud finché non senti il segnale. Poi il comando viene trascritto dal telefono {v.onDeviceStt ? "(on-device)" : ""} e passato ad Axon.</Text>
+          <Text style={s.hint}>Il microfono resta sul telefono: «Viola» viene riconosciuta in locale (Porcupine se c’è la chiave Picovoice, altrimenti il riconoscimento vocale di sistema), niente audio al cloud finché non senti il segnale. Poi il comando viene trascritto dal telefono {v.onDeviceStt ? "(on-device)" : ""} e passato ad Axon.</Text>
 
           {/* Permessi — contratto */}
           {v.supported && v.permission && !v.permission.granted ? (

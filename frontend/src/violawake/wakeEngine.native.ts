@@ -7,6 +7,7 @@ import { Platform } from "react-native";
 import { PorcupineManager, BuiltInKeywords } from "@picovoice/porcupine-react-native";
 import type { WakeEngine, WakeEngineOptions } from "./types";
 import { VIOLA_FALLBACK_KEYWORD_LABEL, VIOLA_KEYWORD_LABEL } from "./types";
+import { createSpeechWakeEngine } from "./speechWakeEngine.native"; // V50.z341 — fallback senza Picovoice
 
 export const WAKE_ENGINE_SUPPORTED = true;
 
@@ -15,6 +16,9 @@ const CUSTOM_KEYWORD_PATH = Platform.OS === "android" ? "viola_android.ppn" : "V
 const IT_MODEL_PATH = Platform.OS === "android" ? "porcupine_params_it.pv" : "ViolaWakeModels/porcupine_params_it.pv";
 
 export function createWakeEngine(opts: WakeEngineOptions): WakeEngine {
+  // V50.z341 — Senza AccessKey Picovoice → riconoscimento vocale di sistema in ascolto continuo («Viola» nella trascrizione).
+  // Appena la chiave viene inserita (EXPO_PUBLIC_PICOVOICE_ACCESS_KEY) l'app torna automaticamente a Porcupine (offline).
+  if (!opts.accessKey) return createSpeechWakeEngine(opts);
   let manager: PorcupineManager | null = null;
   let lastWake = 0;
   let keywordLabel = opts.keywordMode === "custom" ? VIOLA_KEYWORD_LABEL : VIOLA_FALLBACK_KEYWORD_LABEL;
