@@ -19,11 +19,10 @@ import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { notify, confirmAsync } from "@/src/utils/notify";
-import { pickCommonFile } from "@/src/utils/filePicker";
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
-import * as FileSystem from "expo-file-system/legacy";
 import { KbEntryEditorModal, KB_CATEGORIES, type KbCategory } from "@/src/KbEntryEditorModal";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { KbUploadSourceSheet, type KbPicked } from "@/src/KbUploadSourceSheet"; // V50.z344
 
 type MasterDoc = {
   doc_id: string;
@@ -75,66 +74,28 @@ export default function DocumentiAxonScreen() {
     if (user) load();
   }, [user, load]);
 
-  const upload = async () => {
-    if (!isMaster) return;
+  // V50.z344 — «Carica file»: bottom sheet sorgente (Telefono · Google Drive · Dropbox) + selezione multipla
+  const [srcOpen, setSrcOpen] = useState(false);
+  const upload = () => { if (isMaster) setSrcOpen(true); };
+  const uploadMany = async (files: KbPicked[]) => {
+    if (!isMaster || !files.length) return;
     setUploading(true);
+    let okCount = 0;
     try {
-      const { asset, error, base64 } = await pickCommonFile({ multiple: false });
-      if (error || !asset) {
-        if (error) notify("Errore selezione", error);
-        return;
-      }
-      const mime = (asset.mimeType || "").toLowerCase();
-      const name = (asset.name || "documento.pdf").toString();
-      const lower = name.toLowerCase();
-      const isPdf = mime.includes("pdf") || lower.endsWith(".pdf");
-      const isText = mime.startsWith("text/") || [".txt", ".md", ".csv"].some((e) => lower.endsWith(e));
-      if (!isPdf && !isText) {
-        notify("Formato non supportato", "Sono accettati PDF, TXT, MD e CSV. Per FAQ e dati usa «Nuova voce».");
-        return;
-      }
-      let b64 = base64 || (asset as { _base64?: string })._base64 || "";
-      if (!b64 && asset.uri) {
+      for (const f of files) {
+        const mime = (f.mime || "").toLowerCase();
+        const lower = (f.name || "").toLowerCase();
+        const isPdf = mime.includes("pdf") || lower.endsWith(".pdf");
+        const b64 = f.data_base64.startsWith("data:") ? f.data_base64.slice(f.data_base64.indexOf(",") + 1) : f.data_base64;
+        if (!b64) continue;
         try {
-          if (asset.uri.startsWith("data:")) {
-            const c = asset.uri.indexOf(",");
-            if (c > 0) b64 = asset.uri.slice(c + 1);
-          } else if (Platform.OS === "web") {
-            const resp = await fetch(asset.uri);
-            const blob = await resp.blob();
-            b64 = await new Promise<string>((res, rej) => {
-              const r = new FileReader();
-              r.onerror = () => rej(new Error("FileReader error"));
-              r.onload = () => {
-                const s = String(r.result || "");
-                const cc = s.indexOf(",");
-                res(cc >= 0 ? s.slice(cc + 1) : s);
-              };
-              r.readAsDataURL(blob);
-            });
-          } else {
-            b64 = await FileSystem.readAsStringAsync(asset.uri, {
-              encoding: FileSystem.EncodingType.Base64,
-            });
-          }
-        } catch (e: any) {
-          notify("Errore lettura", e?.message || String(e));
-          return;
-        }
+          await api("/master-docs", { method: "POST", body: { name: f.name.replace(/\.(pdf|txt|md|csv)$/i, ""), mime: isPdf ? "application/pdf" : (mime || "text/plain"), data_base64: b64, category: "Documento" } });
+          okCount++;
+        } catch (e: any) { notify(`Upload fallito: ${f.name}`, e?.message || String(e)); }
       }
-      if (!b64) {
-        notify("File vuoto", "Impossibile leggere il file selezionato.");
-        return;
-      }
-      const stripped = name.replace(/\.(pdf|txt|md|csv)$/i, "");
-      await api("/master-docs", {
-        method: "POST",
-        body: { name: stripped, mime: isPdf ? "application/pdf" : (mime || "text/plain"), data_base64: b64, category: "Documento" },
-      });
       await load();
-      notify(isPdf ? "PDF caricato" : "File caricato", "Axon ora userà questo documento nelle sue risposte.");
-    } catch (e: any) {
-      notify("Upload fallito", e?.message || String(e));
+      if (okCount) notify(okCount === 1 ? "File caricato" : `${okCount} file caricati`, "Axon ora userà questi documenti nelle sue risposte.");
+      setSrcOpen(false);
     } finally {
       setUploading(false);
     }
@@ -332,6 +293,7 @@ export default function DocumentiAxonScreen() {
       )}
 
       <KbEntryEditorModal visible={editorOpen} doc={editorDoc} onClose={() => setEditorOpen(false)} onSaved={load} />
+    <KbUploadSourceSheet visible={srcOpen} onClose={() => setSrcOpen(false)} onUpload={uploadMany} uploading={uploading} />
     </SafeAreaView>
   );
 }

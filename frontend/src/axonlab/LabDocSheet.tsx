@@ -114,7 +114,7 @@ export function LabDocSheet({ spec, entry, keyLabels, busy, onClose, onUpload, o
               {/* Dati campo per campo */}
               {keys.length > 0 && !busy ? (
                 <View style={s.box} testID="lab-doc-fields">
-                  <Text style={s.boxTitle}>{entry?.derived_from ? "Proposto da Axon · controlla e conferma" : "Dati letti da Axon · correggi se serve"}</Text>
+                  <Text style={s.boxTitle}>{entry?.reused_from ? `Ripreso da: ${entry.reused_from} · controlla e conferma` : entry?.derived_from ? "Proposto da Axon · controlla e conferma" : "Dati letti da Axon · correggi se serve"}</Text>
                   {keys.map((k) => (
                     <View key={k} style={s.fieldRow}>
                       <Text style={s.fieldLbl}>{keyLabels[k] || k}</Text>

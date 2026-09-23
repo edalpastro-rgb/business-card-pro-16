@@ -38,7 +38,7 @@ export function LabDocChecklist({ specs, docs, busy, completion, onPress, title 
             <View style={[s.num, { borderColor: statusColor(st) }]}><Text style={[s.numTxt, { color: statusColor(st) }]}>{i + 1}</Text></View>
             <View style={{ flex: 1 }}>
               <Text style={s.label}>{sp.label}</Text>
-              <Text style={s.hint} numberOfLines={1}>{e.derived_from && st === "uploaded" ? "Proposto da Axon · da confermare" : n > 0 ? `${n} dati ${st === "confirmed" ? "confermati" : "estratti"}` : sp.hint}</Text>
+              <Text style={s.hint} numberOfLines={1}>{e.reused_from && st === "uploaded" ? `${e.reused_from} · da confermare` : e.derived_from && st === "uploaded" ? "Proposto da Axon · da confermare" : n > 0 ? `${n} dati ${st === "confirmed" ? "confermati" : "estratti"}` : sp.hint}</Text>
             </View>
             {busy[sp.id] ? <ActivityIndicator size="small" color={HT.axon} /> : (
               <View style={[s.pill, { backgroundColor: st === "confirmed" ? HT.successTint : st === "uploaded" ? HT.warningTint : HT.card2 }]}>

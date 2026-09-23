@@ -117,15 +117,27 @@ export function getUserTheme(userId: string): ThemeId | null {
 export async function persistTheme(id: ThemeId, userId?: string | null): Promise<void> {
   await write(LAST_KEY, id);
   if (userId) await write(userKey(userId), id);
+  try { const AS = (await import("@react-native-async-storage/async-storage")).default; await AS.setItem(LAST_KEY, id); } catch { /* mirror best-effort */ }
 }
 
-/** Ricarica l'app per applicare la nuova palette (RoutePersistence riporta sulla stessa schermata).
- *  Web: location.reload(). Nativo: DevSettings.reload() (Expo Go / dev client); nelle build release senza
- *  expo-updates ritorna false → la UI invita a chiudere e riaprire l'app (il tema è già salvato). */
+/** Fallback asincrono (AsyncStorage) usato al boot se la lettura sincrona di SecureStore non ha restituito nulla. */
+export async function readThemeFallback(): Promise<ThemeId | null> {
+  try { const AS = (await import("@react-native-async-storage/async-storage")).default; return normalizeThemeId(await AS.getItem(LAST_KEY)); } catch { return null; }
+}
+export const BOOT_THEME_FROM_STORAGE: boolean = normalizeThemeId(readSync(LAST_KEY)) !== null;
+
+/** Ricarica il bundle JS per applicare la nuova palette SUBITO, senza chiudere l'app (RoutePersistence riporta
+ *  sulla stessa schermata). Web: location.reload(). Nativo: react-native-restart (build release/dev client) →
+ *  fallback DevSettings.reload() (Expo Go). Ritorna false solo se nessun meccanismo è disponibile. */
 export async function reloadApp(): Promise<boolean> {
   if (Platform.OS === "web") {
     try { (globalThis as any).location?.reload(); return true; } catch { return false; }
   }
+  try {
+    const mod: any = await import("react-native-restart");
+    const RNRestart = mod?.default || mod;
+    if (RNRestart && typeof RNRestart.restart === "function") { RNRestart.restart(); return true; }
+  } catch { /* modulo nativo assente (Expo Go) → DevSettings */ }
   try {
     const { DevSettings } = await import("react-native");
     if (typeof DevSettings?.reload !== "function") return false;

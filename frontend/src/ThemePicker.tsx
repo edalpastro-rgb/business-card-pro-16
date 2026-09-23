@@ -7,7 +7,7 @@ import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { notify } from "@/src/utils/notify";
 import { HT } from "@/src/homeTheme";
-import { ACTIVE_THEME_ID, PALETTES, THEME_IDS, ThemeId, getUserTheme, normalizeThemeId, persistTheme, reloadApp } from "@/src/themes";
+import { ACTIVE_THEME_ID, BOOT_THEME_FROM_STORAGE, PALETTES, THEME_IDS, ThemeId, getUserTheme, normalizeThemeId, persistTheme, readThemeFallback, reloadApp } from "@/src/themes";
 
 /** Sincronizza il tema salvato sul server per l'utente loggato: se differisce da quello attivo → salva in locale e ricarica (una volta). */
 export function useThemeSync(userId?: string | null) {
@@ -15,24 +15,22 @@ export function useThemeSync(userId?: string | null) {
     if (!userId) return;
     let cancelled = false;
     (async () => {
+      // V50.z344 — Il PROFILO UTENTE sul database è la fonte di verità: ad ogni avvio si legge il tema salvato e, se
+      // diverso da quello con cui l'app è partita, si applica subito (ricarica bundle). Offline → locale/AsyncStorage.
+      let target: ThemeId | null = null;
       try {
-        const local = getUserTheme(userId);
-        if (local && local !== ACTIVE_THEME_ID) {
-          // cambio utente sullo stesso device: applica il tema di QUESTO utente
-          await persistTheme(local, userId);
-          if (!cancelled) await reloadApp();
-          return;
-        }
         const r = await api<{ ui_theme: string }>("/me/theme");
-        const server = normalizeThemeId(r.ui_theme);
-        if (cancelled || !server) return;
-        if (server !== ACTIVE_THEME_ID && !local) {
-          await persistTheme(server, userId);
-          await reloadApp();
-        } else if (!local) {
-          await persistTheme(ACTIVE_THEME_ID, userId);
-        }
-      } catch { /* offline: resta il tema locale */ }
+        target = normalizeThemeId(r.ui_theme);
+      } catch {
+        target = getUserTheme(userId) || (BOOT_THEME_FROM_STORAGE ? null : await readThemeFallback());
+      }
+      if (cancelled || !target) return;
+      if (target !== ACTIVE_THEME_ID) {
+        await persistTheme(target, userId);
+        if (!cancelled) await reloadApp();
+      } else if (getUserTheme(userId) !== target) {
+        await persistTheme(target, userId);
+      }
     })();
     return () => { cancelled = true; };
   }, [userId]);
@@ -50,8 +48,9 @@ export function ThemePicker() {
     if (id === ACTIVE_THEME_ID || busy) return;
     setBusy(id);
     try {
+      // V50.z344 — 1) salva sul profilo utente (database) 2) salva in locale 3) applica subito ricaricando il bundle
+      try { await api("/me/theme", { method: "PUT", body: { ui_theme: id } }); } catch { /* offline: la copia locale verrà riallineata al prossimo avvio online */ }
       await persistTheme(id, user?.user_id);
-      try { await api("/me/theme", { method: "PUT", body: { ui_theme: id } }); } catch { /* offline: verrà sincronizzato al prossimo salvataggio */ }
       const ok = await reloadApp();
       if (!ok) notify("Tema salvato", "Chiudi e riapri l'app per applicare il nuovo tema.");
     } finally {

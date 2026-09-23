@@ -7,7 +7,7 @@ import * as Sharing from "expo-sharing";
 import { api } from "@/src/api";
 
 export type LabDocSpec = { id: string; label: string; mode: "upload" | "manual_or_upload" | "manual" | "stamp"; hint: string; manual_keys?: string[]; derived?: [string, string] };
-export type LabDocEntry = { status: "none" | "uploaded" | "confirmed"; files: { name: string; mime: string; size?: number }[]; extracted: Record<string, string>; values: Record<string, string>; derived_from?: string; has_image?: boolean; source?: string };
+export type LabDocEntry = { status: "none" | "uploaded" | "confirmed"; files: { name: string; mime: string; size?: number }[]; extracted: Record<string, string>; values: Record<string, string>; derived_from?: string; reused_from?: string; has_image?: boolean; source?: string };
 export type LabDossier = { docs: Record<string, LabDocEntry>; extra: { id: string; label: string; value: string }[]; completion: { confirmed: number; uploaded: number; total: number; percent: number } };
 export type LabSource = { id: string; label: string; group: string; sample?: string; doc?: string; key?: string };
 export type LabField = { id: string; key: string; label: string; kind: string; page: number; bbox: number[]; skip?: boolean };

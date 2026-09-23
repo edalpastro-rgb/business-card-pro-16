@@ -548,8 +548,50 @@ async def lab_practice_create(body: LabPracticeIn, user=Depends(get_current_user
     p = {"practice_id": pid, "tenant_id": tenant_id(user), "contact_id": body.contact_id, "contact_name": cname, "company": c.get("company") or "",
          **_lab_empty_dossier(), "template_ids": [], "form_ids": [], "sign_date": "", "sign_place": "", "status": "docs",
          "created_by": user["user_id"], "created_at": utcnow(), "updated_at": utcnow()}
+    await _lab_prefill_from_contact(user, p)
     await db.axon_lab_practices.insert_one(dict(p))
     return _lab_practice_pub(p)
+
+
+async def _lab_prefill_from_contact(user: dict, p: dict) -> None:
+    """V50.z344 — Riuso documenti cliente: carta d'identità (identity_documents), fatture luce/gas (energy_bills) e recapiti
+    della scheda precompilano la checklist come «Caricato · da confermare» (status uploaded, source scheda)."""
+    docs = p["docs"]
+    tid = p["tenant_id"]
+
+    def propose(doc_id: str, data: Dict[str, Any], src: str):
+        vals = {k: str(v).strip() for k, v in data.items() if v not in (None, "", [], {})}
+        if not vals:
+            return
+        docs[doc_id] = {**docs.get(doc_id, {}), "status": "uploaded", "extracted": vals, "values": {}, "files": docs.get(doc_id, {}).get("files") or [], "source": "scheda", "reused_from": src, "updated_at": utcnow()}
+
+    try:
+        d = await db.identity_documents.find_one({"tenant_id": tid, "subject_type": "contact", "subject_id": p["contact_id"]}, {"_id": 0, "front_b64": 0, "back_b64": 0}, sort=[("created_at", -1)])
+        if d:
+            ex = d.get("extracted") or {}
+            propose("id_card", {"first_name": ex.get("first_name"), "last_name": ex.get("last_name"), "birth_date": ex.get("birth_date"), "birth_place": ex.get("birth_place"), "sex": ex.get("sex"),
+                                "tax_id": ex.get("tax_id"), "doc_number": d.get("document_number"), "doc_issue_date": d.get("issue_date") or ex.get("issue_date"), "doc_expiry_date": d.get("expiry_date"),
+                                "doc_issuer": d.get("issuing_authority") or ex.get("issuing_authority"), "residence_address": ex.get("address"), "residence_city": ex.get("city"), "nationality": ex.get("nationality")}, "Documento di riconoscimento in scheda")
+        async for b in db.energy_bills.find({"user_id": tid, "contact_id": p["contact_id"], "status": "done"}, {"_id": 0, "pdf_base64": 0}).sort("created_at", -1).limit(8):
+            ex = b.get("extracted") or {}
+            common = {"current_supplier": ex.get("fornitore"), "customer_code": ex.get("codice_cliente"), "supply_address": ex.get("indirizzo_fornitura") or ex.get("supply_address"), "offer_name": ex.get("offerta") or ex.get("offer_name")}
+            if ex.get("pod") and docs["bill_electric"]["status"] == "none":
+                kwh = ex.get("consumo_medio_mensile_kwh")
+                propose("bill_electric", {**common, "pod": re.sub(r"\s+", "", str(ex["pod"])).upper(), "meter_power_kw": ex.get("potenza_impegnata_kw"), "voltage": ex.get("tensione"),
+                                          "avg_monthly_kwh": kwh, "annual_consumption_kwh": (str(round(float(kwh) * 12)) if kwh not in (None, "") else None)}, f"Fattura luce in scheda ({b.get('pdf_name') or ''})".strip())
+            if ex.get("pdr") and docs["bill_gas"]["status"] == "none":
+                smc = ex.get("consumo_medio_mensile_smc")
+                propose("bill_gas", {**common, "pdr": re.sub(r"\s+", "", str(ex["pdr"])), "avg_monthly_smc": smc, "annual_consumption_smc": (str(round(float(smc) * 12)) if smc not in (None, "") else None)}, f"Fattura gas in scheda ({b.get('pdf_name') or ''})".strip())
+        c = await db.contacts.find_one({"contact_id": p["contact_id"]}, {"_id": 0, "pec": 1, "email": 1, "phone": 1, "whatsapp": 1, "phone_alt": 1, "iban": 1, "sdi_code": 1})
+        if c:
+            propose("pec", {"pec": c.get("pec")}, "Scheda cliente")
+            propose("email_referent", {"email": c.get("email")}, "Scheda cliente")
+            propose("mobile_referent", {"mobile": c.get("whatsapp") or c.get("phone_alt")}, "Scheda cliente")
+            propose("phone_company", {"phone": c.get("phone")}, "Scheda cliente")
+            propose("iban", {"iban": c.get("iban")}, "Scheda cliente")
+            propose("sdi", {"sdi_code": c.get("sdi_code")}, "Scheda cliente")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[lab] prefill da scheda cliente fallito: %s", exc)
 
 
 @api_router.get("/lab/practices/{practice_id}")

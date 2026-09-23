@@ -15,6 +15,7 @@ import { shareDataUri } from "@/src/share";
 import { openInAppLink } from "@/src/utils/openInAppLink";
 import { ModuleErrorBoundary } from "@/src/shared";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { useSafeAreaInsets } from "react-native-safe-area-context"; // V50.z344 — barra input sopra la bottom nav (60px) e la safe area
 
 type Message = {
   message_id: string; channel_id: string; sender_id: string; sender_name: string;
@@ -38,6 +39,20 @@ function ChatDetailScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const [channel, setChannel] = useState<any>(null);
+  // V50.z344 — Header stile WhatsApp: nome + foto dell'altro partecipante (chat diretta) o dei membri (gruppo)
+  const [members, setMembers] = useState<{ user_id: string; name?: string; email?: string; picture?: string | null }[]>([]);
+  const insets = useSafeAreaInsets();
+  const pagePad = 60 + Math.max(insets.bottom, Platform.OS === "ios" ? 12 : 0) + 16; // bottom nav globale 60px + margine
+  useEffect(() => {
+    (async () => {
+      try { const r = await api<{ items: any[] }>("/team/members"); setMembers(r.items || []); } catch { setMembers([]); }
+    })();
+  }, []);
+  const others = (channel?.member_user_ids || []).filter((id: string) => id !== user?.user_id).map((id: string) => members.find((m) => m.user_id === id) || { user_id: id, name: "" });
+  const peer = channel?.is_direct ? others[0] : null;
+  const peerName = peer ? (peer.name || peer.email || "Collega") : "";
+  const initial = (peerName || "?").trim()[0]?.toUpperCase() || "?";
+  const avatarBg = ["#0EA5E9", "#8B5CF6", "#F97316", "#10B981", "#EC4899", "#F59E0B"][(peer?.user_id || "").split("").reduce((a: number, c: string) => a + c.charCodeAt(0), 0) % 6];
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -195,7 +210,8 @@ function ChatDetailScreen() {
     } catch (e) { console.warn(e); }
   };
 
-  const channelTitle = channel?.name || (channel?.is_direct ? "Chat diretta" : "Gruppo");
+  const channelTitle = channel?.is_direct ? (peerName || channel?.name || "Chat diretta") : (channel?.name || "Gruppo");
+  const channelSub = channel?.is_direct ? (peer?.email || "Chat diretta") : `${channel?.member_user_ids?.length || 0} partecipanti${others.length ? " · " + others.map((o: any) => o.name || o.email).filter(Boolean).slice(0, 3).join(", ") : ""}`;
 
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
@@ -203,9 +219,18 @@ function ChatDetailScreen() {
         <Pressable onPress={() => router.back()} hitSlop={10}>
           <Ionicons name="chevron-back" size={26} color={HT.text} />
         </Pressable>
-        <View style={{ flex: 1, marginLeft: 8 }}>
-          <Text style={styles.title} numberOfLines={1}>{channelTitle}</Text>
-          <Text style={styles.subtitle}>{channel?.member_user_ids?.length || 0} partecipanti</Text>
+        {channel?.is_direct ? (
+          peer?.picture ? (
+            <Image source={{ uri: peer.picture }} style={styles.peerAvatar} testID="chat-peer-avatar" />
+          ) : (
+            <View style={[styles.peerAvatar, { backgroundColor: avatarBg, alignItems: "center", justifyContent: "center" }]} testID="chat-peer-initial"><Text style={styles.peerInitial}>{initial}</Text></View>
+          )
+        ) : (
+          <View style={[styles.peerAvatar, { backgroundColor: HT.brandTint, alignItems: "center", justifyContent: "center" }]}><Ionicons name="people" size={18} color={HT.brand} /></View>
+        )}
+        <View style={{ flex: 1, marginLeft: 10 }}>
+          <Text style={styles.title} numberOfLines={1} testID="chat-peer-name">{channelTitle}</Text>
+          <Text style={styles.subtitle} numberOfLines={1}>{channelSub}</Text>
         </View>
       </View>
 
@@ -270,7 +295,7 @@ function ChatDetailScreen() {
           ListEmptyComponent={<Text style={styles.empty}>Inizia la conversazione!</Text>}
         />
 
-        <View style={styles.inputBar}>
+        <View style={[styles.inputBar, { paddingBottom: pagePad }]} testID="chat-input-bar">
           <Pressable testID="chat-attach-photo" onPress={() => pickPhoto(false)} style={styles.iconBtn}>
             <Ionicons name="image" size={22} color={HT.brand} />
           </Pressable>
@@ -313,6 +338,8 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: HT.border, backgroundColor: HT.card },
   title: { fontSize: 16, fontWeight: "700", color: HT.text },
   subtitle: { fontSize: 11, color: HT.muted },
+  peerAvatar: { width: 38, height: 38, borderRadius: 19, marginLeft: 6 },
+  peerInitial: { color: "#FFF", fontWeight: "900", fontSize: 16 },
   msgWrap: { marginBottom: 6 },
   senderName: { fontSize: 11, color: HT.muted, marginBottom: 2, marginLeft: 6 },
   bubble: { maxWidth: "80%", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, gap: 4 },
