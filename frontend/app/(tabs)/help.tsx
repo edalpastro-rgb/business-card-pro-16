@@ -13,9 +13,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
-import { theme } from "@/src/theme";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { SupportForm } from "@/src/SupportFab";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 export default function HelpTabScreen() {
   const router = useRouter();
@@ -40,7 +40,7 @@ export default function HelpTabScreen() {
         <Text style={styles.cardTitle}>{title}</Text>
         <Text style={styles.cardSub}>{sub}</Text>
       </View>
-      <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+      <Ionicons name="chevron-forward" size={18} color={HT.muted} />
     </Pressable>
   );
 
@@ -71,14 +71,14 @@ export default function HelpTabScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
+  root: { flex: 1, backgroundColor: HT.bg },
   hero: { alignItems: "center", marginBottom: 18, gap: 8 },
-  heroIcon: { width: 64, height: 64, borderRadius: 32, backgroundColor: "#FF6B35", alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 22, fontWeight: "900", color: theme.color.onSurface },
-  sub: { fontSize: 13, color: theme.color.muted, textAlign: "center", lineHeight: 18 },
-  sectionLabel: { fontSize: 12, fontWeight: "800", color: theme.color.muted, letterSpacing: 0.4, marginBottom: 8, marginTop: 6 },
-  card: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#FFF", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: theme.color.border, marginBottom: 10, minHeight: 64 },
+  heroIcon: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#FF6B35', alignItems: "center", justifyContent: "center" },
+  title: { fontSize: 22, fontWeight: "900", color: HT.text },
+  sub: { fontSize: 13, color: HT.muted, textAlign: "center", lineHeight: 18 },
+  sectionLabel: { fontSize: 12, fontWeight: "800", color: HT.muted, letterSpacing: 0.4, marginBottom: 8, marginTop: 6 },
+  card: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: HT.card, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: HT.border, marginBottom: 10, minHeight: 64 },
   cardIcon: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  cardTitle: { fontSize: 15, fontWeight: "800", color: theme.color.onSurface },
-  cardSub: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
+  cardTitle: { fontSize: 15, fontWeight: "800", color: HT.text },
+  cardSub: { fontSize: 12, color: HT.muted, marginTop: 2 },
 });

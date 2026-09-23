@@ -14,10 +14,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "@/src/api";
-import { theme } from "@/src/theme";
 import { playActivationEffect } from "@/src/activation/events"; // V50.z335
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { useAuth } from "@/src/auth";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 export const HELP_CENTER_SEEN_KEY = "helpcenter_seen_v1";
 
@@ -67,7 +67,7 @@ export default function HelpCenterScreen() {
       <View style={styles.header}>
         {!isOnboarding ? (
           <Pressable onPress={() => router.back()} hitSlop={10} style={styles.backBtn} testID="help-center-back">
-            <Ionicons name="chevron-back" size={24} color={theme.color.onSurface} />
+            <Ionicons name="chevron-back" size={24} color={HT.text} />
           </Pressable>
         ) : (
           <View style={{ width: 30 }} />
@@ -123,22 +123,22 @@ export default function HelpCenterScreen() {
           }}
           style={styles.faqBtn}
         >
-          <View style={[styles.faqIcon, { backgroundColor: "#EDE9FE" }]}><Ionicons name="flash" size={22} color="#7C3AED" /></View>
+          <View style={[styles.faqIcon, { backgroundColor: HT.violetTint }]}><Ionicons name="flash" size={22} color="#7C3AED" /></View>
           <View style={{ flex: 1 }}>
             <Text style={styles.faqTitle}>Rivedi l&apos;introduzione</Text>
             <Text style={styles.faqHint}>Il momento della connessione con Axon: onda, vibrazione e il suo saluto</Text>
           </View>
-          <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+          <Ionicons name="chevron-forward" size={18} color={HT.muted} />
         </Pressable>
 
         {/* V50.z329 — FAQ (accordion) + link alla landing */}
         <Pressable testID="help-faq" onPress={() => router.push("/faq" as any)} style={styles.faqBtn}>
-          <View style={styles.faqIcon}><Ionicons name="help-circle" size={22} color={theme.color.brandPrimary} /></View>
+          <View style={styles.faqIcon}><Ionicons name="help-circle" size={22} color={HT.brand} /></View>
           <View style={{ flex: 1 }}>
             <Text style={styles.faqTitle}>Domande frequenti</Text>
             <Text style={styles.faqHint}>Addestramento Axon, CRT, salvataggio documenti, collaboratori, sicurezza</Text>
           </View>
-          <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+          <Ionicons name="chevron-forward" size={18} color={HT.muted} />
         </Pressable>
 
         <View style={styles.badge}>
@@ -216,7 +216,7 @@ export default function HelpCenterScreen() {
         </Pressable>
 
         <View style={styles.contactBox}>
-          <Ionicons name="mail-outline" size={16} color={theme.color.muted} />
+          <Ionicons name="mail-outline" size={16} color={HT.muted} />
           <Text style={styles.contactTxt}>Contatti: support@advisoros.it</Text>
         </View>
 
@@ -252,7 +252,7 @@ export default function HelpCenterScreen() {
               value={reason}
               onChangeText={setReason}
               placeholder="Motivo (opzionale)"
-              placeholderTextColor={theme.color.muted}
+              placeholderTextColor={HT.muted}
               multiline
               style={styles.mInput}
               maxLength={2000}
@@ -284,49 +284,49 @@ export default function HelpCenterScreen() {
 
 const styles = StyleSheet.create({
   // V50.z137 — bottone prominente (pieno, colore brand) come prima voce dell'Help Center
-  replayBtn: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#7C3AED", borderRadius: 14, padding: 16, minHeight: 68, shadowColor: "#7C3AED", shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 4 },
+  replayBtn: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: '#7C3AED', borderRadius: 14, padding: 16, minHeight: 68, shadowColor: "#7C3AED", shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 4 },
   replayIcon: { width: 42, height: 42, borderRadius: 21, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
   replayTitle: { fontSize: 16, fontWeight: "900", color: "#FFF" },
   replayHint: { fontSize: 12, color: "rgba(255,255,255,0.85)", marginTop: 2 },
-  faqBtn: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: theme.color.surfaceSecondary, borderRadius: 14, padding: 14, minHeight: 64, borderWidth: 1, borderColor: theme.color.border },
-  faqIcon: { width: 42, height: 42, borderRadius: 21, backgroundColor: theme.color.brandTertiary, alignItems: "center", justifyContent: "center" },
-  faqTitle: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface },
-  faqHint: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
-  root: { flex: 1, backgroundColor: theme.color.surface },
+  faqBtn: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: HT.card2, borderRadius: 14, padding: 14, minHeight: 64, borderWidth: 1, borderColor: HT.border },
+  faqIcon: { width: 42, height: 42, borderRadius: 21, backgroundColor: HT.brandTint, alignItems: "center", justifyContent: "center" },
+  faqTitle: { fontSize: 16, fontWeight: "800", color: HT.text },
+  faqHint: { fontSize: 12, color: HT.muted, marginTop: 2 },
+  root: { flex: 1, backgroundColor: HT.card2 },
   header: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: 12, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: theme.color.border,
-    backgroundColor: "#FFF",
+    borderBottomWidth: 1, borderBottomColor: HT.border,
+    backgroundColor: HT.card,
   },
   backBtn: { width: 30, height: 30, alignItems: "center", justifyContent: "center" },
   adminBtn: { width: 30, height: 30, alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontSize: 17, fontWeight: "900", color: theme.color.onSurface, letterSpacing: 0.4 },
+  headerTitle: { fontSize: 17, fontWeight: "900", color: HT.text, letterSpacing: 0.4 },
   badge: {
     flexDirection: "row", alignItems: "center", gap: 8,
-    backgroundColor: "#F5F3FF", borderWidth: 1, borderColor: "#DDD6FE",
+    backgroundColor: HT.violetTint, borderWidth: 1, borderColor: HT.violet + '66',
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, alignSelf: "flex-start",
   },
   badgeTxt: { fontSize: 11, color: "#7C3AED", fontWeight: "800", letterSpacing: 0.2 },
-  h1: { fontSize: 18, fontWeight: "800", color: theme.color.onSurface, lineHeight: 24, marginTop: 4 },
+  h1: { fontSize: 18, fontWeight: "800", color: HT.text, lineHeight: 24, marginTop: 4 },
   sub: { fontSize: 12, fontWeight: "900", color: "#7C3AED", letterSpacing: 1.5, marginTop: -6 },
-  h2: { fontSize: 15, fontWeight: "800", color: theme.color.onSurface, marginTop: 8 },
-  p: { fontSize: 13, color: "#334155", lineHeight: 20 },
+  h2: { fontSize: 15, fontWeight: "800", color: HT.text, marginTop: 8 },
+  p: { fontSize: 13, color: HT.text2, lineHeight: 20 },
   deleteBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
     marginTop: 8, paddingVertical: 14, borderRadius: 12,
-    backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FECACA",
+    backgroundColor: HT.dangerTint, borderWidth: 1, borderColor: HT.danger + '66',
   },
   deleteTxt: { color: "#DC2626", fontWeight: "800", fontSize: 14 },
   contactBox: {
     flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 6,
     alignSelf: "center",
   },
-  contactTxt: { fontSize: 12, color: theme.color.muted },
+  contactTxt: { fontSize: 12, color: HT.muted },
   gotIt: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
     marginTop: 8, paddingVertical: 16, borderRadius: 999,
-    backgroundColor: "#7C3AED",
+    backgroundColor: '#7C3AED',
     shadowColor: "#7C3AED", shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 4,
   },
   gotItTxt: { color: "#FFF", fontSize: 15, fontWeight: "900", letterSpacing: 0.3 },
@@ -336,31 +336,31 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center", padding: 20,
   },
   mBox: {
-    width: "100%", maxWidth: 420, backgroundColor: "#FFF", borderRadius: 16,
+    width: "100%", maxWidth: 420, backgroundColor: HT.card, borderRadius: 16,
     padding: 16, gap: 10,
     ...Platform.select({ ios: {}, android: { elevation: 8 } }),
   },
   mHeaderRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   mIcon: {
-    width: 36, height: 36, borderRadius: 10, backgroundColor: "#FEF2F2",
+    width: 36, height: 36, borderRadius: 10, backgroundColor: HT.dangerTint,
     alignItems: "center", justifyContent: "center",
   },
-  mTitle: { fontSize: 16, fontWeight: "800", color: theme.color.onSurface },
-  mHint: { fontSize: 13, color: theme.color.muted, lineHeight: 18 },
+  mTitle: { fontSize: 16, fontWeight: "800", color: HT.text },
+  mHint: { fontSize: 13, color: HT.muted, lineHeight: 18 },
   mInput: {
-    borderWidth: 1, borderColor: theme.color.border, borderRadius: 12,
-    padding: 12, fontSize: 14, color: theme.color.onSurface,
-    minHeight: 90, textAlignVertical: "top", backgroundColor: "#F8FAFC",
+    borderWidth: 1, borderColor: HT.border, borderRadius: 12,
+    padding: 12, fontSize: 14, color: HT.text,
+    minHeight: 90, textAlignVertical: "top", backgroundColor: HT.card2,
   },
   mBtnRow: { flexDirection: "row", gap: 10, marginTop: 4 },
   mCancel: {
     flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: "center",
-    backgroundColor: "#F1F5F9",
+    backgroundColor: HT.card2,
   },
-  mCancelTxt: { color: theme.color.onSurface, fontWeight: "800", fontSize: 14 },
+  mCancelTxt: { color: HT.text, fontWeight: "800", fontSize: 14 },
   mConfirm: {
     flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: "center",
-    backgroundColor: "#DC2626",
+    backgroundColor: '#DC2626',
   },
   mConfirmTxt: { color: "#FFF", fontWeight: "900", fontSize: 14 },
 });

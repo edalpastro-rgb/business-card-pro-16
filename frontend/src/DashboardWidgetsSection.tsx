@@ -170,14 +170,14 @@ function PunFascia({ label, value, delta, unit, bg, fg }: { label: string; value
 
 const styles = StyleSheet.create({
   wrap: { gap: 8, marginBottom: 8 },
-  card: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, borderRadius: 14, padding: 12 },
+  card: { ...HT.cardShadow, flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, borderRadius: 14, padding: 12 },
   coming: { backgroundColor: HT.card },
   iconBadge: { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   value: { fontSize: 22, fontWeight: "900", color: HT.text, letterSpacing: -0.5 },
   label: { fontSize: 12, fontWeight: "700", color: HT.muted },
   badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: HT.glassStrong },
   badgeTxt: { fontSize: 10, fontWeight: "800", color: HT.text2, textTransform: "uppercase", letterSpacing: 0.5 },
-  punCardCompact: { flexDirection: "row", alignItems: "stretch", gap: 6, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, borderRadius: 14, padding: 8 },
+  punCardCompact: { ...HT.cardShadow, flexDirection: "row", alignItems: "stretch", gap: 6, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, borderRadius: 14, padding: 8 },
   punHeadCol: { width: 52, alignItems: "center", justifyContent: "center", gap: 2 },
   punTitle: { fontSize: 11, fontWeight: "900", color: HT.text, letterSpacing: 0.8 },
   punMonth: { fontSize: 9, fontWeight: "700", color: HT.muted, textTransform: "uppercase" },

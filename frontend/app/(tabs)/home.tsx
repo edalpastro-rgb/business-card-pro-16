@@ -1137,7 +1137,7 @@ const styles = StyleSheet.create({
   scroll: { paddingHorizontal: 16, paddingTop: 12 },
 
   /* V49 — Bottone "Comunica con l'azienda" (fondo Home) */
-  companyContactBtn: {
+  companyContactBtn: { ...HT.cardShadow,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
@@ -1211,7 +1211,7 @@ const styles = StyleSheet.create({
 
   /* KPI */
   kpiRow: { flexDirection: "row", gap: 12, marginTop: 8 },
-  kpi: {
+  kpi: { ...HT.cardShadow,
     flex: 1, backgroundColor: C.card, borderRadius: 18, padding: 14,
     borderWidth: 1, borderColor: C.border,
   },
@@ -1221,7 +1221,7 @@ const styles = StyleSheet.create({
   kpiHint: { fontSize: 11, fontWeight: "600", marginTop: 4 },
 
   /* Master */
-  masterCard: {
+  masterCard: { ...HT.cardShadow,
     flexDirection: "row", alignItems: "center", gap: 12,
     backgroundColor: C.card,
     borderWidth: 1, borderColor: HT.axonLine,
@@ -1234,7 +1234,7 @@ const styles = StyleSheet.create({
 
   /* Charts */
   chartsRow: { flexDirection: "row", gap: 12, marginTop: 12 },
-  card: { flex: 1, backgroundColor: C.card, borderRadius: 18, padding: 14, borderWidth: 1, borderColor: C.border },
+  card: { ...HT.cardShadow, flex: 1, backgroundColor: C.card, borderRadius: 18, padding: 14, borderWidth: 1, borderColor: C.border },
   donutCard: { minHeight: 220 },
   cardTitle: { fontSize: 14, fontWeight: "800", color: C.text },
   cardSub: { fontSize: 11, color: C.muted, marginTop: 2, fontWeight: "600" },
@@ -1311,7 +1311,7 @@ const styles = StyleSheet.create({
   /* Quick — icona full-round colorata su card dark */
   qaHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
   quickRow: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
-  quick: {
+  quick: { ...HT.cardShadow,
     flexGrow: 1, flexBasis: "45%", minWidth: 140, maxWidth: "100%",
     backgroundColor: C.card, padding: 14, borderRadius: 16, alignItems: "flex-start", gap: 10,
     borderWidth: 1, borderColor: C.border,
@@ -1338,7 +1338,7 @@ const styles = StyleSheet.create({
   dlChipActive: { backgroundColor: C.primarySoft, borderColor: C.primary },
   dlChipTxt: { fontSize: 11, fontWeight: "800", color: C.text2 },
   dlChipTxtActive: { color: C.primary },
-  deadlineRow: {
+  deadlineRow: { ...HT.cardShadow,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,

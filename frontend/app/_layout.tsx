@@ -41,6 +41,9 @@ import { SystemHeartbeat } from "@/src/systemHeartbeat"; // V50.z200 — version
 import { GlobalErrorBoundary } from "@/src/GlobalErrorBoundary";
 import { RoutePersistence } from "@/src/RoutePersistence";
 import { VisitDetectionBridge } from "@/src/VisitDetectionBridge"; // V50.z256 // V50.z242 — BUG-STATE-001: ultima rotta salvata/ripristinata
+import { useThemeSync } from "@/src/ThemePicker"; // V50.z338
+import { ACTIVE } from "@/src/themes"; // V50.z338 — sfondo root + status bar seguono il tema
+import { StatusBar } from "expo-status-bar";
 import { navRestoreGuard } from "@/src/utils/appStatePersist";
 
 configureNotifHandler();
@@ -208,8 +211,10 @@ function StackWithCallBar() {
     registerForPush(user.user_id).catch(() => {});
   }, [user?.user_id]);
   usePaywallGuard(user?.user_id); // V50.z330 — abbonamento scaduto → /paywall
+  useThemeSync(user?.user_id); // V50.z338 — tema per utente (server ↔ locale)
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: ACTIVE.bg }}>
+      <StatusBar style={ACTIVE.statusBar} />
       {/* V50.z279 — Banner offline / sincronizzazione (sopra lo Stack, tocca → /offline-sync) */}
       <OfflineBanner userId={user?.user_id} />
       {/* V50.z186 — padding dinamico = altezza tastiera (solo Android): il campo attivo resta visibile */}

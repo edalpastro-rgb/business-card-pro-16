@@ -26,6 +26,8 @@ import { AxonToneLevelPicker } from "@/src/AxonToneLevelPicker"; // V50.z218 —
 import { FutureInterestsAlert } from "@/src/FutureInterestsAlert"; // V50.z219 — interessi futuri dal wizard
 import { VisitDetectionSettings } from "@/src/VisitDetectionSettings"; // V50.z256 — Rilevamento Visite
 import { SetupEntryCard } from "@/src/SetupEntryCard"; // V50.z211 — Configurazione guidata
+import { ThemePicker } from "@/src/ThemePicker"; // V50.z338 — Aspetto: Chiaro · Grigio · Scuro
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Settings = {
   energy_title: string; energy_color: string;
@@ -409,7 +411,7 @@ function ImpostazioniScreen() {
 
   if (!s) return (
     <SafeAreaView style={styles.root} edges={["top"]}>
-      <ActivityIndicator style={{ marginTop: 40 }} color={theme.color.brandPrimary} />
+      <ActivityIndicator style={{ marginTop: 40 }} color={HT.brand} />
     </SafeAreaView>
   );
 
@@ -418,7 +420,7 @@ function ImpostazioniScreen() {
       <View style={[styles.header, { flexDirection: "row", alignItems: "center", gap: 10 }]}>
         {sec ? (
           <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace("/impostazioni" as any))} hitSlop={10} testID="settings-back" accessibilityLabel="Indietro">
-            <Ionicons name="chevron-back" size={24} color={theme.color.onSurface} />
+            <Ionicons name="chevron-back" size={24} color={HT.text} />
           </Pressable>
         ) : null}
         <Text style={[styles.title, { flex: 1 }]} numberOfLines={1}>{sec ? SECTION_META[sec].title : "Profilo & Impostazioni"}</Text>
@@ -437,17 +439,19 @@ function ImpostazioniScreen() {
                 <Text style={styles.email}>{user?.email}</Text>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                   <Text style={styles.roleBadge}>{isOwner ? "Master · Owner" : "Collaboratore"}</Text>
-                  {companyName ? <Text style={{ fontSize: 12, color: theme.color.muted, marginTop: 6 }} numberOfLines={1}>🏢 {companyName}</Text> : null}
+                  {companyName ? <Text style={{ fontSize: 12, color: HT.muted, marginTop: 6 }} numberOfLines={1}>🏢 {companyName}</Text> : null}
                 </View>
               </View>
             </View>
           </View>
+          {/* V50.z338 — Aspetto: switcher tema (3 card preview) */}
+          <ThemePicker />
           <SettingsGroupButton section="billing" onPress={() => openSection("billing")} />
           <View style={{ gap: 10 }}>
             <Pressable onPress={() => router.push("/axon-notifications?tab=prefs" as any)} style={hubStyles.group} testID="settings-group-notifications">
               <View style={[hubStyles.groupIcon, { backgroundColor: "#F59E0B1A" }]}><Ionicons name="notifications" size={22} color="#F59E0B" /></View>
               <View style={{ flex: 1 }}><Text style={hubStyles.groupTitle}>Notifiche e Avvisi</Text><Text style={hubStyles.groupSub}>Push, promemoria, copie team, livelli di urgenza</Text></View>
-              <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+              <Ionicons name="chevron-forward" size={18} color={HT.muted} />
             </Pressable>
             <SettingsGroupButton section="security" onPress={() => openSection("security")} />
             {isOwner ? <SettingsGroupButton section="branding" onPress={() => openSection("branding")} /> : null}
@@ -458,12 +462,12 @@ function ImpostazioniScreen() {
               <Pressable onPress={() => router.push("/axon-stress-report" as any)} style={hubStyles.group} testID="settings-group-devtools">
                 <View style={[hubStyles.groupIcon, { backgroundColor: "#7C3AED1A" }]}><Ionicons name="flask" size={22} color="#7C3AED" /></View>
                 <View style={{ flex: 1 }}><Text style={hubStyles.groupTitle}>Strumenti di sviluppo</Text><Text style={hubStyles.groupSub}>Report Stress Test Axon: qualità risposte e deep link</Text></View>
-                <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+                <Ionicons name="chevron-forward" size={18} color={HT.muted} />
               </Pressable>
             ) : null}
             {isOwner ? <ResetTestDataCard /> : null}
           </View>
-          <Text style={{ fontSize: 11, color: theme.color.muted, textAlign: "center" }}>Le impostazioni dell'assistente AxonOS (nome, voce, tono, header tabelle, memoria, Insegna ad Axon) sono in AxonOS Center.</Text>
+          <Text style={{ fontSize: 11, color: HT.muted, textAlign: "center" }}>Le impostazioni dell'assistente AxonOS (nome, voce, tono, header tabelle, memoria, Insegna ad Axon) sono in AxonOS Center.</Text>
         </>)}
         {/* V50.z249 — Sicurezza: PIN/biometria Spazio Personale, blocco app & 2FA, cambio password */}
         {sec === "security" && (<>
@@ -502,8 +506,8 @@ function ImpostazioniScreen() {
           <View style={styles.card} testID="general-prefs-card">
             <Text style={styles.sectionTitle}>Lingua e tema</Text>
             <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-              <View style={hubStyles.pill}><Ionicons name="language" size={14} color={theme.color.brandPrimary} /><Text style={hubStyles.pillTxt}>Italiano</Text></View>
-              <View style={hubStyles.pill}><Ionicons name="sunny" size={14} color={theme.color.brandPrimary} /><Text style={hubStyles.pillTxt}>Tema chiaro</Text></View>
+              <View style={hubStyles.pill}><Ionicons name="language" size={14} color={HT.brand} /><Text style={hubStyles.pillTxt}>Italiano</Text></View>
+              <View style={hubStyles.pill}><Ionicons name="sunny" size={14} color={HT.brand} /><Text style={hubStyles.pillTxt}>Tema chiaro</Text></View>
             </View>
             <Text style={styles.hint}>Altre lingue e il tema scuro arriveranno nei prossimi aggiornamenti.</Text>
           </View>
@@ -539,14 +543,14 @@ function ImpostazioniScreen() {
         {sec === "branding" && (<>
         {/* V38H — Additional emails management (used as sender for birthday/comms) */}
         <View style={styles.linkCard}>
-          <Ionicons name="mail-open" size={26} color={theme.color.brandPrimary} />
+          <Ionicons name="mail-open" size={26} color={HT.brand} />
           <View style={{ flex: 1 }}>
             <Text style={styles.linkTitle}>Email aggiuntive</Text>
             <Text style={styles.linkSub}>Indirizzi da usare come mittente (auguri, comunicazioni)</Text>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
               {(user?.additional_emails || []).map((em) => (
-                <View key={em} style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, backgroundColor: "#EFF6FF", borderWidth: 1, borderColor: "#DBEAFE" }}>
-                  <Text style={{ fontSize: 11, color: theme.color.brandPrimary, fontWeight: "600" }}>{em}</Text>
+                <View key={em} style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, backgroundColor: HT.axonTint, borderWidth: 1, borderColor: HT.axonTint }}>
+                  <Text style={{ fontSize: 11, color: HT.brand, fontWeight: "600" }}>{em}</Text>
                   <Pressable
                     testID={`profile-email-del-${em}`}
                     onPress={async () => {
@@ -565,7 +569,7 @@ function ImpostazioniScreen() {
                     }}
                     hitSlop={6}
                   >
-                    <Ionicons name="close-circle" size={14} color={theme.color.brandPrimary} />
+                    <Ionicons name="close-circle" size={14} color={HT.brand} />
                   </Pressable>
                 </View>
               ))}
@@ -576,10 +580,10 @@ function ImpostazioniScreen() {
                 value={emailInput}
                 onChangeText={setEmailInput}
                 placeholder="Aggiungi email (es. lavoro@…)"
-                placeholderTextColor={theme.color.muted}
+                placeholderTextColor={HT.muted}
                 keyboardType="email-address"
                 autoCapitalize="none"
-                style={{ flex: 1, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, backgroundColor: "#F1F5F9", fontSize: 12, color: theme.color.onSurface }}
+                style={{ flex: 1, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, backgroundColor: HT.card2, fontSize: 12, color: HT.text }}
               />
               <Pressable
                 testID="profile-email-add"
@@ -603,7 +607,7 @@ function ImpostazioniScreen() {
                     setEmailsBusy(false);
                   }
                 }}
-                style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: theme.color.brandPrimary, opacity: (!emailInput.trim().includes("@") || emailsBusy) ? 0.5 : 1 }}
+                style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: HT.brand, opacity: (!emailInput.trim().includes("@") || emailsBusy) ? 0.5 : 1 }}
               >
                 {emailsBusy ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 12 }}>+</Text>}
               </Pressable>
@@ -622,12 +626,12 @@ function ImpostazioniScreen() {
         {!user?.parent_user_id && (
           <View style={styles.card} testID="branding-card">
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "#FEF3C7", justifyContent: "center", alignItems: "center" }}>
-                <Ionicons name="ribbon" size={20} color="#B45309" />
+              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: HT.warningTint, justifyContent: "center", alignItems: "center" }}>
+                <Ionicons name="ribbon" size={20} color={HT.warning} />
               </View>
               <View style={{ flex: 1 }}>
-                <CatHeader color="#475569" label="Amministrazione · Branding" icon="business" />
-                <Text style={{ fontSize: 12, color: theme.color.muted, marginTop: 2 }}>
+                <CatHeader color={HT.text2} label="Amministrazione · Branding" icon="business" />
+                <Text style={{ fontSize: 12, color: HT.muted, marginTop: 2 }}>
                   Logo e nome che appaiono sui PDF (report Fatture, confronti offerte)
                 </Text>
               </View>
@@ -640,10 +644,10 @@ function ImpostazioniScreen() {
               onChangeText={saveCompanyName}
               style={styles.input}
               placeholder="Es. Dal Pastro Consulting"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={HT.muted}
               maxLength={80}
             />
-            <Text style={{ fontSize: 11, color: companyNameSaved ? "#16A34A" : theme.color.muted, marginTop: 4 }}>
+            <Text style={{ fontSize: 11, color: companyNameSaved ? "#16A34A" : HT.muted, marginTop: 4 }}>
               {companyNameSaved ? "✓ Nome agenzia salvato" : "Salvataggio automatico dopo la digitazione."}
             </Text>
 
@@ -655,9 +659,9 @@ function ImpostazioniScreen() {
                   width: 160,
                   height: 90,
                   borderRadius: 12,
-                  backgroundColor: "#FFFFFF",
+                  backgroundColor: HT.card,
                   borderWidth: 1,
-                  borderColor: theme.color.border,
+                  borderColor: HT.border,
                   justifyContent: "center",
                   alignItems: "center",
                   overflow: "hidden",
@@ -671,7 +675,7 @@ function ImpostazioniScreen() {
                     style={{ width: "100%", height: "100%" }}
                   />
                 ) : (
-                  <Ionicons name="image" size={36} color={theme.color.muted} />
+                  <Ionicons name="image" size={36} color={HT.muted} />
                 )}
               </View>
               <View style={{ flex: 1, gap: 8 }}>
@@ -679,7 +683,7 @@ function ImpostazioniScreen() {
                   testID="branding-logo-upload"
                   onPress={uploadCompanyLogo}
                   disabled={logoBusy}
-                  style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 8, backgroundColor: theme.color.brandPrimary, opacity: logoBusy ? 0.5 : 1 }}
+                  style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 8, backgroundColor: HT.brand, opacity: logoBusy ? 0.5 : 1 }}
                 >
                   {logoBusy ? <ActivityIndicator size="small" color="#FFF" /> : <Ionicons name="cloud-upload" size={16} color="#FFF" />}
                   <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 12 }}>{user?.company_logo_base64 ? "Cambia logo" : "Carica logo"}</Text>
@@ -689,7 +693,7 @@ function ImpostazioniScreen() {
                     testID="branding-logo-remove"
                     onPress={removeCompanyLogo}
                     disabled={logoBusy}
-                    style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 8, borderRadius: 8, backgroundColor: "#FEE2E2", borderWidth: 1, borderColor: "#FCA5A5" }}
+                    style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 8, borderRadius: 8, backgroundColor: HT.dangerTint, borderWidth: 1, borderColor: '#FCA5A5' }}
                   >
                     <Ionicons name="trash" size={14} color="#DC2626" />
                     <Text style={{ color: "#DC2626", fontWeight: "700", fontSize: 12 }}>Rimuovi</Text>
@@ -697,7 +701,7 @@ function ImpostazioniScreen() {
                 )}
               </View>
             </View>
-            <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 8, fontStyle: "italic" }}>
+            <Text style={{ fontSize: 11, color: HT.muted, marginTop: 8, fontStyle: "italic" }}>
               Consigliato: PNG/JPG orizzontale, max 500 KB, sfondo trasparente/bianco.
             </Text>
 
@@ -709,7 +713,7 @@ function ImpostazioniScreen() {
               onChangeText={saveReportSlogan}
               style={styles.input}
               placeholder="Es. Consulenza energetica trasparente"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={HT.muted}
               maxLength={140}
             />
             <Text style={[styles.label, { marginTop: 14 }]}>Contatti agenzia (facoltativo)</Text>
@@ -719,11 +723,11 @@ function ImpostazioniScreen() {
               onChangeText={saveReportContacts}
               style={[styles.input, { minHeight: 60, textAlignVertical: "top" }]}
               placeholder="Es. Tel. 049 123 456 · info@dalpastro.it · Via Roma 12, Padova"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={HT.muted}
               multiline
               maxLength={240}
             />
-            <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 6, fontStyle: "italic" }}>
+            <Text style={{ fontSize: 11, color: HT.muted, marginTop: 6, fontStyle: "italic" }}>
               Slogan e contatti verranno mostrati in cima a ogni report / analisi / comparazione.
             </Text>
           </View>
@@ -735,30 +739,30 @@ function ImpostazioniScreen() {
         {!user?.parent_user_id && (
           <View style={styles.card} testID="table-header-card">
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "#EDE9FE", justifyContent: "center", alignItems: "center" }}>
+              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: HT.violetTint, justifyContent: "center", alignItems: "center" }}>
                 <Ionicons name="grid" size={20} color="#7C3AED" />
               </View>
               <View style={{ flex: 1 }}>
                 <CatHeader color="#7C3AED" label="AI & Axon · Header tabella" icon="grid" />
-                <Text style={{ fontSize: 12, color: theme.color.muted, marginTop: 2 }}>
+                <Text style={{ fontSize: 12, color: HT.muted, marginTop: 2 }}>
                   Logo e nome azienda mostrati in testa a ogni tabella generata da AxonOS ed esportata (PDF / immagine)
                 </Text>
               </View>
             </View>
 
             {/* Anteprima header */}
-            <View style={{ marginTop: 14, backgroundColor: "#FFF", borderRadius: 10, borderWidth: 1, borderColor: theme.color.border, borderBottomWidth: 3, borderBottomColor: "#7C3AED", padding: 10, flexDirection: "row", alignItems: "center", gap: 10 }} testID="table-header-preview">
+            <View style={{ marginTop: 14, backgroundColor: HT.card, borderRadius: 10, borderWidth: 1, borderColor: HT.border, borderBottomWidth: 3, borderBottomColor: '#7C3AED', padding: 10, flexDirection: "row", alignItems: "center", gap: 10 }} testID="table-header-preview">
               {user?.table_header_logo_base64 ? (
                 <Image source={{ uri: user.table_header_logo_base64 }} resizeMode="contain" style={{ width: 44, height: 32 }} />
               ) : (
-                <View style={{ width: 44, height: 32, borderRadius: 6, backgroundColor: "#F5F3FF", alignItems: "center", justifyContent: "center" }}>
+                <View style={{ width: 44, height: 32, borderRadius: 6, backgroundColor: HT.violetTint, alignItems: "center", justifyContent: "center" }}>
                   <Ionicons name="image-outline" size={16} color="#7C3AED" />
                 </View>
               )}
-              <Text style={{ flex: 1, fontSize: 14, fontWeight: "800", color: "#1B2B4B" }} numberOfLines={1}>
+              <Text style={{ flex: 1, fontSize: 14, fontWeight: "800", color: HT.text }} numberOfLines={1}>
                 {tableHdrName || user?.company_name || "Nome azienda"}
               </Text>
-              <Text style={{ fontSize: 10, color: theme.color.muted }}>Tabella AxonOS</Text>
+              <Text style={{ fontSize: 10, color: HT.muted }}>Tabella AxonOS</Text>
             </View>
 
             <Text style={[styles.label, { marginTop: 14 }]}>Nome azienda</Text>
@@ -768,20 +772,20 @@ function ImpostazioniScreen() {
               onChangeText={saveTableHdrName}
               style={styles.input}
               placeholder="Es. Dal Pastro Energie"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={HT.muted}
               maxLength={80}
             />
-            <Text style={{ fontSize: 11, color: tableHdrSaved ? "#16A34A" : theme.color.muted, marginTop: 4 }}>
+            <Text style={{ fontSize: 11, color: tableHdrSaved ? "#16A34A" : HT.muted, marginTop: 4 }}>
               {tableHdrSaved ? "✓ Nome salvato" : "Salvataggio automatico dopo la digitazione."}
             </Text>
 
             <Text style={[styles.label, { marginTop: 14 }]}>Logo aziendale</Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 6 }}>
-              <View style={{ width: 160, height: 90, borderRadius: 12, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: theme.color.border, justifyContent: "center", alignItems: "center", overflow: "hidden", padding: 8 }}>
+              <View style={{ width: 160, height: 90, borderRadius: 12, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, justifyContent: "center", alignItems: "center", overflow: "hidden", padding: 8 }}>
                 {user?.table_header_logo_base64 ? (
                   <Image source={{ uri: user.table_header_logo_base64 }} resizeMode="contain" style={{ width: "100%", height: "100%" }} />
                 ) : (
-                  <Ionicons name="image" size={36} color={theme.color.muted} />
+                  <Ionicons name="image" size={36} color={HT.muted} />
                 )}
               </View>
               <View style={{ flex: 1, gap: 8 }}>
@@ -789,7 +793,7 @@ function ImpostazioniScreen() {
                   testID="table-header-logo-upload"
                   onPress={uploadTableLogo}
                   disabled={tableLogoBusy}
-                  style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 8, backgroundColor: "#7C3AED", opacity: tableLogoBusy ? 0.5 : 1 }}
+                  style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 8, backgroundColor: '#7C3AED', opacity: tableLogoBusy ? 0.5 : 1 }}
                 >
                   {tableLogoBusy ? <ActivityIndicator size="small" color="#FFF" /> : <Ionicons name="cloud-upload" size={16} color="#FFF" />}
                   <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 12 }}>{user?.table_header_logo_base64 ? "Cambia logo" : "Carica logo"}</Text>
@@ -799,7 +803,7 @@ function ImpostazioniScreen() {
                     testID="table-header-logo-remove"
                     onPress={removeTableLogo}
                     disabled={tableLogoBusy}
-                    style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 8, borderRadius: 8, backgroundColor: "#FEE2E2", borderWidth: 1, borderColor: "#FCA5A5" }}
+                    style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 8, borderRadius: 8, backgroundColor: HT.dangerTint, borderWidth: 1, borderColor: '#FCA5A5' }}
                   >
                     <Ionicons name="trash" size={14} color="#DC2626" />
                     <Text style={{ color: "#DC2626", fontWeight: "700", fontSize: 12 }}>Rimuovi</Text>
@@ -807,7 +811,7 @@ function ImpostazioniScreen() {
                 )}
               </View>
             </View>
-            <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 8, fontStyle: "italic" }}>
+            <Text style={{ fontSize: 11, color: HT.muted, marginTop: 8, fontStyle: "italic" }}>
               Se lasci vuoti nome e logo, le tabelle useranno il Branding aziendale qui sopra. Vale anche per le tabelle viste dai collaboratori.
             </Text>
           </View>
@@ -820,12 +824,12 @@ function ImpostazioniScreen() {
         {/* AI Assistant customization — available to all users */}
         <View style={styles.card} testID="assistant-name-card">
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "#F1EEFF", justifyContent: "center", alignItems: "center" }}>
+            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#F1EEFF', justifyContent: "center", alignItems: "center" }}>
               <Ionicons name="sparkles" size={20} color="#7C3AED" />
             </View>
             <View style={{ flex: 1 }}>
               <CatHeader color="#7C3AED" label="AI & Axon · Assistente" icon="sparkles" />
-              <Text style={{ fontSize: 12, color: theme.color.muted, marginTop: 2 }}>
+              <Text style={{ fontSize: 12, color: HT.muted, marginTop: 2 }}>
                 Personalizza il nome del tuo assistente personale
               </Text>
             </View>
@@ -839,7 +843,7 @@ function ImpostazioniScreen() {
               <Text style={dashLinkStyles.title}>Notifiche push AxonOS</Text>
               <Text style={dashLinkStyles.sub}>Sessioni Gym, richiamate urgenti, crediti, report, messaggi critici</Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+            <Ionicons name="chevron-forward" size={18} color={HT.muted} />
           </Pressable>
           {/* V50.z228 — Le mie aree: mini-wizard per area, stato «Configurazione incompleta», aree personalizzate */}
           <Pressable testID="open-le-mie-aree" onPress={() => router.push("/le-mie-aree" as any)} style={[dashLinkStyles.row, { marginTop: 10 }]}>
@@ -850,7 +854,7 @@ function ImpostazioniScreen() {
               <Text style={dashLinkStyles.title}>Le mie aree</Text>
               <Text style={dashLinkStyles.sub}>Attiva e configura le aree di AxonOS: carica un documento e lui legge i dati. Aree personalizzate e scadenze</Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+            <Ionicons name="chevron-forward" size={18} color={HT.muted} />
           </Pressable>
           {/* V50.z197 — Blocco 8: Integrazioni AxonOS a due sfere (Business / Home) */}
           <Pressable testID="open-axon-integrations" onPress={() => router.push("/axon-integrations" as any)} style={[dashLinkStyles.row, { marginTop: 10 }]}>
@@ -861,7 +865,7 @@ function ImpostazioniScreen() {
               <Text style={dashLinkStyles.title}>Integrazioni AxonOS</Text>
               <Text style={dashLinkStyles.sub}>🔵 Business · 🟢 Home — Google Calendar, Contatti, Drive, Dropbox, Domotica: un tap</Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+            <Ionicons name="chevron-forward" size={18} color={HT.muted} />
           </Pressable>
           <Text style={[styles.label, { marginTop: 12 }]}>Nome dell&apos;assistente</Text>
           <TextInput
@@ -870,10 +874,10 @@ function ImpostazioniScreen() {
             onChangeText={saveAssistantName}
             style={styles.input}
             placeholder="Neo"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={HT.muted}
             maxLength={40}
           />
-          <Text style={{ fontSize: 11, color: assistantNameSaved ? "#16A34A" : theme.color.muted, marginTop: 4 }}>
+          <Text style={{ fontSize: 11, color: assistantNameSaved ? "#16A34A" : HT.muted, marginTop: 4 }}>
             {assistantNameSaved ? "✓ Salvato" : `Tocca il pulsante viola con il robot in basso a destra per chattare con ${assistantName || "Neo"}.`}
           </Text>
 
@@ -894,12 +898,12 @@ function ImpostazioniScreen() {
                   style={[
                     { flex: 1, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 8, alignItems: "center", borderWidth: 1 },
                     active
-                      ? { backgroundColor: "#F1EEFF", borderColor: "#7C3AED" }
-                      : { backgroundColor: theme.color.surface, borderColor: theme.color.border },
+                      ? { backgroundColor: '#F1EEFF', borderColor: '#7C3AED' }
+                      : { backgroundColor: HT.card2, borderColor: HT.border },
                   ]}
                 >
-                  <Ionicons name={opt.icon as any} size={18} color={active ? "#7C3AED" : theme.color.muted} />
-                  <Text style={{ fontSize: 11, marginTop: 4, color: active ? "#7C3AED" : theme.color.onSurface, fontWeight: active ? "700" : "500", textAlign: "center" }}>
+                  <Ionicons name={opt.icon as any} size={18} color={active ? "#7C3AED" : HT.muted} />
+                  <Text style={{ fontSize: 11, marginTop: 4, color: active ? "#7C3AED" : HT.text, fontWeight: active ? "700" : "500", textAlign: "center" }}>
                     {opt.label}
                   </Text>
                 </Pressable>
@@ -915,8 +919,8 @@ function ImpostazioniScreen() {
               <Text style={[styles.label, { marginTop: 14 }]}>Voce dell&apos;assistente</Text>
               {/* V50.z271 — pagina dedicata con anteprima voci + lingua delle risposte */}
               <Pressable onPress={() => router.push("/axon-voice" as any)} style={{ flexDirection: "row", alignItems: "center", gap: 6, minHeight: 40, marginBottom: 4 }} testID="settings-axon-voice-link">
-                <Ionicons name="volume-high-outline" size={16} color={theme.color.brandPrimary} />
-                <Text style={{ color: theme.color.brandPrimary, fontWeight: "800", fontSize: 13 }}>Tutte le voci con anteprima e lingua delle risposte ›</Text>
+                <Ionicons name="volume-high-outline" size={16} color={HT.brand} />
+                <Text style={{ color: HT.brand, fontWeight: "800", fontSize: 13 }}>Tutte le voci con anteprima e lingua delle risposte ›</Text>
               </Pressable>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
                 {[
@@ -936,11 +940,11 @@ function ImpostazioniScreen() {
                       style={[
                         { borderRadius: 999, paddingVertical: 8, paddingHorizontal: 14, borderWidth: 1 },
                         active
-                          ? { backgroundColor: "#7C3AED", borderColor: "#7C3AED" }
-                          : { backgroundColor: theme.color.surface, borderColor: theme.color.border },
+                          ? { backgroundColor: '#7C3AED', borderColor: '#7C3AED' }
+                          : { backgroundColor: HT.card2, borderColor: HT.border },
                       ]}
                     >
-                      <Text style={{ fontSize: 12, color: active ? "#FFF" : theme.color.onSurface, fontWeight: "600" }}>
+                      <Text style={{ fontSize: 12, color: active ? "#FFF" : HT.text, fontWeight: "600" }}>
                         {v.label}
                       </Text>
                     </Pressable>
@@ -969,10 +973,10 @@ function ImpostazioniScreen() {
             onChangeText={(t) => setS({ ...s, office_address: t })}
             style={styles.input}
             placeholder="es. Corso Italia 42, Milano MI"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={HT.muted}
             autoCapitalize="words"
           />
-          <Text style={{ fontSize: 11, color: theme.color.muted, marginTop: 4 }}>
+          <Text style={{ fontSize: 11, color: HT.muted, marginTop: 4 }}>
             Origine di default per il calcolo delle distanze mostrate nelle schede cliente. Ogni agente può sovrascriverlo temporaneamente dalla scheda.
           </Text>
         </View>
@@ -991,13 +995,13 @@ function ImpostazioniScreen() {
             style={dashLinkStyles.row}
           >
             <View style={dashLinkStyles.iconBox}>
-              <Ionicons name="grid" size={16} color={theme.color.brandPrimary} />
+              <Ionicons name="grid" size={16} color={HT.brand} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={dashLinkStyles.title}>Personalizza Home</Text>
               <Text style={dashLinkStyles.sub}>Widget dashboard: mostra/nascondi e riordina</Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
+            <Ionicons name="chevron-forward" size={18} color={HT.muted} />
           </Pressable>
 
           <Text style={styles.label}>Nome App</Text>
@@ -1007,7 +1011,7 @@ function ImpostazioniScreen() {
             onChangeText={(t) => setS({ ...s, app_name: t })}
             style={styles.input}
             placeholder="Nome della tua app"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={HT.muted}
           />
 
           <Pressable testID="settings-save" onPress={save} style={[styles.saveBtn, { marginTop: 10 }]} disabled={saving}>
@@ -1049,7 +1053,7 @@ function ImpostazioniScreen() {
               value={aptTypeInput}
               onChangeText={setAptTypeInput}
               placeholder="Es. Aggiornamento cliente"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={HT.muted}
               style={[styles.input, { flex: 1 }]}
               onSubmitEditing={() => addAptType()}
             />
@@ -1062,7 +1066,7 @@ function ImpostazioniScreen() {
               {(s.custom_appointment_types || []).map((t) => (
                 <Pressable key={t} onPress={() => removeAptType(t)} style={styles.chip}>
                   <Text style={styles.chipTxt}>{t}</Text>
-                  <Ionicons name="close" size={12} color={theme.color.brandPrimary} />
+                  <Ionicons name="close" size={12} color={HT.brand} />
                 </Pressable>
               ))}
             </View>
@@ -1082,7 +1086,7 @@ function ImpostazioniScreen() {
               value={prodCatInput}
               onChangeText={setProdCatInput}
               placeholder="Nome categoria (es. Alta cosmesi)"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={HT.muted}
               style={[styles.input, { flex: 1 }]}
             />
             <Pressable testID="prod-cat-add" onPress={addProdCat} style={styles.addBtn}>
@@ -1093,14 +1097,14 @@ function ImpostazioniScreen() {
             <View key={cat.name} style={styles.catCard}>
               <View style={styles.catHead}>
                 <Text style={styles.catName}>{cat.name}</Text>
-                <Pressable onPress={() => removeProdCat(idx)}><Ionicons name="trash-outline" size={16} color={theme.color.error} /></Pressable>
+                <Pressable onPress={() => removeProdCat(idx)}><Ionicons name="trash-outline" size={16} color={HT.danger} /></Pressable>
               </View>
               <View style={styles.addRow}>
                 <TextInput
                   value={subInputs[idx] || ""}
                   onChangeText={(t) => setSubInputs({ ...subInputs, [idx]: t })}
                   placeholder="Aggiungi sotto-categoria"
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={HT.muted}
                   style={[styles.input, { flex: 1 }]}
                 />
                 <Pressable onPress={() => addSub(idx)} style={styles.addBtn}>
@@ -1111,7 +1115,7 @@ function ImpostazioniScreen() {
                 {(cat.subs || []).map((sub) => (
                   <Pressable key={sub} onPress={() => removeSub(idx, sub)} style={styles.chip}>
                     <Text style={styles.chipTxt}>{sub}</Text>
-                    <Ionicons name="close" size={12} color={theme.color.brandPrimary} />
+                    <Ionicons name="close" size={12} color={HT.brand} />
                   </Pressable>
                 ))}
               </View>
@@ -1138,9 +1142,9 @@ const imp45Styles = StyleSheet.create({
     height: 18,
     paddingHorizontal: 4,
     borderRadius: 9,
-    backgroundColor: "#DC2626",
+    backgroundColor: '#DC2626',
     borderWidth: 2,
-    borderColor: "#FFF",
+    borderColor: HT.card,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1148,13 +1152,13 @@ const imp45Styles = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
+  root: { flex: 1, backgroundColor: HT.card2 },
   header: { paddingHorizontal: 20, paddingVertical: 12 },
-  title: { fontSize: 24, fontWeight: "700", color: theme.color.onSurface },
-  card: { backgroundColor: "#FFF", borderRadius: theme.radius.md, padding: 16, borderWidth: 1, borderColor: theme.color.border },
+  title: { fontSize: 24, fontWeight: "700", color: HT.text },
+  card: { backgroundColor: HT.card, borderRadius: theme.radius.md, padding: 16, borderWidth: 1, borderColor: HT.border },
   profileHead: { flexDirection: "row", alignItems: "center", gap: 12 },
   avatarWrap: { position: "relative" },
-  avatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: theme.color.brandTertiary, alignItems: "center", justifyContent: "center" },
+  avatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: HT.brandTint, alignItems: "center", justifyContent: "center" },
   avatarImg: { width: 52, height: 52, borderRadius: 26 },
   // V29.bc — Stile Optima
   avatarBadge: {
@@ -1164,95 +1168,95 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: theme.color.brandPrimary,
+    backgroundColor: HT.brand,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
-    borderColor: "#FFF",
+    borderColor: HT.card,
     shadowColor: "#000",
     shadowOpacity: 0.20,
     shadowRadius: 5,
     shadowOffset: { width: 0, height: 2 },
     elevation: 4,
   },
-  avatarTxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 20 },
-  name: { fontSize: 16, fontWeight: "700", color: theme.color.onSurface },
-  email: { fontSize: 13, color: theme.color.muted, marginTop: 2 },
-  roleBadge: { alignSelf: "flex-start", marginTop: 6, backgroundColor: theme.color.brandTertiary, color: theme.color.brandPrimary, fontSize: 11, fontWeight: "700", paddingHorizontal: 8, paddingVertical: 2, borderRadius: theme.radius.pill, overflow: "hidden" },
-  linkCard: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#FFF", padding: 14, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border },
-  linkTitle: { fontSize: 15, fontWeight: "700", color: theme.color.onSurface },
-  linkSub: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
-  sectionTitle: { fontSize: 15, fontWeight: "700", color: theme.color.onSurface, marginBottom: 12 },
-  label: { fontSize: 12, color: theme.color.onSurfaceTertiary, fontWeight: "600", marginTop: 10, marginBottom: 6 },
-  input: { backgroundColor: theme.color.surface, borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: theme.color.border, color: theme.color.onSurface },
+  avatarTxt: { color: HT.brand, fontWeight: "700", fontSize: 20 },
+  name: { fontSize: 16, fontWeight: "700", color: HT.text },
+  email: { fontSize: 13, color: HT.muted, marginTop: 2 },
+  roleBadge: { alignSelf: "flex-start", marginTop: 6, backgroundColor: HT.brandTint, color: HT.brand, fontSize: 11, fontWeight: "700", paddingHorizontal: 8, paddingVertical: 2, borderRadius: theme.radius.pill, overflow: "hidden" },
+  linkCard: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: HT.card, padding: 14, borderRadius: theme.radius.md, borderWidth: 1, borderColor: HT.border },
+  linkTitle: { fontSize: 15, fontWeight: "700", color: HT.text },
+  linkSub: { fontSize: 12, color: HT.muted, marginTop: 2 },
+  sectionTitle: { fontSize: 15, fontWeight: "700", color: HT.text, marginBottom: 12 },
+  label: { fontSize: 12, color: HT.text2, fontWeight: "600", marginTop: 10, marginBottom: 6 },
+  input: { backgroundColor: HT.card2, borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: HT.border, color: HT.text },
   swatches: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   swatch: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "transparent" },
-  swatchActive: { borderColor: theme.color.onSurface },
+  swatchActive: { borderColor: HT.text },
   hexRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 },
-  hexPreview: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: theme.color.border },
-  saveBtn: { backgroundColor: theme.color.brandPrimary, paddingVertical: 12, borderRadius: theme.radius.md, alignItems: "center", marginTop: 16 },
+  hexPreview: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: HT.border },
+  saveBtn: { backgroundColor: HT.brand, paddingVertical: 12, borderRadius: theme.radius.md, alignItems: "center", marginTop: 16 },
   saveBtnTxt: { color: "#FFF", fontWeight: "700" },
-  logoutBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#FFF", padding: 14, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border },
-  logoutTxt: { color: theme.color.error, fontWeight: "700" },
-  hint: { fontSize: 11, color: theme.color.muted, marginBottom: 8, fontStyle: "italic" },
+  logoutBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: HT.card, padding: 14, borderRadius: theme.radius.md, borderWidth: 1, borderColor: HT.border },
+  logoutTxt: { color: HT.danger, fontWeight: "700" },
+  hint: { fontSize: 11, color: HT.muted, marginBottom: 8, fontStyle: "italic" },
   addRow: { flexDirection: "row", gap: 8, alignItems: "center", marginTop: 4 },
-  addBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: theme.color.brandPrimary, alignItems: "center", justifyContent: "center" },
+  addBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: HT.brand, alignItems: "center", justifyContent: "center" },
   chipsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 },
-  chip: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: theme.color.brandTertiary, paddingHorizontal: 10, paddingVertical: 4, borderRadius: theme.radius.pill },
-  chipTxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 12 },
-  catCard: { backgroundColor: theme.color.surface, borderRadius: theme.radius.md, padding: 10, borderWidth: 1, borderColor: theme.color.border, marginTop: 10 },
+  chip: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: HT.brandTint, paddingHorizontal: 10, paddingVertical: 4, borderRadius: theme.radius.pill },
+  chipTxt: { color: HT.brand, fontWeight: "700", fontSize: 12 },
+  catCard: { backgroundColor: HT.card2, borderRadius: theme.radius.md, padding: 10, borderWidth: 1, borderColor: HT.border, marginTop: 10 },
   catHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
-  catName: { fontSize: 14, fontWeight: "700", color: theme.color.onSurface },
+  catName: { fontSize: 14, fontWeight: "700", color: HT.text },
   // Bug 9 — Dati Master & Biglietto da Visita
   masterCard: {
-    backgroundColor: "#FFF",
+    backgroundColor: HT.card,
     borderRadius: theme.radius.md,
     padding: 16,
     borderWidth: 1,
-    borderColor: theme.color.border,
-    shadowColor: "#0F172A",
+    borderColor: HT.border,
+    shadowColor: HT.text,
     shadowOpacity: 0.06,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
   masterHead: { flexDirection: "row", alignItems: "center", gap: 12 },
-  masterAvatarWrap: { width: 56, height: 56, borderRadius: 28, overflow: "hidden", borderWidth: 2, borderColor: "#FFF", backgroundColor: theme.color.brandTertiary },
+  masterAvatarWrap: { width: 56, height: 56, borderRadius: 28, overflow: "hidden", borderWidth: 2, borderColor: HT.card, backgroundColor: HT.brandTint },
   masterAvatar: { width: 56, height: 56, borderRadius: 28 },
-  masterName: { fontSize: 17, fontWeight: "800", color: theme.color.onSurface, flexShrink: 1 },
-  masterBadge: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#F59E0B", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12 },
+  masterName: { fontSize: 17, fontWeight: "800", color: HT.text, flexShrink: 1 },
+  masterBadge: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: '#F59E0B', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12 },
   masterBadgeTxt: { color: "#FFF", fontWeight: "800", fontSize: 10, letterSpacing: 0.3 },
-  masterTitle: { fontSize: 13, color: theme.color.brandPrimary, fontWeight: "700", marginTop: 2 },
-  masterCompany: { fontSize: 12, color: theme.color.onSurfaceTertiary, marginTop: 1 },
-  masterTagline: { fontSize: 12, color: theme.color.muted, fontStyle: "italic", marginTop: 4 },
-  masterDivider: { height: 1, backgroundColor: theme.color.border, marginVertical: 12 },
+  masterTitle: { fontSize: 13, color: HT.brand, fontWeight: "700", marginTop: 2 },
+  masterCompany: { fontSize: 12, color: HT.text2, marginTop: 1 },
+  masterTagline: { fontSize: 12, color: HT.muted, fontStyle: "italic", marginTop: 4 },
+  masterDivider: { height: 1, backgroundColor: HT.border, marginVertical: 12 },
   masterRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 6 },
   masterIcon: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
-  masterRowLabel: { fontSize: 11, color: theme.color.muted, fontWeight: "600" },
-  masterRowValue: { fontSize: 14, color: theme.color.onSurface, fontWeight: "600", marginTop: 1 },
-  masterEmpty: { fontSize: 12, color: theme.color.muted, fontStyle: "italic", paddingVertical: 4 },
+  masterRowLabel: { fontSize: 11, color: HT.muted, fontWeight: "600" },
+  masterRowValue: { fontSize: 14, color: HT.text, fontWeight: "600", marginTop: 1 },
+  masterEmpty: { fontSize: 12, color: HT.muted, fontStyle: "italic", paddingVertical: 4 },
   masterActions: { flexDirection: "row", gap: 8, marginTop: 14 },
   masterBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: theme.radius.md },
-  masterBtnPrimary: { backgroundColor: theme.color.brandPrimary },
+  masterBtnPrimary: { backgroundColor: HT.brand },
   masterBtnPrimaryTxt: { color: "#FFF", fontWeight: "700", fontSize: 13 },
-  masterBtnGhost: { backgroundColor: theme.color.brandTertiary, borderWidth: 1, borderColor: theme.color.border },
-  masterBtnGhostTxt: { color: theme.color.brandPrimary, fontWeight: "700", fontSize: 13 },
+  masterBtnGhost: { backgroundColor: HT.brandTint, borderWidth: 1, borderColor: HT.border },
+  masterBtnGhostTxt: { color: HT.brand, fontWeight: "700", fontSize: 13 },
 });
 
 // V50.z81 — Stili link "Personalizza Home"
 const dashLinkStyles = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12, paddingHorizontal: 12, marginBottom: 12, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border, backgroundColor: "#F8FAFC" },
-  iconBox: { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: theme.color.brandPrimary + "22" },
-  title: { fontSize: 14, fontWeight: "800", color: theme.color.onSurface },
-  sub: { fontSize: 11, color: theme.color.muted, marginTop: 2 },
+  row: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12, paddingHorizontal: 12, marginBottom: 12, borderRadius: theme.radius.md, borderWidth: 1, borderColor: HT.border, backgroundColor: HT.card2 },
+  iconBox: { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: HT.brand + "22" },
+  title: { fontSize: 14, fontWeight: "800", color: HT.text },
+  sub: { fontSize: 11, color: HT.muted, marginTop: 2 },
 });
 
 // V50.z249 — stili hub locali (bottone gruppo Notifiche + pill preferenze)
 const hubStyles = StyleSheet.create({
-  group: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: theme.color.surface, borderRadius: 16, padding: 14, minHeight: 64, borderWidth: 1, borderColor: theme.color.border },
+  group: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: HT.card2, borderRadius: 16, padding: 14, minHeight: 64, borderWidth: 1, borderColor: HT.border },
   groupIcon: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
-  groupTitle: { fontSize: 15, fontWeight: "800", color: theme.color.onSurface },
-  groupSub: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
-  pill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, minHeight: 36, borderRadius: 999, backgroundColor: theme.color.brandTertiary },
-  pillTxt: { fontSize: 13, fontWeight: "700", color: theme.color.brandPrimary },
+  groupTitle: { fontSize: 15, fontWeight: "800", color: HT.text },
+  groupSub: { fontSize: 12, color: HT.muted, marginTop: 2 },
+  pill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, minHeight: 36, borderRadius: 999, backgroundColor: HT.brandTint },
+  pillTxt: { fontSize: 13, fontWeight: "700", color: HT.brand },
 });

@@ -16,6 +16,7 @@ import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { silentGpsOrigin, requestGpsOrigin, fmtKm, GeoDistancesResp, GeoDistance } from "@/src/utils/geoOrigin"; // V50.z241
 import { useScrollMemory } from "@/src/utils/appStatePersist"; // V50.z243
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const BDAY_SEEN_KEY = "calendar_birthdays_seen_v1"; // V50.z152
 
@@ -178,7 +179,7 @@ function CalendarioScreen() {
           location: a.location, contact_id: a.contact_id, original: a,
           is_mine: true, read_only: false,
           created_by: user?.user_id, created_by_name: user?.name || "Io",
-          created_by_color: theme.color.brandPrimary,
+          created_by_color: HT.brand,
         })),
       );
     } else if (scope === "team") {
@@ -504,7 +505,7 @@ function CalendarioScreen() {
                 onPress={() => { setScope(s.k); setMemberFilter(new Set()); }}
                 style={[styles.scopeBtn, scope === s.k && styles.scopeBtnOn]}
               >
-                <Ionicons name={s.icon} size={14} color={scope === s.k ? "#FFF" : theme.color.muted} />
+                <Ionicons name={s.icon} size={14} color={scope === s.k ? "#FFF" : HT.muted} />
                 <Text style={[styles.scopeTxt, scope === s.k && styles.scopeTxtOn]}>{s.label}</Text>
               </Pressable>
             ))}
@@ -567,9 +568,9 @@ function CalendarioScreen() {
             onPress={() => router.push("/appointment-stats" as any)}
             style={styles.statsLink}
           >
-            <Ionicons name="stats-chart" size={16} color={theme.color.brandPrimary} />
+            <Ionicons name="stats-chart" size={16} color={HT.brand} />
             <Text style={styles.statsLinkTxt}>Statistiche appuntamenti</Text>
-            <Ionicons name="chevron-forward" size={16} color={theme.color.brandPrimary} />
+            <Ionicons name="chevron-forward" size={16} color={HT.brand} />
           </Pressable>
 
           <View style={styles.dateHeader}>
@@ -581,23 +582,23 @@ function CalendarioScreen() {
               {/* V50.z241 — ordina per vicinanza */}
               {dayItems.some((it) => distByAppt[it.id]) ? (
                 <Pressable testID="cal-sort-distance" onPress={() => setSortByDistance((v) => !v)} style={[styles.sortChip, sortByDistance && styles.sortChipOn]} hitSlop={6}>
-                  <Ionicons name="navigate" size={13} color={sortByDistance ? "#FFF" : theme.color.brandPrimary} />
+                  <Ionicons name="navigate" size={13} color={sortByDistance ? "#FFF" : HT.brand} />
                   <Text style={[styles.sortChipTxt, sortByDistance && { color: "#FFF" }]}>{sortByDistance ? "Per vicinanza" : "Per orario"}</Text>
                 </Pressable>
               ) : null}
               {distOrigin?.kind === "office" && dayItems.some((it) => distByAppt[it.id]) ? (
                 <Pressable testID="cal-dist-gps" onPress={refreshDistancesWithGps} style={styles.sortChip} hitSlop={6} accessibilityLabel="Usa la mia posizione">
-                  <Ionicons name="locate" size={14} color={theme.color.brandPrimary} />
+                  <Ionicons name="locate" size={14} color={HT.brand} />
                 </Pressable>
               ) : null}
             </View>
           </View>
 
           {loading ? (
-            <ActivityIndicator color={theme.color.brandPrimary} style={{ marginTop: 40 }} />
+            <ActivityIndicator color={HT.brand} style={{ marginTop: 40 }} />
           ) : dayItems.length === 0 ? (
             <View style={styles.empty}>
-              <Ionicons name="calendar-outline" size={40} color={theme.color.muted} />
+              <Ionicons name="calendar-outline" size={40} color={HT.muted} />
               <Text style={styles.emptyTxt}>
                 {scope === "team" ? "Nessun appuntamento del team" : "Nessun appuntamento"}
               </Text>
@@ -634,8 +635,8 @@ function CalendarioScreen() {
                         };
                         const rainy = ["rain", "rain_heavy", "thunderstorm", "drizzle", "snow", "snow_heavy"].includes(w.icon);
                         return (
-                          <View style={[styles.wxBadge, rainy && { backgroundColor: "#DBEAFE" }]} testID={`wx-${item.id}`}>
-                            <Ionicons name={iconMap[w.icon] || "cloud"} size={11} color={rainy ? "#1D4ED8" : "#0369A1"} />
+                          <View style={[styles.wxBadge, rainy && { backgroundColor: HT.axonTint }]} testID={`wx-${item.id}`}>
+                            <Ionicons name={iconMap[w.icon] || "cloud"} size={11} color={rainy ? HT.axon : HT.axon} />
                             <Text style={styles.wxBadgeTxt}>{Math.round(w.temp)}°</Text>
                             {!!w.label && <Text style={styles.wxBadgeLbl} numberOfLines={1}>{w.label}</Text>}
                             {rainy && w.rain != null && w.rain > 0 && <Text style={styles.wxBadgeLbl}>· {w.rain} mm</Text>}
@@ -652,7 +653,7 @@ function CalendarioScreen() {
                           testID={`cal-bday-seen-${item.id}`}
                           accessibilityLabel="Segna compleanno come visto"
                         >
-                          <Ionicons name="checkmark-circle-outline" size={14} color="#B45309" />
+                          <Ionicons name="checkmark-circle-outline" size={14} color={HT.warning} />
                           <Text style={styles.bdaySeenTxt}>Visto</Text>
                         </Pressable>
                       ) : null}
@@ -663,12 +664,12 @@ function CalendarioScreen() {
                           style={styles.shareInline}
                           testID={`cal-share-${item.id}`}
                         >
-                          <Ionicons name="share-social-outline" size={13} color={theme.color.brandPrimary} />
+                          <Ionicons name="share-social-outline" size={13} color={HT.brand} />
                         </Pressable>
                       ) : null}
                       {/* V38T — Collaborator badge on non-own events */}
                       {item.kind === "appt" && !item.is_mine && item.created_by_name && (
-                        <View style={[styles.creatorBadge, { backgroundColor: item.created_by_color || theme.color.muted }]}>
+                        <View style={[styles.creatorBadge, { backgroundColor: item.created_by_color || HT.muted }]}>
                           <Ionicons name="person" size={9} color="#FFF" />
                           <Text style={styles.creatorBadgeTxt} numberOfLines={1}>
                             {(item.created_by_name || "").split(" ")[0]}
@@ -677,11 +678,11 @@ function CalendarioScreen() {
                       )}
                       {/* V38T — Read-only lock hint */}
                       {item.read_only && (
-                        <Ionicons name="lock-closed" size={11} color={theme.color.muted} />
+                        <Ionicons name="lock-closed" size={11} color={HT.muted} />
                       )}
                     </View>
-                    <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap" }}><Text style={[styles.apptTitle, item.done && { textDecorationLine: "line-through", color: theme.color.muted }]}>{item.title}</Text><PendingBadge pending={item._pending} /></View>
-                    {item.location ? <Text style={styles.loc} numberOfLines={1}><Ionicons name="location-outline" size={11} color={theme.color.muted} /> {item.location}</Text> : null}
+                    <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap" }}><Text style={[styles.apptTitle, item.done && { textDecorationLine: "line-through", color: HT.muted }]}>{item.title}</Text><PendingBadge pending={item._pending} /></View>
+                    {item.location ? <Text style={styles.loc} numberOfLines={1}><Ionicons name="location-outline" size={11} color={HT.muted} /> {item.location}</Text> : null}
                     {/* V50.z241 — distanza da te / dall'ufficio */}
                     {distByAppt[item.id] ? (
                       <View style={styles.distBadge} testID={`appt-dist-${item.id}`}>
@@ -715,7 +716,7 @@ function CalendarioScreen() {
                           </Pressable>
                         ) : null}
                         <Pressable testID={`appt-done-${item.id}`} onPress={() => toggleDone(item.id, !!item.done)} style={styles.checkBtn}>
-                          <Ionicons name={item.done ? "checkmark-circle" : "ellipse-outline"} size={26} color={item.done ? theme.color.success : theme.color.muted} />
+                          <Ionicons name={item.done ? "checkmark-circle" : "ellipse-outline"} size={26} color={item.done ? HT.success : HT.muted} />
                         </Pressable>
                       </>
                     );
@@ -729,7 +730,7 @@ function CalendarioScreen() {
           {backlogItems.length > 0 && (
             <View style={{ marginTop: 12, marginBottom: 20 }}>
               <View style={styles.backlogHdr}>
-                <Ionicons name="alarm" size={16} color="#B45309" />
+                <Ionicons name="alarm" size={16} color={HT.warning} />
                 <Text style={styles.backlogTitle}>Da recuperare · {backlogItems.length}</Text>
               </View>
               <Text style={styles.backlogHint}>Appuntamenti miei non ancora fatti (oggi + arretrati). Restano visibili finché non li segni come fatti o li riprogrammi.</Text>
@@ -753,7 +754,7 @@ function CalendarioScreen() {
                         {dateFmt} · {timeFmt}{isPast ? ` · ${daysAgo} ${daysAgo === 1 ? "giorno" : "giorni"} fa` : " · oggi"}
                       </Text>
                     </View>
-                    <Ionicons name="chevron-forward" size={16} color={theme.color.muted} />
+                    <Ionicons name="chevron-forward" size={16} color={HT.muted} />
                   </Pressable>
                 );
               })}
@@ -787,15 +788,15 @@ function CalendarioScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
+  root: { flex: 1, backgroundColor: HT.card2 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 12 },
-  title: { fontSize: 24, fontWeight: "700", color: theme.color.onSurface },
+  title: { fontSize: 24, fontWeight: "700", color: HT.text },
   // V29.bb — Stile Optima
   headerBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: theme.color.brandPrimary,
+    backgroundColor: HT.brand,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
@@ -807,68 +808,68 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   // V38S — Long green "Aggiungi Appuntamento" button (replaces round FAB)
-  greenAddBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#16A34A", marginHorizontal: 14, marginTop: 8, paddingVertical: 12, borderRadius: 10 },
+  greenAddBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: '#16A34A', marginHorizontal: 14, marginTop: 8, paddingVertical: 12, borderRadius: 10 },
   greenAddTxt: { color: "#FFF", fontSize: 14, fontWeight: "800" },
   // V38T — Scope tab bar (Mine / Team / All)
-  scopeBar: { flexDirection: "row", marginHorizontal: 16, marginTop: 10, marginBottom: 4, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, padding: 3 },
+  scopeBar: { flexDirection: "row", marginHorizontal: 16, marginTop: 10, marginBottom: 4, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, borderRadius: 10, padding: 3 },
   scopeBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingVertical: 8, borderRadius: 8 },
-  scopeBtnOn: { backgroundColor: theme.color.brandPrimary },
-  scopeTxt: { color: theme.color.muted, fontWeight: "700", fontSize: 12 },
+  scopeBtnOn: { backgroundColor: HT.brand },
+  scopeTxt: { color: HT.muted, fontWeight: "700", fontSize: 12 },
   scopeTxtOn: { color: "#FFF" },
   daysRow: { paddingHorizontal: 16, gap: 8, paddingVertical: 4 },
   filtersRow: { paddingHorizontal: 16, gap: 8, paddingBottom: 4 },
   legendRow: { paddingHorizontal: 16, gap: 12, alignItems: "center", paddingBottom: 6 },
   legendItem: { flexDirection: "row", alignItems: "center", gap: 5 },
   legendDot: { width: 8, height: 8, borderRadius: 4 },
-  legendTxt: { fontSize: 11, color: theme.color.muted, fontWeight: "600" },
-  chip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: theme.radius.pill, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, flexShrink: 0 },
-  chipActive: { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary },
-  chipTxt: { color: theme.color.onSurfaceTertiary, fontWeight: "600", fontSize: 12 },
+  legendTxt: { fontSize: 11, color: HT.muted, fontWeight: "600" },
+  chip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: theme.radius.pill, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, flexShrink: 0 },
+  chipActive: { backgroundColor: HT.brand, borderColor: HT.brand },
+  chipTxt: { color: HT.text2, fontWeight: "600", fontSize: 12 },
   chipTxtActive: { color: "#FFF" },
   // V38T — Member (collaborator) chip
-  memberChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: theme.radius.pill, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, flexShrink: 0, maxWidth: 140 },
+  memberChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: theme.radius.pill, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, flexShrink: 0, maxWidth: 140 },
   memberDot: { width: 8, height: 8, borderRadius: 4 },
-  dayPill: { width: 56, alignItems: "center", paddingVertical: 10, borderRadius: theme.radius.md, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, flexShrink: 0 },
-  dayPillActive: { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary },
-  dayDow: { fontSize: 11, color: theme.color.muted, textTransform: "capitalize", fontWeight: "600" },
+  dayPill: { width: 56, alignItems: "center", paddingVertical: 10, borderRadius: theme.radius.md, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, flexShrink: 0 },
+  dayPillActive: { backgroundColor: HT.brand, borderColor: HT.brand },
+  dayDow: { fontSize: 11, color: HT.muted, textTransform: "capitalize", fontWeight: "600" },
   dayDowActive: { color: "#CFE1EE" },
-  dayNum: { fontSize: 18, fontWeight: "700", color: theme.color.onSurface, marginTop: 2 },
+  dayNum: { fontSize: 18, fontWeight: "700", color: HT.text, marginTop: 2 },
   dayNumActive: { color: "#FFF" },
-  dayDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: theme.color.brandPrimary },
+  dayDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: HT.brand },
   dayDotsRow: { flexDirection: "row", gap: 3, marginTop: 3 },
   dateHeader: { paddingHorizontal: 20, paddingVertical: 12 },
-  dateTxt: { fontSize: 17, fontWeight: "700", color: theme.color.onSurface, textTransform: "capitalize" },
-  dateSub: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
+  dateTxt: { fontSize: 17, fontWeight: "700", color: HT.text, textTransform: "capitalize" },
+  dateSub: { fontSize: 12, color: HT.muted, marginTop: 2 },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: 40, gap: 8 },
-  emptyTxt: { color: theme.color.muted },
-  card: { flexDirection: "row", backgroundColor: "#FFF", borderRadius: 10, marginBottom: 5, overflow: "hidden", borderWidth: 1, borderColor: theme.color.border, alignItems: "center", minHeight: 44 },
-  cardReadOnly: { opacity: 0.85, backgroundColor: "#F8FAFC" },
+  emptyTxt: { color: HT.muted },
+  card: { flexDirection: "row", backgroundColor: HT.card, borderRadius: 10, marginBottom: 5, overflow: "hidden", borderWidth: 1, borderColor: HT.border, alignItems: "center", minHeight: 44 },
+  cardReadOnly: { opacity: 0.85, backgroundColor: HT.card2 },
   leftBar: { width: 3, alignSelf: "stretch" },
   row: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
-  time: { fontSize: 11, color: theme.color.muted, fontWeight: "600" },
+  time: { fontSize: 11, color: HT.muted, fontWeight: "600" },
   // V50.z79 — Meteo badge accanto all'orario
-  wxBadge: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999, backgroundColor: "#E0F2FE", borderWidth: 1, borderColor: "#BAE6FD" },
-  wxBadgeTxt: { fontSize: 10, fontWeight: "700", color: "#0369A1" },
-  wxBadgeLbl: { fontSize: 10, color: "#0369A1", maxWidth: 110 },
+  wxBadge: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999, backgroundColor: HT.axonTint, borderWidth: 1, borderColor: HT.axonLine },
+  wxBadgeTxt: { fontSize: 10, fontWeight: "700", color: HT.axon },
+  wxBadgeLbl: { fontSize: 10, color: HT.axon, maxWidth: 110 },
   // V50.z80 — Bottone condividi inline
-  shareInline: { marginLeft: "auto", padding: 3, borderRadius: 999, backgroundColor: "#EEF2FF" },
+  shareInline: { marginLeft: "auto", padding: 3, borderRadius: 999, backgroundColor: HT.violetTint },
   // V50.z152 — "Visto" sui promemoria compleanno
-  bdaySeenBtn: { marginLeft: "auto", flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, minHeight: 28, borderRadius: 999, backgroundColor: "#FEF3C7" },
-  bdaySeenTxt: { fontSize: 11, fontWeight: "800", color: "#B45309" },
-  apptTitle: { fontSize: 13, fontWeight: "700", color: theme.color.onSurface, marginTop: 2 },
-  loc: { fontSize: 10, color: theme.color.muted, marginTop: 2 },
+  bdaySeenBtn: { marginLeft: "auto", flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, minHeight: 28, borderRadius: 999, backgroundColor: HT.warningTint },
+  bdaySeenTxt: { fontSize: 11, fontWeight: "800", color: HT.warning },
+  apptTitle: { fontSize: 13, fontWeight: "700", color: HT.text, marginTop: 2 },
+  loc: { fontSize: 10, color: HT.muted, marginTop: 2 },
   // V50.z241 — distanze
-  distBadge: { flexDirection: "row", alignItems: "center", gap: 3, alignSelf: "flex-start", backgroundColor: "#CCFBF1", borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2, marginTop: 4 },
+  distBadge: { flexDirection: "row", alignItems: "center", gap: 3, alignSelf: "flex-start", backgroundColor: '#CCFBF1', borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2, marginTop: 4 },
   distBadgeTxt: { fontSize: 10, fontWeight: "800", color: "#0F766E" },
-  sortChip: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 32, paddingHorizontal: 10, borderRadius: 999, borderWidth: 1, borderColor: theme.color.brandPrimary, backgroundColor: "#FFF" },
-  sortChipOn: { backgroundColor: theme.color.brandPrimary },
-  sortChipTxt: { fontSize: 11, fontWeight: "800", color: theme.color.brandPrimary },
+  sortChip: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 32, paddingHorizontal: 10, borderRadius: 999, borderWidth: 1, borderColor: HT.brand, backgroundColor: HT.card },
+  sortChipOn: { backgroundColor: HT.brand },
+  sortChipTxt: { fontSize: 11, fontWeight: "800", color: HT.brand },
   checkBtn: { padding: 10 },
   callBtn: {
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: "#16A34A",
+    backgroundColor: '#16A34A',
     alignItems: "center",
     justifyContent: "center",
     marginRight: 4,
@@ -884,19 +885,19 @@ const styles = StyleSheet.create({
   // V38T — Creator badge on team appointments
   creatorBadge: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10, maxWidth: 90 },
   creatorBadgeTxt: { color: "#FFF", fontSize: 10, fontWeight: "700" },
-  segment: { flexDirection: "row", marginHorizontal: 16, marginBottom: 8, backgroundColor: theme.color.surfaceTertiary, borderRadius: 20, padding: 3 },
+  segment: { flexDirection: "row", marginHorizontal: 16, marginBottom: 8, backgroundColor: HT.card2, borderRadius: 20, padding: 3 },
   segBtn: { flex: 1, alignItems: "center", paddingVertical: 8, borderRadius: 16 },
-  segBtnOn: { backgroundColor: theme.color.brandPrimary },
-  segTxt: { color: theme.color.muted, fontWeight: "700", fontSize: 12 },
+  segBtnOn: { backgroundColor: HT.brand },
+  segTxt: { color: HT.muted, fontWeight: "700", fontSize: 12 },
   segTxtOn: { color: "#FFF" },
   navRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, marginTop: 4, marginBottom: 8 },
-  navTitle: { fontSize: 17, fontWeight: "800", color: theme.color.onSurface, textTransform: "capitalize" },
+  navTitle: { fontSize: 17, fontWeight: "800", color: HT.text, textTransform: "capitalize" },
   // V29.bb — Stile Optima
   navBtn: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: theme.color.surfaceTertiary,
+    backgroundColor: HT.card2,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1.5,
@@ -909,40 +910,40 @@ const styles = StyleSheet.create({
   },
   monthGrid: { paddingHorizontal: 12 },
   monthWeekRow: { flexDirection: "row", justifyContent: "space-around", paddingVertical: 4 },
-  monthWeekLbl: { fontSize: 10, color: theme.color.muted, fontWeight: "700", width: `${100/7}%`, textAlign: "center" },
+  monthWeekLbl: { fontSize: 10, color: HT.muted, fontWeight: "700", width: `${100/7}%`, textAlign: "center" },
   monthRow: { flexDirection: "row" },
   monthCell: { width: `${100/7}%`, aspectRatio: 1, padding: 2 },
-  monthCellInner: { flex: 1, borderRadius: 8, backgroundColor: "#FFF", borderWidth: 1, borderColor: theme.color.border, alignItems: "center", justifyContent: "flex-start", paddingTop: 4 },
-  monthCellSelected: { backgroundColor: theme.color.brandPrimary, borderColor: theme.color.brandPrimary },
+  monthCellInner: { flex: 1, borderRadius: 8, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, alignItems: "center", justifyContent: "flex-start", paddingTop: 4 },
+  monthCellSelected: { backgroundColor: HT.brand, borderColor: HT.brand },
   monthCellOff: { opacity: 0.35 },
-  monthNum: { fontSize: 13, color: theme.color.onSurface, fontWeight: "700" },
+  monthNum: { fontSize: 13, color: HT.text, fontWeight: "700" },
   monthNumSel: { color: "#FFF" },
   monthDots: { flexDirection: "row", gap: 2, marginTop: 2 },
   monthDot: { width: 5, height: 5, borderRadius: 3 },
   yearGrid: { padding: 12, flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  yearCell: { width: "31%", backgroundColor: "#FFF", borderRadius: 12, borderWidth: 1, borderColor: theme.color.border, padding: 10, alignItems: "center", gap: 4 },
-  yearMonthName: { fontSize: 13, fontWeight: "800", color: theme.color.onSurface, textTransform: "capitalize" },
-  yearMonthCount: { fontSize: 11, color: theme.color.muted },
+  yearCell: { width: "31%", backgroundColor: HT.card, borderRadius: 12, borderWidth: 1, borderColor: HT.border, padding: 10, alignItems: "center", gap: 4 },
+  yearMonthName: { fontSize: 13, fontWeight: "800", color: HT.text, textTransform: "capitalize" },
+  yearMonthCount: { fontSize: 11, color: HT.muted },
   // v2.19 — Stats link + backlog
   statsLink: {
     flexDirection: "row", alignItems: "center", gap: 8,
     paddingVertical: 10, paddingHorizontal: 14,
-    backgroundColor: "#EEF2FF", borderRadius: 10, marginTop: 10, marginBottom: 4,
+    backgroundColor: HT.violetTint, borderRadius: 10, marginTop: 10, marginBottom: 4,
   },
-  statsLinkTxt: { flex: 1, fontSize: 13, fontWeight: "800", color: theme.color.brandPrimary },
+  statsLinkTxt: { flex: 1, fontSize: 13, fontWeight: "800", color: HT.brand },
   backlogHdr: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
-  backlogTitle: { fontSize: 14, fontWeight: "800", color: "#B45309", textTransform: "uppercase", letterSpacing: 0.4 },
-  backlogHint: { fontSize: 11, color: theme.color.muted, marginBottom: 8, lineHeight: 15 },
+  backlogTitle: { fontSize: 14, fontWeight: "800", color: HT.warning, textTransform: "uppercase", letterSpacing: 0.4 },
+  backlogHint: { fontSize: 11, color: HT.muted, marginBottom: 8, lineHeight: 15 },
   backlogItem: {
     flexDirection: "row", alignItems: "center", gap: 10,
     paddingVertical: 10, paddingHorizontal: 12,
-    backgroundColor: "#FFF7ED", borderRadius: 10, borderWidth: 1, borderColor: "#FED7AA",
+    backgroundColor: HT.brandTint, borderRadius: 10, borderWidth: 1, borderColor: HT.brandLine,
     marginBottom: 6,
   },
-  backlogItemPast: { backgroundColor: "#FEF2F2", borderColor: "#FCA5A5" },
+  backlogItemPast: { backgroundColor: HT.dangerTint, borderColor: '#FCA5A5' },
   backlogDot: { width: 10, height: 10, borderRadius: 5 },
-  backlogItemTitle: { fontSize: 13, fontWeight: "700", color: theme.color.onSurface },
-  backlogItemMeta: { fontSize: 11, color: theme.color.muted, marginTop: 2 },
+  backlogItemTitle: { fontSize: 13, fontWeight: "700", color: HT.text },
+  backlogItemMeta: { fontSize: 11, color: HT.muted, marginTop: 2 },
   yearDots: { flexDirection: "row", gap: 3, marginTop: 4 },
 });
 
@@ -986,11 +987,11 @@ function MonthGrid({
     <View>
       <View style={styles.navRow}>
         <Pressable testID="month-prev" onPress={() => onNavMonth(-1)} style={styles.navBtn}>
-          <Ionicons name="chevron-back" size={16} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={16} color={HT.text} />
         </Pressable>
         <Text style={styles.navTitle}>{first.toLocaleDateString("it-IT", { month: "long", year: "numeric" })}</Text>
         <Pressable testID="month-next" onPress={() => onNavMonth(1)} style={styles.navBtn}>
-          <Ionicons name="chevron-forward" size={16} color={theme.color.onSurface} />
+          <Ionicons name="chevron-forward" size={16} color={HT.text} />
         </Pressable>
       </View>
       <View style={styles.monthGrid}>
@@ -1053,11 +1054,11 @@ function YearGrid({
     <ScrollView contentContainerStyle={{ paddingBottom: 180 }}>
       <View style={styles.navRow}>
         <Pressable testID="year-prev" onPress={() => onNavYear(-1)} style={styles.navBtn}>
-          <Ionicons name="chevron-back" size={16} color={theme.color.onSurface} />
+          <Ionicons name="chevron-back" size={16} color={HT.text} />
         </Pressable>
         <Text style={styles.navTitle}>{year}</Text>
         <Pressable testID="year-next" onPress={() => onNavYear(1)} style={styles.navBtn}>
-          <Ionicons name="chevron-forward" size={16} color={theme.color.onSurface} />
+          <Ionicons name="chevron-forward" size={16} color={HT.text} />
         </Pressable>
       </View>
       <View style={styles.yearGrid}>

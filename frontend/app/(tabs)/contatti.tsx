@@ -420,7 +420,7 @@ const styles = StyleSheet.create({
   emptyTxt: { color: HT.muted, fontSize: 15 },
   emptyBtn: { backgroundColor: HT.brand, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, marginTop: 8 },
   emptyBtnTxt: { color: "#FFF", fontWeight: "700" },
-  card: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: HT.card, padding: 12, borderRadius: 16, marginBottom: 12, borderWidth: 1, borderColor: HT.border },
+  card: { ...HT.cardShadow, flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: HT.card, padding: 12, borderRadius: 16, marginBottom: 12, borderWidth: 1, borderColor: HT.border },
   avatar: { width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", borderWidth: 1.5 },
   avatarTxt: { fontWeight: "800", fontSize: 15, color: "#FFF", letterSpacing: 0.3 },
   name: { fontSize: 16, fontWeight: "800", color: HT.text, letterSpacing: -0.2 },

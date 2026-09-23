@@ -23,6 +23,7 @@ import { api } from "@/src/api";
 import { pickCommonFile } from "@/src/utils/filePicker";
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 import { useAuth } from "@/src/auth";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Preset = { id: string; label: string };
 type SupportAttachment = { name: string; mime: string; data_base64?: string; size?: number };
@@ -46,8 +47,8 @@ const HIDE_ON_PATHS = ["/login", "/index", "/", "/landing", "/auth"];
 
 const C = {
   primary: "#FF6B35",
-  navy: "#0F2438",
-  muted: "#94A3B8",
+  navy: HT.text,
+  muted: HT.muted,
   border: "#E2E8F0",
   green: "#16A34A",
   red: "#DC2626",
@@ -266,7 +267,7 @@ export function SupportForm({ visible = true, onClose, inline = false }: { visib
                     <Pressable
                       onPress={() => vote(i, "up")}
                       disabled={feedbacking !== null || m.feedback === "up"}
-                      style={[styles.voteBtn, m.feedback === "up" && { backgroundColor: "#DCFCE7" }]}
+                      style={[styles.voteBtn, m.feedback === "up" && { backgroundColor: HT.successTint }]}
                       testID={`support-vote-up-${i}`}
                     >
                       <Ionicons name="thumbs-up" size={14} color={m.feedback === "up" ? C.green : C.muted} />
@@ -275,7 +276,7 @@ export function SupportForm({ visible = true, onClose, inline = false }: { visib
                     <Pressable
                       onPress={() => vote(i, "down")}
                       disabled={feedbacking !== null || m.feedback === "down"}
-                      style={[styles.voteBtn, m.feedback === "down" && { backgroundColor: "#FEE2E2" }]}
+                      style={[styles.voteBtn, m.feedback === "down" && { backgroundColor: HT.dangerTint }]}
                       testID={`support-vote-down-${i}`}
                     >
                       <Ionicons name="thumbs-down" size={14} color={m.feedback === "down" ? C.red : C.muted} />
@@ -297,7 +298,7 @@ export function SupportForm({ visible = true, onClose, inline = false }: { visib
             ) : null}
 
             {resolved ? (
-              <View style={[styles.escalatedBox, { backgroundColor: "#DCFCE7" }]}>
+              <View style={[styles.escalatedBox, { backgroundColor: HT.successTint }]}>
                 <Ionicons name="checkmark-circle" size={16} color={C.green} />
                 <Text style={[styles.escalatedTxt, { color: C.green }]}>
                   Segnalazione risolta. Grazie per il feedback!
@@ -376,7 +377,7 @@ export function SupportForm({ visible = true, onClose, inline = false }: { visib
 }
 
 const styles = StyleSheet.create({
-  inlineCard: { backgroundColor: "#FFF", borderRadius: 16, borderWidth: 1, borderColor: "#E2E8F0", overflow: "hidden", marginBottom: 14 },
+  inlineCard: { backgroundColor: HT.card, borderRadius: 16, borderWidth: 1, borderColor: HT.border, overflow: "hidden", marginBottom: 14 },
   fab: {
     position: "absolute",
     // V50.d — Distanziato con MARGINE DI SICUREZZA dall'avatar personale:
@@ -387,9 +388,9 @@ const styles = StyleSheet.create({
     right: 60,
     // top calcolato dinamicamente via insets nel componente
     width: 30, height: 30, borderRadius: 10,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: HT.card,
     borderWidth: 1,
-    borderColor: "#DBEAFE",
+    borderColor: HT.axonTint,
     alignItems: "center", justifyContent: "center",
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 6,
     elevation: 4,
@@ -400,18 +401,18 @@ const styles = StyleSheet.create({
     bottom: -2,
     right: -2,
     width: 13, height: 13, borderRadius: 7,
-    backgroundColor: "#FFFBEB",
+    backgroundColor: HT.warningTint,
     borderWidth: 1,
-    borderColor: "#FDE68A",
+    borderColor: HT.warning + '66',
     alignItems: "center", justifyContent: "center",
   },
   backdrop: { flex: 1, backgroundColor: "rgba(15,23,42,0.55)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: "#FFF", borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingTop: 8 },
-  handle: { alignSelf: "center", width: 42, height: 4, borderRadius: 2, backgroundColor: "#CBD5E1", marginBottom: 6 },
+  sheet: { backgroundColor: HT.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingTop: 8 },
+  handle: { alignSelf: "center", width: 42, height: 4, borderRadius: 2, backgroundColor: HT.borderStrong, marginBottom: 6 },
   hdrRow: {
     flexDirection: "row", alignItems: "center", gap: 10,
     paddingHorizontal: 16, paddingTop: 6, paddingBottom: 10,
-    borderBottomWidth: 1, borderBottomColor: "#EEF0F4",
+    borderBottomWidth: 1, borderBottomColor: HT.border,
   },
   hdrIcon: { width: 32, height: 32, borderRadius: 10, backgroundColor: C.purple, alignItems: "center", justifyContent: "center" },
   hdrLabel: { fontSize: 15, fontWeight: "800", color: C.navy, letterSpacing: -0.2 },
@@ -421,22 +422,22 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 10,
     paddingHorizontal: 14, paddingVertical: 10,
     marginHorizontal: 14, marginTop: 10,
-    borderRadius: 12, backgroundColor: "#F5F3FF",
-    borderWidth: 1, borderColor: "#DDD6FE",
+    borderRadius: 12, backgroundColor: HT.violetTint,
+    borderWidth: 1, borderColor: HT.violet + '66',
   },
-  termsTitle: { fontSize: 13, fontWeight: "800", color: "#5B21B6" },
+  termsTitle: { fontSize: 13, fontWeight: "800", color: HT.violet },
   termsSub: { fontSize: 11, color: "#7C3AED", marginTop: 1, opacity: 0.8 },
   section: { fontSize: 12, fontWeight: "800", color: C.navy, letterSpacing: -0.1 },
   checkRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6 },
   checkLbl: { fontSize: 13, color: C.navy, flex: 1 },
   textArea: {
     borderWidth: 1, borderColor: C.border, borderRadius: 12, padding: 12,
-    fontSize: 14, color: C.navy, backgroundColor: "#FFF", minHeight: 80, textAlignVertical: "top",
+    fontSize: 14, color: C.navy, backgroundColor: HT.card, minHeight: 80, textAlignVertical: "top",
   },
   attachRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6 },
-  attachBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10, backgroundColor: "#FFF1E9" },
+  attachBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10, backgroundColor: HT.brandTint },
   attachTxt: { color: C.primary, fontSize: 12, fontWeight: "800" },
-  attachChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: "#F1F5F9", maxWidth: 160 },
+  attachChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: HT.card2, maxWidth: 160 },
   attachChipTxt: { fontSize: 11, color: C.navy, fontWeight: "600" },
   submitBtn: {
     marginTop: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
@@ -444,14 +445,14 @@ const styles = StyleSheet.create({
   },
   submitTxt: { color: "#FFF", fontWeight: "900", fontSize: 14 },
   msg: { padding: 10, borderRadius: 12, gap: 4 },
-  msgUser: { backgroundColor: "#F1F5F9", alignSelf: "flex-end", maxWidth: "88%" },
-  msgAi: { backgroundColor: "#EDE9FE", alignSelf: "flex-start", maxWidth: "94%" },
+  msgUser: { backgroundColor: HT.card2, alignSelf: "flex-end", maxWidth: "88%" },
+  msgAi: { backgroundColor: HT.violetTint, alignSelf: "flex-start", maxWidth: "94%" },
   msgChecks: { fontSize: 11, color: C.muted, fontWeight: "800", textTransform: "uppercase" },
   msgText: { fontSize: 14, color: C.navy, lineHeight: 20 },
   msgMeta: { fontSize: 11, color: C.muted },
   voteRow: { flexDirection: "row", gap: 8, marginTop: 6, alignItems: "center" },
-  voteBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: "#FFF" },
+  voteBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: HT.card },
   voteTxt: { fontSize: 11, fontWeight: "800", color: C.muted },
-  escalatedBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#EDE9FE", padding: 10, borderRadius: 12 },
+  escalatedBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: HT.violetTint, padding: 10, borderRadius: 12 },
   escalatedTxt: { flex: 1, color: C.purple, fontWeight: "800", fontSize: 13 },
 });

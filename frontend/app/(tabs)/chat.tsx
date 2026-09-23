@@ -8,6 +8,7 @@ import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { ModuleErrorBoundary } from "@/src/shared";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Message = { message_id: string; sender_id: string; sender_name: string; kind: string; text?: string; created_at: string; file_name?: string };
 type Channel = {
@@ -85,10 +86,10 @@ function ChatListScreen() {
       </View>
 
       {loading ? (
-        <ActivityIndicator style={{ marginTop: 40 }} color={theme.color.brandPrimary} />
+        <ActivityIndicator style={{ marginTop: 40 }} color={HT.brand} />
       ) : items.length === 0 ? (
         <View style={styles.empty}>
-          <Ionicons name="chatbubbles-outline" size={44} color={theme.color.muted} />
+          <Ionicons name="chatbubbles-outline" size={44} color={HT.muted} />
           <Text style={styles.emptyTxt}>Nessuna chat attiva</Text>
           <Text style={styles.emptySub}>Avvia una conversazione con i membri del tuo team per condividere file, audio e link.</Text>
           <Pressable onPress={() => router.push("/chat/new")} style={styles.emptyBtn}>
@@ -103,7 +104,7 @@ function ChatListScreen() {
           renderItem={({ item }) => (
             <Pressable testID={`chat-${item.channel_id}`} onPress={() => router.push(`/chat/${item.channel_id}`)} style={styles.card}>
               <View style={styles.avatar}>
-                <Ionicons name={item.is_direct ? "person" : "people"} size={20} color={theme.color.brandPrimary} />
+                <Ionicons name={item.is_direct ? "person" : "people"} size={20} color={HT.brand} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.name}>{channelTitle(item)}</Text>
@@ -123,15 +124,15 @@ function ChatListScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
+  root: { flex: 1, backgroundColor: HT.card2 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 12 },
-  title: { fontSize: 24, fontWeight: "700", color: theme.color.onSurface },
+  title: { fontSize: 24, fontWeight: "700", color: HT.text },
   // V29.bc — Stile Optima
   headerBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: theme.color.brandPrimary,
+    backgroundColor: HT.brand,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
@@ -143,16 +144,16 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: 40, gap: 10 },
-  emptyTxt: { color: theme.color.onSurface, fontSize: 16, fontWeight: "700" },
-  emptySub: { color: theme.color.muted, textAlign: "center", fontSize: 13 },
-  emptyBtn: { backgroundColor: theme.color.brandPrimary, paddingHorizontal: 22, paddingVertical: 12, borderRadius: theme.radius.md, marginTop: 8 },
+  emptyTxt: { color: HT.text, fontSize: 16, fontWeight: "700" },
+  emptySub: { color: HT.muted, textAlign: "center", fontSize: 13 },
+  emptyBtn: { backgroundColor: HT.brand, paddingHorizontal: 22, paddingVertical: 12, borderRadius: theme.radius.md, marginTop: 8 },
   emptyBtnTxt: { color: "#FFF", fontWeight: "700" },
-  card: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#FFF", padding: 14, borderRadius: theme.radius.md, marginBottom: 8, borderWidth: 1, borderColor: theme.color.border },
+  card: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: HT.card, padding: 14, borderRadius: theme.radius.md, marginBottom: 8, borderWidth: 1, borderColor: HT.border },
   avatar: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: theme.color.brandTertiary,
+    backgroundColor: HT.brandTint,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
@@ -163,8 +164,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     elevation: 4,
   },
-  name: { fontSize: 15, fontWeight: "700", color: theme.color.onSurface },
-  sub: { fontSize: 12, color: theme.color.muted, marginTop: 2 },
-  badge: { backgroundColor: theme.color.brandPrimary, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 3, minWidth: 24, alignItems: "center" },
+  name: { fontSize: 15, fontWeight: "700", color: HT.text },
+  sub: { fontSize: 12, color: HT.muted, marginTop: 2 },
+  badge: { backgroundColor: HT.brand, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 3, minWidth: 24, alignItems: "center" },
   badgeTxt: { color: "#FFF", fontWeight: "700", fontSize: 11 },
 });

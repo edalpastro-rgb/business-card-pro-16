@@ -436,3 +436,22 @@ async def delete_info_request(request_id: str, user=Depends(get_current_user)):
 
 
 # =========================
+
+
+# ─── V50.z338 — Tema UI per UTENTE (light | pearl | slate | midnight), salvato su users.ui_theme (anche i collaboratori) ────────
+class UiThemeIn(BaseModel):
+    ui_theme: Literal["light", "pearl", "slate", "midnight"]
+
+
+@api_router.get("/me/theme")
+async def get_my_theme(user=Depends(get_current_user)):
+    u = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "ui_theme": 1})
+    t = (u or {}).get("ui_theme") or "slate"
+    t = {"grey": "slate", "dark": "midnight"}.get(t, t)  # V50.z339 — migrazione id legacy
+    return {"ui_theme": t}
+
+
+@api_router.put("/me/theme")
+async def set_my_theme(body: UiThemeIn, user=Depends(get_current_user)):
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"ui_theme": body.ui_theme, "ui_theme_updated_at": utcnow()}})
+    return {"ok": True, "ui_theme": body.ui_theme}

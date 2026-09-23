@@ -1,16 +1,16 @@
 import { Tabs, Redirect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/src/auth";
-import { theme } from "@/src/theme";
 import { View, ActivityIndicator, Platform } from "react-native";
 import { useNavBarBottomInset } from "@/src/hooks/useSafeBottom";
 import { IdDocExpiryPopup } from "@/src/IdDocExpiryPopup"; // V50.z267 — popup documenti in scadenza (≤30 gg)
+import { HT } from "@/src/homeTheme"; // V50.z338 — bottom nav segue il tema attivo
 
 // V27 palette (used only for tab bar styling, no global theme override)
-const TAB_ACTIVE = "#FF6B35";
-const TAB_INACTIVE = "#94A3B8";
-const TAB_BG = "#FFFFFF";
-const TAB_BORDER = "#EEF0F4";
+const TAB_ACTIVE = HT.navActive; // V50.z338 — tema attivo
+const TAB_INACTIVE = HT.navInactive;
+const TAB_BG = HT.nav;
+const TAB_BORDER = HT.border;
 
 export default function TabsLayout() {
   const { user, loading } = useAuth();
@@ -22,7 +22,7 @@ export default function TabsLayout() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.color.surface }}>
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: HT.bg }}>
         <ActivityIndicator color={TAB_ACTIVE} />
       </View>
     );
@@ -44,6 +44,7 @@ export default function TabsLayout() {
           right: 0,
           backgroundColor: TAB_BG,
           borderTopColor: TAB_BORDER,
+          ...(HT.navShadow as object), // V50.z339 — Pearl: ombra superiore leggera
           borderTopWidth: 1,
           height: tabBarHeight,
           paddingTop: 10,

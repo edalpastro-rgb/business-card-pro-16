@@ -253,7 +253,7 @@ export function AxonProfileCard({ contactId }: { contactId: string }) {
 }
 
 const styles = StyleSheet.create({
-  wrap: {
+  wrap: { ...HT.cardShadow,
     backgroundColor: C.bg,
     borderRadius: 16,
     borderWidth: 1,
