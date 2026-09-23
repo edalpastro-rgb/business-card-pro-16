@@ -103,5 +103,6 @@ MODULES = [
     "axon_referral.py",  # V50.z322 — «Invita un amico»: codice personale AMICO-NOME-XXXX, premi configurabili (GET/PUT /admin/referral-settings), GET /referral/me, GET /admin/referrals; riscatto via /promo/redeem (isolato; DOPO axon_promo_codes)
     "axon_core.py",  # V50.z323 — Axon Core: users.product (advisor|lite), identità/sezione prompt per prodotto, manifest, admin prodotti (DOPO 36)
     "axon_paywall.py",  # V50.z330 — Paywall fine prova: middleware 402 subscription_expired, Stripe Checkout (/billing/*), webhook, richiesta attivazione (DOPO 10, 36, axon_personal_lock; PRIMA di 37)
+    "axon_email.py",  # V50.z336 — Email Resend advisoros.it (info@/help@/emanuele@), fallback Emergent→SMTP, hook lead/ticket/register, ridefinisce _pl_send_resend (DOPO axon_personal_lock, 30, 35, 03)
     "37_app_startup_scheduler.py",
 ]

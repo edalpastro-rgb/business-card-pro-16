@@ -151,6 +151,13 @@ async def support_create_ticket(body: SupportMessageIn, user=Depends(get_current
     })
     ticket["updated_at"] = utcnow()
     await db.support_tickets.insert_one(ticket)
+    # V50.z336 — email: ricevuta al cliente + copia a help@
+    _hook = globals().get("_email_on_support_ticket")
+    if _hook:
+        try:
+            await _hook(user, ticket)
+        except Exception as exc:  # noqa: BLE001
+            logging.getLogger("support").warning("email hook failed: %s", exc)
     return _support_serialize(ticket)
 
 

@@ -1145,4 +1145,11 @@ async def public_demo_request(body: DemoRequestIn):
                         source="landing", extra={"lead_id": lead_id}, push=True)
     except Exception as exc:  # noqa: BLE001
         logger.warning("[demo-request] notify failed: %s", exc)
+    # V50.z336 — email: conferma al lead (info@) + notifica interna al Master (emanuele@)
+    _hook = globals().get("_email_on_demo_request")
+    if _hook:
+        try:
+            await _hook(doc, owner)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[demo-request] email hook failed: %s", exc)
     return {"ok": True, "lead_id": lead_id}

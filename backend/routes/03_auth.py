@@ -31,6 +31,13 @@ async def register(body: RegisterInput):
         "user_id": user_id,
         **SettingsModel().model_dump(),
     })
+    # V50.z336 — notifica interna al Master (emanuele@) per ogni nuova iscrizione in prova
+    _hook = globals().get("_email_on_register")
+    if _hook:
+        try:
+            await _hook(doc)
+        except Exception as exc:  # noqa: BLE001
+            logging.getLogger("auth").warning("email hook failed: %s", exc)
     token = create_jwt(user_id)
     return {"token": token, "user": UserOut(**{k: doc.get(k) for k in ["user_id", "email", "name", "picture", "role", "areas", "parent_user_id", "product"]}).model_dump()}
 

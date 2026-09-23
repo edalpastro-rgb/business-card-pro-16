@@ -80,6 +80,7 @@ const ITEMS: DrawerItem[] = [
   // Amministrazione (grigio #475569)
   { label: "Impostazioni",      icon: "settings-outline",     href: "/(tabs)/impostazioni",categoryKey: "admin" },
   { label: "Setting App",       icon: "color-palette-outline",href: "/settings-app",       categoryKey: "admin" },
+  { label: "Email di sistema",  icon: "mail-outline",         href: "/email-config",       categoryKey: "admin" }, // V50.z336 — Resend advisoros.it
   { label: "Bug & Idee",        icon: "bug-outline",          href: "/bug-report",         categoryKey: "admin" },
 ];
 
