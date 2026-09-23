@@ -16,7 +16,7 @@ const C = theme.color;
 const VIOLET = "#8B5CF6"; // identità Axon (uguale in chiaro e scuro)
 const CYAN = "#38BDF8";
 const ORANGE = "#F97316";
-const WAVE_MS = 3000;
+const WAVE_MS = 5200; // V50.z335 — +2 s: il momento della connessione utente ↔ Axon deve restare impresso
 const PARTICLES = 24;
 
 async function tts(text: string, voice?: string): Promise<void> {
@@ -30,16 +30,20 @@ async function tts(text: string, voice?: string): Promise<void> {
 /** Due impulsi distinti ravvicinati. */
 export async function doubleBuzz() {
   if (Platform.OS === "web") return;
-  if (Platform.OS === "android") { Vibration.vibrate([0, 140, 110, 140]); return; }
+  // V50.z335 — due impulsi (battito) + onda lunga che si spegne: ~2,4 s in tutto
+  if (Platform.OS === "android") { Vibration.vibrate([0, 140, 110, 140, 380, 700, 250, 450, 250, 250]); return; }
   try {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     setTimeout(() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {}); }, 220);
+    setTimeout(() => { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {}); }, 800);
+    setTimeout(() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {}); }, 1500);
+    setTimeout(() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); }, 2100);
   } catch { /* noop */ }
 }
 
 function Ring({ delay, size, color }: { delay: number; size: number; color: string }) {
   const p = useSharedValue(0);
-  useEffect(() => { p.value = withDelay(delay, withRepeat(withTiming(1, { duration: 1400, easing: Easing.out(Easing.cubic) }), -1, false)); }, [p, delay]);
+  useEffect(() => { p.value = withDelay(delay, withRepeat(withTiming(1, { duration: 1800, easing: Easing.out(Easing.cubic) }), -1, false)); }, [p, delay]);
   const st = useAnimatedStyle(() => ({ transform: [{ scale: interpolate(p.value, [0, 1], [0.15, 1]) }], opacity: interpolate(p.value, [0, 0.15, 1], [0, 0.9, 0]) }));
   return <Animated.View style={[{ position: "absolute", width: size, height: size, borderRadius: size / 2, borderWidth: 3, borderColor: color, shadowColor: color, shadowOpacity: 1, shadowRadius: 24 }, st]} />;
 }
@@ -78,6 +82,7 @@ export function ActivationOverlay({ mirror = false }: { mirror?: boolean }) {
   const { width, height } = useWindowDimensions();
   const [wave, setWave] = useState<ActivationPayload | null>(null);
   const [find, setFind] = useState<{ name: string } | null>(null);
+  const [phase, setPhase] = useState(0); // V50.z335 — 0 «sta prendendo vita» → 1 «connessione stabilita» → 2 «pronto»
   const findRef = useRef(false);
   const findTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const radius = Math.min(width, height) * 0.48;
@@ -86,6 +91,9 @@ export function ActivationOverlay({ mirror = false }: { mirror?: boolean }) {
   useEffect(() => {
     const sub = DeviceEventEmitter.addListener(AXON_ACTIVATION_EVENT, (p: ActivationPayload) => {
       setWave(p);
+      setPhase(0);
+      setTimeout(() => setPhase(1), 1900);
+      setTimeout(() => setPhase(2), 3600);
       if (mirror) return;
       void doubleBuzz();
       const greet = p.greet !== false;
@@ -138,7 +146,7 @@ export function ActivationOverlay({ mirror = false }: { mirror?: boolean }) {
       <Pressable style={StyleSheet.absoluteFill} onPress={find ? () => { stopFind(); stopFindPhone(); } : undefined} accessibilityRole="button" accessibilityLabel={find ? "Trovato: ferma" : "Attivazione"}>
         <LinearGradient colors={["#0B1226", "#1E1B4B", "#0B1226"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
         <View style={styles.center}>
-          {[0, 350, 700, 1050].map((d, i) => <Ring key={d} delay={d} size={radius * 2} color={i % 2 ? VIOLET : CYAN} />)}
+          {[0, 450, 900, 1350].map((d, i) => <Ring key={d} delay={d} size={radius * 2} color={i % 2 ? VIOLET : CYAN} />)}
           {Array.from({ length: PARTICLES }).map((_, i) => <Particle key={i} i={i} radius={radius} />)}
           <Core pulseMs={find ? 500 : 900} />
         </View>
@@ -146,7 +154,7 @@ export function ActivationOverlay({ mirror = false }: { mirror?: boolean }) {
           {wave ? (
             <>
               <Text style={styles.title}>{wave.name || "Axon"}</Text>
-              <Text style={styles.sub}>Attivazione in corso…</Text>
+              <Text style={styles.sub} testID="activation-phase">{phase === 0 ? "Sta prendendo vita…" : phase === 1 ? "Connessione stabilita." : "Da ora ricorda tutto. Passiamo ai fatti."}</Text>
             </>
           ) : (
             <>

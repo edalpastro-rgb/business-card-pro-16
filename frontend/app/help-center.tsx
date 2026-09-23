@@ -15,6 +15,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
+import { playActivationEffect } from "@/src/activation/events"; // V50.z335
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { useAuth } from "@/src/auth";
 
@@ -108,6 +109,26 @@ export default function HelpCenterScreen() {
             <Text style={styles.replayHint}>Riparte dall'inizio: intro animata + giro guidato dell'app</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color="#FFF" />
+        </Pressable>
+
+        {/* V50.z335 — Rivedi l'introduzione: la connessione con Axon (onda, vibrazione, voce) senza rifare il tour */}
+        <Pressable
+          testID="help-replay-intro"
+          onPress={async () => {
+            try {
+              const st = await api<{ assistant_name?: string; assistant_voice?: string }>("/user-settings");
+              router.replace("/(tabs)/home" as any);
+              setTimeout(() => playActivationEffect({ name: st?.assistant_name || "Axon", voice: st?.assistant_voice, greet: true }), 500);
+            } catch { playActivationEffect({ name: "Axon", greet: true }); }
+          }}
+          style={styles.faqBtn}
+        >
+          <View style={[styles.faqIcon, { backgroundColor: "#EDE9FE" }]}><Ionicons name="flash" size={22} color="#7C3AED" /></View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.faqTitle}>Rivedi l&apos;introduzione</Text>
+            <Text style={styles.faqHint}>Il momento della connessione con Axon: onda, vibrazione e il suo saluto</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={theme.color.muted} />
         </Pressable>
 
         {/* V50.z329 — FAQ (accordion) + link alla landing */}

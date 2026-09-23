@@ -21,7 +21,7 @@ import { DemoRequestForm } from "@/src/landing/DemoRequestForm";
 
 import { LANDING_SEEN_KEY } from "@/src/landing/landingSeen";
 // V50.z330 — URL pubblico di AxonOS Lite (configurabile da .env; default alla pagina Lite del sito)
-const LITE_URL = process.env.EXPO_PUBLIC_LITE_URL || "https://advisoros.it/lite"; // V50.z314 — su telefono la landing si mostra solo al primo avvio
+const LITE_URL = process.env.EXPO_PUBLIC_LITE_URL || ""; // vuoto = pagina interna /lite // V50.z314 — su telefono la landing si mostra solo al primo avvio
 
 type IonName = React.ComponentProps<typeof Ionicons>["name"];
 
@@ -76,11 +76,10 @@ export default function LandingScreen() {
   useEffect(() => { AsyncStorage.setItem(LANDING_SEEN_KEY, "1").catch(() => {}); }, []);
   const goLogin = () => router.push("/login" as any);
   const goDemo = () => scrollRef.current?.scrollTo({ y: Math.max(0, demoY.current - 12), animated: true });
+  // V50.z334 — AxonOS Lite: pagina dedicata /lite (o link esterno se EXPO_PUBLIC_LITE_URL è configurato)
   const openLite = () => {
-    if (Platform.OS === "web") {
-      try { (globalThis as any).window.open(LITE_URL, "_blank"); return; } catch { /* noop */ }
-    }
-    Linking.openURL(LITE_URL).catch(() => {});
+    if (LITE_URL) { Linking.openURL(LITE_URL).catch(() => {}); return; }
+    router.push("/lite" as any);
   };
   const openMail = () => {
     const url = "mailto:info@advisoros.it";
@@ -126,10 +125,41 @@ export default function LandingScreen() {
               <Ionicons name="arrow-forward" size={22} color={LP.onBrand} />
             </Pressable>
             <Text style={s.ctaHint}>Clicca. E guarda cosa c&apos;è dietro.</Text>
+            <Pressable onPress={openLite} style={({ pressed }) => [s.liteHeroBtn, pressed && s.pressed]} testID="landing-hero-lite" accessibilityRole="button">
+              <Ionicons name="diamond" size={16} color={LP.axon} /><Text style={s.liteHeroTxt}>Non gestisci reti o contratti? Axon è anche per te → AxonOS Lite</Text>
+            </Pressable>
           </Reveal>
         </View>
         <View style={s.scrollCue} pointerEvents="none">
           <Ionicons name="chevron-down" size={22} color={LP.axon} />
+        </View>
+      </View>
+
+      {/* ───────────── IL DIAMANTE · AXON (V50.z334) ───────────── */}
+      <View style={[s.section, { backgroundColor: LP.surface2, paddingVertical: 56 }]} testID="landing-diamond">
+        <View style={[s.container, { alignItems: "center" }]}>
+          <Reveal style={{ alignItems: "center" }}>
+            <View style={s.diamondWrap}><View style={s.diamondGlow} /><Ionicons name="diamond" size={compact ? 64 : 84} color={LP.axon} /><Ionicons name="sparkles" size={18} color={LP.coreWhite} style={{ position: "absolute", top: 8, right: 10 }} /></View>
+            <Text style={s.kicker}>IL DIAMANTE · AXON</Text>
+            <Text style={[s.title, compact && s.titleCompact, { textAlign: "center" }]}>Axon non si replica.{"\n"}<Text style={s.titleAccent}>Si porta con sé.</Text></Text>
+            <Text style={[s.lead, { textAlign: "center" }]}>Mille app senza controllo valgono zero: mille impostazioni, mille aggiornamenti, tempo perso. Axon è un cervello che ti conosce, ricorda tutto e agisce per te. AdvisorOS è la casa dove lavora. AxonOS Lite è la porta aperta a tutti.</Text>
+          </Reveal>
+          <View style={[s.compareRow, compact && s.compareCol, { marginTop: 28 }]}>
+            <Reveal delay={100} style={{ flex: 1 }}>
+              <Pressable onPress={openLite} style={({ pressed }) => [s.card, s.cardOn, pressed && s.pressed]} testID="landing-lite-link">
+                <View style={s.cardHead}><View style={[s.badge, s.badgeOn]}><LiveDot /><Text style={[s.badgeTxt, { color: LP.axon }]}>AXONOS LITE</Text></View><Text style={s.cardTitle}>Per tutti</Text></View>
+                <Text style={s.liTxt}>Medici, avvocati, geometri, famiglie, studenti. Chi ha una segretaria e chi non l&apos;ha. Memoria, tempo, azioni: «Axon, dov&apos;ero il 9 settembre sera?». Lo sa.</Text>
+                <View style={[s.li, { alignItems: "center", marginTop: 6 }]}><Ionicons name="arrow-forward-circle" size={22} color={LP.axon} /><Text style={[s.liTxt, { color: LP.axon, fontWeight: "800" }]}>Scopri e prova AxonOS Lite</Text></View>
+              </Pressable>
+            </Reveal>
+            <Reveal delay={250} style={{ flex: 1 }}>
+              <Pressable onPress={goLogin} style={({ pressed }) => [s.card, pressed && s.pressed]} testID="landing-advisor-link">
+                <View style={s.cardHead}><View style={s.badge}><Text style={[s.badgeTxt, { color: LP.brand }]}>ADVISOROS</Text></View><Text style={s.cardTitle}>Per chi gestisce clienti e contratti</Text></View>
+                <Text style={s.liTxt}>Lo stesso Axon, al lavoro: reti vendita, pratiche, documenti compilati, agenda di squadra. Da Lite ad AdvisorOS quando serve, senza ricominciare.</Text>
+                <View style={[s.li, { alignItems: "center", marginTop: 6 }]}><Ionicons name="arrow-forward-circle" size={22} color={LP.brand} /><Text style={[s.liTxt, { color: LP.brand, fontWeight: "800" }]}>Entra in AdvisorOS</Text></View>
+              </Pressable>
+            </Reveal>
+          </View>
         </View>
       </View>
 
@@ -348,15 +378,6 @@ export default function LandingScreen() {
       {/* ───────────── FOOTER ───────────── */}
       <View style={s.footer}>
         <View style={[s.container, { alignItems: "center", gap: 6 }]}>
-          {/* V50.z330 — Rimando ad AxonOS Lite (famiglie e studenti) */}
-          <Pressable onPress={openLite} style={({ pressed }) => [s.liteCard, pressed && { opacity: 0.9 }]} testID="landing-lite-link" accessibilityRole="link">
-            <View style={s.liteIcon}><Ionicons name="sparkles" size={20} color={LP.axon} /></View>
-            <View style={{ flex: 1 }}>
-              <Text style={s.liteTitle}>Non sei un professionista? Scopri <Text style={{ color: LP.axon }}>AxonOS Lite</Text></Text>
-              <Text style={s.liteTxt}>Lo stesso cervello Axon, pensato per famiglie e studenti: memoria personale, promemoria, note e calendario. Semplice e gratuito da provare.</Text>
-            </View>
-            <Ionicons name="arrow-forward-circle" size={26} color={LP.axon} />
-          </Pressable>
           <Text style={s.footerBrand}>AdvisorOS <Text style={{ color: LP.muted }}>·</Text> <Text style={{ color: LP.brand }}>powered by Axon</Text></Text>
           <Text style={s.footerTxt}>© 2026 AdvisorOS</Text>
           <View style={s.footerLinks}>
@@ -454,10 +475,10 @@ const s = StyleSheet.create({
 
   ctaBand: { alignItems: "center", paddingVertical: 96 },
   footer: { paddingVertical: 28, borderTopWidth: 1, borderTopColor: LP.border, backgroundColor: LP.surface },
-  liteCard: { flexDirection: "row", alignItems: "center", gap: 12, width: "100%", maxWidth: 720, backgroundColor: LP.axonTint, borderWidth: 1, borderColor: LP.axonLineSoft, borderRadius: 16, padding: 14, marginBottom: 18 },
-  liteIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: LP.axonGlow, alignItems: "center", justifyContent: "center" },
-  liteTitle: { color: LP.onSurface, fontSize: 14, fontWeight: "800" },
-  liteTxt: { color: LP.onSurface2, fontSize: 12, lineHeight: 17, marginTop: 2 },
+  liteHeroBtn: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 999, borderWidth: 1, borderColor: LP.axonLineSoft, backgroundColor: LP.axonTint, minHeight: 44 },
+  liteHeroTxt: { color: LP.onSurface, fontSize: 13, fontWeight: "700" },
+  diamondWrap: { width: 140, height: 140, alignItems: "center", justifyContent: "center", marginBottom: 6 },
+  diamondGlow: { position: "absolute", width: 140, height: 140, borderRadius: 70, backgroundColor: LP.axonGlow },
   footerBrand: { color: LP.onSurface, fontSize: 14, fontWeight: "800" },
   footerTxt: { color: LP.muted, fontSize: 12 },
   footerLinks: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 4 },

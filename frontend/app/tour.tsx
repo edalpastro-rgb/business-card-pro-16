@@ -173,7 +173,7 @@ export default function TourScreen() {
         {speaking ? <View style={styles.countdown} testID="tour-voice-speaking"><Ionicons name={voicePaused ? "pause" : "volume-high"} size={13} color={SKY} /><Text style={styles.countdownTxt}>{voicePaused ? "Axon in pausa" : "Axon parla…"}</Text></View> : null}
       </View>
       {/* V50.z284 — header: Pausa/Riprendi · Stop (mentre Axon parla) · Silenzia (pill ben visibile) · Salta */}
-      <View style={[styles.topRight, { top: insets.top + 2 }]}>
+      <View style={[styles.topRight, { top: insets.top + 14 }]}>
         {speaking ? (
           <>
             <Pressable onPress={voicePaused ? voiceResume : voicePause} hitSlop={6} style={styles.ctrlBtn} testID="tour-voice-pause" accessibilityLabel={voicePaused ? "Riprendi la voce di Axon" : "Metti in pausa la voce di Axon"}>
@@ -188,7 +188,12 @@ export default function TourScreen() {
           <Ionicons name={muted ? "volume-mute" : "volume-high"} size={18} color={muted ? NAVY : SKY} />
           <Text style={[styles.muteTxt, muted && { color: NAVY }]}>{muted ? "Riattiva" : "Silenzia"}</Text>
         </Pressable>
-        {!(step === 3 && masterLocked) && !setup?.needed ? <Pressable onPress={finish} hitSlop={10} style={styles.skip} testID="tour-skip"><Text style={styles.skipTxt}>Salta</Text></Pressable> : null}
+        {!(step === 3 && masterLocked) ? (
+          <Pressable onPress={finish} hitSlop={6} style={styles.muteBtn} testID="tour-skip" accessibilityLabel="Salta l'introduzione">
+            <Ionicons name="play-skip-forward" size={18} color={SKY} />
+            <Text style={styles.muteTxt}>Salta intro</Text>
+          </Pressable>
+        ) : null}
       </View>
       {setup === null ? null : setup.needed ? (
         pendingSetup ? (
