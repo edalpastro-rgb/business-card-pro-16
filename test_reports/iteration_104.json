@@ -1,0 +1,31 @@
+{
+  "summary": "V50.z337 — SOLO estetico dark/premium della chat Axon. Regressione FUNZIONALE completa su desktop (1280x900) e mobile (390x844): tutti i flussi funzionano, palette applicata correttamente, nessuna regressione. Chat apre dal FAB (assistant-fab), toolbar mostra Annunci/Audio/Nuova chat/Altro/Chiudi tutti funzionanti. Altro apre menu (assistant-more-menu). Coda pill apre/chiude. Modalità dropdown mostra 3 mode-items e la selezione cambia. Input dark: on focus borderColor=rgb(79,142,247)=#4f8ef7 (blu spec-compliant) su bg=rgb(15,15,20)=#0f0f14 ✓. Send → bolla utente a destra + axon-typing-dots durante elaborazione + bolla Axon a sinistra con bordo blu ✓. Sotto la risposta: msg-copy-btn, msg-share-btn, msg-pdf-btn, msg-feedback-up, msg-feedback-down tutti presenti e cliccabili senza errori (copy click OK). save-rule-chip apre il modal (save-rule-confirm visibile), chiuso con Esc. Thumbs-down apre feedback-down-modal con background dark rgb(30,30,46)=#1e1e2e (surface premium) ✓. Bottoni allegati (attach, photo, scanner, drive-attach, dropbox-attach) tutti visibili — camera/phone/mic esistenti nel layout via icone. Nuova chat svuota la conversazione. Chiudi chiude la chat. Mobile: identico comportamento, tutti i testIDs toolbar presenti, typing/reply funzionanti. VISIVO: la scansione di elementi bianchi (rgb(255,255,255) w>60 h>30) all'interno della chat trova 0 elementi bianchi nel chat modal; l'unico elemento bianco rilevato è il banner 'Prova banner homepage' della home page (dietro il modal, non parte della chat). La pill logo AxonOS resta bianca by-design come da specifica. Console: nessun errore JS rosso funzionale (unico error: navigator.vibrate bloccato da browser policy, non collegato al restyle). QUICK-REPLY yes/no/maybe: NON compaiono nell'automation — il modello LLM (Claude/Neo) NON ha prodotto una domanda-chiusa parseable dal detector di quick-reply nonostante il prompt esplicito. Riportato come limitazione LLM (non bug), come esplicitamente previsto dalla review request. Il componente axon-quick-reply.tsx è integro (testID quick-reply-yes/no/maybe + quick-reply-toast) e verrà attivato quando l'LLM produce il pattern di domanda chiusa atteso.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "AssistantChat header — bottone Chiudi", "issue": "Il Pressable 'Chiudi' (linea 1605 di /app/frontend/src/AssistantChat.tsx) è l'unica azione della toolbar SENZA testID. Il click via text label funziona ma per stabilità dei test futuri conviene aggiungere testID=\"assistant-close\". Non blocker.", "testID": "(mancante) suggerito 'assistant-close'", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/tmp/z337_desktop.png",
+    "/tmp/z337_mobile.png"
+  ],
+  "action_items": [
+    "OPZIONALE (LOW): aggiungere testID=\"assistant-close\" al Pressable Chiudi in AssistantChat.tsx (line 1605) per parità con gli altri bottoni della toolbar."
+  ],
+  "critical_code_review_comments": [
+    "chatTheme.ts: palette centralizzata (CT) con accent #4f8ef7 e surface #1e1e2e / #2a2a3e — verificato applicato correttamente all'input (border #4f8ef7 al focus) e al feedback modal (bg #1e1e2e).",
+    "Quick-reply detector (axon-quick-reply.tsx) è integro con testID yes/no/maybe + toast. La mancata comparsa nell'automation è dovuta alla scelta LLM di non produrre una domanda-chiusa parseable — LLM behavior, non frontend.",
+    "AssistantChat.tsx: 2100+ righe → oltre la soglia raccomandata di 700 righe per file. Non è oggetto di questa task (SOLO estetico) ma resta un debito tecnico segnalato in review passate."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend-only task)", "frontend": "100% delle regressioni funzionali richieste: toolbar 5/5, input focus border color spec-compliant, send/typing/reply, msg-actions Copia/Condividi/PDF/thumbs, save-rule modal, feedback-down modal dark, allegati visibili, Nuova chat clear, Chiudi close, mobile identico. Solo quick-reply UI dipendente dal comportamento LLM non attivato (non-bug per spec)."},
+  "seed_data_creation": "Nessuna. Test svolti sull'utente esistente test@dalpastro.it / Test1234!.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Auth recipe (validata): POST /api/auth/login → {token, user:{user_id,...}}. NB: campo user id = 'user_id' (NON 'id'). Setup localStorage: auth_token_v1=JSON.stringify(token), trust_expires_at_v1=JSON.stringify(ISO now+24h), app_last_unlock_v1=Date.now(), onboarding_done_<user_id>='1', helpcenter_seen_v1='1'. Aprire chat: click FAB via mouse.click su bounding box di [data-testid=assistant-fab] (Pressable non sempre risponde a Playwright click force=True — mouse.click(bb.x+w/2, bb.y+h/2) è più affidabile). TestIDs chiave chat: assistant-mode-toggle/conv-toggle/new-chat/more-btn/queue-tab/mode-dropdown/brand-bar-logo/more-menu (dopo tap Altro)/mode-item-<m>/input/send/stop-btn/attach/photo/screenshot/scanner/drive-attach/dropbox-attach/typing-dots(=axon-typing-dots)/msg-copy-btn/msg-share-btn/msg-pdf-btn/msg-feedback-up/msg-feedback-down/save-rule-chip/save-rule-confirm/feedback-down-modal/feedback-cancel/feedback-submit/quick-reply-{yes,no,maybe}/quick-reply-toast. Chiudi = get_by_text('Chiudi', exact=True) — no testID. Palette effettiva verificata: input focus border=rgb(79,142,247), input bg=rgb(15,15,20), feedback modal bg=rgb(30,30,46).",
+  "rca_of_issue": "Nessun bug funzionale. Quick-reply yes/no/maybe non testati in automation perché il prompt 'Rispondi SOLO con una domanda chiusa sì/no' non è stato onorato dall'LLM (Neo ha risposto con contenuto libero anziché una domanda-chiusa parseable). Il componente axon-quick-reply.tsx è pronto e i testID sono presenti; la loro visualizzazione dipende dalla logica di detector applicata alla risposta LLM."
+}

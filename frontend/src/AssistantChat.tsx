@@ -54,6 +54,7 @@ import { useDraft } from "@/src/utils/appStatePersist"; // V50.z242 — BUG-STAT
 // V50.z311 — moduli estratti dal refactor: FAB (src/AssistantFAB.tsx), bolle/pannello voce, stili, tipi, player audio
 import { playAudioBase64 } from "@/src/utils/audioPlayback";
 import { styles, ASSISTANT_COLOR, ASSISTANT_COLOR_DARK } from "@/src/assistant/chatStyles";
+import { CT } from "@/src/assistant/chatTheme"; // V50.z337 — chat dark/premium
 import { ConversationPanel, MessageBubble, TypingDots } from "@/src/assistant/ChatBubbles";
 import type { ChatMsg } from "@/src/assistant/chatTypes";
 
@@ -581,6 +582,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
 
   // V50.z207 — Pulsanti Sì/No/Forse: la risposta parte da sola + toast «Risposta registrata ✓» per 1,8 s
   const [quickReplyToast, setQuickReplyToast] = useState(false);
+  const [inputFocused, setInputFocused] = useState(false); // V50.z337 — bordo blu elettrico al focus
   const onQuickReply = (t: string) => {
     setQuickReplyToast(true);
     setTimeout(() => setQuickReplyToast(false), QUICK_REPLY_TOAST_MS);
@@ -1570,7 +1572,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                   accessibilityLabel="Modalità annunci"
                   testID="assistant-mode-toggle"
                 >
-                  <Ionicons name={MODE_ICON[responseMode]} size={20} color="#FFF" />
+                  <Ionicons name={MODE_ICON[responseMode]} size={20} color={CT.text} />
                   <Text style={styles.headerActionTxt}>Annunci</Text>
                 </Pressable>
                 <Pressable
@@ -1584,11 +1586,11 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                   accessibilityLabel={convMode ? "Termina conversazione audio" : "Inizia conversazione audio"}
                   testID="assistant-conv-toggle"
                 >
-                  <Ionicons name={convMode ? "call" : "headset"} size={20} color="#FFF" />
+                  <Ionicons name={convMode ? "call" : "headset"} size={20} color={CT.text2} />
                   <Text style={styles.headerActionTxt}>Audio</Text>
                 </Pressable>
                 <Pressable onPress={resetSession} style={styles.headerAction} accessibilityLabel="Nuova chat" testID="assistant-new-chat">
-                  <Ionicons name="create-outline" size={20} color="#FFF" />
+                  <Ionicons name="create-outline" size={20} color={CT.text2} />
                   <Text style={styles.headerActionTxt}>Nuova chat</Text>
                 </Pressable>
                 <Pressable
@@ -1597,11 +1599,11 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                   accessibilityLabel="Altre azioni: condividi, PDF, copia"
                   testID="assistant-more-btn"
                 >
-                  <Ionicons name="ellipsis-vertical" size={20} color="#FFF" />
+                  <Ionicons name="ellipsis-vertical" size={20} color={CT.text2} />
                   <Text style={styles.headerActionTxt}>Altro</Text>
                 </Pressable>
-                <Pressable onPress={onClose} style={styles.headerAction} accessibilityLabel="Chiudi">
-                  <Ionicons name="close" size={22} color="#FFF" />
+                <Pressable onPress={onClose} style={styles.headerAction} accessibilityLabel="Chiudi" testID="assistant-close">
+                  <Ionicons name="close" size={22} color={CT.text2} />
                   <Text style={styles.headerActionTxt}>Chiudi</Text>
                 </Pressable>
               </View>
@@ -1615,8 +1617,8 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                   />
                 </View>
                 {/* V50.z223 — tab «Coda» nell'header */}
-                <Pressable onPress={() => { setShowQueue((v) => !v); void refreshQueue(); }} style={[styles.modeDropdown, showQueue && { backgroundColor: "#F97316" }]} hitSlop={6} testID="assistant-queue-tab" accessibilityLabel="Coda messaggi">
-                  <Ionicons name="list" size={13} color="#FFF" />
+                <Pressable onPress={() => { setShowQueue((v) => !v); void refreshQueue(); }} style={[styles.modeDropdown, showQueue && { borderColor: CT.accent, backgroundColor: CT.accentTint }]} hitSlop={6} testID="assistant-queue-tab" accessibilityLabel="Coda messaggi">
+                  <Ionicons name="list" size={13} color={CT.text2} />
                   <Text style={styles.modeDropdownTxt}>Coda{queue.length ? ` (${queue.length})` : ""}</Text>
                   {queueFailed.length > 0 && (
                     <View style={styles.queueFailedBadge} testID="assistant-queue-failed-badge"><Text style={styles.queueFailedBadgeTxt}>{queueFailed.length}</Text></View>
@@ -1629,11 +1631,11 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                   accessibilityLabel="Cambia modalità di risposta"
                   testID="assistant-mode-dropdown"
                 >
-                  <Ionicons name={MODE_ICON[responseMode]} size={13} color="#FFF" />
+                  <Ionicons name={MODE_ICON[responseMode]} size={13} color={CT.text2} />
                   <Text style={styles.modeDropdownTxt} numberOfLines={1}>
                     Modalità: {MODE_LABEL[responseMode]}
                   </Text>
-                  <Ionicons name="chevron-down" size={13} color="#FFF" />
+                  <Ionicons name="chevron-down" size={13} color={CT.text2} />
                 </Pressable>
               </View>
             </View>
@@ -1659,10 +1661,10 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                     }}
                     style={[styles.modeItem, messages.length === 0 && { opacity: 0.4 }]}
                   >
-                    <Ionicons name={it.icon} size={18} color={ASSISTANT_COLOR_DARK} />
+                    <Ionicons name={it.icon} size={18} color={CT.text2} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.modeItemTxt}>{it.label}</Text>
-                      <Text style={{ fontSize: 11, color: "#64748B" }}>{it.sub}</Text>
+                      <Text style={{ fontSize: 11, color: CT.muted }}>{it.sub}</Text>
                     </View>
                   </Pressable>
                 ))}
@@ -1676,12 +1678,12 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                   <Pressable
                     key={m}
                     onPress={() => setMode(m)}
-                    style={[styles.modeItem, responseMode === m && { backgroundColor: "#F1EEFF" }]}
+                    style={[styles.modeItem, responseMode === m && { backgroundColor: CT.accentTint }]}
                     testID={`mode-item-${m}`}
                   >
-                    <Ionicons name={MODE_ICON[m]} size={18} color={ASSISTANT_COLOR_DARK} />
+                    <Ionicons name={MODE_ICON[m]} size={18} color={CT.text2} />
                     <Text style={styles.modeItemTxt}>{MODE_LABEL[m]}</Text>
-                    {responseMode === m && <Ionicons name="checkmark" size={18} color={ASSISTANT_COLOR_DARK} />}
+                    {responseMode === m && <Ionicons name="checkmark" size={18} color={CT.accent} />}
                   </Pressable>
                 ))}
               </View>
@@ -1702,7 +1704,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
             >
               {loadingHist && (
                 <View style={{ alignItems: "center", paddingVertical: 20 }}>
-                  <ActivityIndicator color={ASSISTANT_COLOR} />
+                  <ActivityIndicator color={CT.accent} />
                 </View>
               )}
               {!loadingHist && messages.length === 0 && (
@@ -1716,7 +1718,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                         onPress={() => send(s.prompt, { quickLabel: s.label })}
                         disabled={sending}
                       >
-                        <Ionicons name="sparkles" size={14} color={ASSISTANT_COLOR_DARK} />
+                        <Ionicons name="sparkles" size={14} color={CT.accent} />
                         <Text style={styles.suggestTxt}>{s.label}</Text>
                       </Pressable>
                     ))}
@@ -1811,10 +1813,10 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                 <View style={styles.attRow}>
                   {pendingAttachments.map((a, i) => (
                     <View key={`${a.name}-${i}`} style={styles.attChip}>
-                      <Ionicons name={a.mime.startsWith("image/") ? "image" : a.mime.includes("pdf") ? "document" : "document-attach"} size={13} color="#6D28D9" />
+                      <Ionicons name={a.mime.startsWith("image/") ? "image" : a.mime.includes("pdf") ? "document" : "document-attach"} size={13} color={CT.accent} />
                       <Text style={styles.attChipTxt} numberOfLines={1}>{a.name}</Text>
                       <Pressable onPress={() => setPendingAttachments((arr) => arr.filter((_, k) => k !== i))} hitSlop={6}>
-                        <Ionicons name="close" size={13} color="#6D28D9" />
+                        <Ionicons name="close" size={13} color={CT.text2} />
                       </Pressable>
                     </View>
                   ))}
@@ -1831,8 +1833,10 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                     onChangeText={setInput}
                     editable={!recording && !transcribing}
                     placeholder={pendingAttachments.length ? "Aggiungi un contesto (facoltativo)…" : `Scrivi a ${assistantName}…`}
-                    placeholderTextColor="#94A3B8"
-                    style={styles.input}
+                    placeholderTextColor={CT.muted}
+                    style={[styles.input, inputFocused && styles.inputFocused]}
+                    onFocus={() => setInputFocused(true)}
+                    onBlur={() => setInputFocused(false)}
                     multiline
                     onSubmitEditing={() => { if (sending && input.trim()) { const t = input.trim(); setInput(""); void enqueue(t); } else void send(); }}
                     blurOnSubmit={false}
@@ -1843,7 +1847,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                   <Pressable
                     onPress={() => { if (sending) { const t = input.trim(); if (!t) return; setInput(""); void enqueue(t); } else void send(); }}
                     disabled={!input.trim() && pendingAttachments.length === 0}
-                    style={[styles.sendBtn, { opacity: !input.trim() && pendingAttachments.length === 0 ? 0.5 : 1 }, sending && input.trim() ? { backgroundColor: "#F97316" } : null]}
+                    style={[styles.sendBtn, { opacity: !input.trim() && pendingAttachments.length === 0 ? 0.5 : 1 }, sending && input.trim() ? { backgroundColor: CT.warning } : null]}
                     testID="assistant-send"
                     accessibilityLabel={sending ? "Metti in coda" : "Invia"}
                   >
@@ -1862,14 +1866,14 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                     onPress={attachFile}
                     disabled={sending || attaching}
                     hitSlop={4}
-                    style={[styles.attachBtn, { backgroundColor: attaching ? "#6B7280" : "#F1F0FF" }]}
+                    style={[styles.attachBtn, attaching && { opacity: 0.6 }]}
                     accessibilityLabel="Allega file"
                     testID="assistant-attach"
                   >
                     {attaching ? (
                       <ActivityIndicator size="small" color="#FFF" />
                     ) : (
-                      <Ionicons name="attach" size={20} color={ASSISTANT_COLOR_DARK} />
+                      <Ionicons name="attach" size={20} color={CT.text2} />
                     )}
                   </Pressable>
                   {/* V50.z85 — Bottone Foto: menu contestuale camera/galleria */}
@@ -1884,55 +1888,55 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                     }}
                     disabled={sending || attaching}
                     hitSlop={4}
-                    style={[styles.attachBtn, { backgroundColor: "#FDF2F8" }]}
+                    style={styles.attachBtn}
                     accessibilityLabel="Aggiungi foto"
                     testID="assistant-photo"
                   >
-                    <Ionicons name="camera" size={18} color="#DB2777" />
+                    <Ionicons name="camera" size={18} color={CT.text2} />
                   </Pressable>
                   {/* V50.z292 — Screenshot della schermata corrente (un tocco) per segnalare problemi */}
                   <Pressable
                     onPress={attachScreenshot}
                     disabled={sending || attaching}
                     hitSlop={4}
-                    style={[styles.attachBtn, { backgroundColor: "#ECFEFF" }]}
+                    style={styles.attachBtn}
                     accessibilityLabel="Allega screenshot della schermata"
                     testID="assistant-screenshot"
                   >
-                    <Ionicons name="phone-portrait-outline" size={18} color="#0E7490" />
+                    <Ionicons name="phone-portrait-outline" size={18} color={CT.text2} />
                   </Pressable>
                   {/* V50.z85 — Scanner documenti jscanify */}
                   <Pressable
                     onPress={() => setScannerOpen(true)}
                     disabled={sending}
                     hitSlop={4}
-                    style={[styles.attachBtn, { backgroundColor: "#FEF3C7" }]}
+                    style={styles.attachBtn}
                     accessibilityLabel="Scanner documento"
                     testID="assistant-scanner"
                   >
-                    <Ionicons name="scan" size={18} color="#B45309" />
+                    <Ionicons name="scan" size={18} color={CT.text2} />
                   </Pressable>
                   {/* V28.w — Google Drive picker */}
                   <Pressable
                     onPress={() => setDrivePickerOpen(true)}
                     disabled={sending}
                     hitSlop={4}
-                    style={[styles.attachBtn, { backgroundColor: "#F1F0FF" }]}
+                    style={styles.attachBtn}
                     accessibilityLabel="Allega da Google Drive"
                     testID="assistant-drive-attach"
                   >
-                    <Ionicons name="logo-google" size={16} color="#0F9D58" />
+                    <Ionicons name="logo-google" size={16} color={CT.text2} />
                   </Pressable>
                   {/* V49.i — Dropbox picker */}
                   <Pressable
                     onPress={() => setDropboxPickerOpen(true)}
                     disabled={sending}
                     hitSlop={4}
-                    style={[styles.attachBtn, { backgroundColor: "#E0EFFF" }]}
+                    style={styles.attachBtn}
                     accessibilityLabel="Allega da Dropbox"
                     testID="assistant-dropbox-attach"
                   >
-                    <Ionicons name="logo-dropbox" size={16} color="#0061FF" />
+                    <Ionicons name="logo-dropbox" size={16} color={CT.text2} />
                   </Pressable>
                   {voiceSupported && (
                     <Pressable
@@ -1940,7 +1944,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                       disabled={sending || transcribing}
                       style={[
                         styles.micBtn,
-                        { backgroundColor: recording ? "#DC2626" : transcribing ? "#6B7280" : "#F1F0FF" },
+                        { backgroundColor: recording ? CT.danger : transcribing ? CT.surfaceUser : "transparent" },
                       ]}
                       accessibilityLabel={recording ? "Ferma dettatura" : "Detta domanda"}
                     >
@@ -1950,7 +1954,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                         <Ionicons
                           name={recording ? "stop" : "mic"}
                           size={20}
-                          color={recording ? "#FFF" : ASSISTANT_COLOR_DARK}
+                          color={recording ? "#FFF" : CT.text2}
                         />
                       )}
                     </Pressable>

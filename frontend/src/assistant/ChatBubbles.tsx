@@ -4,13 +4,14 @@ import React, { useEffect, useRef } from "react";
 import { View, Text, Pressable, Animated, Easing } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "@/src/auth";
+import { CT } from "@/src/assistant/chatTheme"; // V50.z337 — chat dark/premium
 import { ChatTableExport, parseMessageSegments } from "@/src/ChatTableExport";
 import { ChatChartExport } from "@/src/ChatChartExport";
 import { NavChips, extractNavChips } from "@/src/NavChips";
 import { SaveToAxonPrompt } from "@/src/SaveToAxonPrompt";
 import { copyText, shareText, exportConversationPdf } from "@/src/utils/chatExport";
 import { ModuleErrorBoundary } from "@/src/shared/ModuleErrorBoundary";
-import { styles, ASSISTANT_COLOR, ASSISTANT_COLOR_DARK } from "@/src/assistant/chatStyles";
+import { styles } from "@/src/assistant/chatStyles";
 import type { ChatMsg } from "@/src/assistant/chatTypes";
 
 export type ConvPhase = "idle" | "listening" | "transcribing" | "thinking" | "speaking";
@@ -83,7 +84,7 @@ export function ConversationPanel({
         {phase === "listening" && onStopListening && (
           <Pressable
             onPress={onStopListening}
-            style={[styles.convBtn, { backgroundColor: "#111827" }]}
+            style={[styles.convBtn, { backgroundColor: CT.surfaceUser, borderWidth: 1, borderColor: CT.borderGhost }]}
             testID="assistant-conv-stop-listening"
             accessibilityLabel="Ferma la registrazione e invia"
           >
@@ -97,12 +98,12 @@ export function ConversationPanel({
           testID="assistant-conv-mute"
           accessibilityLabel={muted ? "Riattiva microfono" : "Silenzia microfono"}
         >
-          <Ionicons name={muted ? "mic-off" : "mic"} size={22} color={muted ? "#FFF" : ASSISTANT_COLOR_DARK} />
+          <Ionicons name={muted ? "mic-off" : "mic"} size={22} color={muted ? "#FFF" : CT.text2} />
           <Text style={[styles.convBtnTxt, muted && { color: "#FFF" }]}>{muted ? "Riprendi" : "Muto"}</Text>
         </Pressable>
         <Pressable
           onPress={onEnd}
-          style={[styles.convBtn, { backgroundColor: "#EF4444" }]}
+          style={[styles.convBtn, { backgroundColor: CT.danger }]}
           testID="assistant-conv-end"
           accessibilityLabel="Termina conversazione"
         >
@@ -147,7 +148,7 @@ export function MessageBubble({
     <View style={[styles.bubbleRow, { justifyContent: isUser ? "flex-end" : "flex-start" }]}>
       {!isUser && (
         <View style={styles.bubbleAvatar}>
-          <MaterialCommunityIcons name="robot-happy" size={14} color="#FFF" />
+          <Ionicons name="sparkles" size={12} color={CT.accent} />
         </View>
       )}
       <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAsst]}>
@@ -157,19 +158,19 @@ export function MessageBubble({
               <Text style={styles.bubbleWho}>{assistantName}</Text>
               {msg.used_web_search && (
                 <View style={styles.webBadge}>
-                  <Ionicons name="globe" size={10} color="#0EA5E9" />
+                  <Ionicons name="globe" size={10} color={CT.accent} />
                   <Text style={styles.webBadgeTxt}>web</Text>
                 </View>
               )}
               {msg.from_cache && (
                 <View style={styles.cacheBadge} testID="msg-cache-badge">
-                  <Ionicons name="flash" size={10} color="#B45309" />
+                  <Ionicons name="flash" size={10} color={CT.warning} />
                   <Text style={styles.cacheBadgeTxt}>istantanea</Text>
                 </View>
               )}
               {msg.streaming && (
                 <View style={styles.streamBadge}>
-                  <Ionicons name="ellipsis-horizontal" size={10} color="#6D28D9" />
+                  <Ionicons name="ellipsis-horizontal" size={10} color={CT.accent} />
                 </View>
               )}
             </View>
@@ -184,7 +185,7 @@ export function MessageBubble({
                     testID="msg-pause-btn"
                     style={{ padding: 2 }}
                   >
-                    <Ionicons name={paused ? "play" : "pause"} size={20} color="#DC2626" />
+                    <Ionicons name={paused ? "play" : "pause"} size={20} color={CT.danger} />
                   </Pressable>
                 )}
                 <Pressable
@@ -197,7 +198,7 @@ export function MessageBubble({
                   <Ionicons
                     name={isPlaying ? "volume-high" : "play-circle"}
                     size={18}
-                    color={isPlaying ? "#DC2626" : ASSISTANT_COLOR_DARK}
+                    color={isPlaying ? "#DC2626" : CT.accent}
                   />
                 </Pressable>
               </View>
@@ -245,13 +246,13 @@ export function MessageBubble({
                   // mai lasciare la chat bianca (fallback: tabella/testo).
                   return (
                     <ModuleErrorBoundary key={`s-${si}`} moduleName="grafico" fallback={() => <Text style={styles.bubbleText}>{seg.chart?.title ? `📊 ${seg.chart.title}` : "📊 Grafico non disponibile su questo dispositivo"}</Text>}>
-                      <ChatChartExport spec={seg.chart} assistantColor={ASSISTANT_COLOR_DARK} />
+                      <ChatChartExport spec={seg.chart} assistantColor={CT.accent} />
                     </ModuleErrorBoundary>
                   );
                 }
                 return (
                   <ModuleErrorBoundary key={`s-${si}`} moduleName="tabella" fallback={() => <Text style={styles.bubbleText}>{(seg.table?.rows || []).map((r: any) => (Array.isArray(r) ? r.join(" | ") : String(r))).join("\n")}</Text>}>
-                    <ChatTableExport table={seg.table} assistantColor={ASSISTANT_COLOR} />
+                    <ChatTableExport table={seg.table} assistantColor={CT.accent} />
                   </ModuleErrorBoundary>
                 );
               })}
@@ -274,7 +275,7 @@ export function MessageBubble({
             testID="msg-save-master-btn"
             style={styles.saveMasterBtn}
           >
-            <Ionicons name="save" size={14} color="#16A34A" />
+            <Ionicons name="save" size={14} color={CT.success} />
             <Text style={styles.saveMasterTxt}>Salva nei file Master</Text>
           </Pressable>
         )}
@@ -290,7 +291,7 @@ export function MessageBubble({
         {/* V29.ag — Footer "Dati aggiornati al: ..." per messaggi da azioni rapide con cache server-side */}
         {!isUser && msg.qa_updated_at && (
           <View style={styles.qaUpdatedRow}>
-            <Ionicons name={msg.qa_from_cache ? "flash" : "cloud-download"} size={11} color="#16A34A" />
+            <Ionicons name={msg.qa_from_cache ? "flash" : "cloud-download"} size={11} color={CT.success} />
             <Text style={styles.qaUpdatedTxt}>
               {msg.qa_from_cache ? "Dati aggiornati al: " : "Nuovo aggiornamento: "}
               {(() => {
@@ -307,7 +308,7 @@ export function MessageBubble({
         )}
         {/* V28.y — Prompt discreto "Salva come regola" / "Aggiungi fonte" — solo Master */}
         {!isUser && (
-          <SaveToAxonPrompt content={msg.content} assistantColor={ASSISTANT_COLOR_DARK} isMaster={!!isMaster} />
+          <SaveToAxonPrompt content={msg.content} assistantColor={CT.text2} isMaster={!!isMaster} />
         )}
         {/* V50.z160 — Azioni messaggio: Copia · Condividi · PDF (il testo non è
             selezionabile su Android nel Modal → serve un'azione esplicita). */}
@@ -320,8 +321,8 @@ export function MessageBubble({
               testID="msg-copy-btn"
               style={[styles.msgActionBtn, isUser && styles.msgActionBtnUser]}
             >
-              <Ionicons name="copy-outline" size={15} color={isUser ? "#EDE9FE" : "#475569"} />
-              <Text style={[styles.msgActionTxt, isUser && { color: "#EDE9FE" }]}>Copia</Text>
+              <Ionicons name="copy-outline" size={15} color={CT.text2} />
+              <Text style={styles.msgActionTxt}>Copia</Text>
             </Pressable>
             <Pressable
               // V50.z289 — se il messaggio contiene una tabella, la condivisione usa il PDF con la stessa maschera della chat (non il markdown grezzo)
@@ -331,8 +332,8 @@ export function MessageBubble({
               testID="msg-share-btn"
               style={[styles.msgActionBtn, isUser && styles.msgActionBtnUser]}
             >
-              <Ionicons name="share-social-outline" size={15} color={isUser ? "#EDE9FE" : "#475569"} />
-              <Text style={[styles.msgActionTxt, isUser && { color: "#EDE9FE" }]}>Condividi</Text>
+              <Ionicons name="share-social-outline" size={15} color={CT.text2} />
+              <Text style={styles.msgActionTxt}>Condividi</Text>
             </Pressable>
             {!isUser && (
               <Pressable
@@ -342,7 +343,7 @@ export function MessageBubble({
                 testID="msg-pdf-btn"
                 style={styles.msgActionBtn}
               >
-                <Ionicons name="document-text-outline" size={15} color="#475569" />
+                <Ionicons name="document-text-outline" size={15} color={CT.text2} />
                 <Text style={styles.msgActionTxt}>PDF</Text>
               </Pressable>
             )}
@@ -401,8 +402,8 @@ export function TypingDots() {
       Animated.loop(
         Animated.sequence([
           Animated.delay(delay),
-          Animated.timing(val, { toValue: 1, duration: 300, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
-          Animated.timing(val, { toValue: 0, duration: 300, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
+          Animated.timing(val, { toValue: 1, duration: 420, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
+          Animated.timing(val, { toValue: 0, duration: 420, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
         ])
       );
     const loops = [mkAnim(a1, 0), mkAnim(a2, 150), mkAnim(a3, 300)];
@@ -415,15 +416,15 @@ export function TypingDots() {
       style={[
         styles.dot,
         {
-          opacity: v.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }),
-          transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [0, -3] }) }],
+          opacity: v.interpolate({ inputRange: [0, 1], outputRange: [0.25, 1] }),
+          transform: [{ scale: v.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1.25] }) }],
         },
       ]}
     />
   );
 
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 3, marginRight: 8 }}>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginRight: 8 }} testID="axon-typing-dots">
       {dot(a1)}
       {dot(a2)}
       {dot(a3)}

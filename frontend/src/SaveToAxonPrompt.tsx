@@ -11,6 +11,7 @@ import { View, Text, StyleSheet, Pressable, Modal, TextInput, ActivityIndicator,
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
+import { CT } from "@/src/assistant/chatTheme"; // V50.z337 — chat dark/premium
 import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 
 /** Estrae URL (http/https) da un testo. Deduplica preservando l'ordine. */
@@ -126,8 +127,8 @@ export function SaveToAxonPrompt({
           </Pressable>
         ) : (
           <View style={[styles.chip, styles.chipDone]}>
-            <Ionicons name="checkmark-circle" size={12} color="#059669" />
-            <Text style={[styles.chipTxt, { color: "#059669" }]}>Regola salvata</Text>
+            <Ionicons name="checkmark-circle" size={12} color={CT.success} />
+            <Text style={[styles.chipTxt, { color: CT.success }]}>Regola salvata</Text>
           </View>
         )}
         {urls.length > 0 && (
@@ -149,7 +150,7 @@ export function SaveToAxonPrompt({
               <Ionicons name="bookmark" size={20} color={assistantColor} />
               <Text style={styles.sheetTitle}>Salva come regola</Text>
               <Pressable onPress={() => !busy && setRuleModalOpen(false)} hitSlop={10}>
-                <Ionicons name="close" size={22} color="#1B2B4B" />
+                <Ionicons name="close" size={22} color={CT.text} />
               </Pressable>
             </View>
             {/* V50.z162 — Form scrollabile (max ~50% schermo) + bottone Salva SEMPRE
@@ -203,7 +204,7 @@ export function SaveToAxonPrompt({
               <Ionicons name="link" size={20} color={assistantColor} />
               <Text style={styles.sheetTitle}>Aggiungi fonti ad Axon</Text>
               <Pressable onPress={() => !urlBusy && setUrlModalOpen(false)} hitSlop={10}>
-                <Ionicons name="close" size={22} color="#1B2B4B" />
+                <Ionicons name="close" size={22} color={CT.text} />
               </Pressable>
             </View>
             <Text style={styles.helper}>Tocca una fonte per aggiungerla. Verrà usata da Axon per auto-apprendimento (categoria: generic, aggiornamento manuale).</Text>
@@ -248,21 +249,21 @@ const styles = StyleSheet.create({
   chip: {
     flexDirection: "row", alignItems: "center", gap: 4,
     paddingHorizontal: 8, paddingVertical: 4,
-    borderRadius: 999, borderWidth: 1,
-    backgroundColor: "rgba(255,255,255,0.6)",
+    borderRadius: 6, borderWidth: 1,
+    backgroundColor: "transparent",
   },
-  chipDone: { borderColor: "#059669", backgroundColor: "#ECFDF5" },
+  chipDone: { borderColor: CT.success, backgroundColor: "transparent" },
   chipTxt: { fontSize: 10, fontWeight: "800", letterSpacing: 0.2 },
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", alignItems: "center", padding: 20 },
-  sheet: { backgroundColor: "#FFF", borderRadius: 18, padding: 18, width: "100%", maxWidth: 480, gap: 8 },
+  sheet: { backgroundColor: CT.surface, borderWidth: 1, borderColor: CT.borderGhost, borderRadius: 14, padding: 18, width: "100%", maxWidth: 480, gap: 8 },
   sheetHdr: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
-  sheetTitle: { fontSize: 16, fontWeight: "800", color: "#1B2B4B", flex: 1 },
-  lbl: { fontSize: 11, fontWeight: "800", color: "#94A3B8", textTransform: "uppercase", letterSpacing: 0.5, marginTop: 8, marginBottom: 4 },
-  input: { backgroundColor: "#F1F5F9", borderRadius: 10, padding: 12, fontSize: 14, color: "#1B2B4B" },
-  helper: { fontSize: 11, color: "#64748B", fontStyle: "italic", marginTop: 4, marginBottom: 6 },
+  sheetTitle: { fontSize: 16, fontWeight: "800", color: CT.text, flex: 1 },
+  lbl: { fontSize: 11, fontWeight: "800", color: CT.muted, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 8, marginBottom: 4 },
+  input: { backgroundColor: CT.bar, borderWidth: 1, borderColor: CT.borderGhost, borderRadius: 8, padding: 12, fontSize: 14, color: CT.text },
+  helper: { fontSize: 11, color: CT.muted, fontStyle: "italic", marginTop: 4, marginBottom: 6 },
   primaryBtn: { padding: 14, borderRadius: 14, marginTop: 12, alignItems: "center" },
   primaryBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
-  urlRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
-  urlHost: { fontSize: 13, fontWeight: "700", color: "#1B2B4B" },
-  urlFull: { fontSize: 10, color: "#94A3B8", fontWeight: "600" },
+  urlRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: CT.border },
+  urlHost: { fontSize: 13, fontWeight: "700", color: CT.text },
+  urlFull: { fontSize: 10, color: CT.muted, fontWeight: "600" },
 });

@@ -5,7 +5,8 @@ import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, useWindowDimensions } from "react-native";
 import { api } from "@/src/api";
 
-const AXON_DARK = "#6D28D9";
+import { CT } from "@/src/assistant/chatTheme"; // V50.z337 — chat dark/premium
+
 const HIDE_AFTER_MS = 60_000;
 const MIN_WIDTH = 320;
 
@@ -59,7 +60,7 @@ export function QuickReplyButtons({ question, messageId, options = QUICK_REPLY_O
       <View style={styles.row}>
         {options.map((o) => (
           <Pressable key={o.key} onPress={() => pick(o)} style={[styles.chip, o.key === "yes" ? styles.yes : o.key === "no" ? styles.no : styles.maybe]} testID={`quick-reply-${o.key}`} accessibilityRole="button">
-            <Text style={[styles.txt, o.key === "yes" && { color: "#FFF" }]}>{o.label}</Text>
+            <Text style={[styles.txt, { color: o.key === "yes" ? CT.yes : o.key === "no" ? CT.no : CT.maybe }]}>{o.label}</Text>
           </Pressable>
         ))}
       </View>
@@ -82,12 +83,13 @@ export const QUICK_REPLY_TOAST_MS = 1800;
 const styles = StyleSheet.create({
   wrap: { paddingLeft: 30, marginTop: 6 },
   row: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
-  chip: { borderRadius: 20, paddingHorizontal: 14, minHeight: 44, justifyContent: "center", alignItems: "center" },
-  yes: { backgroundColor: AXON_DARK },
-  no: { backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FECACA" },
-  maybe: { backgroundColor: "#F5F3FF", borderWidth: 1, borderColor: "#DDD6FE" },
-  txt: { fontWeight: "800", fontSize: 13, color: AXON_DARK },
+  // V50.z337 — minimal: bordo sottile, sfondo trasparente, accent desaturati
+  chip: { borderRadius: 8, paddingHorizontal: 14, minHeight: 44, justifyContent: "center", alignItems: "center", backgroundColor: "transparent", borderWidth: 1 },
+  yes: { borderColor: CT.yes },
+  no: { borderColor: CT.no },
+  maybe: { borderColor: CT.maybe },
+  txt: { fontWeight: "700", fontSize: 13, color: CT.text },
   toastWrap: { paddingLeft: 30, marginTop: 6 },
-  toast: { alignSelf: "flex-start", backgroundColor: "#ECFDF5", borderWidth: 1, borderColor: "#A7F3D0", borderRadius: 20, paddingHorizontal: 14, minHeight: 36, justifyContent: "center" },
-  toastTxt: { color: "#065F46", fontWeight: "800", fontSize: 12.5 },
+  toast: { alignSelf: "flex-start", backgroundColor: "transparent", borderWidth: 1, borderColor: CT.yes, borderRadius: 8, paddingHorizontal: 14, minHeight: 36, justifyContent: "center" },
+  toastTxt: { color: CT.yes, fontWeight: "800", fontSize: 12.5 },
 });

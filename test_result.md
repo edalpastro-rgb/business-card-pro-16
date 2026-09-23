@@ -454,3 +454,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z336 — Email Resend advisoros.it: routes/axon_email.py (axon_send_email Resend→Emergent→SMTP, email_events, hook demo-request/support ticket/register, _pl_send_resend ridefinito), endpoint GET /email/config · POST /email/test · GET /email/events (Super Master), schermata /email-config + voce drawer. Secrets placeholder in backend/.env (RESEND_API_KEY, SENDER_INFO, SENDER_HELP, SENDER_EMANUELE, MASTER_NOTIFY_EMAIL). pytest tests/test_v50z336_email.py 8/8."
+
+  - agent: "main"
+    message: "V50.z337 — Chat Axon dark/premium: nuova palette src/assistant/chatTheme.ts (CT: bg #0f0f14, bar #1a1a24, surface #1e1e2e, user #2a2a3e, accent #4f8ef7). chatStyles.ts ristilizzato (toolbar dark, pill selector con bordo, bolle Axon con bordo sinistro accent / utente bordo destro, ghost buttons Copia/Condividi/PDF, input dark con stato inputFocused → bordo blu, send blu, typing dots pulsanti con glow). AssistantChat.tsx: icone toolbar/allegati grigio chiaro, stato inputFocused (onFocus/onBlur), coda/mode tinte. ChatBubbles.tsx: avatar Axon piccolo (sparkles su tint), TypingDots scale+opacity (testID axon-typing-dots). axon-quick-reply.tsx: Sì/No/Forse ghost desaturati. NavChips.tsx + SaveToAxonPrompt.tsx dark. Nessuna modifica funzionale; FAB e tabelle export (bianche per PDF) invariati."

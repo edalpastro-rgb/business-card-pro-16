@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, Pressable, StyleSheet, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { CT } from "@/src/assistant/chatTheme"; // V50.z337 — chat dark/premium
 import { api } from "@/src/api";
 
 export type NavChip = { kind: "nav"; route: string; label: string };
@@ -51,7 +52,7 @@ export function NavChips({ chips, onNavigate, onAction }: {
           return (
             <Pressable key={`n-${i}`} onPress={() => onNavigate(c.route)} style={styles.navBtn} testID={`nav-chip-${i}`} accessibilityRole="button">
               <Text style={styles.navTxt} numberOfLines={2}>{c.label}</Text>
-              <Ionicons name="arrow-forward-circle" size={18} color="#7C3AED" />
+              <Ionicons name="arrow-forward-circle" size={18} color={CT.accent} />
             </Pressable>
           );
         }
@@ -101,7 +102,7 @@ export function NavProactiveCard({ visible, onNavigate }: { visible: boolean; on
   return (
     <View style={styles.card} testID={`nav-proactive-${hint.id}`}>
       <View style={styles.cardHead}>
-        <Ionicons name="bulb" size={16} color="#7C3AED" />
+        <Ionicons name="bulb" size={16} color={CT.accent} />
         <Text style={styles.cardTitle}>Axon ha notato</Text>
       </View>
       <Text style={styles.cardTxt}>{hint.text}</Text>
@@ -119,18 +120,18 @@ export function NavProactiveCard({ visible, onNavigate }: { visible: boolean; on
 
 const styles = StyleSheet.create({
   wrap: { gap: 6, marginTop: 4 },
-  navBtn: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, backgroundColor: "#F5F3FF", borderColor: "#DDD6FE", borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, minHeight: 44 },
-  navTxt: { flex: 1, color: "#4C1D95", fontWeight: "800", fontSize: 13.5 },
-  actBtn: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#7C3AED", borderRadius: 12, paddingHorizontal: 14, minHeight: 44 },
-  actBtnDone: { backgroundColor: "#16A34A" },
+  navBtn: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, backgroundColor: CT.accentTint, borderColor: CT.accent + "66", borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, minHeight: 44 },
+  navTxt: { flex: 1, color: CT.text, fontWeight: "800", fontSize: 13.5 },
+  actBtn: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: CT.accent, borderRadius: 8, paddingHorizontal: 14, minHeight: 44 },
+  actBtnDone: { backgroundColor: CT.success },
   actTxt: { flex: 1, color: "#FFF", fontWeight: "900", fontSize: 13.5 },
-  card: { marginHorizontal: 12, marginBottom: 8, backgroundColor: "#FFFFFF", borderRadius: 14, borderWidth: 1, borderColor: "#E9D5FF", padding: 12, gap: 6 },
+  card: { marginHorizontal: 12, marginBottom: 8, backgroundColor: CT.surface, borderRadius: 10, borderWidth: 1, borderColor: CT.borderGhost, borderLeftWidth: 3, borderLeftColor: CT.accent, padding: 12, gap: 6 },
   cardHead: { flexDirection: "row", alignItems: "center", gap: 6 },
-  cardTitle: { fontSize: 12, fontWeight: "900", color: "#7C3AED", letterSpacing: 0.3 },
-  cardTxt: { fontSize: 14, color: "#1F2937", lineHeight: 20 },
+  cardTitle: { fontSize: 12, fontWeight: "900", color: CT.accent, letterSpacing: 0.3 },
+  cardTxt: { fontSize: 14, color: CT.text, lineHeight: 20 },
   cardRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 2 },
-  cardOpen: { flex: 1, backgroundColor: "#7C3AED", borderRadius: 10, minHeight: 40, alignItems: "center", justifyContent: "center", paddingHorizontal: 12 },
+  cardOpen: { flex: 1, backgroundColor: CT.accent, borderRadius: 8, minHeight: 40, alignItems: "center", justifyContent: "center", paddingHorizontal: 12 },
   cardOpenTxt: { color: "#FFF", fontWeight: "900", fontSize: 13 },
   cardLater: { minHeight: 40, paddingHorizontal: 10, alignItems: "center", justifyContent: "center" },
-  cardLaterTxt: { color: "#6B7280", fontWeight: "700", fontSize: 13 },
+  cardLaterTxt: { color: CT.muted, fontWeight: "700", fontSize: 13 },
 });

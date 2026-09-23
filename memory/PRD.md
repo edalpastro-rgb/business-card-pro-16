@@ -6770,3 +6770,9 @@ Sostituita ovunque la tagline «Il sistema operativo che potenzia il tuo cervell
 - Endpoint Super Master: `GET /email/config` (chiave mascherata, provider attivo, mittenti, hint DNS), `POST /email/test {kind,to}`, `GET /email/events`.
 - Frontend: `app/email-config.tsx` (dark, stato provider, caselle, invio di prova, ultimi invii) + voce Drawer «Email di sistema» (admin).
 - Finché RESEND_API_KEY è placeholder il provider è «Fallback Emergent»: le email partono ma dal mittente gestito Emergent (from_name = casella). Per attivare le caselle @advisoros.it: Resend → API Keys (Sending access) → RESEND_API_KEY; Resend → Domains → advisoros.it → record DKIM/SPF/MX su Aruba → Verify.
+
+## V50.z337 — CHAT AXON dark/premium (solo estetica) — DONE (iteration_104)
+- Palette `src/assistant/chatTheme.ts` (CT): bg #0f0f14 · bar #1a1a24 · surface #1e1e2e · user #2a2a3e · border #2a2a3a/#3a3a4e · accent blu elettrico #4f8ef7 · quick reply desaturati.
+- `chatStyles.ts`: toolbar dark con separatori sottili, pill Coda/Modalità con bordo (niente sfondo pieno), bolle Axon con bordo sinistro accent / utente bordo destro, ghost buttons (Copia/Condividi/PDF/feedback), input dark + `inputFocused` (bordo blu con glow), send blu, typing dots con glow; modali feedback dark.
+- `AssistantChat.tsx`: icone toolbar/allegati grigio chiaro, stato focus input, testID `assistant-close`. `ChatBubbles.tsx`: avatar Axon piccolo (sparkles), TypingDots scale+opacity (`axon-typing-dots`). `axon-quick-reply.tsx`: Sì/No/Forse ghost. `NavChips.tsx` (chip navigazione + card «Axon ha notato») e `SaveToAxonPrompt.tsx` dark.
+- Invariati: FAB AxonOS (viola), pill logo AxonOS bianca, tabelle esportabili (bianche per il PDF). Test iteration_104 tutto verde.
