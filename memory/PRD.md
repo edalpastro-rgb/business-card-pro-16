@@ -6735,3 +6735,14 @@ Sostituita ovunque la tagline «Il sistema operativo che potenzia il tuo cervell
 - Tour: header abbassato (`insets.top + 14`), «Salta» → pill «⏭ Salta intro» uguale a «Silenzia», sempre visibile (tranne step Master bloccato; prima nascosto durante il setup del nome).
 - Attivazione (`ActivationOverlay`): onda 3,0 → 5,2 s; vibrazione Android `[0,140,110,140,380,700,250,450,250,250]` (~2,4 s; prima 0,4 s), iOS 5 impulsi aptici fino a 2,1 s; anelli più lenti/distanziati; didascalia in 3 fasi «Sta prendendo vita…» → «Connessione stabilita.» → «Da ora ricorda tutto. Passiamo ai fatti.» (`activation-phase`), poi saluto vocale.
 - Help Center: nuova voce **«Rivedi l'introduzione»** (`help-replay-intro`): riproduce solo la connessione con Axon (onda + vibrazione + saluto con nome/voce dell'utente) senza rifare il tour. Vibrazione/aptica verificabili solo su build nativa.
+
+## V50.z336 — Landing: 8 modifiche richieste (prompt utente) — DONE
+1. Hero: sotto ENTRA «SCORRI PER SCOPRIRE» + freccia animata (bounce, `landing-scroll-hint`); tolto il chevron statico in basso.
+2. Pill hero: «Axon si adatta a tutti. Vuoi equilibrio e organizzazione per non dimenticare più nulla? Tu chiedi, Axon fa.» (→ /lite).
+3. Sezione diamante: tolta la label «IL DIAMANTE · AXON», resta il simbolo animato.
+4. Card Lite: «Axon Lite. L'assistente per tutti, senza compromessi.» + «Lo installi, impara a conoscerti, poi tu chiedi e lui fa.» + chip Studenti/Casalinghe/Professionisti/Sportivi/Insegnanti + «Per chi ha una vita moderna…».
+5. Card AdvisorOS: «I clienti non si gestiscono, si seguono.» + «Per professionisti di tutti i livelli e attività dove sono coinvolti team e più organizzazioni.»
+6. Confronto: «Aggiunta al CRM 😠 👎» / «Nel CRM 😊 👍».
+7. Modulistica: «…Axon legge, capisce ed estrae dai documenti inseriti i dati necessari per compilare i moduli richiesti. Da ore di trascrizione a minuti.»
+8. Primo avvio landing: la landing NON aveva mai vibrazione/wow (era solo nell'attivazione post-login) → aggiunto: se `landing_seen_v1` assente, a 0,9 s impulso dell'orb (scale 1.18 + spring) + vibrazione (Android pattern, iOS aptica ×3, web `navigator.vibrate` dove supportato).
+- Fix layout: nelle colonne (telefono) i `Reveal` non usano più `flex:1` (le card si sovrapponevano) → `width:100%`.

@@ -8,7 +8,8 @@
  * attivabili), CTA finale, footer. Effetti: src/landing/LandingFx.tsx.
  */
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, Platform, Linking, useWindowDimensions } from "react-native";
+import * as Haptics from "expo-haptics"; // V50.z336 — wow primo avvio
+import { View, Text, StyleSheet, Pressable, ScrollView, Platform, Linking, Vibration, Animated, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
@@ -73,7 +74,28 @@ export default function LandingScreen() {
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView | null>(null);
   const demoY = useRef(0);
-  useEffect(() => { AsyncStorage.setItem(LANDING_SEEN_KEY, "1").catch(() => {}); }, []);
+  // V50.z336 — Primo avvio: effetto wow (impulso dell'orb + vibrazione) sincronizzato con la comparsa di Axon
+  const orbPulse = useRef(new Animated.Value(1)).current;
+  const cueY = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.loop(Animated.sequence([Animated.timing(cueY, { toValue: 8, duration: 700, useNativeDriver: true }), Animated.timing(cueY, { toValue: 0, duration: 700, useNativeDriver: true })])).start();
+    let t: ReturnType<typeof setTimeout> | null = null;
+    AsyncStorage.getItem(LANDING_SEEN_KEY).then((seen) => {
+      if (seen) return;
+      t = setTimeout(() => {
+        Animated.sequence([
+          Animated.timing(orbPulse, { toValue: 1.18, duration: 420, useNativeDriver: true }),
+          Animated.spring(orbPulse, { toValue: 1, friction: 4, useNativeDriver: true }),
+        ]).start();
+        try {
+          if (Platform.OS === "android") Vibration.vibrate([0, 140, 110, 140, 300, 500]);
+          else if (Platform.OS === "ios") { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {}); setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {}), 220); setTimeout(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {}), 800); }
+          else { const nav: any = (globalThis as any).navigator; if (nav?.vibrate) nav.vibrate([140, 110, 140, 300, 500]); }
+        } catch { /* noop */ }
+      }, 900);
+    }).catch(() => {}).finally(() => { AsyncStorage.setItem(LANDING_SEEN_KEY, "1").catch(() => {}); });
+    return () => { if (t) clearTimeout(t); };
+  }, [orbPulse, cueY]);
   const goLogin = () => router.push("/login" as any);
   const goDemo = () => scrollRef.current?.scrollTo({ y: Math.max(0, demoY.current - 12), animated: true });
   // V50.z334 — AxonOS Lite: pagina dedicata /lite (o link esterno se EXPO_PUBLIC_LITE_URL è configurato)
@@ -105,7 +127,7 @@ export default function LandingScreen() {
           </Reveal>
 
           <Reveal delay={250} style={{ alignItems: "center" }}>
-            <AxonOrb size={compact ? 170 : 230} />
+            <Animated.View style={{ transform: [{ scale: orbPulse }] }} testID="landing-orb"><AxonOrb size={compact ? 170 : 230} /></Animated.View>
           </Reveal>
 
           <Reveal delay={400} style={{ alignItems: "center" }}>
@@ -126,12 +148,13 @@ export default function LandingScreen() {
             </Pressable>
             <Text style={s.ctaHint}>Clicca. E guarda cosa c&apos;è dietro.</Text>
             <Pressable onPress={openLite} style={({ pressed }) => [s.liteHeroBtn, pressed && s.pressed]} testID="landing-hero-lite" accessibilityRole="button">
-              <Ionicons name="diamond" size={16} color={LP.axon} /><Text style={s.liteHeroTxt}>Non gestisci reti o contratti? Axon è anche per te → AxonOS Lite</Text>
+              <Ionicons name="diamond" size={16} color={LP.axon} /><Text style={s.liteHeroTxt}>Axon si adatta a tutti. Vuoi equilibrio e organizzazione per non dimenticare più nulla? Tu chiedi, Axon fa.</Text>
             </Pressable>
+            <Animated.View style={[s.scrollHint, { transform: [{ translateY: cueY }] }]} testID="landing-scroll-hint">
+              <Text style={s.scrollHintTxt}>Scorri per scoprire</Text>
+              <Ionicons name="chevron-down" size={22} color={LP.axon} />
+            </Animated.View>
           </Reveal>
-        </View>
-        <View style={s.scrollCue} pointerEvents="none">
-          <Ionicons name="chevron-down" size={22} color={LP.axon} />
         </View>
       </View>
 
@@ -140,22 +163,27 @@ export default function LandingScreen() {
         <View style={[s.container, { alignItems: "center" }]}>
           <Reveal style={{ alignItems: "center" }}>
             <View style={s.diamondWrap}><View style={s.diamondGlow} /><Ionicons name="diamond" size={compact ? 64 : 84} color={LP.axon} /><Ionicons name="sparkles" size={18} color={LP.coreWhite} style={{ position: "absolute", top: 8, right: 10 }} /></View>
-            <Text style={s.kicker}>IL DIAMANTE · AXON</Text>
             <Text style={[s.title, compact && s.titleCompact, { textAlign: "center" }]}>Axon non si replica.{"\n"}<Text style={s.titleAccent}>Si porta con sé.</Text></Text>
             <Text style={[s.lead, { textAlign: "center" }]}>Mille app senza controllo valgono zero: mille impostazioni, mille aggiornamenti, tempo perso. Axon è un cervello che ti conosce, ricorda tutto e agisce per te. AdvisorOS è la casa dove lavora. AxonOS Lite è la porta aperta a tutti.</Text>
           </Reveal>
           <View style={[s.compareRow, compact && s.compareCol, { marginTop: 28 }]}>
-            <Reveal delay={100} style={{ flex: 1 }}>
+            <Reveal delay={100} style={compact ? { width: "100%" } : { flex: 1 }}>
               <Pressable onPress={openLite} style={({ pressed }) => [s.card, s.cardOn, pressed && s.pressed]} testID="landing-lite-link">
-                <View style={s.cardHead}><View style={[s.badge, s.badgeOn]}><LiveDot /><Text style={[s.badgeTxt, { color: LP.axon }]}>AXONOS LITE</Text></View><Text style={s.cardTitle}>Per tutti</Text></View>
-                <Text style={s.liTxt}>Medici, avvocati, geometri, famiglie, studenti. Chi ha una segretaria e chi non l&apos;ha. Memoria, tempo, azioni: «Axon, dov&apos;ero il 9 settembre sera?». Lo sa.</Text>
+                <View style={s.cardHead}><View style={[s.badge, s.badgeOn]}><LiveDot /><Text style={[s.badgeTxt, { color: LP.axon }]}>AXONOS LITE</Text></View><Text style={s.cardTitle}>Axon Lite. L&apos;assistente per tutti, senza compromessi.</Text></View>
+                <Text style={s.liTxt}>Lo installi, impara a conoscerti, poi tu chiedi e lui fa.</Text>
+                <View style={s.whoRow}>
+                  {[["school-outline", "Studenti"], ["home-outline", "Casalinghe"], ["briefcase-outline", "Professionisti"], ["bicycle-outline", "Sportivi"], ["book-outline", "Insegnanti"]].map(([ic, lb]) => (
+                    <View key={lb} style={s.whoChip}><Ionicons name={ic as any} size={14} color={LP.axon} /><Text style={s.whoTxt}>{lb}</Text></View>
+                  ))}
+                </View>
+                <Text style={[s.liTxt, { color: LP.onSurface2 }]}>Per chi ha una vita moderna, ricca di impegni, ricorrenze e cose importanti da non dimenticare.</Text>
                 <View style={[s.li, { alignItems: "center", marginTop: 6 }]}><Ionicons name="arrow-forward-circle" size={22} color={LP.axon} /><Text style={[s.liTxt, { color: LP.axon, fontWeight: "800" }]}>Scopri e prova AxonOS Lite</Text></View>
               </Pressable>
             </Reveal>
-            <Reveal delay={250} style={{ flex: 1 }}>
+            <Reveal delay={250} style={compact ? { width: "100%" } : { flex: 1 }}>
               <Pressable onPress={goLogin} style={({ pressed }) => [s.card, pressed && s.pressed]} testID="landing-advisor-link">
-                <View style={s.cardHead}><View style={s.badge}><Text style={[s.badgeTxt, { color: LP.brand }]}>ADVISOROS</Text></View><Text style={s.cardTitle}>Per chi gestisce clienti e contratti</Text></View>
-                <Text style={s.liTxt}>Lo stesso Axon, al lavoro: reti vendita, pratiche, documenti compilati, agenda di squadra. Da Lite ad AdvisorOS quando serve, senza ricominciare.</Text>
+                <View style={s.cardHead}><View style={s.badge}><Text style={[s.badgeTxt, { color: LP.brand }]}>ADVISOROS</Text></View><Text style={s.cardTitle}>I clienti non si gestiscono, si seguono.</Text></View>
+                <Text style={s.liTxt}>Per professionisti di tutti i livelli e attività dove sono coinvolti team e più organizzazioni.</Text>
                 <View style={[s.li, { alignItems: "center", marginTop: 6 }]}><Ionicons name="arrow-forward-circle" size={22} color={LP.brand} /><Text style={[s.liTxt, { color: LP.brand, fontWeight: "800" }]}>Entra in AdvisorOS</Text></View>
               </Pressable>
             </Reveal>
@@ -177,11 +205,11 @@ export default function LandingScreen() {
           </Reveal>
 
           <View style={[s.compareRow, compact && s.compareCol]}>
-            <Reveal delay={100} style={{ flex: 1 }}>
+            <Reveal delay={100} style={compact ? { width: "100%" } : { flex: 1 }}>
               <View style={[s.card, s.cardOff]} testID="landing-compare-std">
                 <View style={s.cardHead}>
                   <View style={[s.badge, s.badgeOff]}><Text style={[s.badgeTxt, { color: LP.errorText }]}>IA STANDARD</Text></View>
-                  <Text style={s.cardTitle}>Aggiunta al CRM</Text>
+                  <Text style={s.cardTitle}>Aggiunta al CRM  😠 👎</Text>
                 </View>
                 <View style={s.diagram}>
                   <View style={s.crmBox}><Text style={s.crmBoxTxt}>CRM</Text></View>
@@ -193,11 +221,11 @@ export default function LandingScreen() {
                 ))}
               </View>
             </Reveal>
-            <Reveal delay={250} style={{ flex: 1 }}>
+            <Reveal delay={250} style={compact ? { width: "100%" } : { flex: 1 }}>
               <View style={[s.card, s.cardOn]} testID="landing-compare-axon">
                 <View style={s.cardHead}>
                   <View style={[s.badge, s.badgeOn]}><LiveDot /><Text style={[s.badgeTxt, { color: LP.axon }]}>AXON</Text></View>
-                  <Text style={s.cardTitle}>Nel CRM</Text>
+                  <Text style={s.cardTitle}>Nel CRM  😊 👍</Text>
                 </View>
                 <View style={s.diagram}>
                   <View style={[s.crmBox, s.crmBoxOn]}>
@@ -239,7 +267,7 @@ export default function LandingScreen() {
               Zero digitazione.{"\n"}<Text style={s.titleAccent}>Solo azione.</Text>
             </Text>
             <Text style={s.lead}>
-              Scatta una foto o carica un PDF. Axon legge, capisce e compila contratti, moduli e schede cliente al posto tuo. Da minuti di trascrizione a secondi.
+              Scatta una foto o carica un PDF. Axon legge, capisce ed estrae dai documenti inseriti i dati necessari per compilare i moduli richiesti. Da ore di trascrizione a minuti.
             </Text>
           </Reveal>
 
@@ -411,7 +439,11 @@ const s = StyleSheet.create({
   ctaBig: { paddingHorizontal: 44, paddingVertical: 20 },
   ctaTxt: { color: LP.onBrand, fontSize: 17, fontWeight: "900", letterSpacing: 2 },
   ctaHint: { color: LP.onSurface2, fontSize: 14, textAlign: "center" },
-  scrollCue: { position: "absolute", bottom: 14, alignSelf: "center", opacity: 0.8 },
+  scrollHint: { alignItems: "center", gap: 2, marginTop: 18, opacity: 0.9 },
+  scrollHintTxt: { color: LP.onSurface2, fontSize: 12, fontWeight: "700", letterSpacing: 1.2, textTransform: "uppercase" },
+  whoRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 },
+  whoChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: LP.axonGlow, borderWidth: 1, borderColor: LP.axonLineSoft },
+  whoTxt: { color: LP.onSurface, fontSize: 12, fontWeight: "700" },
 
   // Sections
   section: { paddingVertical: 72, overflow: "hidden" },
