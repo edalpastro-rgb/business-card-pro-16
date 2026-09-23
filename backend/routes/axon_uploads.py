@@ -81,6 +81,19 @@ def _upl_store_from_path(path: str, storage_path: str, mime: str) -> Optional[st
 async def _upl_master_store(user: dict, category: str, name: str, mime: str, tmp_path: str, size: int, sha: str, title: Optional[str]) -> dict:
     file_id = f"mf_{uuid.uuid4().hex[:12]}"; tid = tenant_id(user)
     storage_path = f"master-files/{tid}/{file_id}.{_upl_ext(name, mime)}"
+    # V50.z345 — compressione automatica PDF prima dello store (testo/OCR intatti)
+    compress_info: Dict[str, Any] = {}
+    try:
+        if (mime or "").lower() == "application/pdf" or name.lower().endswith(".pdf"):
+            with open(tmp_path, "rb") as _fh:
+                _raw = _fh.read()
+            _out, compress_info = await pdf_auto_compress(_raw, mime, name, "master-files")
+            if compress_info.get("compressed"):
+                with open(tmp_path, "wb") as _fh:
+                    _fh.write(_out)
+                size = len(_out); sha = _upl_hashlib.sha256(_out).hexdigest()
+    except Exception as _exc:  # noqa: BLE001
+        logger.warning("[pdf-compress] master store skip: %s", _exc)
     try:
         stored = await run_in_threadpool(_upl_store_from_path, tmp_path, storage_path, mime)
     finally:

@@ -50,6 +50,13 @@ function ChatDetailScreen() {
   }, []);
   const others = (channel?.member_user_ids || []).filter((id: string) => id !== user?.user_id).map((id: string) => members.find((m) => m.user_id === id) || { user_id: id, name: "" });
   const peer = channel?.is_direct ? others[0] : null;
+  const [peerPic, setPeerPic] = useState<string | null>(null);
+  useEffect(() => {
+    if (!peer?.user_id) return;
+    let alive = true;
+    api<{ picture: string | null }>(`/team/${peer.user_id}/avatar`).then((r) => { if (alive) setPeerPic(r.picture || null); }).catch(() => {});
+    return () => { alive = false; };
+  }, [peer?.user_id]);
   const peerName = peer ? (peer.name || peer.email || "Collega") : "";
   const initial = (peerName || "?").trim()[0]?.toUpperCase() || "?";
   const avatarBg = ["#0EA5E9", "#8B5CF6", "#F97316", "#10B981", "#EC4899", "#F59E0B"][(peer?.user_id || "").split("").reduce((a: number, c: string) => a + c.charCodeAt(0), 0) % 6];
@@ -220,8 +227,8 @@ function ChatDetailScreen() {
           <Ionicons name="chevron-back" size={26} color={HT.text} />
         </Pressable>
         {channel?.is_direct ? (
-          peer?.picture ? (
-            <Image source={{ uri: peer.picture }} style={styles.peerAvatar} testID="chat-peer-avatar" />
+          (peerPic || peer?.picture) ? (
+            <Image source={{ uri: (peerPic || peer?.picture) as string }} style={styles.peerAvatar} testID="chat-peer-avatar" />
           ) : (
             <View style={[styles.peerAvatar, { backgroundColor: avatarBg, alignItems: "center", justifyContent: "center" }]} testID="chat-peer-initial"><Text style={styles.peerInitial}>{initial}</Text></View>
           )

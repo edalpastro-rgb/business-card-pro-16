@@ -247,6 +247,7 @@ function MasterScreen() {
     { label: "Profilo", icon: "person", color: HT.text2, onPress: () => goto("/(tabs)/impostazioni") }, // V50.z287 — mancava nel blocco Utility
     // CRM Core
     { label: "Axon Lab", icon: "color-wand", color: "#0EA5E9", onPress: handleNewContract, badge: alerts.unread }, // V50.z343 — Axon Lab (ex Autocompilazione CRT)
+    { label: "Mercato", icon: "stats-chart", color: "#EAB308", onPress: () => router.push("/mercato" as any) }, // V50.z345 — DB condizioni economiche concorrenti + benchmark
     { label: "New App", icon: "add-circle", color: "#0EA5E9", onPress: () => goto("/appointment/new") },
     // Comunicazioni
     {

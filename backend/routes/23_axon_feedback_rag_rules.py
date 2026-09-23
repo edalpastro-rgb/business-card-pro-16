@@ -359,6 +359,7 @@ async def create_master_doc(body: MasterDocIn, user=Depends(get_current_user)):
         if not is_pdf and not is_textfile:
             raise HTTPException(status_code=400, detail="Formati supportati: PDF, TXT, MD, CSV oppure voce testuale")
         b64 = body.data_base64.split(",", 1)[1] if body.data_base64.startswith("data:") else body.data_base64
+        b64, _ci = await pdf_auto_compress_b64(b64, "application/pdf", name, "kb")  # V50.z345 — Knowledge Base più leggera
         approx_size = int(len(b64) * 3 / 4)
         if is_pdf:
             mime = mime or "application/pdf"

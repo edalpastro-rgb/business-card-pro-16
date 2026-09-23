@@ -73,7 +73,9 @@ async def add_master_file(body: MasterFileIn, user=Depends(get_current_user)):
         import tempfile as _mf_tempfile
         tmp = _mf_tempfile.NamedTemporaryFile(suffix="." + _upl_ext(name, body.mime or ""), delete=False)
         try:
-            raw = base64.b64decode(b64); tmp.write(raw); tmp.close()
+            raw = base64.b64decode(b64)
+            raw, _ci = await pdf_auto_compress(raw, body.mime or "", name, "master-files-json")  # V50.z345
+            tmp.write(raw); tmp.close()
         except Exception:
             tmp.close(); os.unlink(tmp.name)
             raise HTTPException(status_code=400, detail="Base64 non valido")

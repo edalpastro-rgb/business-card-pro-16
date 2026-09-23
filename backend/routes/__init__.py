@@ -9,6 +9,7 @@ MODULES = [
     "00_core.py",
     "01_helpers.py",
     "01b_heavy_bridge.py",  # V50.z210 — heavy_call/heavy_call_sync → sottoprocesso workers/heavy_worker.py (cv2/fitz/pdfplumber MAI nel processo API)
+    "01c_pdf_compress.py",  # V50.z345 — compressione automatica PDF post-upload (PyMuPDF via heavy_call)
     "01c_field_crypto.py",  # V50.z217 — cifratura trasparente a livello di campo di master_profiles (CF, data di nascita, indirizzi, telefono): proxy su db.master_profiles + migrazione all'avvio
     "02_models.py",
     "03_auth.py",
@@ -96,7 +97,8 @@ MODULES = [
     "identity_documents.py",  # V50.z267 — Documenti di riconoscimento: OCR Gemini CI/patente/passaporto/CF fronte-retro, archivio (Object Storage → fallback Mongo), scadenze (job 09:15: email 90gg, popup/CRITICAL 30gg) (isolato; usa 05, 12, axon_personal_lock, axon_notifications)
     "form_templates.py",  # V50.z268 — Modelli moduli (Master): PDF → campi rilevati da Gemini (bbox) / AcroForm; compilazione per cliente da anagrafica + documenti + fatture → PDF pronto per stampa/firma, modificabile (isolato; usa PyMuPDF)
     "crt_practices.py",
-    "axon_lab.py",  # V50.z343 — Axon Lab: addestramento Master (cliente tipo + regole mapping moduli) e compilazione business consulenti (DOPO form_templates, crt_practices)  # V50.z282 — Compilazione CRT (pratiche multi-servizio, dossier, forniture per POD, replica moduli, PDF unico, esempi)
+    "axon_lab.py",
+    "market_conditions.py",  # V50.z345 — Mercato: condizioni economiche concorrenti/ufficiali/ditta + benchmark  # V50.z343 — Axon Lab: addestramento Master (cliente tipo + regole mapping moduli) e compilazione business consulenti (DOPO form_templates, crt_practices)  # V50.z282 — Compilazione CRT (pratiche multi-servizio, dossier, forniture per POD, replica moduli, PDF unico, esempi)
     "offline_sync.py",  # V50.z279 — Modalità aereo/offline: replay idempotente della coda client, conflitti segnalati al Master
     "courses.py",  # V50.z273 — Area Corsi (Corporate Gym v2.0 Fase 1): cartelle corsi, lettura/partecipazione, lista partecipanti, export, reminder (isolato)
     "viola_wake.py",  # V50.z315 — ViolaWake: modulo opzionale per azienda (wake-word «Viola» offline → comando → Axon voce / trigger proattivo); impostazioni, routing deterministico, log eventi (isolato; usa axon_proactive)

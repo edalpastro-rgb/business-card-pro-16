@@ -22,10 +22,20 @@ async def list_team_members(user=Depends(get_current_user)):
     tid = tenant_id(user)
     members = await db.users.find(
         {"$or": [{"user_id": tid}, {"parent_user_id": tid}]},
-        {"_id": 0, "password_hash": 0, "sensitive_password_enc": 0},
+        {"_id": 0, "password_hash": 0, "sensitive_password_enc": 0, "avatar_base64": 0, "company_logo_base64": 0},  # V50.z345 — niente blob (3 s → <100 ms)
     ).to_list(1000)
-    members = [m for m in members if m.get("user_id") != user["user_id"]]
+    members = [{**m, "has_avatar": bool(m.get("picture"))} for m in members if m.get("user_id") != user["user_id"]]
     return {"items": members}
+
+
+@api_router.get("/team/{member_id}/avatar")
+async def team_member_avatar(member_id: str, user=Depends(get_current_user)):
+    """V50.z345 — Avatar di un membro del team (caricato a parte perché pesante). Ritorna picture (URL) o avatar_base64."""
+    tid = tenant_id(user)
+    m = await db.users.find_one({"user_id": member_id, "$or": [{"user_id": tid}, {"parent_user_id": tid}]}, {"_id": 0, "picture": 1, "avatar_base64": 1, "name": 1})
+    if not m:
+        raise HTTPException(status_code=404, detail="Membro non trovato")
+    return {"user_id": member_id, "picture": m.get("picture") or m.get("avatar_base64") or None}
 
 
 async def _is_ancestor_of(caller_user_id: str, target_user_id: str) -> bool:

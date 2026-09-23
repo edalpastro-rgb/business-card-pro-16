@@ -892,7 +892,38 @@ def pdf_cover(data: bytes) -> Dict[str, Any]:
     return {"jpeg": out.getvalue()}
 
 
+def compress_pdf(pdf: bytes, dpi_threshold: int = 200, dpi_target: int = 150, quality: int = 78, page_max_bytes: int = PAGE_MAX_BYTES) -> Dict[str, Any]:
+    """V50.z345 — Compressione PDF INTERNA (PyMuPDF): ricampiona solo le immagini sopra dpi_threshold a dpi_target e le
+    ricomprime in JPEG; testo, livello OCR, vettori, campi modulo e link restano intatti. Poi garbage collection + deflate.
+    Ritorna sempre il PDF più piccolo tra originale e compresso (mai peggiorare)."""
+    import pymupdf as fitz
+    before = len(pdf)
+    try:
+        doc = fitz.open(stream=pdf, filetype="pdf")
+        if doc.is_encrypted:
+            doc.close(); return {"pdf": pdf, "before": before, "after": before, "ratio": 1.0, "skipped": "encrypted"}
+        n_pages = max(1, doc.page_count)
+        # solo se ci sono immagini (altrimenti basta deflate/garbage)
+        has_img = any(len(pg.get_images()) for pg in doc)
+        if has_img:
+            # più il PDF è pesante per pagina, più aggressivo il target (senza scendere sotto 110 dpi / q60)
+            per_page = before / n_pages
+            q = quality; dt = dpi_target
+            if per_page > 4 * page_max_bytes: q, dt = 62, 120
+            elif per_page > 2 * page_max_bytes: q, dt = 70, 135
+            doc.rewrite_images(dpi_threshold=dpi_threshold, dpi_target=dt, quality=q, lossy=True, lossless=True, bitonal=True, color=True, gray=True, set_to_gray=False)
+        out = doc.tobytes(garbage=4, deflate=True, deflate_images=True, deflate_fonts=True, clean=True)
+        doc.close()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("compress_pdf failed: %s", exc)
+        return {"pdf": pdf, "before": before, "after": before, "ratio": 1.0, "skipped": str(exc)[:120]}
+    if len(out) >= before * 0.97:
+        return {"pdf": pdf, "before": before, "after": before, "ratio": 1.0, "skipped": "no-gain"}
+    return {"pdf": out, "before": before, "after": len(out), "ratio": round(len(out) / before, 3)}
+
+
 OPS = {
+    "compress_pdf": compress_pdf,
     "scan_document": scan_document, "manual_crop": manual_crop, "detect_corners": detect_corners, "autocrop_preview": autocrop_preview, "merge_pdf": merge_pdf,
     "process_page": process_page,
     "pdf_ocr": pdf_ocr, "pdf_render": pdf_render,

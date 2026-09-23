@@ -34,6 +34,8 @@ async def bulk_upload_bills(contact_id: str, body: BulkBillsIn, background: Back
         b64 = item.pdf_base64
         if b64.startswith("data:"):
             b64 = b64.split(",", 1)[1]
+        b64, _ci = await pdf_auto_compress_b64(b64, "application/pdf", getattr(item, "pdf_name", "") or "bolletta.pdf", "bill-bulk")  # V50.z345
+        item.pdf_base64 = b64
         approx_size = int(len(b64) * 0.75)
         if approx_size > 12 * 1024 * 1024:
             continue  # skip oversized silently — user gets a partial success

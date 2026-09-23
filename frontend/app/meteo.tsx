@@ -13,6 +13,7 @@ import { ModuleErrorBoundary } from "@/src/shared";
 import { getWeatherCoords, weatherIcon, fmtDayIt } from "@/src/utils/weather";
 import { readWeatherCache, writeWeatherCache, fetchWeatherWithRetry, coordsKey } from "@/src/utils/weatherCache"; // V50.z337 — cache 30 min + retry 429
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { useAuth } from "@/src/auth"; // V50.z345 — carica solo dopo l'idratazione della sessione
 
 type Day = { date: string; icon_key: string; label: string; temp_min?: number; temp_max?: number; precipitation_mm?: number; precipitation_prob?: number; wind_kmh?: number; uv_index?: number; sunrise?: string; sunset?: string };
 type Forecast = { days: Day[]; current?: { temp?: number; feels_like?: number; humidity?: number; wind_kmh?: number; icon_key?: string; label?: string } | null; place?: string | null; needs_address?: boolean; address_error?: string | null; error?: string; stale?: boolean; cached?: boolean };
@@ -83,7 +84,8 @@ function MeteoInner() {
       setUpdating(false);
     }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  const { user } = useAuth();
+  useEffect(() => { if (user) load(); }, [load, user]);
 
   const searchCity = useCallback(async () => {
     const q = cityQuery.trim();

@@ -1,0 +1,53 @@
+{
+  "summary": "V50.z345 Test integrità strutturale: 30/30 pytest passati. Backend perfetto su health + Axon core + compressione PDF automatica + Mercato CRUD. Frontend: 14/16 rotte OK, 2 falliscono; Master mostra pulsanti 'Axon Lab' e 'Mercato'; su /mercato i 6 testID delle tab e delle chip commodity sono presenti ma i 3 testID del form 'Aggiungi' non vengono trovati dopo il tap su market-tab-add → il flusso UI non completabile end-to-end. Performance: 10/11 endpoint < 220ms; GET /api/team/members lento (3109 ms > 1500 ms target). Compressione automatica verificata: contatto 751KB → compressed_from>size persistito in DB, master-files 751KB→309KB (~60% risparmio), PDF < 300KB correttamente saltato (nessun campo compressed_from). Upload sequenziale 3× ~1.0s ciascuno, upload parallelo 3× in 1.7s totali.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/team/members", "issue": "3109 ms (>1500 ms target). Verificare N+1 o join non ottimizzato in team_members query. Tutti gli altri endpoint di lista <220 ms."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "/mercato tab Aggiungi", "issue": "Dopo click su market-tab-add, i testID market-supplier, market-val-prezzo_energia_eur_kwh, market-save NON vengono trovati nel DOM. Impossibile completare il flusso 'Aggiungi condizione → notifica → ritorno benchmark' richiesto dalla review. Il tab market-tab-add è presente e cliccabile; ma il form sottostante non renderizza (o usa testID diversi da quelli attesi). Verificare /app/frontend/app/mercato.tsx: che i testID sui TextInput fornitore/valore/pulsante Save siano esattamente 'market-supplier', 'market-val-<key>', 'market-save'.", "testID": "market-supplier, market-val-prezzo_energia_eur_kwh, market-save", "priority": "HIGH"},
+      {"component": "/meteo", "issue": "Route mostra 'Not authenticated' dopo login owner riuscito (JWT presente nelle altre rotte). Sospetta lettura token con chiave storage errata o route wrapper non idratato in tempo.", "testID": "", "priority": "HIGH"},
+      {"component": "/faq", "issue": "Root Expo vuoto (innerText length = 0) dopo goto. Nessun 'Unmatched Route' banner ma pagina bianca; probabile crash del componente FAQ o file /app/frontend/app/faq.tsx assente/rotto.", "testID": "", "priority": "HIGH"}
+    ],
+    "integration_issues": [
+      {"flow": "Mercato: aggiunta record da UI", "issue": "Non testabile end-to-end perché i testID del form nel tab Aggiungi non si trovano. Backend equivalente POST /api/market/records funziona (verificato via pytest: competitor + own + official tutti 200, band '6.000-15.000 kWh' corretta, benchmark riflette i record).", "affected_testIDs": ["market-supplier", "market-val-prezzo_energia_eur_kwh", "market-save"]}
+    ],
+    "design_issues": [
+      {"screen": "generale", "issues": ["Console: warning ripetuti 'shadow* style props are deprecated. Use boxShadow' e 'textShadow* deprecated. Use textShadow' — molti componenti usano ancora shadowOffset/shadowRadius su web (verificare StyleSheet e considerare Platform.select o passaggio a boxShadow).", "Console: warning 'props.pointerEvents is deprecated. Use style.pointerEvents' — migrare.", "Animated useNativeDriver warning su web (atteso ma rumoroso).", "PageError 'Unhandled Promise Rejection: API key not found' — verificare env var mancante lato client (Picovoice EXPO_PUBLIC_PICOVOICE_ACCESS_KEY è vuota nel .env: potrebbe non essere questa, ma controllare).", "Landing pubblica ha lo scroll molto lungo: prima di poter fare login serve cliccare 'ENTRA' — flusso già noto. Login via placeholder 'tu@email.it' e 'Almeno 6 caratteri', più affidabile che via posizione."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v50z345_integrity_market.py",
+    "/app/test_reports/pytest/v50z345_integrity.xml"
+  ],
+  "action_items": [
+    "FIX /app/frontend/app/mercato.tsx: verificare che i testID nel tab 'Aggiungi' siano ESATTAMENTE `market-supplier` (fornitore), `market-val-prezzo_energia_eur_kwh` (input valore prezzo energia), `market-save` (pulsante salva). Il testing non li ha trovati dopo tap su market-tab-add. Verificare inoltre che il tab sia effettivamente montato (non lazy).",
+    "FIX /app/frontend/app/meteo.tsx: rotta restituisce 'Not authenticated' anche a token valido presente. Verificare che il componente usi il provider auth condiviso (useAuth) prima delle chiamate API o che l'API esponga correttamente /api/weather/forecast con token (backend OK, testato).",
+    "FIX /app/frontend/app/faq.tsx: pagina vuota su web (root innerText = 0). Verificare esistenza del file, import mancanti o crash silenzioso.",
+    "PERF /api/team/members: 3109 ms. Investigare presenza di query N+1 o operazione costosa. Target < 1500 ms.",
+    "MIGRARE console warnings: shadow* → boxShadow, textShadow* → textShadow, props.pointerEvents → style.pointerEvents in tutti i StyleSheet.",
+    "INDAGARE 'Unhandled Promise Rejection: API key not found' apparso in console — probabilmente un modulo (Google/Picovoice/altri) tenta di leggere una chiave assente. Aggiungere try/catch o guardia se `!key`."
+  ],
+  "critical_code_review_comments": [
+    "market_conditions.py: helper _mk_num accetta stringhe con virgola decimale ('0,15' → 0.15), buon supporto italiano. Ma segment auto-detection basata su annual>15000 può sovrascrivere segment='privato' esplicito in _market_ingest_bill.",
+    "01c_pdf_compress.py: soglia 300 KB hardcoded — considerare parametrizzazione via env. compress_pdf in sottoprocesso con timeout=180s: ok, ma se heavy_call fallisce logga warning e ritorna raw (behavior corretto 'mai peggiora').",
+    "market_conditions.py:174 upsert usa `.strip()[:120] or 'La mia ditta'` che se supplier è vuoto passa a default: attenzione a input sanitization (già presente ma implicita).",
+    "market_conditions.py:216 competitors ordinati per -n (numero di offerte) ma senza tie-break: due fornitori con n identici possono cambiare ordine tra richieste. Aggiungere sort secondario per 'supplier' per stabilità UI."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v50z345_integrity_market.py (nuovo — 30 test)"
+  ],
+  "success_rate": {
+    "backend": "100% (30/30 pytest)",
+    "frontend": "87% (14/16 route render OK); Mercato add-form non completabile via UI"
+  },
+  "seed_data_creation": "Tutti i record Mercato TEST_* (competitor/own/official) creati sono stati cancellati in test_z_cleanup. File contatto TEST_heavy_*.pdf, TEST_par_*.pdf, TEST_small.pdf cancellati. Master file TEST_pesante_v50z345.pdf cancellato. Custom field 'oneri_sistema' rimosso dalle impostazioni market e settings ripristinate. Nessun dato residuo previsto.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Dopo fix testID Mercato: rilanciare la sezione UI del test Playwright cercando i selettori `[data-testid=\"market-supplier\"]`, `[data-testid=\"market-val-prezzo_energia_eur_kwh\"]`, `[data-testid=\"market-save\"]` dopo `[data-testid=\"market-tab-add\"]` click. Attenzione: il login richiede FIRST il click su 'ENTRA' (landing), POI compilazione input[placeholder=\"tu@email.it\"] + input[placeholder=\"Almeno 6 caratteri\"] + click ultimo 'Accedi'. Owner: test@dalpastro.it/Test1234!. Il file di test backend è idempotente. Per riprodurre il bug /meteo Not-authenticated: navigare direttamente a /meteo dopo login, verrà mostrata la stringa. Per /faq: root innerText=0 (verificare tramite `document.getElementById('root').innerText`).",
+  "rca_of_issue": "1) /mercato Add form: i testID del tab Aggiungi (market-supplier/market-val-.../market-save) non presenti nel DOM anche dopo click su market-tab-add (tab correttamente trovato). Ipotesi: (a) form condizionale non renderizzato se manca commodity attiva; (b) testID errati nel codice; (c) tab lazy-loaded oltre il timeout di 1500ms. Verificare /app/frontend/app/mercato.tsx sezione 'Aggiungi condizione'. 2) /meteo Not authenticated: probabile lettura token con chiave AsyncStorage sbagliata o chiamata API prima dell'idratazione useAuth. Backend /api/weather/forecast risponde 200 in 182ms con token corretto. 3) /faq root vuoto: file mancante o crash JS senza mostrare Unmatched Route. 4) /api/team/members lento (3109ms): probabilmente query MongoDB con lookup non indicizzato — ispezionare 06_team.py routes/members handler."
+}

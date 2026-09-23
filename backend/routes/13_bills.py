@@ -39,6 +39,11 @@ Schema JSON atteso:
   "iva_percentuale": 10,
   "spread_eur_kwh": 0.015,
   "prezzo_energia_eur_kwh": 0.145,
+  "prezzo_f1_eur_kwh": 0.16, "prezzo_f2_eur_kwh": 0.15, "prezzo_f3_eur_kwh": 0.13,
+  "quota_fissa_eur_mese": 8.5,
+  "pcv_eur_mese": 6.0,
+  "tipo_cliente": "privato" | "business",
+  "picco_potenza_kw": 4.2,
   "importo_totale_eur": 145.30,
   "periodo_fattura": "01/09/2024 - 31/10/2024",
   "note_ai": ["punto 1", "punto 2", "punto 3"]
@@ -66,6 +71,8 @@ Schema JSON atteso:
   "accisa_eur_smc": 0.044,
   "spread_eur_smc": 0.02,
   "prezzo_gas_eur_smc": 0.42,
+  "quota_fissa_eur_mese": 7.0,
+  "tipo_cliente": "privato" | "business",
   "importo_totale_eur": 245.30,
   "periodo_fattura": "01/09/2024 - 31/10/2024",
   "note_ai": ["punto 1", "punto 2", "punto 3"]
@@ -284,6 +291,13 @@ async def _analyze_bill_task(bill_id: str):
             await _update_bill_cheatsheet(bill.get("user_id"), bill.get("bill_type"), extracted or {})
         except Exception:
             pass
+        # V50.z345 — DB condizioni economiche concorrenti (market_conditions.py, definito dopo → lookup dinamico)
+        try:
+            _ing = globals().get("_market_ingest_bill")
+            if _ing:
+                await _ing(bill.get("user_id"), {**bill, "bill_id": bill_id}, extracted or {})
+        except Exception as _exc:  # noqa: BLE001
+            logger.warning("[market] ingest fallito %s: %s", bill_id, _exc)
     except Exception as e:
         logger.exception(f"bill analysis failed for {bill_id}: {e}")
         curr = await db.energy_bills.find_one({"bill_id": bill_id}, {"status": 1})
@@ -513,6 +527,8 @@ async def create_bill(contact_id: str, body: EnergyBillIn, background: Backgroun
     approx_size = int(len(b64) * 0.75)
     if approx_size > 12 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="PDF troppo grande (max ~12 MB)")
+    b64, _ci = await pdf_auto_compress_b64(b64, "application/pdf", body.pdf_name or "bolletta.pdf", "bill")  # V50.z345
+    body.pdf_base64 = b64
     bill_id = f"bill_{uuid.uuid4().hex[:12]}"
     doc = {
         "bill_id": bill_id,

@@ -1,0 +1,24 @@
+{
+  "summary": "V50.z346 ARERA/GME feature fully tested. Backend: 17/17 pytest cases PASSED (list/save/update-idempotent/period-validation/index-commodity-mismatch/empty-values/non-numeric/member-403/compare-reference-most-recent-le-period/default-index/no-ref-null-rows/benchmark-official-linkage/delete). Frontend UI (mobile viewport 390x844): Owner flow validated — /mercato ARERA/GME tab opens AreraPanel with arera-period 'Settembre 2026' in Italian, prev/next arrows change month (verified Settembre→Agosto), luce index chips (gme_pun, arera_stg) present, switching to gas exposes gme_psv and arera_tutela_gas chips, filling arera-val-prezzo_energia_eur_kwh with '0,118' + arera-notes and tapping arera-save renders arera-summary and 2 competitor rows (Enel Energia, Edison), history card + toggle present. Cross-nav market-goto-arera (from Benchmark) and market-src-official (from Aggiungi) both switch to ARERA/GME tab correctly. Sub-user (member) flow validated — arera panel shows summary + 2 competitor rows using latest reference 'Maggio 2026 (ultimo disponibile)' but NO arera-save button, NO arera-val-* inputs, NO arera-notes, NO arera-del-* icons (0 count). Feature works end-to-end.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_v50z346_arera.py", "/app/test_reports/pytest/v50z346_arera.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "market_conditions.py inline model classes and helpers are in a router file that reuses globals (api_router, db, get_current_user, is_owner, tenant_id, utcnow) — these must be imported/injected by the main server module; verified indirectly since all endpoints return correct data.",
+    "Compare endpoint fallback: when index_id omitted, defaults to first index of commodity — verified via GET /market/official/compare?commodity=luce&period=2026-06 returning index.id='gme_pun'.",
+    "Idempotent upsert relies on deterministic record_id 'mk_off_{tid[:8]}_{commodity}_{index_id}_{period}' — verified same record_id on re-post."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "Test seeded a few official records (2026-04, 2026-05, 2026-03 for gme_pun luce; 2026-02 gas gme_psv deleted at end). Notes prefixed with TEST_ for cleanup identification.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Frontend login flow requires ~7s wait after page.goto for the AnimatedSplash overlay to disappear before auth-email-input becomes visible/clickable. Use state='visible' in wait_for_selector. Owner test@dalpastro.it and sub1@dalpastro.it credentials work. After login, URL redirects to /home. Seeded competitor records for luce (Enel Energia 0.152, Edison 0.139 €/kWh) already present in tenant. /market/official records survive between tests; use unique periods to avoid conflicts.",
+  "rca_of_issue": "N/A — no bugs found."
+}
