@@ -7,7 +7,7 @@ import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { notify } from "@/src/utils/notify";
 import { HT } from "@/src/homeTheme";
-import { ACTIVE_THEME_ID, BOOT_THEME_FROM_STORAGE, PALETTES, THEME_IDS, ThemeId, getUserTheme, normalizeThemeId, persistTheme, readThemeFallback, reloadApp } from "@/src/themes";
+import { ACTIVE_THEME_ID, BOOT_THEME_FROM_STORAGE, PALETTES, THEME_IDS, ThemeId, getUserTheme, normalizeThemeId, persistTheme, readThemeFallback, reloadApp, safeThemeReload } from "@/src/themes";
 
 /** Sincronizza il tema salvato sul server per l'utente loggato: se differisce da quello attivo → salva in locale e ricarica (una volta). */
 export function useThemeSync(userId?: string | null) {
@@ -27,7 +27,9 @@ export function useThemeSync(userId?: string | null) {
       if (cancelled || !target) return;
       if (target !== ACTIVE_THEME_ID) {
         await persistTheme(target, userId);
-        if (!cancelled) await reloadApp();
+        // V50.z350 — riavvio automatico SOLO con guard anti-loop (vedi safeThemeReload): se il tema non è rileggibile
+        // o è già stato tentato un riavvio, l'app resta sul tema corrente e continua a funzionare.
+        if (!cancelled) await safeThemeReload(target);
       } else if (getUserTheme(userId) !== target) {
         await persistTheme(target, userId);
       }

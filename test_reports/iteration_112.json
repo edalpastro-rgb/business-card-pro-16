@@ -1,0 +1,30 @@
+{
+  "summary": "V50.z350 — Post-fix full-system regression AFTER safeThemeReload() guard was added to useThemeSync (bug: on native APK after login the profile theme mismatch retriggered reloadApp() infinitely). BACKEND: 18/18 pytest passed (auth owner+member, /auth/me, /me/theme GET normalized, PUT for all 4 valid values with read-back, PUT invalid returns 422 (Pydantic Literal — semantically equivalent to 400), /user-settings, /contacts (no huge base64), /team/members, /market/benchmark?commodity=luce, /market/official?commodity=luce, /tts/engine local_ready=true, /assistant/tts {text:'Ciao'} → engine='kokoro' with mp3 base64, /health, /viola-wake/settings, /weather/forecast POST {lat,lon}). FRONTEND theme-loop regression PASSED: (1) login with local=backend=slate → NO reload, NO spinner reappearance, guard remained null (correct — safeThemeReload never triggered). (2) With backend switched to midnight + local axon_theme_last cleared → app reloaded exactly ONCE, landed on /home in midnight palette, localStorage.axon_theme_reload_guard set to {target:'midnight', at:...}, axon_theme_last='midnight'; polled 15s stable, spinner never reappeared. (3) Impostazioni → Aspetto theme-picker renders all 4 themes with Slate marked active (theme-active-slate present); selecting Pearl shows the live preview panel and 'Applica tema Pearl' button (testID theme-apply). (4) /mercato tabs market-tab-bench + market-tab-arera both present. (5) /axon-voice shows axon-engine-local chip with 'Locale · gratis' selected + voice list. (6) /viola-wake page opens with the expected 'Non disponibile qui (web)' hint. Zero uncaught JS errors across all pages tested. All state restored to slate + kokoro engine at the end.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration_112_regression.py",
+    "/app/test_reports/pytest/iteration_112_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "safeThemeReload() in /app/frontend/src/themes.ts (lines 136-149) implements the anti-loop guard correctly: (a) reads back axon_theme_last synchronously and bails if storage did not persist target, (b) reads reload guard JSON {target, at} and skips reload if same target within 2min, (c) writes the guard AND verifies read-back before actually reloading. This is a defense-in-depth approach that prevents the infinite loop even if any single storage layer is flaky.",
+    "useThemeSync in /app/frontend/src/ThemePicker.tsx (line 32) now calls safeThemeReload(target) instead of raw reloadApp(); the async cancelled flag is checked before the reload call. Verified: after intentional theme mismatch the reload happens ONCE and stops.",
+    "Manual choose() flow in ThemePicker.tsx line 56 still calls raw reloadApp() (not guarded). This is intentional — a manual user action should always reload — but note that if the PUT to /me/theme fails and persistTheme fails too, on next auto-sync the guard will kick in. Acceptable design.",
+    "Minor test-only observation: /api/me/theme returns HTTP 422 (Pydantic Literal validation) for invalid ui_theme rather than a bespoke 400. Not a bug — Pydantic literal validation is the FastAPI-idiomatic answer — but if a custom 400 is desired, wrap in a manual Enum check with HTTPException(400)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration_112_regression.py (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "None. Final state: owner (test@dalpastro.it) ui_theme=slate, assistant_tts_engine=kokoro/local. No test data left behind.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The V50.z350 anti-loop guard uses localStorage key axon_theme_reload_guard (web) / SecureStore key axon_theme_reload_guard (native), TTL 2 minutes, JSON {target, at}. If you need to force a fresh theme-sync reload during testing, clear BOTH axon_theme_last AND axon_theme_reload_guard first. On web, backend /api/me/theme PUT accepts only {'light','pearl','slate','midnight'} (Pydantic Literal → 422 on invalid). Weather forecast endpoint is POST /api/weather/forecast body {lat,lon} (or {city}) — NOT GET. /api/team/members returns {items:[...]} envelope, /api/auth/me returns {user:{...}} envelope. Kokoro TTS is warm (~300-500ms per short phrase). The AnimatedSplash overlay on /login takes ~7-8s to dismiss on cold load — always await it before interacting with the auth form.",
+  "rca_of_issue": "Original bug (pre-fix, from problem statement): useThemeSync in ThemePicker.tsx called reloadApp() unconditionally whenever GET /me/theme returned a value != ACTIVE_THEME_ID at boot. On the APK, some devices had storage that did not persist axon_theme_last synchronously — so after the reload, the boot theme was still !== the backend theme, and useThemeSync fired reloadApp() again → infinite restart loop. FIX (verified in this iteration): safeThemeReload(target) now (1) refuses to reload if readSync(axon_theme_last) !== target (storage-persistence probe — if it failed, no point reloading), (2) refuses to reload if a guard for the same target was set within the last 2 minutes, (3) writes the guard and verifies read-back BEFORE reloading. All three predicates are AND-connected, so ANY single one being false stops the loop. Verified behaviorally on web: exactly one reload after intentional mismatch, stable for 15+ seconds afterward, guard key persisted with correct {target,at} payload."
+}

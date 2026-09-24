@@ -6839,3 +6839,13 @@ Sostituita ovunque la tagline «Il sistema operativo che potenzia il tuo cervell
 ## V50.z349 (Giugno 2026) — Fix build nativa (Emergent deploy)
 - Build APK/AAB falliva su `yarn install --frozen-lockfile`: `expo-speech-recognition@3.1.3` era in `package.json` ma assente da `yarn.lock` (aggiunto a mano perché il cmd-guard locale blocca yarn). Voce di lock aggiunta manualmente (resolved + integrity npm); verifica script: tutte le dipendenze dirette e transitive risolte nel lock.
 - `_PUSH_BASE_URL` (push) ora legge `INTEGRATION_PROXY_URL` dall'ambiente con fallback al proxy Emergent.
+
+## ⚠️ BUG CRITICO MEMORIZZATO — Loop di riavvio dopo il login (APK 1.0.85/1.0.86)
+**Sintomo**: dopo il login la Home compare ~0,5 s poi torna lo spinner blu (`app/index.tsx` app-loading), all'infinito.
+**Causa**: `useThemeSync` (`src/ThemePicker.tsx:28-30`) confronta il tema del profilo (`GET /me/theme`) con `ACTIVE_THEME_ID` (letto in modo SINCRONO da SecureStore al caricamento del bundle, `src/themes.ts:108`) e, se diversi, chiama `reloadApp()` → `RNRestart.restart()` **senza alcun guard**. Sul dispositivo la lettura sincrona di SecureStore non restituisce il valore appena salvato (o il salvataggio fallisce in silenzio: `write()` ha `catch {}`), quindi ad ogni riavvio il tema attivo torna al default «slate», differisce dal DB e l'app si riavvia di nuovo → loop infinito.
+**REGOLE PERMANENTI (da rispettare in ogni futura modifica)**:
+1. MAI chiamare `reloadApp()` / `RNRestart.restart()` / `DevSettings.reload()` automaticamente all'avvio senza (a) verificare con read-back che il valore persistito sia rileggibile in modo sincrono e (b) un guard one-shot persistito (max 1 riavvio per target ogni 2 minuti). Se il guard non è scrivibile → NON riavviare.
+2. Un mismatch di stato (tema, lingua, flag) NON deve mai bloccare l'uso dell'app: degrada (tema di default) invece di riavviare.
+3. `react-native-restart` resta installato solo per il cambio tema **iniziato dall'utente** (ThemePicker.choose). Nessun altro riavvio automatico.
+4. Ogni build nativa va preceduta da una revisione di tutti i punti che eseguono codice al mount di `_layout.tsx` con effetti collaterali di riavvio/navigazione.
+- **Fix applicato (V50.z350)**: `src/themes.ts` `safeThemeReload(target)` (read-back + guard `axon_theme_reload_guard` 2 min) usata da `useThemeSync`; cambio tema manuale invariato. Regressione completa OK (`/app/test_reports/iteration_112.json`: 18/18 backend, loop verificato rotto — 1 solo reload poi stabile).

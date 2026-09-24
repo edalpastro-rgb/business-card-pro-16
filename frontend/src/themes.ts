@@ -126,6 +126,28 @@ export async function readThemeFallback(): Promise<ThemeId | null> {
 }
 export const BOOT_THEME_FROM_STORAGE: boolean = normalizeThemeId(readSync(LAST_KEY)) !== null;
 
+// V50.z350 — GUARD anti-loop (bug APK 1.0.85/86: Home → spinner all'infinito). Un riavvio AUTOMATICO all'avvio è
+// consentito solo se (a) il tema appena salvato è rileggibile in modo sincrono (altrimenti al prossimo boot il
+// mismatch si ripresenterebbe identico) e (b) non è già stato fatto un riavvio per lo stesso tema negli ultimi 2 minuti.
+// Se il guard non è scrivibile/rileggibile → NON si riavvia: l'app resta usabile con il tema di default.
+const RELOAD_GUARD_KEY = "axon_theme_reload_guard";
+const RELOAD_GUARD_MS = 2 * 60 * 1000;
+
+export async function safeThemeReload(target: ThemeId): Promise<boolean> {
+  if (readSync(LAST_KEY) !== target) return false;                    // (a) storage non affidabile → niente loop
+  try {
+    const raw = readSync(RELOAD_GUARD_KEY);
+    if (raw) {
+      const g = JSON.parse(raw) as { target?: string; at?: number };
+      if (g.target === target && Date.now() - (g.at || 0) < RELOAD_GUARD_MS) return false;   // (b) già riavviato
+    }
+  } catch { /* guard illeggibile → lo riscriviamo sotto */ }
+  const stamp = JSON.stringify({ target, at: Date.now() });
+  await write(RELOAD_GUARD_KEY, stamp);
+  if (readSync(RELOAD_GUARD_KEY) !== stamp) return false;               // guard non persistito → niente riavvio
+  return reloadApp();
+}
+
 /** Ricarica il bundle JS per applicare la nuova palette SUBITO, senza chiudere l'app (RoutePersistence riporta
  *  sulla stessa schermata). Web: location.reload(). Nativo: react-native-restart (build release/dev client) →
  *  fallback DevSettings.reload() (Expo Go). Ritorna false solo se nessun meccanismo è disponibile. */
