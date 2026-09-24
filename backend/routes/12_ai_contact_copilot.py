@@ -597,34 +597,10 @@ class TTSIn(BaseModel):
 
 @api_router.post("/ai/tts")
 async def ai_tts(body: TTSIn, user=Depends(get_current_user)):
-    txt = (body.text or "").strip()
-    if not txt:
-        raise HTTPException(status_code=400, detail="Testo vuoto")
-    key = os.environ.get("EMERGENT_LLM_KEY", "")
-    if not key:
-        raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY non configurato")
-    try:
-        async with httpx.AsyncClient(timeout=30) as c:
-            r = await c.post(
-                "https://integrations.emergentagent.com/llm/openai/v1/audio/speech",
-                headers={"Authorization": f"Bearer {key}"},
-                json={
-                    "model": "tts-1",
-                    "voice": (body.voice or "nova"),
-                    "input": txt[:1000],
-                    "response_format": "mp3",
-                },
-            )
-        if r.status_code != 200:
-            raise HTTPException(status_code=502, detail=f"OpenAI TTS {r.status_code}: {r.text[:200]}")
-        import base64 as _b64_tts
-        audio_b64 = _b64_tts.b64encode(r.content).decode("utf-8")
-        return {"audio_base64": audio_b64, "mime": "audio/mp3", "chars": len(txt)}
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.exception("[tts] failed: %s", exc)
-        raise HTTPException(status_code=502, detail=f"Errore TTS: {exc}")
+    """V50.z347 — stesso motore di /assistant/tts (Kokoro locale o OpenAI)."""
+    out = await axon_tts_generate(user, (body.text or "")[:1000], body.voice)
+    out["chars"] = len((body.text or "").strip())
+    return out
 
 
 @api_router.post("/ai/contact-from-card")

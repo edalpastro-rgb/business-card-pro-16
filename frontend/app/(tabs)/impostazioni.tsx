@@ -90,7 +90,7 @@ function ImpostazioniScreen() {
   const [assistantMode, setAssistantMode] = useState<"text" | "voice" | "both">("text");
   // V45 — Badge counter for pending rule proposals (Master only).
   const [pendingProposals, setPendingProposals] = useState<number>(0);
-  const [assistantVoice, setAssistantVoice] = useState<string>("nova");
+  const [assistantVoice, setAssistantVoice] = useState<string>("sara");
   const assistantSaveTimer = React.useRef<any>(null);
 
   // Bug 9 — Dati Master & Biglietto da Visita
@@ -924,6 +924,8 @@ function ImpostazioniScreen() {
               </Pressable>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
                 {[
+                  { key: "sara", label: "Sara (F, locale gratis)" },
+                  { key: "nicola", label: "Nicola (M, locale gratis)" },
                   { key: "nova", label: "Nova (F, chiara)" },
                   { key: "shimmer", label: "Shimmer (F, calda)" },
                   { key: "alloy", label: "Alloy (neutra)" },

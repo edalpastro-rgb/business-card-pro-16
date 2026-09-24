@@ -14,6 +14,7 @@ import { violaApi } from "./api";
 import { createWakeEngine, WAKE_ENGINE_SUPPORTED } from "./wakeEngine";
 import { startForegroundService, stopForegroundService, FOREGROUND_SERVICE_AVAILABLE } from "./foregroundService";
 import { captureCommand, abortCapture, getMicPermission, requestMicPermission, requestRecognizerPermission, recognitionAvailable, supportsOnDevice, CAPTURE_SUPPORTED } from "./commandCapture";
+import { captureCommandWhisper, abortWhisperCapture, WHISPER_CAPTURE_SUPPORTED } from "./whisperCapture"; // V50.z348 — cattura robusta al rumore
 import type { ViolaState, ViolaSettings, ViolaModule, WakeEngine, PermissionStatus } from "./types";
 import { VIOLA_KEYWORD_LABEL } from "./types";
 
@@ -187,7 +188,17 @@ export function ViolaWakeProvider({ children }: { children: React.ReactNode }) {
       setState("capturing");
       setLastTranscript("");
       setLastReply("");
-      const text = await captureCommand({ maxSeconds: st?.listen_seconds || 6, onPartial: setLastTranscript });
+      // V50.z348 — motore comandi: «whisper» = registrazione con soglia adattiva al rumore + Whisper server (traffico/metro);
+      // «device» = riconoscitore del telefono (gratis, on-device). Se Whisper non ottiene nulla si riprova con il telefono.
+      let text = "";
+      if (st?.stt_engine === "whisper" && WHISPER_CAPTURE_SUPPORTED) {
+        const r = await captureCommandWhisper({ maxSeconds: st?.listen_seconds || 6, onPartial: setLastTranscript });
+        text = r.text;
+        void violaApi.logEvent("capture", { engine: "whisper", detail: `noise ${r.noiseDb == null ? "n.d." : Math.round(r.noiseDb)} dB · ${r.durationMs} ms`, latency_ms: r.durationMs });
+        if (!text && r.durationMs > 0 && r.durationMs < 1500) text = await captureCommand({ maxSeconds: st?.listen_seconds || 6, onPartial: setLastTranscript });
+      } else {
+        text = await captureCommand({ maxSeconds: st?.listen_seconds || 6, onPartial: setLastTranscript });
+      }
       await runCommand(text);
     } catch (e: any) {
       setError(String(e?.message || e));
@@ -237,7 +248,7 @@ export function ViolaWakeProvider({ children }: { children: React.ReactNode }) {
   const shouldRun = !!user && !!settings?.enabled && !!module?.enabled;
   useEffect(() => {
     if (shouldRun) void startEngine();
-    else { void stopEngine(); void stopForegroundService(); abortCapture(); setState(supported ? "off" : "unsupported"); }
+    else { void stopEngine(); void stopForegroundService(); abortCapture(); abortWhisperCapture(); setState(supported ? "off" : "unsupported"); }
     return () => { void stopEngine(); void stopForegroundService(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shouldRun, settings?.sensitivity, settings?.keyword_mode]);

@@ -159,10 +159,11 @@ export default function ViolaWakeScreen() {
                 <View style={{ flex: 1 }} />
                 {(["device", "whisper"] as const).map((e) => (
                   <Pressable key={e} onPress={() => void v.updateSettings({ stt_engine: e })} style={[s.chip, v.settings?.stt_engine === e && s.chipOn]} testID={`viola-stt-${e}`}>
-                    <Text style={[s.chipTxt, v.settings?.stt_engine === e && { color: C.onSurfaceInverse }]}>{e === "device" ? "Telefono (gratis)" : "Whisper (cloud)"}</Text>
+                    <Text style={[s.chipTxt, v.settings?.stt_engine === e && { color: C.onSurfaceInverse }]}>{e === "device" ? "Telefono (gratis)" : "Anti-rumore (Whisper)"}</Text>
                   </Pressable>
                 ))}
               </View>
+              <Text style={s.hint}>{v.settings?.stt_engine === "whisper" ? "Anti-rumore: il telefono misura il rumore di fondo, registra finché parli e invia solo il comando a Whisper (riconosce anche nel traffico o in metro; le frasi «fantasma» del rumore vengono scartate)." : "Telefono: riconoscimento vocale di sistema, gratis e on-device; in ambienti rumorosi scegli «Anti-rumore»."}</Text>
             </View>
           ) : null}
         </View>

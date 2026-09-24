@@ -7,7 +7,7 @@ import httpx as _httpx  # sicurezza: httpx già importato altrove ma alias safe
 from fastapi.concurrency import run_in_threadpool
 import requests as _requests
 
-_PUSH_BASE_URL = "https://integrations.emergentagent.com"
+_PUSH_BASE_URL = (os.environ.get("INTEGRATION_PROXY_URL") or "https://integrations.emergentagent.com").rstrip("/")
 _PUSH_KEY = os.environ.get("EMERGENT_PUSH_KEY", "placeholder")
 _push_client = _httpx.AsyncClient(
     base_url=_PUSH_BASE_URL,

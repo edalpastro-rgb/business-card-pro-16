@@ -1,0 +1,28 @@
+{
+  "summary": "V50.z347 — Kokoro-82M local TTS engine (default) + OpenAI cloud fallback + noise-robust Whisper /viola-wake/transcribe. Backend: 19/19 pytest passed (test_v50z347_kokoro_tts.py). Frontend: /axon-voice screen fully verified (engine chips, status 'Voce locale pronta · ~0.3s per frase', voice list order sara→nicola→nova→shimmer with LOCALE badge, play-sara triggers POST /assistant/tts 200, cloud/local chip taps issue PUT /user-settings 200). /viola-wake screen chips 'viola-stt-device' + 'viola-stt-whisper' (label 'Anti-rumore (Whisper)') appear correctly only when the company module AND per-user listening are enabled (expected UI behaviour, noted). All test state restored (engine=local, language=it, viola module=off, user listening=off).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v50z347_kokoro_tts.py",
+    "/app/test_reports/pytest/v50z347_kokoro.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "kokoro_tts() cleans markdown/emoji BEFORE returning None-check on empty; if input is only emoji/markdown it returns None → caller falls back to OpenAI cloud. Behaviour acceptable but silently switches engine (not surfaced to user). Not blocking.",
+    "viola-wake/transcribe accepts audio_base64 without a hard upper cap check before base64.b64decode (b64 payload can exceed 20MB even though decoded raw is capped at 15MB). Minor DoS concern; not blocking."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v50z347_kokoro_tts.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "None. All test state restored: assistant_tts_engine=local, assistant_language=it, viola_wake module=disabled, viola_wake user enabled=false.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Kokoro model files persisted at /app/backend/assets/kokoro (~325 MB onnx + ~28 MB voices). First warmup takes ~30-60s after container restart; subsequent generations ~300-500ms. Local mp3 output starts with 0xFFFB header. Voice mapping: sara↔if_sara, nicola/onyx↔im_nicola, nova/shimmer/coral/sage/fable/alloy/echo/ash → mapped by gender to Kokoro voices when engine=local. Language fallback: only 8 langs supported by Kokoro (en/es/fr/hi/it/ja/pt/zh); anything else (de, ro, uk, ar) forces engine=openai. Viola-wake chips are gated behind viola_wake_modules.enabled=true (Master toggle) AND user viola_wake_settings.enabled=true — otherwise the transcription options card is hidden.",
+  "rca_of_issue": "N/A — no defects."
+}

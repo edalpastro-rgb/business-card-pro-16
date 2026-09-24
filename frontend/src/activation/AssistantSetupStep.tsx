@@ -14,7 +14,7 @@ const VIOLET = "#8B5CF6"; // identità Axon (uguale in chiaro e scuro)
 
 export function AssistantSetupStep({ initialName, initialVoice, onDone }: { initialName?: string; initialVoice?: string; onDone: (name: string, voice: string) => void | Promise<void> }) {
   const [name, setName] = useState((initialName && initialName !== "Neo" ? initialName : "") || "Axon");
-  const [voice, setVoice] = useState(initialVoice || "nova");
+  const [voice, setVoice] = useState(initialVoice || "sara");
   const [previewing, setPreviewing] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const valid = name.trim().length >= 2 && name.trim().length <= 20;

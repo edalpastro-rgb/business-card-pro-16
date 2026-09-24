@@ -145,6 +145,78 @@ async def viola_route(body: ViolaRouteIn, user=Depends(get_current_user)):
     return _vw_route(body.transcript)
 
 
+# ─── V50.z348 — Trascrizione comando ROBUSTA AL RUMORE (traffico, metro, esterni): Whisper con vocabolario Axon,
+#     verbose_json → scarta i segmenti «no_speech» e le allucinazioni tipiche del silenzio. Usata quando stt_engine=whisper.
+VW_WHISPER_PROMPT = "Comando vocale ad Axon, assistente di AdvisorOS: agenda, briefing, report settimanale, bolletta, PUN, contatto, cliente, scadenze, chiama, ricorda, annulla, stop."
+VW_HALLUCINATIONS = ("sottotitoli", "amara.org", "grazie per aver guardato", "iscriviti al canale", "traduzione di", "www.", "sottotitolato", "a cura di qtss", "qtss", "revisione a cura")
+
+
+class ViolaTranscribeIn(BaseModel):
+    audio_base64: str
+    mime: Optional[str] = "audio/m4a"
+    noise_db: Optional[float] = None       # rumore di fondo misurato dal telefono (dBFS), solo per statistiche
+
+
+def _vw_clean_transcript(segments: List[dict], text: str) -> str:
+    keep = []
+    for sg in segments or []:
+        t = str(sg.get("text") or "").strip()
+        if not t:
+            continue
+        if float(sg.get("no_speech_prob") or 0) > 0.6 and float(sg.get("avg_logprob") or 0) < -0.8:
+            continue
+        if any(h in t.lower() for h in VW_HALLUCINATIONS):
+            continue
+        keep.append(t)
+    out = " ".join(keep).strip() if segments else (text or "").strip()
+    if any(h in out.lower() for h in VW_HALLUCINATIONS):
+        return ""
+    return re.sub(r"\s+", " ", out)
+
+
+@api_router.post("/viola-wake/transcribe")
+async def viola_transcribe(body: ViolaTranscribeIn, user=Depends(get_current_user)):
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if not key:
+        raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY non configurato")
+    b64 = body.audio_base64.split(",", 1)[1] if body.audio_base64.startswith("data:") else body.audio_base64
+    try:
+        raw = base64.b64decode(b64)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Audio base64 non valido")
+    if len(raw) < 2048:
+        return {"transcript": "", "reason": "audio troppo corto", "segments": 0}
+    if len(raw) > 15 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Audio troppo grande")
+    mime = (body.mime or "").lower()
+    ext = ".webm" if "webm" in mime or "ogg" in mime else ".wav" if "wav" in mime else ".mp3" if "mp3" in mime or "mpeg" in mime else ".m4a"
+    import tempfile
+    with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+        tmp.write(raw)
+        path = tmp.name
+    t0 = utcnow()
+    try:
+        from emergentintegrations.llm.openai.speech_to_text import OpenAISpeechToText
+        stt = OpenAISpeechToText(api_key=key)
+        with open(path, "rb") as fh:
+            res = await stt.transcribe(file=fh, model="whisper-1", language="it", response_format="verbose_json", prompt=VW_WHISPER_PROMPT, temperature=0.0)
+        if isinstance(res, str):
+            segs, text = [], res
+        else:
+            d = res if isinstance(res, dict) else (res.model_dump() if hasattr(res, "model_dump") else {"text": getattr(res, "text", ""), "segments": getattr(res, "segments", [])})
+            segs = [s if isinstance(s, dict) else (s.model_dump() if hasattr(s, "model_dump") else dict(s)) for s in (d.get("segments") or [])]
+            text = d.get("text") or ""
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Errore trascrizione: {str(exc)[:200]}")
+    finally:
+        try:
+            os.unlink(path)
+        except Exception:
+            pass
+    transcript = _vw_clean_transcript(segs, text)
+    return {"transcript": transcript, "raw": (text or "").strip(), "segments": len(segs), "engine": "whisper", "latency_ms": int((utcnow() - t0).total_seconds() * 1000), "noise_db": body.noise_db}
+
+
 @api_router.post("/viola-wake/event")
 async def viola_event(body: ViolaEventIn, user=Depends(get_current_user)):
     doc = {**body.model_dump(), "event_id": f"vw_{uuid.uuid4().hex[:10]}", "user_id": user["user_id"], "tenant_id": tenant_id(user), "created_at": utcnow()}

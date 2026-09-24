@@ -60,7 +60,8 @@ class UserSettingsIn(BaseModel):
     assistant_response_mode: Optional[str] = None  # "text" | "voice" | "both" (default "text")
     pun_alert_threshold: Optional[float] = None  # V50.z325 — soglia €/kWh media parziale mese (0 = disattivo)
     pun_alert_band: Optional[str] = None  # V50.z325 — monorario | F1 | F2 | F3
-    assistant_voice: Optional[str] = None  # OpenAI TTS voice: alloy | echo | fable | onyx | nova | shimmer
+    assistant_voice: Optional[str] = None  # voce: sara | nicola (Kokoro locale) oppure OpenAI alloy | echo | fable | onyx | nova | shimmer | coral | sage | ash
+    assistant_tts_engine: Optional[str] = None  # V50.z347 — "local" (Kokoro sul server, gratis) | "cloud" (OpenAI)
     assistant_language: Optional[str] = None  # V50.z271 — lingua delle risposte di Axon (it | en | es | fr | de | pt | ro | uk | ar | zh)
     # V28.o — Azioni rapide personalizzabili mostrate nell'empty state della chat Axon.
     # Ogni voce: {id: str, label: str (max ~50 char), prompt: str (comando da inviare)}.
@@ -558,14 +559,16 @@ def _normalize_quick_actions(raw: Any) -> List[Dict[str, str]]:
 @api_router.get("/user-settings")
 async def get_user_settings(user=Depends(get_current_user)):
     s = await db.user_settings.find_one({"user_id": user["user_id"]}, {"_id": 0}) or {
-        "user_id": user["user_id"], "theme": "light", "accent_color": "#7C3AED", "banner_image_url": None, "assistant_name": "Neo", "assistant_response_mode": "text", "assistant_voice": "nova"
+        "user_id": user["user_id"], "theme": "light", "accent_color": "#7C3AED", "banner_image_url": None, "assistant_name": "Neo", "assistant_response_mode": "text", "assistant_voice": "sara"
     }
     if not s.get("assistant_name"):
         s["assistant_name"] = "Neo"
     if not s.get("assistant_response_mode"):
         s["assistant_response_mode"] = "text"
     if not s.get("assistant_voice"):
-        s["assistant_voice"] = "nova"
+        s["assistant_voice"] = "sara"
+    if s.get("assistant_tts_engine") not in ("local", "cloud"):
+        s["assistant_tts_engine"] = "local"
     # V29 — Default finestra scadenze
     if not isinstance(s.get("deadlines_window_days"), int) or s.get("deadlines_window_days") <= 0:
         s["deadlines_window_days"] = 60
@@ -591,6 +594,8 @@ async def update_user_settings(body: UserSettingsIn, user=Depends(get_current_us
     updates = {k: v for k, v in body.model_dump().items() if v is not None}
     if not updates:
         return {"ok": True}
+    if "assistant_tts_engine" in updates and updates["assistant_tts_engine"] not in ("local", "cloud"):
+        raise HTTPException(status_code=400, detail="assistant_tts_engine: local | cloud")
     # V28.o — Normalize quick_actions (attach ids, trim, drop empties)
     if "assistant_quick_actions" in updates:
         updates["assistant_quick_actions"] = _normalize_quick_actions(updates["assistant_quick_actions"])

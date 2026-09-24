@@ -79,4 +79,7 @@ agenthub/agents/youtube/db
 memory/test_credentials.md
 
 # Mobile development
-android-sdk/
+android-sdk/backend/assets/kokoro/*.onnx
+backend/assets/kokoro/*.bin
+backend/assets/kokoro/kokoro-v1.0.onnx
+assets/kokoro/kokoro-v1.0.onnx

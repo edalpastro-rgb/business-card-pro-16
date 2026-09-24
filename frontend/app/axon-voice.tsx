@@ -11,7 +11,10 @@ import { playAudioBase64 } from "@/src/utils/audioPlayback";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
-export const AXON_VOICES: { key: string; label: string; desc: string; gender: "F" | "M" | "N" }[] = [
+export const AXON_VOICES: { key: string; label: string; desc: string; gender: "F" | "M" | "N"; local?: boolean }[] = [
+  // V50.z347 — voci locali Kokoro (sul server, gratis, nessun limite)
+  { key: "sara", label: "Sara", desc: "Femminile, naturale · voce locale gratuita", gender: "F", local: true },
+  { key: "nicola", label: "Nicola", desc: "Maschile, posato · voce locale gratuita", gender: "M", local: true },
   { key: "nova", label: "Nova", desc: "Femminile, chiara e brillante", gender: "F" },
   { key: "shimmer", label: "Shimmer", desc: "Femminile, calda e morbida", gender: "F" },
   { key: "coral", label: "Coral", desc: "Femminile, vivace", gender: "F" },
@@ -39,7 +42,9 @@ export const AXON_LANGUAGES: { key: string; label: string; flag: string; sample:
 export default function AxonVoiceScreen() {
   const router = useRouter();
   const pagePad = usePageBottomPadding();
-  const [voice, setVoice] = useState("nova");
+  const [voice, setVoice] = useState("sara");
+  const [engine, setEngine] = useState<"local" | "cloud">("local"); // V50.z347
+  const [engStatus, setEngStatus] = useState<{ local_ready: boolean; local_loading: boolean; local_error?: string | null; avg_ms?: number | null; generations?: number } | null>(null);
   const [lang, setLang] = useState("it");
   const [rate, setRate] = useState(1); // V50.z284 — velocità di lettura (0.75–2×)
   const [loading, setLoading] = useState(true);
@@ -47,13 +52,20 @@ export default function AxonVoiceScreen() {
   const [stop, setStop] = useState<(() => void) | null>(null);
 
   useEffect(() => {
-    api<{ assistant_voice?: string; assistant_language?: string; assistant_speech_rate?: number }>("/user-settings")
-      .then((s) => { if (s?.assistant_voice) setVoice(s.assistant_voice); if (s?.assistant_language) setLang(s.assistant_language); if (s?.assistant_speech_rate) setRate(Number(s.assistant_speech_rate)); })
+    api<{ assistant_voice?: string; assistant_language?: string; assistant_speech_rate?: number; assistant_tts_engine?: "local" | "cloud" }>("/user-settings")
+      .then((s) => { if (s?.assistant_voice) setVoice(s.assistant_voice); if (s?.assistant_language) setLang(s.assistant_language); if (s?.assistant_speech_rate) setRate(Number(s.assistant_speech_rate)); if (s?.assistant_tts_engine) setEngine(s.assistant_tts_engine); })
       .catch(() => {}).finally(() => setLoading(false));
+    loadEngine();
     return () => { try { stop?.(); } catch {} };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const save = async (patch: { assistant_voice?: string; assistant_language?: string; assistant_speech_rate?: number }) => {
+  const loadEngine = () => { api<typeof engStatus>("/tts/engine").then((r) => setEngStatus(r)).catch(() => {}); };
+  const chooseEngine = async (e: "local" | "cloud") => {
+    setEngine(e); await save({ assistant_tts_engine: e });
+    if (e === "local" && engStatus && !engStatus.local_ready) { try { await api("/tts/engine/warmup", { method: "POST" }); } catch {} setTimeout(loadEngine, 4000); }
+    void preview(voice, lang);
+  };
+  const save = async (patch: { assistant_voice?: string; assistant_language?: string; assistant_speech_rate?: number; assistant_tts_engine?: "local" | "cloud" }) => {
     try { await api("/user-settings", { method: "PUT", body: patch }); } catch (e: any) { notify("Axon", e?.message || "Salvataggio non riuscito"); }
   };
   const chooseVoice = async (v: string) => { setVoice(v); await save({ assistant_voice: v }); void preview(v, lang); };
@@ -78,15 +90,37 @@ export default function AxonVoiceScreen() {
       </View>
       {loading ? <ActivityIndicator color="#7C3AED" style={{ marginTop: 40 }} /> : (
         <ScrollView contentContainerStyle={{ padding: 14, gap: 16, paddingBottom: pagePad }}>
+          {/* V50.z347 — motore vocale: locale (Kokoro sul server) o cloud (OpenAI) */}
+          <Text style={s.section}>🎛️ Motore vocale</Text>
+          <Text style={s.hint}>«Locale» genera la voce sul server AdvisorOS: gratis, senza limiti e senza inviare testo a terzi. «Cloud» usa OpenAI.</Text>
+          <View style={{ flexDirection: "row", gap: 8 }} testID="axon-engine-row">
+            {([["local", "Locale · gratis", "hardware-chip-outline"], ["cloud", "Cloud OpenAI", "cloud-outline"]] as const).map(([k, lbl, ic]) => {
+              const on = engine === k;
+              return (
+                <Pressable key={k} onPress={() => chooseEngine(k)} style={[s.chip, { flex: 1, justifyContent: "center" }, on && s.chipOn]} testID={`axon-engine-${k}`}>
+                  <Ionicons name={ic} size={16} color={on ? "#FFF" : HT.text} /><Text style={[s.chipTxt, on && { color: "#FFF" }]}>{lbl}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          {engStatus ? (
+            <View style={[s.note, !engStatus.local_ready && { backgroundColor: HT.warningTint }]} testID="axon-engine-status">
+              <Ionicons name={engStatus.local_ready ? "checkmark-circle" : engStatus.local_loading ? "hourglass-outline" : "alert-circle"} size={16} color={engStatus.local_ready ? HT.success : HT.warning} />
+              <Text style={[s.noteTxt, !engStatus.local_ready && { color: HT.warning }]}>
+                {engStatus.local_ready ? `Voce locale pronta${engStatus.avg_ms ? ` · ~${(engStatus.avg_ms / 1000).toFixed(1)} s per frase` : ""}${engStatus.generations ? ` · ${engStatus.generations} frasi generate` : ""}` : engStatus.local_loading ? "Voce locale in preparazione (primo avvio: download modello)… nel frattempo si usa il cloud." : `Voce locale non disponibile${engStatus.local_error ? `: ${engStatus.local_error}` : ""} · in uso il cloud.`}
+              </Text>
+            </View>
+          ) : null}
+
           <Text style={s.section}>🔊 Voce</Text>
-          <Text style={s.hint}>Tocca una voce per selezionarla e ascoltare subito un'anteprima.</Text>
+          <Text style={s.hint}>Tocca una voce per selezionarla e ascoltare subito un'anteprima. Con il motore locale le voci cloud vengono rese con Sara (femminili) o Nicola (maschili).</Text>
           <View style={{ gap: 8 }}>
             {AXON_VOICES.map((v) => {
               const on = v.key === voice;
               return (
                 <Pressable key={v.key} onPress={() => chooseVoice(v.key)} style={[s.row, on && s.rowOn]} testID={`axon-voice-${v.key}`}>
                   <View style={[s.avatar, { backgroundColor: v.gender === "F" ? "#FCE7F3" : v.gender === "M" ? "#DBEAFE" : "#EDE9FE" }]}><Ionicons name={v.gender === "F" ? "woman" : v.gender === "M" ? "man" : "person"} size={18} color={v.gender === "F" ? "#DB2777" : v.gender === "M" ? "#2563EB" : "#7C3AED"} /></View>
-                  <View style={{ flex: 1 }}><Text style={s.rowTitle}>{v.label}</Text><Text style={s.rowMeta}>{v.desc}</Text></View>
+                  <View style={{ flex: 1 }}><View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}><Text style={s.rowTitle}>{v.label}</Text>{v.local ? <View style={s.badge}><Text style={s.badgeTxt}>LOCALE</Text></View> : null}</View><Text style={s.rowMeta}>{v.desc}</Text></View>
                   {previewing === v.key ? <ActivityIndicator color="#7C3AED" /> : <Pressable onPress={() => preview(v.key, lang)} hitSlop={8} style={s.play} testID={`axon-voice-play-${v.key}`}><Ionicons name="play" size={16} color="#7C3AED" /></Pressable>}
                   <Ionicons name={on ? "radio-button-on" : "radio-button-off"} size={20} color={on ? "#7C3AED" : HT.muted} />
                 </Pressable>
@@ -143,5 +177,6 @@ const s = StyleSheet.create({
   chip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, minHeight: 42, borderRadius: 21, borderWidth: 1, borderColor: HT.border, backgroundColor: HT.card },
   chipOn: { backgroundColor: '#7C3AED', borderColor: '#7C3AED' }, chipTxt: { fontSize: 13, fontWeight: "800", color: HT.text },
   testBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 48, borderRadius: 14, backgroundColor: '#7C3AED' }, testBtnTxt: { color: "#FFF", fontWeight: "900", fontSize: 14 },
+  badge: { backgroundColor: HT.successTint, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }, badgeTxt: { color: HT.success, fontSize: 9.5, fontWeight: "900", letterSpacing: 0.5 },
   note: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: HT.successTint, borderRadius: 12, padding: 12 }, noteTxt: { flex: 1, fontSize: 12, color: HT.success, lineHeight: 17 },
 });
