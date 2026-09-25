@@ -55,6 +55,9 @@ _CACHE_SKIP_TOKENS = {
     "meteo","tempo","piove","piover","pioggia","nuvoloso","soleggiato","temperatura","previsioni",
     # Quantitative / listing (user-specific)
     "quanti","quante","quanto",
+    # V50.z359 — Stato sistema / versioni / novità: dati DINAMICI (changelog, build, backend) → mai dalla cache
+    "versione","versioni","novita","novità","changelog","aggiornamento","aggiornamenti","aggiornata","aggiornato","build","backend","release","rilascio","rilasciate","rilasciata",
+    "stato","sistema","uptime","deploy","heartbeat","installata","installato","nuovo","nuove","nuova","nuovi","visto","letto","senti","pensi",
 }
 
 def _normalize_and_tokenize(text: str) -> Tuple[str, List[str]]:
@@ -959,6 +962,15 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     except Exception:
         pass
     system_message += _axon_product_section(user)  # V50.z323 — Axon Core: cosa esiste/non esiste nel prodotto dell'utente
+
+    # V50.z360 — «Stato sistema» + CHANGELOG dinamico anche nel percorso NON-stream (ViolaWake): stessa sezione dello stream.
+    try:
+        await _axs_flush()  # noqa: F821 — definita in axon_system_awareness.py (stesso namespace)
+        _axs_sec_ns = await _axs_context_section(user)  # noqa: F821
+        if _axs_sec_ns:
+            system_message = f"{system_message}\n\n{_axs_sec_ns}"
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[axs] context (non-stream) failed: %s", exc)
 
     # V50.z144 — PINNED rules in cima anche nell'endpoint non-streaming (stesso blocco dello stream).
     try:

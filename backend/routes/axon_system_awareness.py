@@ -144,12 +144,38 @@ _AXS_CL_CACHE: Dict[str, Any] = {"mtime": None, "rows": [], "version": None}
 _AXS_CL_ROW_RE = re.compile(r"^\|\s*(V[\w.\-–]+|v[\w.\-–]+|Giu 2026[^|]*)\s*\|\s*([^|]*)\|\s*(.+?)\s*\|\s*$")
 
 
+# V50.z359 — CHANGELOG DINAMICO: oltre alla tabella di CHANGELOG.md, Axon legge SEMPRE i titoli di versione del PRD
+# (`## V50.zNNN (Mese Anno) — Titolo`), che l'agente aggiorna a ogni rilascio. Così le novità dell'app (Axon Lab, Compilazione
+# CRT, Mercato, voce Kokoro…) entrano nel prompt di Axon appena esistono, anche se la tabella del CHANGELOG non è stata aggiornata.
+_AXS_PRD_PATH = "/app/memory/PRD.md"
+_AXS_PRD_HEAD_RE = re.compile(r"^##\s+(V[\w.\-–/]+)\s*(?:\(([^)]*)\))?\s*[—\-:]+\s*(.+?)\s*$")
+
+
+def _axs_prd_rows() -> List[dict]:
+    rows: List[dict] = []
+    try:
+        with open(_AXS_PRD_PATH, encoding="utf-8") as fh:
+            for line in fh:
+                m = _AXS_PRD_HEAD_RE.match(line.rstrip())
+                if m:
+                    desc = re.sub(r"\s*[—\-]+\s*(DONE|FATTO|COMPLETATO)\b.*$", "", m.group(3), flags=re.I).strip()
+                    rows.append({"version": m.group(1).strip(), "date": (m.group(2) or "Giu 2026").strip(), "desc": desc, "src": "prd"})
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[axs] PRD read failed: %s", exc)
+    return rows
+
+
 def _axs_changelog() -> Dict[str, Any]:
     try:
         mt = os.path.getmtime(_AXS_CHANGELOG_PATH)
     except OSError:
-        return {"version": None, "rows": [], "path": _AXS_CHANGELOG_PATH}
-    if _AXS_CL_CACHE["mtime"] == mt:
+        mt = 0.0
+    try:
+        mt_prd = os.path.getmtime(_AXS_PRD_PATH)
+    except OSError:
+        mt_prd = 0.0
+    key = (mt, mt_prd)
+    if _AXS_CL_CACHE.get("mtime") == key:
         return {"version": _AXS_CL_CACHE["version"], "rows": _AXS_CL_CACHE["rows"], "path": _AXS_CHANGELOG_PATH}
     rows: List[dict] = []
     try:
@@ -160,8 +186,17 @@ def _axs_changelog() -> Dict[str, Any]:
                     rows.append({"version": m.group(1).strip(), "date": m.group(2).strip(), "desc": m.group(3).strip()})
     except Exception as exc:  # noqa: BLE001
         logger.warning("[axs] changelog read failed: %s", exc)
+    # Fusione con il PRD: le versioni presenti solo nel PRD vanno in testa (sono le più recenti), ordinate dalla più nuova
+    known = {r["version"] for r in rows}
+    prd_only = [r for r in _axs_prd_rows() if r["version"] not in known]
+    rows = prd_only + rows
+
+    def _vkey(r: dict) -> int:  # ordina per numero di versione (V50.z359 > V50.z347/z348 > …); righe storiche in fondo
+        m = re.search(r"z(\d+)", r.get("version") or "")
+        return int(m.group(1)) if m else -1
+    rows.sort(key=_vkey, reverse=True)
     version = rows[0]["version"] if rows else None
-    _AXS_CL_CACHE.update({"mtime": mt, "rows": rows[:60], "version": version})
+    _AXS_CL_CACHE.update({"mtime": key, "rows": rows[:60], "version": version})
     return {"version": version, "rows": rows[:60], "path": _AXS_CHANGELOG_PATH}
 
 
@@ -302,14 +337,16 @@ async def _axs_context_section(user: dict) -> str:
              "REGOLA: NON dire MAI «non ho visibilità su build/aggiornamenti/backend» o «devi avvisarmi tu»: usa questi dati. Se manca un heartbeat recente di un dispositivo dillo esplicitamente (ultimo visto).",
              f"Backend: versione {b['version'] or 'n/d'} · avviato {b['started_at'][:16].replace('T', ' ')} UTC (uptime {b['uptime_label']}, boot {b['boot_id']}) · {b['modules']} moduli · LLM key {'ok' if b['llm_key'] else 'ASSENTE'} · push service {'configurato' if b['push_configured'] else 'non configurato in questo ambiente (attivo solo sull app pubblicata)'} · dispositivi push registrati: {st['push_devices']}.",
              f"Ultime 24h: {st['counters']['errors_24h']} errori · {st['counters']['warnings_24h']} warning · {st['counters']['api_actions_24h']} azioni API nel tenant."]
+    if st["changelog"]:
+        lines.append("ULTIME NOVITÀ RILASCIATE (CHANGELOG dinamico backend+PRD, dalla più recente) — se l'utente chiede novità/versioni/cosa c'è di nuovo, ELENCA QUESTE righe testualmente (mai dire di non avere accesso allo storico). "
+                     "⛔ Le UNICHE versioni esistenti sono queste, nel formato V50.zNNN: IGNORA qualsiasi altra numerazione (es. «v3.8.x», «v2.x») o novità che ricordi da conversazioni precedenti o dalla memoria — sarebbero inventate. "
+                     + " | ".join(f"{r['version']} ({r['date']}): {r['desc'][:170]}" for r in st["changelog"][:10]))
     if st["devices"]:
         lines.append("App installata sui dispositivi dell'utente: " + "; ".join(f"{d.get('device_name') or d.get('platform')} ({d.get('platform')}, {d.get('app_env') or ''}) v{_axs_ver_label(d)} · JS {d.get('js_version') or '?'} · ultimo heartbeat {(d.get('last_seen') or '')[:16].replace('T', ' ')}" + (f" · aggiornata da {d['previous_version']}" if d.get("previous_version") else "") for d in st["devices"]))
     else:
         lines.append("Nessun heartbeat ricevuto ancora da un'app installata (l'app invia versione e dispositivo all'avvio: se l'utente usa il web non c'è versione nativa).")
     if st["team_devices"]:
         lines.append("Dispositivi del team: " + "; ".join(f"{d.get('user_id', '')[-6:]} {d.get('platform')} v{_axs_ver_label(d)} ({(d.get('last_seen') or '')[:10]})" for d in st["team_devices"][:10]))
-    if st["changelog"]:
-        lines.append("ULTIME NOVITÀ (CHANGELOG, dalla più recente): " + " | ".join(f"{r['version']} ({r['date']}): {r['desc'][:170]}" for r in st["changelog"][:8]))
     if st["jobs"]:
         lines.append("Job pianificati (prossime esecuzioni UTC): " + ", ".join(f"{j['id']}@{(j['next_run'] or '')[11:16]}" for j in st["jobs"][:12]))
     integ = st["integrations"]
@@ -317,7 +354,7 @@ async def _axs_context_section(user: dict) -> str:
         lines.append("Integrazioni: " + ", ".join(f"{k}={'✓' if v else '✗'}" for k, v in integ.items()))
     if st["events"]:
         lines.append("ULTIMI EVENTI BACKEND (più recenti prima):\n" + "\n".join(_axs_fmt_event(e) for e in st["events"]))
-    return "\n".join(lines)[:6000]
+    return "\n".join(lines)[:8000]
 
 
 _axs_prev_prepare_prompt = _prepare_assistant_prompt
@@ -330,6 +367,9 @@ async def _prepare_assistant_prompt(user: dict, body) -> dict:  # noqa: F811
         sec = await _axs_context_section(user)
         if sec and prep.get("system_message"):
             prep["system_message"] = f"{prep['system_message']}\n\n{sec}"
+            logger.info("[axs] sezione stato aggiunta (%d car., changelog=%s, prompt totale %d car.)", len(sec), "ULTIME NOVITÀ" in sec, len(prep["system_message"]))
+        else:
+            logger.warning("[axs] sezione stato NON aggiunta: sec=%d keys=%s", len(sec or ""), list(prep.keys())[:8])
     except Exception as exc:  # noqa: BLE001
         logger.warning("[axs] context failed: %s", exc)
     return prep
