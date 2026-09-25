@@ -85,7 +85,7 @@ export default function AxonMemoryScreen() {
           <Text style={styles.sub}>Memoria AxonOS · tu hai il controllo</Text>
         </View>
         <Pressable onPress={analyze} disabled={analyzing} style={styles.runBtn} testID="memory-analyze">
-          {analyzing ? <ActivityIndicator size="small" color={PURPLE} /> : <Ionicons name="refresh" size={16} color={PURPLE} />}
+          {analyzing ? <ActivityIndicator size="small" color={HT.violet} /> : <Ionicons name="refresh" size={16} color={HT.violet} />}
           <Text style={styles.runTxt}>Analizza di nuovo</Text>
         </Pressable>
       </View>
@@ -121,18 +121,18 @@ export default function AxonMemoryScreen() {
           </View>
         )}
 
-        {loading && !data ? <ActivityIndicator color={PURPLE} style={{ marginTop: 30 }} /> : data?.sections.map((s) => {
+        {loading && !data ? <ActivityIndicator color={HT.violet} style={{ marginTop: 30 }} /> : data?.sections.map((s) => {
           const shown = sphereFilter === "all" ? s.items : s.items.filter((i) => (i.sphere || "business") === sphereFilter);
           return (
           <View key={s.key} style={styles.card} testID={`memory-sec-${s.key}`}>
             <View style={styles.cardHead}>
-              <View style={styles.secIcon}><Ionicons name={s.icon as any} size={16} color={PURPLE} /></View>
+              <View style={styles.secIcon}><Ionicons name={s.icon as any} size={16} color={HT.violet} /></View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.secTitle}>{s.label}</Text>
                 <Text style={styles.secIntro}>{s.intro}</Text>
               </View>
               <Pressable onPress={() => { setAddSec(addSec === s.key ? null : s.key); setAddTxt(""); setAddSphere(sphereFilter === "home" ? "home" : "business"); }} hitSlop={8} style={styles.iconBtn} testID={`memory-add-${s.key}`}>
-                <Ionicons name="add-circle-outline" size={22} color={PURPLE} />
+                <Ionicons name="add-circle-outline" size={22} color={HT.violet} />
               </Pressable>
             </View>
             {addSec === s.key && (
@@ -203,17 +203,17 @@ export default function AxonMemoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: HT.violetTint },
+  root: { flex: 1, backgroundColor: HT.bg },
   header: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: PURPLE },
   title: { color: "#FFF", fontWeight: "800", fontSize: 17 },
   sub: { color: "#E9D5FF", fontSize: 11, marginTop: 1 },
   runBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: HT.card, paddingHorizontal: 10, minHeight: 40, borderRadius: 12 },
-  runTxt: { color: PURPLE, fontWeight: "800", fontSize: 11 },
+  runTxt: { color: HT.violet, fontWeight: "800", fontSize: 11 },
   trust: { flexDirection: "row", gap: 10, backgroundColor: HT.successTint, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: '#A7F3D0' },
   trustTxt: { flex: 1, fontSize: 12.5, color: HT.success, lineHeight: 18 },
   statsRow: { flexDirection: "row", gap: 8 },
   statBox: { flex: 1, backgroundColor: HT.card, borderRadius: 12, padding: 10, alignItems: "center", borderWidth: 1, borderColor: '#E9D5FF' },
-  statNum: { fontSize: 20, fontWeight: "800", color: PURPLE },
+  statNum: { fontSize: 20, fontWeight: "800", color: HT.violet },
   statLbl: { fontSize: 10, color: HT.muted, marginTop: 2, fontWeight: "700" },
   sphereFilter: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
   sphChip: { paddingHorizontal: 12, minHeight: 36, borderRadius: 999, backgroundColor: HT.card, borderWidth: 1, borderColor: '#E9D5FF', justifyContent: "center" },

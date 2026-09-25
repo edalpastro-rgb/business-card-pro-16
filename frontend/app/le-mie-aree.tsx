@@ -59,7 +59,7 @@ export default function LeMieAreeScreen() {
         <Text style={styles.hTitle}>Le mie aree</Text>
         <View style={{ width: 26 }} />
       </View>
-      {!areas ? <ActivityIndicator color={PURPLE} style={{ marginTop: 30 }} /> : (
+      {!areas ? <ActivityIndicator color={HT.violet} style={{ marginTop: 30 }} /> : (
         <ScrollView contentContainerStyle={{ padding: 14, gap: 10, paddingBottom: bottomPad }}>
           <Text style={styles.intro}>Attiva ciò che usi. Ogni area con dati apre un mini-wizard (max 3 passi): prima «Carica foto, file o PDF», AxonOS legge tutto e ti chiede solo ciò che manca.</Text>
           {incomplete > 0 && <View style={styles.banner} testID="aree-incomplete-banner"><Ionicons name="alert-circle" size={16} color={HT.warning} /><Text style={styles.bannerTxt}>{incomplete} {incomplete === 1 ? "area attiva con configurazione incompleta" : "aree attive con configurazione incompleta"}</Text></View>}
@@ -79,7 +79,7 @@ export default function LeMieAreeScreen() {
                   {incompleteA && <Text style={styles.incTxt}>Configurazione incompleta</Text>}
                   {a.on && a.wizard && (
                     <Pressable onPress={() => setWiz(a)} style={styles.cfgBtn} testID={`aree-configure-${a.key}`}>
-                      <Ionicons name={a.status === "complete" ? "create-outline" : "flash"} size={13} color={PURPLE} />
+                      <Ionicons name={a.status === "complete" ? "create-outline" : "flash"} size={13} color={HT.violet} />
                       <Text style={styles.cfgTxt}>{a.status === "complete" ? "Modifica configurazione" : "Configura ora"}</Text>
                     </Pressable>
                   )}
@@ -97,7 +97,7 @@ export default function LeMieAreeScreen() {
                 <Text style={styles.title} numberOfLines={1}>{a.title}</Text>
                 <Text style={styles.desc} numberOfLines={2}>{a.desc || "Nessuna descrizione"}{a.custom_area?.sites?.length ? ` · ${a.custom_area.sites.length} fonti web` : ""}{a.custom_area?.deadlines?.length ? ` · ${a.custom_area.deadlines.length} scadenze` : ""}</Text>
                 <View style={{ flexDirection: "row", gap: 12 }}>
-                  <Pressable onPress={() => setWiz(a)} style={styles.cfgBtn} testID={`aree-configure-${a.key}`}><Ionicons name="create-outline" size={13} color={PURPLE} /><Text style={styles.cfgTxt}>Modifica</Text></Pressable>
+                  <Pressable onPress={() => setWiz(a)} style={styles.cfgBtn} testID={`aree-configure-${a.key}`}><Ionicons name="create-outline" size={13} color={HT.violet} /><Text style={styles.cfgTxt}>Modifica</Text></Pressable>
                   <Pressable onPress={() => removeCustom(a)} style={styles.cfgBtn} testID={`aree-delete-${a.key}`}><Ionicons name="trash-outline" size={13} color="#DC2626" /><Text style={[styles.cfgTxt, { color: "#DC2626" }]}>Elimina</Text></Pressable>
                 </View>
               </View>
@@ -125,7 +125,7 @@ const styles = StyleSheet.create({
   desc: { fontSize: 12, color: HT.muted, lineHeight: 16 },
   incTxt: { fontSize: 11, fontWeight: "900", color: HT.warning },
   cfgBtn: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 32, alignSelf: "flex-start" },
-  cfgTxt: { color: PURPLE, fontWeight: "800", fontSize: 12.5 },
+  cfgTxt: { color: HT.violet, fontWeight: "800", fontSize: 12.5 },
   section: { fontSize: 13, fontWeight: "900", color: HT.violet, marginTop: 8 },
   addBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 50, borderRadius: 14, backgroundColor: '#C2410C' },
   addTxt: { color: "#FFF", fontWeight: "900", fontSize: 14.5 },

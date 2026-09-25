@@ -86,7 +86,7 @@ export function ExpenseStatsTab({ sphere, month, color }: { sphere: "business" |
         </View>
       )}
 
-      <View style={[styles.card, { backgroundColor: '#FAF5FF', borderColor: HT.violet + '66' }]} testID="axe-stats-insights">
+      <View style={[styles.card, { backgroundColor: HT.violetTint, borderColor: HT.violet + '66' }]} testID="axe-stats-insights">
         <Text style={[styles.secTitle, { color: HT.violet }]}>💡 Cosa dice AxonOS</Text>
         {st.insights.length === 0 ? <Text style={styles.empty}>Aggiungi qualche scontrino: dal secondo mese arrivano confronti e risparmio.</Text> : st.insights.map((t, i) => <Text key={i} style={styles.insight}>• {t}</Text>)}
       </View>

@@ -98,13 +98,13 @@ export function Step1Anagrafica({ bind }: { bind: StepBinder }) {
   }, [cf]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { bind(submit); }, [bind, submit]);
 
-  if (loading) return <ActivityIndicator color={PURPLE} style={{ marginTop: 20 }} />;
+  if (loading) return <ActivityIndicator color={HT.violet} style={{ marginTop: 20 }} />;
   const mails = a.emails.map((m) => m.trim().toLowerCase()).filter(Boolean);
 
   return (
     <View style={{ gap: 12 }} testID="step1-anagrafica">
       <Text style={styles.section}>Codice fiscale</Text>
-      <Field label="Codice fiscale *" value={a.tax_id} onChangeText={onCf} autoCapitalize="characters" placeholder="RSSMRA80A01H501U" error={errors.tax_id} testID="anag-tax-id" right={cfBusy ? <ActivityIndicator size="small" color={PURPLE} /> : cf?.valid ? <Ionicons name="checkmark-circle" size={20} color="#059669" /> : null} />
+      <Field label="Codice fiscale *" value={a.tax_id} onChangeText={onCf} autoCapitalize="characters" placeholder="RSSMRA80A01H501U" error={errors.tax_id} testID="anag-tax-id" right={cfBusy ? <ActivityIndicator size="small" color={HT.violet} /> : cf?.valid ? <Ionicons name="checkmark-circle" size={20} color="#059669" /> : null} />
       {cf && !cf.valid && <Text style={styles.err}>{cf.reason}</Text>}
       {cf?.valid && cf.suggest && (
         <View style={styles.cfBox} testID="anag-cf-box">
@@ -115,7 +115,7 @@ export function Step1Anagrafica({ bind }: { bind: StepBinder }) {
           {a.cf_confirmed ? <Text style={[styles.cfNote, { color: "#059669", fontWeight: "800" }]}>✓ Confermato</Text> : (
             <View style={{ flexDirection: "row", gap: 8 }}>
               <Pressable onPress={confirmCf} style={styles.cfBtn} testID="anag-cf-confirm"><Text style={styles.cfBtnTxt}>Conferma</Text></Pressable>
-              <Pressable onPress={editCf} style={[styles.cfBtn, styles.cfBtnAlt]} testID="anag-cf-edit"><Text style={[styles.cfBtnTxt, { color: PURPLE }]}>Modifica</Text></Pressable>
+              <Pressable onPress={editCf} style={[styles.cfBtn, styles.cfBtnAlt]} testID="anag-cf-edit"><Text style={[styles.cfBtnTxt, { color: HT.violet }]}>Modifica</Text></Pressable>
             </View>
           )}
         </View>
@@ -133,7 +133,7 @@ export function Step1Anagrafica({ bind }: { bind: StepBinder }) {
           right={a.primary_email && a.primary_email === m.trim().toLowerCase() ? <Text style={styles.primaryTag}>risposte & file</Text> : i > 0 ? <Pressable onPress={() => setA((s) => ({ ...s, emails: s.emails.filter((_, j) => j !== i) }))} hitSlop={8}><Ionicons name="close-circle" size={20} color={HT.muted} /></Pressable> : null} />
       ))}
       {errors.emails && <Text style={styles.err}>{errors.emails}</Text>}
-      {a.emails.length < 3 && <Pressable onPress={() => setA((s) => ({ ...s, emails: [...s.emails, ""] }))} style={styles.addBtn} testID="anag-add-email"><Ionicons name="add" size={16} color={PURPLE} /><Text style={styles.addTxt}>Aggiungi un'altra mail</Text></Pressable>}
+      {a.emails.length < 3 && <Pressable onPress={() => setA((s) => ({ ...s, emails: [...s.emails, ""] }))} style={styles.addBtn} testID="anag-add-email"><Ionicons name="add" size={16} color={HT.violet} /><Text style={styles.addTxt}>Aggiungi un'altra mail</Text></Pressable>}
 
       <Text style={styles.section}>Indirizzi (facoltativi)</Text>
       <Field label="Indirizzo principale" value={a.address} onChangeText={(v) => set("address", v)} placeholder="Via, numero, città" testID="anag-address" />
@@ -148,7 +148,7 @@ export function Step1Anagrafica({ bind }: { bind: StepBinder }) {
           <Text style={styles.sheetTitle}>Quale mail uso per risponderti e ricevere file?</Text>
           {mails.map((m) => (
             <Pressable key={m} onPress={() => { setA((s) => ({ ...s, primary_email: m })); setTimeout(() => answer(setAskMail, true), 50); }} style={styles.opt} testID={`anag-mail-pick-${m}`}>
-              <Ionicons name="mail" size={18} color={PURPLE} /><Text style={styles.optTxt}>{m}</Text>
+              <Ionicons name="mail" size={18} color={HT.violet} /><Text style={styles.optTxt}>{m}</Text>
             </Pressable>
           ))}
           <Pressable onPress={() => answer(setAskMail, false)} style={styles.cancel}><Text style={styles.cancelTxt}>Annulla</Text></Pressable>
@@ -160,7 +160,7 @@ export function Step1Anagrafica({ bind }: { bind: StepBinder }) {
           <Text style={styles.sheetTitle}>Hai inserito più indirizzi: qual è quello principale?</Text>
           {([["main", a.address, "Indirizzo principale"], ["second", a.address_second, "Seconda abitazione"], ["relative", a.address_relative, "Indirizzo di un parente"]] as Array<[Anag["primary_address"], string, string]>).filter((x) => x[1].trim()).map(([k, v, l]) => (
             <Pressable key={k} onPress={() => { setA((s) => ({ ...s, primary_address: k })); setTimeout(() => answer(setAskAddr, true), 50); }} style={styles.opt} testID={`anag-addr-pick-${k}`}>
-              <Ionicons name="home" size={18} color={PURPLE} /><View style={{ flex: 1 }}><Text style={styles.optLbl}>{l}</Text><Text style={styles.optTxt}>{v}</Text></View>
+              <Ionicons name="home" size={18} color={HT.violet} /><View style={{ flex: 1 }}><Text style={styles.optLbl}>{l}</Text><Text style={styles.optTxt}>{v}</Text></View>
             </Pressable>
           ))}
           <Pressable onPress={() => answer(setAskAddr, false)} style={styles.cancel}><Text style={styles.cancelTxt}>Annulla</Text></Pressable>
@@ -200,11 +200,11 @@ const styles = StyleSheet.create({
   cfRow: { fontSize: 15, fontWeight: "700", color: HT.text },
   cfNote: { fontSize: 11.5, color: HT.violet, lineHeight: 15 },
   cfBtn: { backgroundColor: PURPLE, borderRadius: 999, paddingHorizontal: 16, minHeight: 40, justifyContent: "center" },
-  cfBtnAlt: { backgroundColor: HT.card, borderWidth: 1, borderColor: PURPLE },
+  cfBtnAlt: { backgroundColor: HT.card, borderWidth: 1, borderColor: HT.violet },
   cfBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 13 },
   primaryTag: { fontSize: 10.5, fontWeight: "800", color: "#059669", backgroundColor: HT.successTint, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
   addBtn: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 40 },
-  addTxt: { color: PURPLE, fontWeight: "800", fontSize: 13 },
+  addTxt: { color: HT.violet, fontWeight: "800", fontSize: 13 },
   sync: { fontSize: 11.5, color: HT.muted, lineHeight: 16, marginTop: 4 },
   backdrop: { flex: 1, backgroundColor: "rgba(15,23,42,0.55)", justifyContent: "flex-end" },
   sheet: { backgroundColor: HT.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 32, gap: 10 },

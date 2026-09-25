@@ -107,5 +107,5 @@ const s = StyleSheet.create({
   chip: { paddingHorizontal: 12, minHeight: 40, borderRadius: 20, borderWidth: 1, borderColor: HT.border, alignItems: "center", justifyContent: "center", backgroundColor: HT.card },
   chipOn: { backgroundColor: '#7C3AED', borderColor: '#7C3AED' }, chipTxt: { fontSize: 13, fontWeight: "800", color: HT.text },
   row: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 10, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, minHeight: 46 },
-  pick: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 46, borderRadius: 10, borderWidth: 1, borderStyle: "dashed", borderColor: '#C4B5FD', backgroundColor: '#FAF5FF' },
+  pick: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 46, borderRadius: 10, borderWidth: 1, borderStyle: "dashed", borderColor: '#C4B5FD', backgroundColor: HT.violetTint },
 });

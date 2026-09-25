@@ -241,7 +241,7 @@ export default function DocumentiAxonScreen() {
                   <Pressable
                     onPress={() => { setEditorDoc(d); setEditorOpen(true); }}
                     hitSlop={8}
-                    style={[styles.docDelBtn, { backgroundColor: '#F3E8FF' }]}
+                    style={[styles.docDelBtn, { backgroundColor: HT.violetTint }]}
                     testID={`doc-edit-${d.doc_id}`}
                     accessibilityLabel={isText ? "Modifica voce" : "Rinomina documento"}
                   >
@@ -383,7 +383,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: '#F3E8FF',
+    backgroundColor: HT.violetTint,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -420,6 +420,6 @@ const styles = StyleSheet.create({
   filterChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: HT.violet + '66', backgroundColor: HT.card, minHeight: 32, justifyContent: "center" },
   filterChipOn: { backgroundColor: '#7C3AED', borderColor: '#7C3AED' },
   filterTxt: { fontSize: 12, fontWeight: "700", color: "#7C3AED" },
-  catBadge: { backgroundColor: '#F3E8FF', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 1, marginRight: 6 },
+  catBadge: { backgroundColor: HT.violetTint, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 1, marginRight: 6 },
   catBadgeTxt: { fontSize: 10, fontWeight: "800", color: "#7C3AED" },
 });

@@ -594,7 +594,7 @@ const styles = StyleSheet.create({
   destHint: { fontSize: 11, color: HT.muted, marginTop: 2 },
   destGroupHeader: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 12, marginBottom: 4, backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border },
   destGroupTitle: { flex: 1, fontSize: 13, fontWeight: "800", color: HT.text },
-  destBox: { backgroundColor: '#FAFBFF', padding: 10, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: HT.border },
+  destBox: { backgroundColor: HT.card2, padding: 10, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: HT.border },
   pickRow: { flexDirection: "row", alignItems: "center", paddingVertical: 8, paddingHorizontal: 6, borderRadius: 8 },
   pickRowActive: { backgroundColor: HT.card },
   pickName: { fontSize: 13, fontWeight: "700", color: HT.text },

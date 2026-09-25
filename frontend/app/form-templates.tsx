@@ -114,7 +114,7 @@ const s = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderBottomWidth: 1, borderBottomColor: HT.border },
   hBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   title: { fontSize: 18, fontWeight: "900", color: HT.text }, sub: { fontSize: 12, color: HT.muted },
-  card: { backgroundColor: '#FAF5FF', borderRadius: 16, borderWidth: 1, borderColor: '#E9D5FF', padding: 14, gap: 10 },
+  card: { backgroundColor: HT.violetTint, borderRadius: 16, borderWidth: 1, borderColor: '#E9D5FF', padding: 14, gap: 10 },
   section: { fontSize: 14, fontWeight: "900", color: HT.text },
   hint: { fontSize: 12, color: HT.muted, lineHeight: 17 },
   srcBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 44, borderRadius: 10, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border },
@@ -124,6 +124,6 @@ const s = StyleSheet.create({
   primary: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: '#7C3AED', borderRadius: 12, minHeight: 48 },
   primaryTxt: { color: "#FFF", fontWeight: "900", fontSize: 14 },
   row: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 14, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, minHeight: 60 },
-  rowIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#F3E8FF', alignItems: "center", justifyContent: "center" },
+  rowIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: HT.violetTint, alignItems: "center", justifyContent: "center" },
   rowTitle: { fontSize: 14, fontWeight: "800", color: HT.text }, rowMeta: { fontSize: 12, color: HT.muted, marginTop: 2 },
 });

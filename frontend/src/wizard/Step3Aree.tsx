@@ -72,7 +72,7 @@ export function Step3Aree({ bind, sphere, initial, onNext, onSkipAll }: { bind: 
   }, [on]);
   useEffect(() => { bind(submit); }, [bind, submit]);
 
-  if (!catalog) return <ActivityIndicator color={PURPLE} style={{ marginTop: 20 }} />;
+  if (!catalog) return <ActivityIndicator color={HT.violet} style={{ marginTop: 20 }} />;
   const cur = pages[page];
   if (!cur) return <Text style={styles.err}>{error || "Nessuna area disponibile."}</Text>;
   const last = page === pages.length - 1;
@@ -140,8 +140,8 @@ const styles = StyleSheet.create({
   pageHead: { flexDirection: "row", alignItems: "flex-end", gap: 8 },
   pageLabel: { fontSize: 18, fontWeight: "900", textShadowColor: "rgba(255,255,255,0.9)", textShadowRadius: 6 },
   pageSub: { fontSize: 12.5, color: HT.text2, fontWeight: "700", textShadowColor: "rgba(255,255,255,0.9)", textShadowRadius: 6 },
-  pageIdx: { fontSize: 12, fontWeight: "800", color: HT.text2, backgroundColor: "rgba(255,255,255,0.85)", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
-  row: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "rgba(255,255,255,0.97)", borderRadius: 16, padding: 12, minHeight: 68, borderWidth: 1.5, borderColor: HT.border },
+  pageIdx: { fontSize: 12, fontWeight: "800", color: HT.text2, backgroundColor: HT.glassStrong, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+  row: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: HT.card, borderRadius: 16, padding: 12, minHeight: 68, borderWidth: 1.5, borderColor: HT.border },
   rowIcon: { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   rowTitle: { fontSize: 15, fontWeight: "800", color: HT.text },
   rowDesc: { fontSize: 12, color: HT.muted, lineHeight: 16 },

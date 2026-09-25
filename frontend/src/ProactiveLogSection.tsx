@@ -26,14 +26,14 @@ export function ProactiveLogSection() {
   return (
     <View style={styles.card} testID="memory-sec-proactive">
       <View style={styles.head}>
-        <View style={styles.icon}><Ionicons name="sparkles" size={16} color={PURPLE} /></View>
+        <View style={styles.icon}><Ionicons name="sparkles" size={16} color={HT.violet} /></View>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Comunicazioni proattive</Text>
           <Text style={styles.intro}>Tutto quello che AxonOS ti ha detto di sua iniziativa: briefing, suggerimenti, alert e report. Soglie e orari in Notifiche AxonOS → Preferenze.</Text>
         </View>
-        <Pressable onPress={() => router.push("/axon-proactive" as any)} hitSlop={8} style={styles.iconBtn} testID="proactive-log-open"><Ionicons name="open-outline" size={20} color={PURPLE} /></Pressable>
+        <Pressable onPress={() => router.push("/axon-proactive" as any)} hitSlop={8} style={styles.iconBtn} testID="proactive-log-open"><Ionicons name="open-outline" size={20} color={HT.violet} /></Pressable>
       </View>
-      {!items ? <ActivityIndicator color={PURPLE} style={{ marginVertical: 8 }} /> : items.length === 0 ? (
+      {!items ? <ActivityIndicator color={HT.violet} style={{ marginVertical: 8 }} /> : items.length === 0 ? (
         <Text style={styles.empty}>Nessuna comunicazione ancora. Il primo briefing arriva domattina all{"'"}orario impostato.</Text>
       ) : (
         <>
@@ -70,5 +70,5 @@ const styles = StyleSheet.create({
   rowTitle: { fontSize: 13, fontWeight: "700", color: HT.text },
   rowMeta: { fontSize: 11, color: HT.muted, marginTop: 1 },
   more: { alignSelf: "center", paddingVertical: 8, paddingHorizontal: 12, minHeight: 40, justifyContent: "center" },
-  moreTxt: { color: PURPLE, fontWeight: "800", fontSize: 13 },
+  moreTxt: { color: HT.violet, fontWeight: "800", fontSize: 13 },
 });

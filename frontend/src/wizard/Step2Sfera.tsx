@@ -59,7 +59,7 @@ export function Step2Sfera({ bind, initial }: { bind: StepBinder; initial?: Sphe
 const styles = StyleSheet.create({
   lead: { fontSize: 14.5, fontWeight: "800", color: HT.text, marginTop: 4 },
   card: { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: HT.card, borderRadius: 18, padding: 14, minHeight: 84, borderWidth: 2, borderColor: HT.violetTint },
-  cardOn: { borderColor: '#7C3AED', backgroundColor: '#FAF5FF' },
+  cardOn: { borderColor: '#7C3AED', backgroundColor: HT.violetTint },
   iconWrap: { width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   title: { fontSize: 17, fontWeight: "900", color: HT.text },
   desc: { fontSize: 12.5, color: HT.muted, lineHeight: 17 },

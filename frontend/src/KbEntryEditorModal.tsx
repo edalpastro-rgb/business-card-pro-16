@@ -183,7 +183,7 @@ export function KbEntryEditorModal({ visible, doc, onClose, onSaved }: Props) {
             {isPdf && isEdit && (
               <View style={styles.pdfBox}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <Ionicons name="document-text" size={18} color={PURPLE} />
+                  <Ionicons name="document-text" size={18} color={HT.violet} />
                   <Text style={[styles.label, { marginBottom: 0, flex: 1 }]}>File PDF caricato</Text>
                 </View>
                 <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
@@ -192,11 +192,11 @@ export function KbEntryEditorModal({ visible, doc, onClose, onSaved }: Props) {
                     <Text style={[styles.chipTxt, { color: "#FFF" }]}>Apri PDF</Text>
                   </Pressable>
                   <Pressable onPress={() => openOrDownloadPdf("download")} disabled={!!pdfBusy} style={styles.chip} testID="kb-editor-download-pdf">
-                    {pdfBusy === "download" ? <ActivityIndicator size="small" color={PURPLE} /> : <Ionicons name="download-outline" size={14} color={PURPLE} />}
+                    {pdfBusy === "download" ? <ActivityIndicator size="small" color={HT.violet} /> : <Ionicons name="download-outline" size={14} color={HT.violet} />}
                     <Text style={styles.chipTxt}>Scarica</Text>
                   </Pressable>
                   <Pressable onPress={showExtractedText} disabled={!!pdfBusy} style={styles.chip} testID="kb-editor-show-text">
-                    {pdfBusy === "text" ? <ActivityIndicator size="small" color={PURPLE} /> : <Ionicons name="reader-outline" size={14} color={PURPLE} />}
+                    {pdfBusy === "text" ? <ActivityIndicator size="small" color={HT.violet} /> : <Ionicons name="reader-outline" size={14} color={HT.violet} />}
                     <Text style={styles.chipTxt}>Testo estratto</Text>
                   </Pressable>
                 </View>
@@ -234,7 +234,7 @@ export function KbEntryEditorModal({ visible, doc, onClose, onSaved }: Props) {
               <View>
                 <Text style={styles.label}>Contenuto</Text>
                 {loadingContent ? (
-                  <ActivityIndicator color={PURPLE} style={{ marginVertical: 20 }} />
+                  <ActivityIndicator color={HT.violet} style={{ marginVertical: 20 }} />
                 ) : (
                   <TextInput
                     testID="kb-editor-content"
@@ -288,13 +288,13 @@ const styles = StyleSheet.create({
   label: { fontSize: 12, fontWeight: "800", color: HT.text2, marginBottom: 6 },
   input: { backgroundColor: HT.card2, borderRadius: 12, borderWidth: 1, borderColor: HT.border, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: HT.text, minHeight: 44 },
   textarea: { minHeight: 170, maxHeight: 280, lineHeight: 20, paddingTop: 10 },
-  chip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1.5, borderColor: PURPLE, minHeight: 36 },
+  chip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1.5, borderColor: HT.violet, minHeight: 36 },
   chipOn: { backgroundColor: PURPLE },
-  chipTxt: { fontSize: 12, fontWeight: "800", color: PURPLE },
+  chipTxt: { fontSize: 12, fontWeight: "800", color: HT.violet },
   hint: { fontSize: 11, color: HT.muted, fontStyle: "italic", marginTop: 6 },
   footer: { flexDirection: "row", gap: 8, padding: 12, borderTopWidth: 1, borderTopColor: HT.border },
   pdfBox: { backgroundColor: HT.violetTint, borderRadius: 12, borderWidth: 1, borderColor: HT.violet + '66', padding: 12, gap: 10 },
-  pageLabel: { fontSize: 11, fontWeight: "800", color: PURPLE, marginBottom: 4 },
+  pageLabel: { fontSize: 11, fontWeight: "800", color: HT.violet, marginBottom: 4 },
   pageText: { fontSize: 13, lineHeight: 19, color: HT.text },
   btn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 46, borderRadius: 12 },
   btnTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },

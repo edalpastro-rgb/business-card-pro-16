@@ -1435,7 +1435,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 999,
-    backgroundColor: '#F3E8FF',
+    backgroundColor: HT.violetTint,
   },
   autoBadgeTxt: { fontSize: 9, color: "#7C3AED", fontWeight: "800", letterSpacing: 0.5 },
   sugCardTitle: { fontSize: 15, fontWeight: "800", color: C.navy, marginBottom: 4 },

@@ -51,7 +51,7 @@ function WelcomePopup({ onPick }: { onPick: (m: Mode | "later") => void }) {
       </Animated.Text>
       <Animated.View entering={FadeInDown.delay(800).duration(600)} style={styles.welcomeBtns}>
         <Pressable onPress={() => onPick("setup")} style={styles.btnPrimary} testID="setup-pick-setup">
-          <Ionicons name="flash" size={18} color={PURPLE} />
+          <Ionicons name="flash" size={18} color={HT.violet} />
           <View style={{ flex: 1 }}><Text style={styles.btnPrimaryTxt}>Set Up and Go</Text><Text style={styles.btnHint}>L'essenziale · Chi sei, la tua sfera e le aree</Text></View>
         </Pressable>
         <Pressable onPress={() => onPick("full")} style={styles.btnSecondary} testID="setup-pick-full">
@@ -84,7 +84,7 @@ function ProgressBar({ steps, current, state }: { steps: number[]; current: numb
               <View style={[styles.dot, active && styles.dotActive, st.done && styles.dotDone, st.skipped && styles.dotSkipped]} testID={`setup-dot-${s}`}>
                 {st.done ? <Ionicons name="checkmark" size={12} color="#FFF" /> : st.skipped ? <Ionicons name="remove" size={12} color="#FFF" /> : <Text style={[styles.dotTxt, active && { color: "#FFF" }]}>{s}</Text>}
               </View>
-              <Text style={[styles.dotLabel, active && { color: PURPLE, fontWeight: "800" }]} numberOfLines={1}>{STEP_META[s - 1].title}</Text>
+              <Text style={[styles.dotLabel, active && { color: HT.violet, fontWeight: "800" }]} numberOfLines={1}>{STEP_META[s - 1].title}</Text>
             </View>
           );
         })}
@@ -99,7 +99,7 @@ function StepBody({ step, bind, state, onNext, onSkipAll }: { step: number; bind
   const meta = STEP_META[step - 1];
   return (
     <View style={styles.stepBody} testID={`setup-step-${step}`}>
-      <View style={styles.stepIcon}><Ionicons name={meta.icon} size={26} color={PURPLE} /></View>
+      <View style={styles.stepIcon}><Ionicons name={meta.icon} size={26} color={HT.violet} /></View>
       <Text style={styles.stepTitle}>{meta.title}</Text>
       <Text style={styles.stepSub}>{meta.subtitle}</Text>
       {step === 1 ? <Step1Anagrafica bind={bind} />
@@ -202,7 +202,7 @@ export default function SetupScreen() {
   }, [current, save, steps]);
 
   if (showWelcome) return <WelcomePopup onPick={pick} />;
-  if (!state) return <View style={[styles.root, { justifyContent: "center" }]}><ActivityIndicator color={PURPLE} /></View>;
+  if (!state) return <View style={[styles.root, { justifyContent: "center" }]}><ActivityIndicator color={HT.violet} /></View>;
 
   if (finished || state.status === "completed") return <CompletionScreen state={state} onRedo={async () => { await api("/axon/setup/reset", { method: "POST" }).catch(() => {}); setFinished(false); setShowWelcome(true); }} />;
 
@@ -240,14 +240,14 @@ export default function SetupScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#FAF5FF' },
+  root: { flex: 1, backgroundColor: HT.bg },
   welcome: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 14 },
   orb: { width: 120, height: 120, borderRadius: 60, backgroundColor: "rgba(255,255,255,0.18)", alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "rgba(255,255,255,0.35)" },
   welcomeTitle: { color: "#FFF", fontSize: 34, fontWeight: "900", textAlign: "center", lineHeight: 40, marginTop: 8 },
   welcomeSub: { color: "#E9D5FF", fontSize: 15, textAlign: "center", lineHeight: 22, paddingHorizontal: 8 },
   welcomeBtns: { width: "100%", gap: 10, marginTop: 16 },
   btnPrimary: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: HT.card, borderRadius: 18, paddingHorizontal: 18, minHeight: 60 },
-  btnPrimaryTxt: { color: PURPLE, fontWeight: "900", fontSize: 17 },
+  btnPrimaryTxt: { color: HT.violet, fontWeight: "900", fontSize: 17 },
   btnHint: { fontSize: 11.5, color: HT.muted, marginTop: 1 },
   btnSecondary: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "rgba(255,255,255,0.14)", borderWidth: 1.5, borderColor: "rgba(255,255,255,0.6)", borderRadius: 18, paddingHorizontal: 18, minHeight: 60 },
   btnSecondaryTxt: { color: "#FFF", fontWeight: "900", fontSize: 17 },
@@ -263,7 +263,7 @@ const styles = StyleSheet.create({
   headBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   headTitle: { fontSize: 17, fontWeight: "900", color: HT.text },
   headSub: { fontSize: 12, color: HT.muted },
-  progressWrap: { paddingHorizontal: 16, paddingBottom: 10, gap: 10, backgroundColor: '#FAF5FF' },
+  progressWrap: { paddingHorizontal: 16, paddingBottom: 10, gap: 10, backgroundColor: HT.bg },
   progressTrack: { height: 8, borderRadius: 4, backgroundColor: HT.violetTint, overflow: "hidden" },
   progressFill: { height: 8, backgroundColor: PURPLE, borderRadius: 4 },
   progressDots: { flexDirection: "row", justifyContent: "space-between" },
@@ -272,14 +272,14 @@ const styles = StyleSheet.create({
   dotActive: { backgroundColor: PURPLE },
   dotDone: { backgroundColor: '#059669' },
   dotSkipped: { backgroundColor: '#94A3B8' },
-  dotTxt: { fontSize: 12, fontWeight: "800", color: PURPLE },
+  dotTxt: { fontSize: 12, fontWeight: "800", color: HT.violet },
   dotLabel: { fontSize: 10, color: HT.muted },
   progressTxt: { fontSize: 11.5, color: HT.muted, textAlign: "center", fontWeight: "700" },
   stepBody: { backgroundColor: HT.card, borderRadius: 18, padding: 18, gap: 8, borderWidth: 1, borderColor: HT.violetTint },
   stepIcon: { width: 52, height: 52, borderRadius: 18, backgroundColor: HT.violetTint, alignItems: "center", justifyContent: "center" },
   stepTitle: { fontSize: 22, fontWeight: "900", color: HT.text },
   stepSub: { fontSize: 13.5, color: HT.muted, lineHeight: 19 },
-  footer: { position: "absolute", left: 0, right: 0, bottom: 0, padding: 16, gap: 6, backgroundColor: '#FAF5FF' },
+  footer: { position: "absolute", left: 0, right: 0, bottom: 0, padding: 16, gap: 6, backgroundColor: HT.bg },
   primary: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: PURPLE, borderRadius: 16, minHeight: 52 },
   primaryTxt: { color: "#FFF", fontWeight: "900", fontSize: 16 },
   skip: { alignItems: "center", justifyContent: "center", minHeight: 44 },

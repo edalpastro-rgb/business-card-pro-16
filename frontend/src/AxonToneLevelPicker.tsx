@@ -7,7 +7,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
-const PURPLE = "#7C3AED";
 type Level = { level: number; key: string; name: string; emoji: string; desc: string; example?: string };
 type St = { level: number; force_informal: boolean; levels: Level[] };
 
@@ -33,7 +32,7 @@ export function AxonToneLevelPicker({ title = "Tono di AxonOS", intro }: { title
             <Pressable key={l.level} onPress={() => save({ level: l.level })} style={[styles.chip, on && styles.chipOn, l.level === 5 && on && styles.chipFun]} testID={`axon-tone-${l.level}`} accessibilityRole="radio" accessibilityState={{ selected: on }}>
               <Text style={styles.chipNum}>{l.level}</Text>
               <Text style={styles.chipEmoji}>{l.emoji}</Text>
-              <Text style={[styles.chipName, on && { color: l.level === 5 ? "#FDBA74" : PURPLE }]} numberOfLines={1}>{l.name}</Text>
+              <Text style={[styles.chipName, on && { color: l.level === 5 ? "#FDBA74" : HT.violet }]} numberOfLines={1}>{l.name}</Text>
             </Pressable>
           );
         })}
@@ -71,7 +70,7 @@ const styles = StyleSheet.create({
   label: { fontSize: 13, fontWeight: "700", color: HT.text2 },
   row: { flexDirection: "row", gap: 6, marginTop: 6 },
   chip: { flex: 1, alignItems: "center", justifyContent: "center", gap: 2, borderRadius: 12, paddingVertical: 8, paddingHorizontal: 2, borderWidth: 1, borderColor: HT.border, backgroundColor: HT.card, minHeight: 64 },
-  chipOn: { backgroundColor: '#F1EEFF', borderColor: PURPLE },
+  chipOn: { backgroundColor: HT.violetTint, borderColor: HT.violet },
   chipFun: { backgroundColor: HT.brandTint, borderColor: '#F97316' },
   chipNum: { fontSize: 10, fontWeight: "800", color: HT.muted },
   chipEmoji: { fontSize: 18 },
@@ -80,7 +79,7 @@ const styles = StyleSheet.create({
   desc: { fontSize: 12, color: HT.text2, marginTop: 8, lineHeight: 17 },
   examples: { marginTop: 8, gap: 4 },
   exRow: { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 10, paddingVertical: 6, paddingHorizontal: 8, borderWidth: 1, borderColor: "transparent", minHeight: 40 },
-  exRowOn: { backgroundColor: '#F1EEFF', borderColor: HT.violet + '66' },
+  exRowOn: { backgroundColor: HT.violetTint, borderColor: HT.violet + '66' },
   exRowFun: { backgroundColor: HT.brandTint, borderColor: HT.brandLine },
   exEmoji: { fontSize: 14 },
   exTxt: { flex: 1, fontSize: 11.5, color: HT.muted, lineHeight: 15, fontStyle: "italic" },

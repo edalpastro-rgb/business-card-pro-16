@@ -74,9 +74,9 @@ const s = StyleSheet.create({
   head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
   status: { fontSize: 11, fontWeight: "800", color: "#FDBA74" },
   prio: { fontSize: 11, fontWeight: "800", color: "#FDBA74" },
-  txt: { fontSize: 15, color: "#1F2937", lineHeight: 21 },
+  txt: { fontSize: 15, color: HT.text, lineHeight: 21 },
   row: { flexDirection: "row", gap: 6, flexWrap: "wrap" },
   btn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, minHeight: 32, borderRadius: 10, borderWidth: 1, borderColor: HT.brandLine, backgroundColor: HT.card },
   btnTxt: { fontSize: 12, fontWeight: "800" },
-  input: { backgroundColor: HT.card, borderWidth: 1, borderColor: '#FDBA74', borderRadius: 10, padding: 8, fontSize: 15, color: "#1F2937", minHeight: 44 },
+  input: { backgroundColor: HT.card, borderWidth: 1, borderColor: '#FDBA74', borderRadius: 10, padding: 8, fontSize: 15, color: HT.text, minHeight: 44 },
 });

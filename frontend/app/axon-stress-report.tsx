@@ -246,8 +246,8 @@ export default function AxonStressReportScreen() {
               ) : null}
 
               {(S.errors || 0) > 0 && (
-                <View style={[styles.card, { borderColor: '#E9D5FF', backgroundColor: '#FAF5FF' }]} testID="stress-llm-error">
-                  <Text style={[styles.cardTitle, { color: "#6B21A8" }]}>⛔ {S.errors} domande non valutate per errore LLM</Text>
+                <View style={[styles.card, { borderColor: '#E9D5FF', backgroundColor: HT.violetTint }]} testID="stress-llm-error">
+                  <Text style={[styles.cardTitle, { color: HT.violet }]}>⛔ {S.errors} domande non valutate per errore LLM</Text>
                   <Text style={styles.hint}>{run.error || "Il modello non ha risposto."} Se compare «Daily spend limit reached» il budget giornaliero della chiave LLM è esaurito: ricarica da Profilo → Manage plan → Universal Key → Add Balance (o attiva l'auto top-up) e rilancia il test.</Text>
                 </View>
               )}

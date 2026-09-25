@@ -1,42 +1,38 @@
-# axon_app_info.py — V50.z208 — Profilo → «Piano attivo + versione APK installata» (modulo ISOLATO)
+# axon_app_info.py — V50.z208 / V50.z361 — Profilo → «Piano attivo + versione APK installata» (modulo ISOLATO)
 #
-# `GET /axon/app-info?device_key=…` → { plan_name, latest_version (app.json expo.version = versione della build generabile dal codice
-# attuale), latest_version_date (data ultima build/aggiornamento del codice = mtime app.json), backend_version (CHANGELOG), device
+# `GET /axon/app-info?device_key=…` → { plan_name, latest_version (V50.z361: build nativa più recente vista in un heartbeat standalone —
+# app.json NON è affidabile, la pipeline assegna il numero), latest_version_date (prima rilevazione di quella build), backend_version (CHANGELOG), device
 # {installed_version, build_number, first_seen = data installazione (primo heartbeat), updated_at = ultimo aggiornamento rilevato,
 # previous_version, last_seen} }. Il confronto «aggiornata / disponibile una versione più recente» lo fa il client con la versione
 # nativa reale (expo-application). `PUT /axon/app-info/plan {plan_name}` (solo Master): nome del piano mostrato a tutto il team.
 # Riusa `axon_client_versions` (heartbeat di axon_system_awareness) e `_axs_changelog()`.
 
-import json as _api_json
-from pathlib import Path as _ApiPath
-
-def _api_find_app_json() -> _ApiPath:
-    p = _ApiPath(__file__).resolve().parent   # __file__ può essere server.py (loader) o routes/…
-    while not (p / "frontend" / "app.json").exists() and p != p.parent:
-        p = p.parent
-    return p / "frontend" / "app.json"
-
-
-_API_APP_JSON = _api_find_app_json()
 _API_DEFAULT_PLAN = "Piano Pro"
-_api_cache: Dict[str, Any] = {"mtime": None, "version": None, "date": None}
 
 
 class ApiPlanIn(BaseModel):
     plan_name: str
 
 
-def _api_latest_version() -> Dict[str, Any]:
+async def _api_latest_version() -> Dict[str, Any]:
+    """V50.z361 — «Versione disponibile» = la build nativa PIÙ RECENTE realmente installata su un dispositivo (heartbeat standalone).
+    app.json (`expo.version` = 2.0.0, placeholder del Libretto) NON è più usato: la pipeline di pubblicazione assegna il proprio numero
+    (es. 1.0.88), quindi confrontarlo generava il falso avviso «Hai la v1.0.88, è disponibile la v2.0.0»."""
+    best: Optional[str] = None; date: Optional[datetime] = None; code: Optional[str] = None
     try:
-        mt = _API_APP_JSON.stat().st_mtime
-        if _api_cache["mtime"] != mt:
-            data = _api_json.loads(_API_APP_JSON.read_text(encoding="utf-8"))
-            expo = data.get("expo") or {}
-            _api_cache.update({"mtime": mt, "version": expo.get("version"), "android_version_code": (expo.get("android") or {}).get("versionCode"),
-                               "ios_build": (expo.get("ios") or {}).get("buildNumber"), "date": datetime.fromtimestamp(mt, tz=timezone.utc).isoformat()})
+        async for d in db.axon_client_versions.find({"app_env": "standalone", "app_version": {"$ne": None}},
+                                                    {"_id": 0, "app_version": 1, "build_number": 1, "first_seen": 1, "updated_at": 1}):
+            c = _api_vcmp(d["app_version"], best) if best else 1
+            seen = d.get("updated_at") or d.get("first_seen")
+            if c is None:
+                continue
+            if c > 0:
+                best, date, code = d["app_version"], seen, d.get("build_number")
+            elif c == 0 and seen and (date is None or seen < date):
+                date = seen
     except Exception as exc:  # noqa: BLE001
-        logger.warning("[app-info] app.json read failed: %s", exc)
-    return {"version": _api_cache.get("version"), "date": _api_cache.get("date"), "android_version_code": _api_cache.get("android_version_code"), "ios_build": _api_cache.get("ios_build")}
+        logger.warning("[app-info] latest version lookup failed: %s", exc)
+    return {"version": best, "date": _api_dt(date), "android_version_code": code, "ios_build": None}
 
 
 def _api_dt(v) -> Optional[str]:
@@ -71,7 +67,7 @@ async def _api_check_outdated(user: dict, dev: Optional[dict]) -> Optional[dict]
     """APK installata più vecchia di quella disponibile → UN avviso in chat (dedupe per coppia installata→disponibile)."""
     if not dev or dev.get("app_env") != "standalone" or not dev.get("app_version"):
         return None
-    latest = _api_latest_version().get("version")
+    latest = (await _api_latest_version()).get("version")
     c = _api_vcmp(dev["app_version"], latest)
     if c is None or c >= 0:
         return None
@@ -86,10 +82,38 @@ async def _api_check_outdated(user: dict, dev: Optional[dict]) -> Optional[dict]
         f"app_update:{dev['app_version']}->{latest}", [{"label": "Apri Profilo", "route": "/(tabs)/impostazioni"}], "app-info", {"installed_version": dev["app_version"], "latest_version": latest})
 
 
+async def _api_purge_false_updates() -> int:
+    """V50.z361 — chiude gli avvisi «Aggiornamento disponibile» già emessi verso una versione che NON è una build reale
+    (es. v2.0.0 da app.json) o quando l'installata è ormai ≥ disponibile: alert Home, notifica, messaggio in chat."""
+    n = 0
+    try:
+        latest = (await _api_latest_version()).get("version")
+        now = utcnow()
+        async for it in db.axon_proactive_log.find({"type": "app_update", "dismissed_at": None}, {"_id": 0, "item_id": 1, "user_id": 1, "latest_version": 1, "installed_version": 1, "notif_id": 1}):
+            c = _api_vcmp(it.get("installed_version"), latest) if latest else None
+            stale = latest is None or it.get("latest_version") != latest or (c is not None and c >= 0)
+            if not stale:
+                continue
+            await db.axon_proactive_log.update_one({"item_id": it["item_id"]}, {"$set": {"dismissed_at": now, "read_at": now, "dismiss_reason": "false_update"}})
+            await db.axon_notifications.delete_many({"user_id": it["user_id"], "$or": [{"notif_id": it.get("notif_id")}, {"dedupe_key": f"apx:{it['item_id']}"}]})
+            await db.assistant_messages.delete_many({"user_id": it["user_id"], "proactive_id": it["item_id"]})
+            n += 1
+        # notifiche orfane (stesso titolo, versione non reale)
+        pat = r"^📲 Aggiornamento disponibile: v" + (r"(?!" + re.escape(latest) + r"$)" if latest else "")
+        r = await db.axon_notifications.delete_many({"title": {"$regex": pat}})
+        n += r.deleted_count
+        if n:
+            logger.info("[app-info] purge falsi aggiornamenti: %d voci (versione reale %s)", n, latest)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[app-info] purge failed: %s", exc)
+    return n
+
+
 async def _api_outdated_tick() -> int:
     """Job orario: tutti i dispositivi nativi visti negli ultimi 30 giorni."""
     n = 0
     try:
+        await _api_purge_false_updates()
         since = utcnow() - timedelta(days=30)
         async for dev in db.axon_client_versions.find({"app_env": "standalone", "app_version": {"$ne": None}, "last_seen": {"$gte": since}}, {"_id": 0}):
             user = await db.users.find_one({"user_id": dev["user_id"]}, {"_id": 0})
@@ -110,7 +134,7 @@ async def axon_app_info(device_key: Optional[str] = None, user=Depends(get_curre
         dev = await db.axon_client_versions.find_one({"user_id": user["user_id"], "device_key": device_key}, {"_id": 0})
     if not dev:
         dev = await db.axon_client_versions.find_one({"user_id": user["user_id"], "app_version": {"$ne": None}}, {"_id": 0}, sort=[("last_seen", -1)])
-    latest = _api_latest_version()
+    latest = await _api_latest_version()
     cl = _axs_changelog()
     try:
         await _api_check_outdated(user, dev)   # avviso in chat se l'APK è vecchia (idempotente)
@@ -141,7 +165,7 @@ async def axon_app_info_plan(body: ApiPlanIn, user=Depends(get_current_user)):
 async def _api_start():
     try:
         _axn_scheduler.add_job(_api_outdated_tick, "interval", hours=1, id="app-info-outdated", replace_existing=True,
-                               next_run_time=datetime.now(timezone.utc) + timedelta(seconds=90))
+                               next_run_time=datetime.now(timezone.utc) + timedelta(seconds=30))  # V50.z361 — il tick fa prima il purge dei falsi avvisi
         logger.info("[app-info] update watcher armed")
     except Exception as exc:  # noqa: BLE001
         logger.warning("[app-info] start failed: %s", exc)

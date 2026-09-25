@@ -52,7 +52,7 @@ export default function SetupConfigScreen() {
     try { await api("/axon/setup/reopen", { method: "POST", body: { step } }); router.push("/setup" as any); } finally { setSaving(null); }
   };
 
-  if (!cfg) return <View style={[styles.root, { justifyContent: "center" }]}><ActivityIndicator color={PURPLE} /></View>;
+  if (!cfg) return <View style={[styles.root, { justifyContent: "center" }]}><ActivityIndicator color={HT.violet} /></View>;
   const an = cfg.anagrafica || {};
   const sphere = cfg.state.sphere || null;
 
@@ -86,7 +86,7 @@ export default function SetupConfigScreen() {
         <View style={styles.card}>
           <Row icon="toggle" title={`Aree · ${cfg.areas.filter((a) => a.on && !a.future).length} attive`} right={<Pressable onPress={() => reopen(3)} hitSlop={8} testID="setup-config-reopen-3"><Text style={styles.link}>Step 3</Text></Pressable>} />
           {/* V50.z227 — Le mie aree: mini-wizard per area, stato configurazione, aree personalizzate */}
-          <Pressable onPress={() => router.push("/le-mie-aree" as any)} style={styles.btnAlt} testID="setup-config-my-areas"><Ionicons name="flash" size={16} color={PURPLE} /><Text style={styles.btnAltTxt}>Le mie aree · configura e personalizza</Text></Pressable>
+          <Pressable onPress={() => router.push("/le-mie-aree" as any)} style={styles.btnAlt} testID="setup-config-my-areas"><Ionicons name="flash" size={16} color={HT.violet} /><Text style={styles.btnAltTxt}>Le mie aree · configura e personalizza</Text></Pressable>
           {!sphere && <Text style={styles.muted}>Scegli prima una sfera.</Text>}
           {cfg.areas.map((a) => (
             <View key={a.key} style={styles.areaRow} testID={`setup-config-area-${a.key}`}>
@@ -109,7 +109,7 @@ export default function SetupConfigScreen() {
           <KV k="Telefono" v={an.phone} />
           <KV k="Indirizzo" v={an.address} />
           <KV k="Codice fiscale" v={an.tax_id} />
-          <Pressable onPress={() => router.push("/anagrafica-master" as any)} style={styles.btnAlt} testID="setup-config-anagrafica"><Ionicons name="create" size={16} color={PURPLE} /><Text style={styles.btnAltTxt}>Modifica in Anagrafica</Text></Pressable>
+          <Pressable onPress={() => router.push("/anagrafica-master" as any)} style={styles.btnAlt} testID="setup-config-anagrafica"><Ionicons name="create" size={16} color={HT.violet} /><Text style={styles.btnAltTxt}>Modifica in Anagrafica</Text></Pressable>
         </View>
 
         {/* Parla a Neo */}
@@ -126,7 +126,7 @@ export default function SetupConfigScreen() {
               <Text style={styles.muted}>File letti da Neo (archiviati nei Master Files):</Text>
               {cfg.talk.files.slice(-5).map((f) => (
                 <Pressable key={f.file_id || f.name} onPress={() => router.push("/master-files" as any)} style={styles.fileRow} testID={`setup-config-file-${f.file_id}`}>
-                  <Ionicons name="document" size={16} color={PURPLE} /><Text style={styles.fileName} numberOfLines={1}>{f.name}</Text>
+                  <Ionicons name="document" size={16} color={HT.violet} /><Text style={styles.fileName} numberOfLines={1}>{f.name}</Text>
                 </Pressable>
               ))}
             </View>
@@ -138,7 +138,7 @@ export default function SetupConfigScreen() {
           <Row icon="map" title="Dove sono finiti i miei dati" />
           {cfg.where.map((w) => (
             <Pressable key={w.title} onPress={() => router.push(w.route as any)} style={styles.whereRow} testID={`setup-config-where-${w.title}`}>
-              <Ionicons name={w.icon as any} size={18} color={PURPLE} />
+              <Ionicons name={w.icon as any} size={18} color={HT.violet} />
               <View style={{ flex: 1 }}><Text style={styles.areaTitle}>{w.title}</Text><Text style={styles.areaDesc}>{w.text}</Text></View>
               <Ionicons name="chevron-forward" size={16} color={HT.muted} />
             </Pressable>
@@ -167,7 +167,7 @@ export default function SetupConfigScreen() {
 function Row({ icon, title, right }: { icon: keyof typeof Ionicons.glyphMap; title: string; right?: React.ReactNode }) {
   return (
     <View style={styles.rowHead}>
-      <View style={styles.rowIcon}><Ionicons name={icon} size={18} color={PURPLE} /></View>
+      <View style={styles.rowIcon}><Ionicons name={icon} size={18} color={HT.violet} /></View>
       <Text style={styles.rowTitle}>{title}</Text>
       {right}
     </View>
@@ -178,7 +178,7 @@ function KV({ k, v }: { k: string; v?: string | null }) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#FAF5FF' },
+  root: { flex: 1, backgroundColor: HT.bg },
   header: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 10 },
   headBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   headTitle: { fontSize: 17, fontWeight: "900", color: HT.text },
@@ -189,9 +189,9 @@ const styles = StyleSheet.create({
   rowHead: { flexDirection: "row", alignItems: "center", gap: 10 },
   rowIcon: { width: 36, height: 36, borderRadius: 12, backgroundColor: HT.violetTint, alignItems: "center", justifyContent: "center" },
   rowTitle: { flex: 1, fontSize: 16, fontWeight: "900", color: HT.text },
-  link: { color: PURPLE, fontWeight: "800", fontSize: 13 },
-  chip: { flex: 1, alignItems: "center", justifyContent: "center", minHeight: 44, borderRadius: 12, borderWidth: 1.5, borderColor: HT.violet + '66', backgroundColor: '#FAF5FF' },
-  chipOn: { backgroundColor: PURPLE, borderColor: PURPLE },
+  link: { color: HT.violet, fontWeight: "800", fontSize: 13 },
+  chip: { flex: 1, alignItems: "center", justifyContent: "center", minHeight: 44, borderRadius: 12, borderWidth: 1.5, borderColor: HT.violet + '66', backgroundColor: HT.violetTint },
+  chipOn: { backgroundColor: PURPLE, borderColor: HT.violet },
   chipTxt: { fontWeight: "800", color: HT.violet, fontSize: 13 },
   muted: { fontSize: 12, color: HT.muted },
   areaRow: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 52 },
@@ -201,8 +201,8 @@ const styles = StyleSheet.create({
   kv: { flexDirection: "row", gap: 10, alignItems: "flex-start" },
   k: { width: 110, fontSize: 12.5, color: HT.muted, fontWeight: "700" },
   v: { flex: 1, fontSize: 13.5, color: HT.text, fontWeight: "700" },
-  btnAlt: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 44, borderRadius: 12, borderWidth: 1.5, borderColor: PURPLE },
-  btnAltTxt: { color: PURPLE, fontWeight: "800", fontSize: 13.5 },
+  btnAlt: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 44, borderRadius: 12, borderWidth: 1.5, borderColor: HT.violet },
+  btnAltTxt: { color: HT.violet, fontWeight: "800", fontSize: 13.5 },
   btnWarn: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 44, borderRadius: 12, backgroundColor: HT.warningTint, borderWidth: 1, borderColor: '#FCD34D', paddingHorizontal: 12 },
   btnWarnTxt: { color: HT.warning, fontWeight: "800", fontSize: 13, flex: 1 },
   fileRow: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 36 },

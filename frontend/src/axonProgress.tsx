@@ -120,6 +120,6 @@ const styles = StyleSheet.create({
   avatar: { width: 24, height: 24, borderRadius: 12, backgroundColor: AXON, alignItems: "center", justifyContent: "center" },
   bubble: { maxWidth: "84%", backgroundColor: HT.violetTint, borderRadius: 16, borderBottomLeftRadius: 4, paddingHorizontal: 12, paddingVertical: 9, borderWidth: 1, borderColor: HT.violet + '66', gap: 4 },
   line: { flexDirection: "row", alignItems: "center", gap: 8 },
-  txt: { flex: 1, fontSize: 14, color: "#3B2A6B", fontStyle: "italic", lineHeight: 19 },
-  meta: { fontSize: 11, color: "#7C6FA8", paddingLeft: 28 },
+  txt: { flex: 1, fontSize: 14, color: HT.text, fontStyle: "italic", lineHeight: 19 },
+  meta: { fontSize: 11, color: HT.muted, paddingLeft: 28 },
 });

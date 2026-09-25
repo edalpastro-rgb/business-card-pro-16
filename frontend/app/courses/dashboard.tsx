@@ -82,7 +82,7 @@ const s = StyleSheet.create({
   section: { fontSize: 14, fontWeight: "900", color: HT.text }, hint: { fontSize: 12, color: HT.muted, lineHeight: 17 },
   chip: { paddingHorizontal: 12, minHeight: 36, borderRadius: 18, borderWidth: 1, borderColor: HT.border, alignItems: "center", justifyContent: "center", backgroundColor: HT.card }, chipOn: { backgroundColor: '#7C3AED', borderColor: '#7C3AED' }, chipTxt: { fontSize: 12, fontWeight: "800", color: HT.text },
   input: { flex: 1, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, borderRadius: 10, paddingHorizontal: 10, minHeight: 42, fontSize: 13, color: HT.text },
-  stat: { flex: 1, backgroundColor: '#FAF5FF', borderRadius: 10, padding: 8, alignItems: "center" }, statN: { fontSize: 16, fontWeight: "900", color: "#6B21A8" }, statL: { fontSize: 9, color: HT.muted },
+  stat: { flex: 1, backgroundColor: HT.violetTint, borderRadius: 10, padding: 8, alignItems: "center" }, statN: { fontSize: 16, fontWeight: "900", color: HT.violet }, statL: { fontSize: 9, color: HT.muted },
   card: { backgroundColor: HT.card, borderRadius: 12, borderWidth: 1, borderColor: HT.border, padding: 12, gap: 4 },
   bRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: HT.border }, bLabel: { flex: 1, fontWeight: "800", color: HT.text, fontSize: 13 }, bVal: { fontSize: 12, color: HT.muted, fontWeight: "700" },
 });

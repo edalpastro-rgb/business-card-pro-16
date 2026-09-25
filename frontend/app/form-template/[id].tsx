@@ -99,7 +99,7 @@ export default function FormTemplateEditor() {
 
         <Text style={s.section}>Ordine di compilazione ({fields.length})</Text>
         {fields.map((f, i) => (
-          <Pressable key={f.id} onPress={() => { setSel(f.id); setPageIdx(f.page); setMoving(false); }} style={[s.row, f.id === sel && { borderColor: '#7C3AED', backgroundColor: '#FAF5FF' }]} testID={`fte-row-${f.id}`}>
+          <Pressable key={f.id} onPress={() => { setSel(f.id); setPageIdx(f.page); setMoving(false); }} style={[s.row, f.id === sel && { borderColor: '#7C3AED', backgroundColor: HT.violetTint }]} testID={`fte-row-${f.id}`}>
             <Text style={s.rowNum}>{i + 1}</Text>
             <View style={{ flex: 1 }}><Text style={s.rowTitle}>{keys[f.key] || f.key}</Text><Text style={s.rowMeta} numberOfLines={1}>{f.label || "—"} · pag. {f.page + 1}{f.example_value ? ` · es. «${f.example_value}»` : ""}</Text></View>
             {f.key === "other" ? <Ionicons name="help-circle" size={18} color="#F59E0B" /> : <Ionicons name="checkmark-circle" size={18} color="#10B981" />}
@@ -113,7 +113,7 @@ export default function FormTemplateEditor() {
             <Text style={s.section}>Quale dato del cliente va in questo campo?</Text>
             <ScrollView style={{ maxHeight: 420 }}>
               {Object.entries(keys).map(([k, l]) => (
-                <Pressable key={k} onPress={() => { if (selected) upd(selected.id, { key: k, label: selected.label || l }); setKeyPicker(false); }} style={[s.keyRow, selected?.key === k && { backgroundColor: '#FAF5FF' }]} testID={`fte-key-${k}`}>
+                <Pressable key={k} onPress={() => { if (selected) upd(selected.id, { key: k, label: selected.label || l }); setKeyPicker(false); }} style={[s.keyRow, selected?.key === k && { backgroundColor: HT.violetTint }]} testID={`fte-key-${k}`}>
                   <Text style={{ flex: 1, color: HT.text, fontWeight: selected?.key === k ? "900" : "600" }}>{l}</Text><Text style={s.rowMeta}>{k}</Text>
                 </Pressable>
               ))}

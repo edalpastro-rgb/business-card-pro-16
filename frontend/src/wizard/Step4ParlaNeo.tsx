@@ -203,7 +203,7 @@ export function Step4ParlaNeo({ bind }: { bind: StepBinder }) {
 
       {/* 1 · Testo libero */}
       <View style={styles.card}>
-        <View style={styles.cardHead}><Ionicons name="create" size={18} color={PURPLE} /><Text style={styles.cardTitle}>Testo libero</Text></View>
+        <View style={styles.cardHead}><Ionicons name="create" size={18} color={HT.violet} /><Text style={styles.cardTitle}>Testo libero</Text></View>
         <TextInput value={text} onChangeText={setText} placeholder={PLACEHOLDER} placeholderTextColor={HT.muted} multiline style={styles.textarea} textAlignVertical="top" testID="neo-text-input" />
         <Pressable onPress={sendText} disabled={!!busy} style={[styles.btn, (!text.trim() || !!busy) && styles.btnDim]} testID="neo-text-send">
           {busy === "text" ? <ActivityIndicator color="#FFF" size="small" /> : <Ionicons name="paper-plane" size={16} color="#FFF" />}<Text style={styles.btnTxt}>{busy === "text" ? "Neo sta leggendo…" : "Invia a Neo"}</Text>
@@ -212,16 +212,16 @@ export function Step4ParlaNeo({ bind }: { bind: StepBinder }) {
 
       {/* 2 · File */}
       <View style={styles.card}>
-        <View style={styles.cardHead}><Ionicons name="document-attach" size={18} color={PURPLE} /><Text style={styles.cardTitle}>Carica un file</Text><Text style={styles.cardHint}>CV, documenti, foto, presentazioni · max 50 MB</Text></View>
+        <View style={styles.cardHead}><Ionicons name="document-attach" size={18} color={HT.violet} /><Text style={styles.cardTitle}>Carica un file</Text><Text style={styles.cardHint}>CV, documenti, foto, presentazioni · max 50 MB</Text></View>
         {picked ? (
           <View style={styles.fileRow} testID="neo-file-picked">
-            <Ionicons name="document" size={20} color={PURPLE} />
+            <Ionicons name="document" size={20} color={HT.violet} />
             <View style={{ flex: 1 }}><Text style={styles.fileName} numberOfLines={1}>{picked.name}</Text><Text style={styles.fileMeta}>{fmtSize(picked.size)}</Text></View>
             <Pressable onPress={() => setPicked(null)} hitSlop={8} disabled={busy === "file"} testID="neo-file-remove"><Ionicons name="close-circle" size={22} color={HT.muted} /></Pressable>
           </View>
         ) : null}
         <View style={{ flexDirection: "row", gap: 8 }}>
-          <Pressable onPress={pickFile} disabled={!!busy} style={[styles.btn, styles.btnAlt, { flex: 1 }]} testID="neo-file-pick"><Ionicons name="folder-open" size={16} color={PURPLE} /><Text style={[styles.btnTxt, { color: PURPLE }]}>{picked ? "Cambia file" : "Scegli file"}</Text></Pressable>
+          <Pressable onPress={pickFile} disabled={!!busy} style={[styles.btn, styles.btnAlt, { flex: 1 }]} testID="neo-file-pick"><Ionicons name="folder-open" size={16} color={HT.violet} /><Text style={[styles.btnTxt, { color: HT.violet }]}>{picked ? "Cambia file" : "Scegli file"}</Text></Pressable>
           {picked && (
             <Pressable onPress={sendFile} disabled={!!busy} style={[styles.btn, { flex: 1 }, !!busy && styles.btnDim]} testID="neo-file-send">
               {busy === "file" ? <ActivityIndicator color="#FFF" size="small" /> : <Ionicons name="cloud-upload" size={16} color="#FFF" />}<Text style={styles.btnTxt}>{busy === "file" ? "Carico…" : "Invia a Neo"}</Text>
@@ -232,7 +232,7 @@ export function Step4ParlaNeo({ bind }: { bind: StepBinder }) {
 
       {/* 3 · Audio */}
       <View style={styles.card}>
-        <View style={styles.cardHead}><Ionicons name="mic" size={18} color={PURPLE} /><Text style={styles.cardTitle}>Parla con la voce</Text><Text style={styles.cardHint}>Trascritto da Whisper, capito da Neo</Text></View>
+        <View style={styles.cardHead}><Ionicons name="mic" size={18} color={HT.violet} /><Text style={styles.cardTitle}>Parla con la voce</Text><Text style={styles.cardHint}>Trascritto da Whisper, capito da Neo</Text></View>
         <Pressable onPress={() => (rec ? void stopRec() : void startRec())} disabled={!!busy && !rec} style={[styles.btn, rec && { backgroundColor: '#DC2626' }, !!busy && !rec && styles.btnDim]} testID="neo-audio-btn">
           {busy === "audio" ? <ActivityIndicator color="#FFF" size="small" /> : <Ionicons name={rec ? "stop" : "mic"} size={16} color="#FFF" />}
           <Text style={styles.btnTxt}>{busy === "audio" ? "Neo sta ascoltando…" : rec ? `Ferma · ${String(Math.floor(sec / 60)).padStart(2, "0")}:${String(sec % 60).padStart(2, "0")}` : "Registra"}</Text>
@@ -244,7 +244,7 @@ export function Step4ParlaNeo({ bind }: { bind: StepBinder }) {
       {!!error && <Text style={styles.err} testID="neo-error">{error}</Text>}
       {reading.length > 0 && (
         <View style={styles.readingPill} testID="neo-reading">
-          <ActivityIndicator size="small" color={PURPLE} />
+          <ActivityIndicator size="small" color={HT.violet} />
           <Text style={styles.readingTxt}>AxonOS sta leggendo i tuoi file… puoi continuare, ti propongo io cosa ho trovato.</Text>
         </View>
       )}
@@ -317,7 +317,7 @@ const styles = StyleSheet.create({
   cardHint: { fontSize: 11, color: HT.muted, flexBasis: "100%" },
   textarea: { minHeight: 110, maxHeight: 220, backgroundColor: HT.card, borderRadius: 12, borderWidth: 1, borderColor: HT.border, padding: 12, fontSize: 15, color: HT.text, lineHeight: 21 },
   btn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: PURPLE, borderRadius: 12, minHeight: 46, paddingHorizontal: 14 },
-  btnAlt: { backgroundColor: HT.card, borderWidth: 1.5, borderColor: PURPLE },
+  btnAlt: { backgroundColor: HT.card, borderWidth: 1.5, borderColor: HT.violet },
   btnDim: { opacity: 0.55 },
   btnTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
   fileRow: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: HT.card, borderRadius: 12, padding: 10, borderWidth: 1, borderColor: HT.violet + '66' },
@@ -330,7 +330,7 @@ const styles = StyleSheet.create({
   neoBox: { backgroundColor: HT.violetTint, borderRadius: 14, padding: 12, gap: 4, borderWidth: 1, borderColor: HT.violet + '66' },
   neoTitle: { fontSize: 12.5, fontWeight: "900", color: HT.violet },
   neoTxt: { fontSize: 13.5, color: HT.text, lineHeight: 19 },
-  section: { fontSize: 12, fontWeight: "800", color: PURPLE, textTransform: "uppercase", letterSpacing: 0.6 },
+  section: { fontSize: 12, fontWeight: "800", color: HT.violet, textTransform: "uppercase", letterSpacing: 0.6 },
   prop: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: HT.card, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: HT.border },
   propStar: { borderColor: '#F59E0B', backgroundColor: HT.warningTint },
   propLabel: { fontSize: 11.5, fontWeight: "800", color: HT.muted, textTransform: "uppercase" },

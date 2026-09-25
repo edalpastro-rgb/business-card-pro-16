@@ -85,7 +85,7 @@ export default function AxonProactiveScreen() {
         <View style={styles.quickRow}>
           {([["briefing", "sunny", "Briefing ora"], ["weekly_report", "calendar", "Report settimana"], ["scan", "search", "Controlla ora"]] as const).map(([a, ic, lb]) => (
             <Pressable key={a} onPress={() => run(a)} disabled={!!busy} style={[styles.quick, busy === a && { opacity: 0.6 }]} testID={`proactive-run-${a}`}>
-              {busy === a ? <ActivityIndicator size="small" color={PURPLE} /> : <Ionicons name={ic as any} size={18} color={PURPLE} />}
+              {busy === a ? <ActivityIndicator size="small" color={HT.violet} /> : <Ionicons name={ic as any} size={18} color={HT.violet} />}
               <Text style={styles.quickTxt}>{lb}</Text>
             </Pressable>
           ))}
@@ -109,14 +109,14 @@ export default function AxonProactiveScreen() {
                 </Pressable>
               ))}
               <Pressable onPress={() => openAxonChat()} style={[styles.actBtn, styles.ghost]} testID="proactive-open-chat">
-                <Ionicons name="mic-outline" size={14} color={PURPLE} /><Text style={[styles.actTxt, { color: PURPLE }]}>Rispondi a voce in chat</Text>
+                <Ionicons name="mic-outline" size={14} color={HT.violet} /><Text style={[styles.actTxt, { color: HT.violet }]}>Rispondi a voce in chat</Text>
               </Pressable>
             </View>
           </View>
         )}
 
         <Text style={styles.secTitle}>Ultime comunicazioni</Text>
-        {loading && !items.length ? <ActivityIndicator color={PURPLE} /> : items.length === 0 ? (
+        {loading && !items.length ? <ActivityIndicator color={HT.violet} /> : items.length === 0 ? (
           <Text style={styles.empty}>AxonOS non ha ancora inviato comunicazioni proattive. Il briefing arriva ogni mattina all{"'"}orario impostato nelle Preferenze.</Text>
         ) : items.map((it) => {
           const c = KIND_COLOR[it.kind] || PURPLE;
@@ -137,7 +137,7 @@ export default function AxonProactiveScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F4F5FA' },
+  root: { flex: 1, backgroundColor: HT.bg },
   header: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: PURPLE },
   title: { color: "#FFF", fontWeight: "800", fontSize: 17 },
   sub: { color: "#EDE9FE", fontSize: 12 },

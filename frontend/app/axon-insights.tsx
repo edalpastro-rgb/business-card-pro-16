@@ -85,7 +85,7 @@ export default function AxonInsightsScreen() {
           <Text style={styles.sub}>Insight anonimizzati dalle conversazioni · knowledge base interno</Text>
         </View>
         <Pressable onPress={runNow} disabled={running} style={styles.runBtn} testID="insights-run">
-          {running ? <ActivityIndicator size="small" color={PURPLE} /> : <Ionicons name="flash" size={16} color={PURPLE} />}
+          {running ? <ActivityIndicator size="small" color={HT.violet} /> : <Ionicons name="flash" size={16} color={HT.violet} />}
           <Text style={styles.runTxt}>Analizza ora</Text>
         </Pressable>
       </View>
@@ -123,14 +123,14 @@ export default function AxonInsightsScreen() {
           <TextInput value={q} onChangeText={setQ} placeholder="Cerca negli insight…" placeholderTextColor={HT.muted} style={styles.searchInput} testID="insights-search" />
         </View>
 
-        {loading && items.length === 0 ? <ActivityIndicator color={PURPLE} style={{ marginTop: 30 }} /> : items.length === 0 ? (
+        {loading && items.length === 0 ? <ActivityIndicator color={HT.violet} style={{ marginTop: 30 }} /> : items.length === 0 ? (
           <View style={styles.empty}><Ionicons name="school-outline" size={36} color="#C4B5FD" /><Text style={styles.emptyTxt}>Nessun insight ancora. Le conversazioni concluse vengono analizzate ogni 10 minuti, oppure premi «Analizza ora».</Text></View>
         ) : items.map((it) => (
           <View key={it.id} style={[styles.card, !it.enabled && { opacity: 0.55 }]} testID={`insight-${it.id}`}>
             <View style={styles.cardTop}>
               <View style={[styles.kindDot, { backgroundColor: KIND_COLOR[it.kind] }]} />
               <Text style={styles.cardCat}>{it.category} · {KIND_LABEL[it.kind]}</Text>
-              <View style={styles.freq}><Ionicons name="repeat" size={12} color={PURPLE} /><Text style={styles.freqTxt}>×{it.frequency}</Text></View>
+              <View style={styles.freq}><Ionicons name="repeat" size={12} color={HT.violet} /><Text style={styles.freqTxt}>×{it.frequency}</Text></View>
             </View>
             {editId === it.id ? (
               <View style={{ gap: 8 }}>
@@ -166,21 +166,21 @@ export default function AxonInsightsScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: HT.violetTint },
+  root: { flex: 1, backgroundColor: HT.bg },
   header: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: PURPLE },
   title: { color: "#FFF", fontWeight: "800", fontSize: 17 },
   sub: { color: "#E9D5FF", fontSize: 11, marginTop: 1 },
   runBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: HT.card, paddingHorizontal: 12, minHeight: 40, borderRadius: 12 },
-  runTxt: { color: PURPLE, fontWeight: "800", fontSize: 12 },
+  runTxt: { color: HT.violet, fontWeight: "800", fontSize: 12 },
   statsRow: { flexDirection: "row", gap: 8 },
   statBox: { flex: 1, backgroundColor: HT.card, borderRadius: 12, padding: 10, alignItems: "center", borderWidth: 1, borderColor: '#E9D5FF' },
-  statNum: { fontSize: 20, fontWeight: "800", color: PURPLE },
+  statNum: { fontSize: 20, fontWeight: "800", color: HT.violet },
   statLbl: { fontSize: 10, color: HT.muted, marginTop: 2, fontWeight: "700" },
   privacyBox: { flexDirection: "row", gap: 8, backgroundColor: HT.successTint, borderRadius: 12, padding: 10, borderWidth: 1, borderColor: '#A7F3D0' },
   privacyTxt: { flex: 1, fontSize: 11.5, color: HT.success, lineHeight: 16 },
   chip: { paddingHorizontal: 12, minHeight: 34, borderRadius: 17, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.violet + '66', justifyContent: "center" },
-  chipOn: { backgroundColor: PURPLE, borderColor: PURPLE },
-  chipTxt: { fontSize: 12, fontWeight: "700", color: PURPLE },
+  chipOn: { backgroundColor: PURPLE, borderColor: HT.violet },
+  chipTxt: { fontSize: 12, fontWeight: "700", color: HT.violet },
   kindChip: { flex: 1, minHeight: 36, borderRadius: 10, borderWidth: 1.5, alignItems: "center", justifyContent: "center", backgroundColor: HT.card },
   kindTxt: { fontSize: 12, fontWeight: "800" },
   search: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: HT.card, borderRadius: 12, paddingHorizontal: 12, minHeight: 44, borderWidth: 1, borderColor: HT.border },
@@ -192,7 +192,7 @@ const styles = StyleSheet.create({
   kindDot: { width: 8, height: 8, borderRadius: 4 },
   cardCat: { flex: 1, fontSize: 11, fontWeight: "800", color: HT.muted, textTransform: "uppercase", letterSpacing: 0.4 },
   freq: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: HT.violetTint, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  freqTxt: { fontSize: 11, fontWeight: "800", color: PURPLE },
+  freqTxt: { fontSize: 11, fontWeight: "800", color: HT.violet },
   cardTxt: { fontSize: 14, lineHeight: 20, color: HT.text },
   cardFoot: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   cardMeta: { fontSize: 11, color: HT.muted },

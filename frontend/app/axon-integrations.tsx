@@ -145,7 +145,7 @@ export default function AxonIntegrationsScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F4F5FA' },
+  root: { flex: 1, backgroundColor: HT.bg },
   header: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: '#7C3AED' },
   title: { color: "#FFF", fontWeight: "800", fontSize: 17 },
   sub: { color: "#EDE9FE", fontSize: 12 },

@@ -824,7 +824,7 @@ function ImpostazioniScreen() {
         {/* AI Assistant customization — available to all users */}
         <View style={styles.card} testID="assistant-name-card">
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#F1EEFF', justifyContent: "center", alignItems: "center" }}>
+            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: HT.violetTint, justifyContent: "center", alignItems: "center" }}>
               <Ionicons name="sparkles" size={20} color="#7C3AED" />
             </View>
             <View style={{ flex: 1 }}>
@@ -898,7 +898,7 @@ function ImpostazioniScreen() {
                   style={[
                     { flex: 1, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 8, alignItems: "center", borderWidth: 1 },
                     active
-                      ? { backgroundColor: '#F1EEFF', borderColor: '#7C3AED' }
+                      ? { backgroundColor: HT.violetTint, borderColor: '#7C3AED' }
                       : { backgroundColor: HT.card2, borderColor: HT.border },
                   ]}
                 >

@@ -32,7 +32,7 @@ export function SetupNudgeCard({ onOpen }: { onOpen?: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  card: { flexDirection: "row", alignItems: "center", gap: 10, marginLeft: 30, marginTop: 6, backgroundColor: '#FAF5FF', borderRadius: 14, borderWidth: 1, borderColor: HT.violet + '66', padding: 10 },
+  card: { flexDirection: "row", alignItems: "center", gap: 10, marginLeft: 30, marginTop: 6, backgroundColor: HT.violetTint, borderRadius: 14, borderWidth: 1, borderColor: HT.violet + '66', padding: 10 },
   icon: { width: 34, height: 34, borderRadius: 12, backgroundColor: HT.violetTint, alignItems: "center", justifyContent: "center" },
   title: { fontSize: 12.5, fontWeight: "800", color: HT.violet },
   txt: { fontSize: 11.5, color: HT.violet, lineHeight: 15, marginTop: 1 },

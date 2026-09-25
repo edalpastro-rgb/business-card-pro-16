@@ -1013,7 +1013,7 @@ function BillQuickScreen() {
                         <Text style={{ fontSize: 12, fontWeight: "700", color: HT.muted, marginTop: 14, marginBottom: 6 }}>PARAMETRI PERSONALIZZATI</Text>
                         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
                           {customParams.map((p) => (
-                            <View key={p} style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, backgroundColor: '#F3E8FF', borderWidth: 1, borderColor: '#7C3AED' }}>
+                            <View key={p} style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, backgroundColor: HT.violetTint, borderWidth: 1, borderColor: '#7C3AED' }}>
                               <Ionicons name="sparkles" size={13} color="#7C3AED" />
                               <Text style={{ fontSize: 12, color: HT.violet, fontWeight: "700" }}>{p}</Text>
                               <Pressable onPress={() => removeCustomParam(p)} hitSlop={6}>
@@ -1365,7 +1365,7 @@ const styles = StyleSheet.create({
 
   errorBox: { backgroundColor: HT.dangerTint, borderRadius: 8, padding: 10, marginTop: 10 },
   errorTxt: { color: HT.danger, fontSize: 12 },
-  dataBox: { marginTop: 8, backgroundColor: '#FAFBFF', borderRadius: 8, padding: 8, overflow: "hidden" },
+  dataBox: { marginTop: 8, backgroundColor: HT.card2, borderRadius: 8, padding: 8, overflow: "hidden" },
   kvRow: { flexDirection: "row", paddingVertical: 3, borderBottomWidth: 1, borderBottomColor: HT.violetTint, alignItems: "flex-start" },
   kvKey: { fontSize: 11, fontWeight: "700", color: HT.muted, width: 110, paddingRight: 6 },
   kvVal: { fontSize: 11, color: HT.text, flex: 1, flexShrink: 1, flexWrap: "wrap" },

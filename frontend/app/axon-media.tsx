@@ -278,7 +278,7 @@ export default function AxonMediaScreen() {
 function fmtDur(s: number) { const m = Math.floor(s / 60), sec = Math.floor(s % 60); return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`; }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F4F5FA' },
+  root: { flex: 1, backgroundColor: HT.bg },
   header: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 12 },
   title: { color: "#FFF", fontWeight: "800", fontSize: 17 }, sub: { color: "#FFFFFFCC", fontSize: 12 },
   sphereRow: { flexDirection: "row", gap: 8, padding: 12, paddingBottom: 4 },
@@ -307,7 +307,7 @@ const styles = StyleSheet.create({
   modalBtn: { flex: 1, minHeight: 48, borderRadius: 12, alignItems: "center", justifyContent: "center" }, modalBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
   later: { alignItems: "center", marginTop: 12, minHeight: 40, justifyContent: "center" }, laterTxt: { color: HT.muted, fontWeight: "700", fontSize: 13 },
   sheetRoot: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: '#F4F5FA', borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 16, maxHeight: "90%" },
+  sheet: { backgroundColor: HT.bg, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 16, maxHeight: "90%" },
   preview: { width: "100%", height: 260, borderRadius: 12, backgroundColor: HT.border },
   pdfBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 46, borderRadius: 12 }, pdfTxt: { color: "#FFF", fontWeight: "800", fontSize: 13.5 },
   card: { backgroundColor: HT.card, borderRadius: 14, borderWidth: 1, borderColor: '#EEF0F6', padding: 12, gap: 6 },

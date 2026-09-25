@@ -232,7 +232,7 @@ const styles = StyleSheet.create({
   empty: { alignItems: "center", gap: 10, padding: 28 },
   emptyTxt: { fontSize: 13, color: HT.muted, textAlign: "center", lineHeight: 19 },
   row: { flexDirection: "row", gap: 10, alignItems: "flex-start", backgroundColor: HT.card2, borderRadius: 14, borderWidth: 1, borderColor: HT.border, padding: 12 },
-  rowUnread: { borderColor: '#C4B5FD', backgroundColor: '#FAF5FF' },
+  rowUnread: { borderColor: '#C4B5FD', backgroundColor: HT.violetTint },
   detailBack: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }, // V50.z231
   detailCard: { backgroundColor: HT.card2, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 18, paddingBottom: 34, gap: 6 },
   detailIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#7C3AED', alignItems: "center", justifyContent: "center" },

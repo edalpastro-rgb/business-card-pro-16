@@ -170,13 +170,13 @@ export function CourseReportSection({ courseId }: { courseId: string }) {
 const s = StyleSheet.create({
   card: { backgroundColor: HT.card, borderRadius: 14, borderWidth: 1, borderColor: '#E9D5FF', padding: 12, gap: 10 },
   rowH: { flexDirection: "row", alignItems: "center", gap: 8 }, section: { flex: 1, fontSize: 14, fontWeight: "900", color: HT.text },
-  hint: { fontSize: 12, color: HT.muted, lineHeight: 17 }, lbl: { fontSize: 12, fontWeight: "900", color: "#6B21A8", textTransform: "uppercase" },
+  hint: { fontSize: 12, color: HT.muted, lineHeight: 17 }, lbl: { fontSize: 12, fontWeight: "900", color: HT.violet, textTransform: "uppercase" },
   body: { fontSize: 14, color: HT.text, lineHeight: 20 }, li: { fontSize: 14, color: HT.text, lineHeight: 20 },
-  miniBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, minHeight: 34, borderRadius: 8, backgroundColor: '#F3E8FF' }, miniTxt: { fontSize: 12, fontWeight: "800", color: "#7C3AED" },
-  qBox: { backgroundColor: '#FAF5FF', borderRadius: 10, padding: 10, gap: 6 }, qNum: { flex: 1, fontWeight: "900", color: "#6B21A8" },
+  miniBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, minHeight: 34, borderRadius: 8, backgroundColor: HT.violetTint }, miniTxt: { fontSize: 12, fontWeight: "800", color: "#7C3AED" },
+  qBox: { backgroundColor: HT.violetTint, borderRadius: 10, padding: 10, gap: 6 }, qNum: { flex: 1, fontWeight: "900", color: HT.violet },
   input: { backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, borderRadius: 8, paddingHorizontal: 10, minHeight: 44, fontSize: 14, color: HT.text },
   chip: { paddingHorizontal: 12, minHeight: 36, borderRadius: 18, borderWidth: 1, borderColor: HT.border, alignItems: "center", justifyContent: "center", backgroundColor: HT.card }, chipOn: { backgroundColor: '#7C3AED', borderColor: '#7C3AED' }, chipTxt: { fontSize: 12, fontWeight: "800", color: HT.text },
   btn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 46, borderRadius: 12, paddingHorizontal: 14 },
-  stat: { flex: 1, backgroundColor: '#FAF5FF', borderRadius: 10, padding: 10, alignItems: "center" }, statN: { fontSize: 18, fontWeight: "900", color: "#6B21A8" }, statL: { fontSize: 10, color: HT.muted, textAlign: "center" },
+  stat: { flex: 1, backgroundColor: HT.violetTint, borderRadius: 10, padding: 10, alignItems: "center" }, statN: { fontSize: 18, fontWeight: "900", color: HT.violet }, statL: { fontSize: 10, color: HT.muted, textAlign: "center" },
   opt: { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: HT.border, backgroundColor: HT.card, minHeight: 44 }, optOn: { borderColor: '#7C3AED', backgroundColor: HT.violetTint },
 });

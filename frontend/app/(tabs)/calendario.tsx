@@ -859,7 +859,7 @@ const styles = StyleSheet.create({
   apptTitle: { fontSize: 13, fontWeight: "700", color: HT.text, marginTop: 2 },
   loc: { fontSize: 10, color: HT.muted, marginTop: 2 },
   // V50.z241 — distanze
-  distBadge: { flexDirection: "row", alignItems: "center", gap: 3, alignSelf: "flex-start", backgroundColor: '#CCFBF1', borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2, marginTop: 4 },
+  distBadge: { flexDirection: "row", alignItems: "center", gap: 3, alignSelf: "flex-start", backgroundColor: HT.successTint, borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2, marginTop: 4 },
   distBadgeTxt: { fontSize: 10, fontWeight: "800", color: "#0F766E" },
   sortChip: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 32, paddingHorizontal: 10, borderRadius: 999, borderWidth: 1, borderColor: HT.brand, backgroundColor: HT.card },
   sortChipOn: { backgroundColor: HT.brand },

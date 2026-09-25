@@ -70,7 +70,7 @@ export default function PermessiScreen() {
     <View style={[styles.root, { paddingTop: insets.top + 8 }]}>
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 140, gap: 14 }}>
         <View style={styles.hero}>
-          <View style={styles.heroIcon}><Ionicons name="shield-checkmark" size={30} color={PURPLE} /></View>
+          <View style={styles.heroIcon}><Ionicons name="shield-checkmark" size={30} color={HT.violet} /></View>
           <Text style={styles.title}>Permessi utili</Text>
           <Text style={styles.sub}>Servono solo per le funzioni indicate. Puoi concederli ora o quando ti serviranno: nulla si blocca.</Text>
         </View>
@@ -79,7 +79,7 @@ export default function PermessiScreen() {
           const st = status[c.key];
           return (
             <View key={c.key} style={styles.card} testID={`perm-card-${c.key}`}>
-              <View style={styles.cardIcon}><Ionicons name={c.icon} size={20} color={PURPLE} /></View>
+              <View style={styles.cardIcon}><Ionicons name={c.icon} size={20} color={HT.violet} /></View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.cardTitle}>{c.title}</Text>
                 <Text style={styles.cardBenefit}>{c.benefit}</Text>
@@ -90,7 +90,7 @@ export default function PermessiScreen() {
                 <Text style={styles.naTxt}>Solo su app</Text>
               ) : (
                 <Pressable onPress={() => ask(c.key)} style={[styles.allowBtn, st === "blocked" && styles.allowBtnAlt]} testID={`perm-allow-${c.key}`}>
-                  <Text style={[styles.allowTxt, st === "blocked" && { color: PURPLE }]}>{st === "blocked" ? "Impostazioni" : st === "denied" ? "Riprova" : "Consenti"}</Text>
+                  <Text style={[styles.allowTxt, st === "blocked" && { color: HT.violet }]}>{st === "blocked" ? "Impostazioni" : st === "denied" ? "Riprova" : "Consenti"}</Text>
                 </Pressable>
               )}
             </View>
@@ -108,7 +108,7 @@ export default function PermessiScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#FAF5FF' },
+  root: { flex: 1, backgroundColor: HT.bg },
   hero: { alignItems: "center", gap: 8, marginBottom: 6 },
   heroIcon: { width: 64, height: 64, borderRadius: 22, backgroundColor: HT.violetTint, alignItems: "center", justifyContent: "center" },
   title: { fontSize: 24, fontWeight: "900", color: HT.text },
@@ -124,7 +124,7 @@ const styles = StyleSheet.create({
   okTxt: { color: HT.success, fontWeight: "800", fontSize: 12 },
   naTxt: { fontSize: 11.5, color: HT.muted, fontWeight: "700" },
   foot: { fontSize: 11.5, color: HT.muted, textAlign: "center", marginTop: 4 },
-  footer: { position: "absolute", left: 0, right: 0, bottom: 0, padding: 16, gap: 8, backgroundColor: '#FAF5FF' },
+  footer: { position: "absolute", left: 0, right: 0, bottom: 0, padding: 16, gap: 8, backgroundColor: HT.bg },
   primary: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: PURPLE, borderRadius: 16, minHeight: 52 },
   primaryTxt: { color: "#FFF", fontWeight: "900", fontSize: 16 },
   skip: { alignItems: "center", justifyContent: "center", minHeight: 44 },

@@ -164,7 +164,7 @@ const s = StyleSheet.create({
   hint: { fontSize: 12, color: HT.muted, lineHeight: 17 }, badge: { fontSize: 11, fontWeight: "800", color: "#FDBA74", backgroundColor: HT.warningTint, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   input: { backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, minHeight: 44, fontSize: 14, color: HT.text },
   slideBox: { backgroundColor: HT.warningTint, borderRadius: 10, padding: 10, gap: 6 }, num: { flex: 1, fontWeight: "900", color: "#FDBA74" },
-  miniBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, minHeight: 36, borderRadius: 8, backgroundColor: '#F3E8FF', alignSelf: "flex-start" }, miniTxt: { fontSize: 12, fontWeight: "800", color: "#7C3AED" },
+  miniBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, minHeight: 36, borderRadius: 8, backgroundColor: HT.violetTint, alignSelf: "flex-start" }, miniTxt: { fontSize: 12, fontWeight: "800", color: "#7C3AED" },
   chip: { paddingHorizontal: 14, minHeight: 36, borderRadius: 18, borderWidth: 1, borderColor: HT.border, alignItems: "center", justifyContent: "center", backgroundColor: HT.card }, chipOn: { backgroundColor: '#7C3AED', borderColor: '#7C3AED' }, chipTxt: { fontSize: 13, fontWeight: "800", color: HT.text },
   btn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 46, borderRadius: 12, paddingHorizontal: 14 },
   btnGhost: { backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border }, ghostTxt: { fontWeight: "800", fontSize: 13, color: "#7C3AED" },
@@ -172,5 +172,5 @@ const s = StyleSheet.create({
   prevRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 8, borderRadius: 10, backgroundColor: HT.warningTint, minHeight: 44 },
   prevNum: { width: 26, height: 26, borderRadius: 13, backgroundColor: '#D97706', alignItems: "center", justifyContent: "center" }, prevNumTxt: { color: "#FFF", fontWeight: "900", fontSize: 12 },
   prevTitle: { fontSize: 14, fontWeight: "800", color: HT.text }, li: { fontSize: 13, color: HT.text, lineHeight: 19 },
-  notes: { fontSize: 12, color: "#6B21A8", backgroundColor: '#F3E8FF', borderRadius: 6, padding: 6, marginTop: 4 },
+  notes: { fontSize: 12, color: HT.violet, backgroundColor: HT.violetTint, borderRadius: 6, padding: 6, marginTop: 4 },
 });

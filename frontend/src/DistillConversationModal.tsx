@@ -116,7 +116,7 @@ export function DistillConversationModal({ visible, onClose, onDone }: Props) {
                 <Text style={styles.hint}>{text.trim().length} caratteri · minimo 20 · conversazioni lunghe vengono analizzate a blocchi (max ~33.000)</Text>
               </>
             ) : sessionsLoading ? (
-              <ActivityIndicator color={PURPLE} style={{ marginVertical: 20 }} />
+              <ActivityIndicator color={HT.violet} style={{ marginVertical: 20 }} />
             ) : sessions.length === 0 ? (
               <Text style={styles.hint}>Nessuna chat salvata.</Text>
             ) : (
@@ -190,13 +190,13 @@ const styles = StyleSheet.create({
   title: { fontSize: 16, fontWeight: "800", color: HT.text },
   sub: { fontSize: 11, color: HT.muted, marginTop: 2 },
   modeRow: { flexDirection: "row", gap: 8, paddingHorizontal: 14, paddingTop: 12 },
-  modeBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, borderColor: PURPLE, minHeight: 44 },
+  modeBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, borderColor: HT.violet, minHeight: 44 },
   modeBtnOn: { backgroundColor: PURPLE },
-  modeTxt: { fontSize: 13, fontWeight: "800", color: PURPLE },
+  modeTxt: { fontSize: 13, fontWeight: "800", color: HT.violet },
   input: { backgroundColor: HT.card2, borderRadius: 12, borderWidth: 1, borderColor: HT.border, padding: 12, minHeight: 160, maxHeight: 260, fontSize: 13, color: HT.text, lineHeight: 19 },
   hint: { fontSize: 11, color: HT.muted, fontStyle: "italic" },
   sessRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: HT.border, backgroundColor: HT.card2, minHeight: 56 },
-  sessRowOn: { borderColor: PURPLE, backgroundColor: HT.violetTint },
+  sessRowOn: { borderColor: HT.violet, backgroundColor: HT.violetTint },
   sessPreview: { fontSize: 13, fontWeight: "700", color: HT.text },
   sessMeta: { fontSize: 11, color: HT.muted, marginTop: 2 },
   resultBox: { backgroundColor: HT.violetTint, borderRadius: 12, padding: 12, gap: 8, borderWidth: 1, borderColor: HT.violet + '66' },

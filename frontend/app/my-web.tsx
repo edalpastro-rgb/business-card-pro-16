@@ -290,7 +290,7 @@ const styles = StyleSheet.create({
   input: { borderWidth: 1, borderColor: HT.border, borderRadius: 10, padding: 12, fontSize: 14, color: HT.text, backgroundColor: HT.card2 },
   iconRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   iconOpt: { padding: 8, borderRadius: 10, backgroundColor: HT.card2 },
-  iconOptActive: { backgroundColor: '#FCE7F3', borderWidth: 2, borderColor: '#DB2777' },
+  iconOptActive: { backgroundColor: (HT.isDark ? "rgba(219,39,119,0.22)" : "#FCE7F3"), borderWidth: 2, borderColor: '#DB2777' },
   submitBtn: { marginTop: 20, backgroundColor: '#DB2777', padding: 14, borderRadius: 12, alignItems: "center" },
   submitTxt: { color: "#FFF", fontWeight: "800", fontSize: 14 },
 });

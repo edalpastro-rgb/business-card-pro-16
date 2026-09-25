@@ -685,7 +685,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: '#F3E8FF',
+    backgroundColor: HT.violetTint,
   },
   refreshTxt: { fontSize: 11, color: "#7C3AED", fontWeight: "800" },
   profileRow: { marginTop: 6 },
@@ -701,11 +701,11 @@ function CoursesCard({ router }: { router: ReturnType<typeof useRouter> }) {
     api<{ items: any[]; new_count: number; can_manage: boolean }>("/courses").then((r) => setInfo({ total: (r.items || []).length, newCount: r.new_count || 0, canManage: !!r.can_manage })).catch(() => setInfo({ total: 0, newCount: 0, canManage: false }));
   }, []);
   return (
-    <Pressable onPress={() => router.push("/courses" as any)} style={{ flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: '#FAF5FF', borderWidth: 1, borderColor: '#E9D5FF', borderRadius: 16, padding: 14, minHeight: 72 }} testID="team-courses-card">
+    <Pressable onPress={() => router.push("/courses" as any)} style={{ flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: HT.violetTint, borderWidth: 1, borderColor: '#E9D5FF', borderRadius: 16, padding: 14, minHeight: 72 }} testID="team-courses-card">
       <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: '#7C3AED', alignItems: "center", justifyContent: "center" }}><Ionicons name="school" size={22} color="#FFF" /></View>
       <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 15, fontWeight: "900", color: "#1F1147" }}>Area Corsi</Text>
-        <Text style={{ fontSize: 12, color: "#6B21A8", marginTop: 2 }}>{info ? `${info.total} cartelle corso${info.canManage ? " · lettura e partecipazione del team" : ""}` : "Caricamento…"}</Text>
+        <Text style={{ fontSize: 15, fontWeight: "900", color: HT.text }}>Area Corsi</Text>
+        <Text style={{ fontSize: 12, color: HT.violet, marginTop: 2 }}>{info ? `${info.total} cartelle corso${info.canManage ? " · lettura e partecipazione del team" : ""}` : "Caricamento…"}</Text>
       </View>
       {info && info.newCount > 0 ? <View style={{ backgroundColor: '#DC2626', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 }}><Text style={{ color: "#FFF", fontSize: 11, fontWeight: "900" }}>{info.newCount} nuovi</Text></View> : null}
       <Ionicons name="chevron-forward" size={18} color="#7C3AED" />

@@ -10,7 +10,6 @@ import { api } from "@/src/api";
 import { deviceKey } from "@/src/systemHeartbeat";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
-const PURPLE = "#7C3AED";
 type Info = {
   plan_name: string; plan_scope: "master" | "team"; latest_version: string | null; latest_version_date: string | null; backend_version: string | null;
   device: { installed_version: string | null; build_number: string | null; first_seen: string | null; updated_at: string | null; previous_version: string | null; app_env: string | null } | null;
@@ -58,14 +57,14 @@ export function AppInfoCard() {
   return (
     <Pressable onPress={() => setOpen((o) => !o)} style={styles.card} testID="app-info-card" accessibilityRole="button">
       <View style={styles.row}>
-        <View style={styles.icon}><Ionicons name="shield-checkmark" size={18} color={PURPLE} /></View>
+        <View style={styles.icon}><Ionicons name="shield-checkmark" size={18} color={HT.violet} /></View>
         <View style={{ flex: 1 }}>
           <Text style={styles.plan} testID="app-info-plan">{info ? info.plan_name : err ? "Piano attivo" : "Piano…"}</Text>
           <Text style={styles.ver} testID="app-info-version">
             {isNative ? "APK installata" : Platform.OS === "web" ? "Versione app (web)" : "Versione app (Expo Go)"} · v{installedVersion}{buildNumber ? ` (build ${buildNumber})` : ""}
           </Text>
         </View>
-        {!info && !err ? <ActivityIndicator size="small" color={PURPLE} /> : (
+        {!info && !err ? <ActivityIndicator size="small" color={HT.violet} /> : (
           <View style={[styles.badge, status === "ok" ? styles.badgeOk : status === "update" ? styles.badgeUpd : styles.badgeNeutral]} testID="app-info-status">
             <Text style={[styles.badgeTxt, status === "ok" ? { color: HT.success } : status === "update" ? { color: "#FDBA74" } : { color: HT.text2 }]}>
               {status === "ok" ? "Aggiornata ✓" : status === "update" ? `Nuova v${latest}` : "—"}
@@ -128,6 +127,6 @@ const styles = StyleSheet.create({
   newsBox: { backgroundColor: HT.card2, borderRadius: 10, padding: 10, gap: 6 },
   newsTitle: { fontSize: 12, fontWeight: "800", color: HT.text },
   newsRow: { flexDirection: "row", gap: 8 },
-  newsVer: { fontSize: 11, fontWeight: "800", color: PURPLE, width: 62 },
+  newsVer: { fontSize: 11, fontWeight: "800", color: HT.violet, width: 62 },
   newsTxt: { flex: 1, fontSize: 11.5, color: HT.text2, lineHeight: 15 },
 });

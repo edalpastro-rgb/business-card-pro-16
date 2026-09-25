@@ -75,9 +75,9 @@ export function ContractFormsSection({ contactId }: { contactId: string | null }
 }
 
 const s = StyleSheet.create({
-  card: { marginTop: 18, backgroundColor: '#FAF5FF', borderRadius: 14, borderWidth: 1, borderColor: '#E9D5FF', padding: 12, gap: 10 },
+  card: { marginTop: 18, backgroundColor: HT.violetTint, borderRadius: 14, borderWidth: 1, borderColor: '#E9D5FF', padding: 12, gap: 10 },
   title: { flex: 1, fontSize: 14, fontWeight: "900", color: HT.text },
-  linkBtn: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 32, paddingHorizontal: 8, borderRadius: 8, backgroundColor: '#F3E8FF' }, linkTxt: { fontSize: 12, fontWeight: "800", color: "#7C3AED" },
+  linkBtn: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 32, paddingHorizontal: 8, borderRadius: 8, backgroundColor: HT.violetTint }, linkTxt: { fontSize: 12, fontWeight: "800", color: "#7C3AED" },
   hint: { fontSize: 12, color: HT.muted, lineHeight: 17 }, sub: { fontSize: 12, fontWeight: "800", color: HT.text },
   tpl: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 10, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, minHeight: 48 },
   tplOn: { borderColor: '#7C3AED', backgroundColor: HT.violetTint }, tplName: { fontSize: 13, fontWeight: "800", color: HT.text },

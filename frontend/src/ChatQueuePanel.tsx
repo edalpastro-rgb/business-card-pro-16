@@ -108,7 +108,7 @@ export function ChatTabsBar({ tabs, current, onSelect, onNew }: { tabs: ChatTab[
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, flexShrink: 0 }} contentContainerStyle={styles.tabs} keyboardShouldPersistTaps="handled" testID="chat-tabs">
       {/* «Nuova» per prima: il bottone «Inizio» (assoluto, in alto a destra) non la copre */}
-      <Pressable onPress={onNew} style={[styles.tab, styles.tabNew]} testID="chat-tab-new"><Ionicons name="add" size={16} color={PURPLE} /><Text style={[styles.tabTxt, { color: PURPLE }]}>Nuova</Text></Pressable>
+      <Pressable onPress={onNew} style={[styles.tab, styles.tabNew]} testID="chat-tab-new"><Ionicons name="add" size={16} color={HT.violet} /><Text style={[styles.tabTxt, { color: HT.violet }]}>Nuova</Text></Pressable>
       {tabs.map((t) => {
         const on = t.session_id === current;
         return (
@@ -123,26 +123,26 @@ export function ChatTabsBar({ tabs, current, onSelect, onNew }: { tabs: ChatTab[
 }
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: '#FAF5FF' },
+  wrap: { flex: 1, backgroundColor: HT.bg },
   h: { fontSize: 13, fontWeight: "900", color: HT.violet },
   muted: { fontSize: 12.5, color: HT.muted, lineHeight: 17 },
   card: { backgroundColor: HT.card, borderRadius: 14, padding: 10, gap: 8, borderWidth: 1, borderColor: HT.violetTint },
-  cardActive: { borderColor: PURPLE, backgroundColor: HT.violetTint },
-  cardFailed: { borderColor: HT.danger + '66', backgroundColor: '#FFF7F7' },
+  cardActive: { borderColor: HT.violet, backgroundColor: HT.violetTint },
+  cardFailed: { borderColor: HT.danger + '66', backgroundColor: HT.dangerTint },
   failedBox: { gap: 8, padding: 10, borderRadius: 14, backgroundColor: HT.dangerTint, borderWidth: 1, borderColor: HT.danger + '66' },
   row: { flexDirection: "row", gap: 8, alignItems: "flex-start" },
   icon: { fontSize: 16, marginTop: 1 },
   txt: { fontSize: 13.5, color: HT.text, fontWeight: "600", lineHeight: 18 },
   meta: { fontSize: 11, color: HT.muted, marginTop: 3 },
-  input: { borderWidth: 1, borderColor: PURPLE, borderRadius: 10, padding: 8, fontSize: 13.5, color: HT.text, minHeight: 60, backgroundColor: HT.card },
+  input: { borderWidth: 1, borderColor: HT.violet, borderRadius: 10, padding: 8, fontSize: 13.5, color: HT.text, minHeight: 60, backgroundColor: HT.card },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   btn: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 36, paddingHorizontal: 10, borderRadius: 999, borderWidth: 1, borderColor: HT.violet + '66', backgroundColor: HT.card },
-  btnPrimary: { backgroundColor: PURPLE, borderColor: PURPLE },
+  btnPrimary: { backgroundColor: PURPLE, borderColor: HT.violet },
   btnDanger: { borderColor: HT.danger + '66', backgroundColor: HT.dangerTint },
-  btnTxt: { fontSize: 12, fontWeight: "800", color: PURPLE },
+  btnTxt: { fontSize: 12, fontWeight: "800", color: HT.violet },
   doneRow: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 36, paddingHorizontal: 6 },
   tabs: { flexDirection: "row", gap: 6, paddingLeft: 10, paddingRight: 100, paddingVertical: 6, alignItems: "center" },
-  tab: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 32, paddingHorizontal: 12, borderRadius: 999, backgroundColor: '#F1EEFF', maxWidth: 160 },
+  tab: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 32, paddingHorizontal: 12, borderRadius: 999, backgroundColor: HT.violetTint, maxWidth: 160 },
   tabOn: { backgroundColor: PURPLE },
   tabNew: { backgroundColor: HT.card, borderWidth: 1, borderColor: HT.violet + '66' },
   tabTxt: { fontSize: 12, fontWeight: "800", color: HT.violet },

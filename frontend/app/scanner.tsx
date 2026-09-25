@@ -232,7 +232,7 @@ const styles = StyleSheet.create({
   },
   secondaryBtnTxt: { color: HT.brand, fontWeight: "700", fontSize: 14 },
   tipsCard: {
-    backgroundColor: '#FEFCE8',
+    backgroundColor: HT.warningTint,
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,

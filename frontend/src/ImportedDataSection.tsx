@@ -54,15 +54,15 @@ export function ImportedDataSection() {
   return (
     <View style={styles.card} testID="memory-sec-imported">
       <View style={styles.head}>
-        <View style={styles.icon}><Ionicons name="server-outline" size={16} color={PURPLE} /></View>
+        <View style={styles.icon}><Ionicons name="server-outline" size={16} color={HT.violet} /></View>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Dati importati  <Text style={{ fontSize: 11, color: "#2563EB" }}>🔵 Business · team</Text></Text>
           <Text style={styles.intro}>Valori che hai fatto memorizzare da PDF/Excel (PUN, tariffe, futures…). Condivisi con il team, disponibili in ogni chat senza ricaricare il file.</Text>
         </View>
-        <Pressable onPress={load} hitSlop={8} style={styles.iconBtn} testID="imported-refresh"><Ionicons name="refresh" size={20} color={PURPLE} /></Pressable>
+        <Pressable onPress={load} hitSlop={8} style={styles.iconBtn} testID="imported-refresh"><Ionicons name="refresh" size={20} color={HT.violet} /></Pressable>
       </View>
 
-      {!data ? <ActivityIndicator color={PURPLE} style={{ marginVertical: 8 }} /> : data.total === 0 ? (
+      {!data ? <ActivityIndicator color={HT.violet} style={{ marginVertical: 8 }} /> : data.total === 0 ? (
         <Text style={styles.empty}>Nessun dato memorizzato. Carica in chat un file con valori e, quando Axon chiede «Vuoi che memorizzi questi dati per uso futuro?», rispondi «Sì».</Text>
       ) : data.categories.map((c) => {
         const items = data.items.filter((i) => i.categoria === c.categoria);
@@ -70,7 +70,7 @@ export function ImportedDataSection() {
         return (
           <View key={c.categoria} style={styles.cat} testID={`imported-cat-${c.categoria}`}>
             <Pressable onPress={() => setOpen(isOpen ? null : c.categoria)} style={styles.catHead} testID={`imported-cat-toggle-${c.categoria}`}>
-              <Ionicons name={isOpen ? "chevron-down" : "chevron-forward"} size={18} color={PURPLE} />
+              <Ionicons name={isOpen ? "chevron-down" : "chevron-forward"} size={18} color={HT.violet} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.catTitle}>{c.categoria} <Text style={styles.catCount}>· {c.count} valor{c.count === 1 ? "e" : "i"}</Text></Text>
                 <Text style={styles.catMeta}>Fonte: {c.fonti.join(", ") || "n/d"}{c.last ? ` · aggiornato ${new Date(c.last).toLocaleDateString("it-IT")}` : ""}</Text>
@@ -121,7 +121,7 @@ const styles = StyleSheet.create({
   item: { flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 26, paddingVertical: 4, borderTopWidth: 1, borderTopColor: HT.card2 },
   itemTxt: { fontSize: 13, color: HT.text },
   itemData: { fontSize: 12, color: HT.muted },
-  itemVal: { fontSize: 14, fontWeight: "800", color: PURPLE, marginTop: 1 },
+  itemVal: { fontSize: 14, fontWeight: "800", color: HT.violet, marginTop: 1 },
   iconBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 10 },
   editRow: { flexDirection: "row", alignItems: "center", gap: 6, flex: 1, flexWrap: "wrap" },
   input: { flex: 1, minWidth: 70, backgroundColor: HT.card2, borderRadius: 10, borderWidth: 1, borderColor: HT.border, padding: 8, minHeight: 44, fontSize: 13, color: HT.text },

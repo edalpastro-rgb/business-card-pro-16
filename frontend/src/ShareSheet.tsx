@@ -338,7 +338,7 @@ const styles = StyleSheet.create({
   linkTxt: { flex: 1, fontSize: 11, color: HT.text, fontFamily: Platform.select({ ios: "Courier", android: "monospace" }) },
   linkExp: { fontSize: 10, color: HT.muted, fontWeight: "700" },
   // V38I — email composer
-  emailBox: { backgroundColor: '#FFF7F5', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: HT.danger + '66', gap: 8 },
+  emailBox: { backgroundColor: HT.dangerTint, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: HT.danger + '66', gap: 8 },
   emailHeader: { flexDirection: "row", alignItems: "center", gap: 6 },
   emailTitle: { flex: 1, fontSize: 13, fontWeight: "700", color: HT.text },
   emailInput: { backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, color: HT.text },

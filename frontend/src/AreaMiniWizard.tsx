@@ -145,7 +145,7 @@ export function AreaMiniWizard({ area, visible, onClose, onDone }: { area: AreaC
           <View style={styles.progress}>{steps.map((s, i) => <View key={s.id} style={[styles.bar, i <= idx && { backgroundColor: PURPLE }]} />)}</View>
 
           <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
-            {!!busy && <View style={styles.busyRow}><ActivityIndicator color={PURPLE} /><Text style={styles.busyTxt}>{busy}</Text></View>}
+            {!!busy && <View style={styles.busyRow}><ActivityIndicator color={HT.violet} /><Text style={styles.busyTxt}>{busy}</Text></View>}
 
             {step.kind === "upload" && phase === "pick" && !busy && (
               <>
@@ -160,7 +160,7 @@ export function AreaMiniWizard({ area, visible, onClose, onDone }: { area: AreaC
                   ))}
                 </View>
                 <Pressable onPress={pickFile} style={styles.primary} testID="area-upload-file"><Ionicons name="cloud-upload" size={20} color="#FFF" /><Text style={styles.primaryTxt}>Carica foto, file o PDF</Text></Pressable>
-                <Pressable onPress={takePhoto} style={styles.secondary} testID="area-upload-camera"><Ionicons name="camera" size={20} color={PURPLE} /><Text style={styles.secondaryTxt}>Scatta una foto</Text></Pressable>
+                <Pressable onPress={takePhoto} style={styles.secondary} testID="area-upload-camera"><Ionicons name="camera" size={20} color={HT.violet} /><Text style={styles.secondaryTxt}>Scatta una foto</Text></Pressable>
                 <Pressable onPress={() => setPhase("fields")} style={styles.linkBtn} testID="area-manual"><Text style={styles.linkTxt}>Preferisco inserire i dati a mano</Text></Pressable>
               </>
             )}
@@ -257,29 +257,29 @@ const styles = StyleSheet.create({
   hTitle: { fontSize: 16, fontWeight: "900", color: HT.text },
   hSub: { fontSize: 12, color: HT.muted, fontWeight: "700", marginTop: 2 },
   progress: { flexDirection: "row", gap: 4, paddingHorizontal: 16 },
-  bar: { flex: 1, height: 4, borderRadius: 2, backgroundColor: '#E9E5FF' },
+  bar: { flex: 1, height: 4, borderRadius: 2, backgroundColor: HT.violetTint },
   title: { fontSize: 17, fontWeight: "900", color: HT.text },
   hint: { fontSize: 13, color: HT.muted, lineHeight: 18 },
   lbl: { fontSize: 11.5, fontWeight: "800", color: HT.text2, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 },
   chips: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
-  chip: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 44, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1.5, borderColor: HT.violet + '66', backgroundColor: '#FAF5FF' },
-  chipOn: { backgroundColor: PURPLE, borderColor: PURPLE },
-  chipTxt: { fontSize: 13, fontWeight: "800", color: PURPLE },
-  bigChip: { flex: 1, minWidth: 96, minHeight: 56, alignItems: "center", justifyContent: "center", borderRadius: 14, borderWidth: 1.5, borderColor: HT.violet + '66', backgroundColor: '#FAF5FF' },
-  bigChipTxt: { fontSize: 15, fontWeight: "900", color: PURPLE },
+  chip: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 44, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1.5, borderColor: HT.violet + '66', backgroundColor: HT.violetTint },
+  chipOn: { backgroundColor: PURPLE, borderColor: HT.violet },
+  chipTxt: { fontSize: 13, fontWeight: "800", color: HT.violet },
+  bigChip: { flex: 1, minWidth: 96, minHeight: 56, alignItems: "center", justifyContent: "center", borderRadius: 14, borderWidth: 1.5, borderColor: HT.violet + '66', backgroundColor: HT.violetTint },
+  bigChipTxt: { fontSize: 15, fontWeight: "900", color: HT.violet },
   primary: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 52, borderRadius: 14, backgroundColor: PURPLE },
   primaryTxt: { color: "#FFF", fontWeight: "900", fontSize: 15 },
   secondary: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 48, borderRadius: 14, borderWidth: 1.5, borderColor: HT.violet + '66', backgroundColor: HT.card },
-  secondaryTxt: { color: PURPLE, fontWeight: "800", fontSize: 14 },
+  secondaryTxt: { color: HT.violet, fontWeight: "800", fontSize: 14 },
   linkBtn: { minHeight: 40, alignItems: "center", justifyContent: "center" },
   linkTxt: { color: HT.muted, fontWeight: "700", fontSize: 13 },
   input: { borderWidth: 1.5, borderColor: HT.border, borderRadius: 12, padding: 12, fontSize: 14.5, color: HT.text, backgroundColor: HT.card2 },
-  busyRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 14, borderRadius: 14, backgroundColor: '#FAF5FF' },
-  busyTxt: { color: PURPLE, fontWeight: "800", flex: 1 },
+  busyRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 14, borderRadius: 14, backgroundColor: HT.violetTint },
+  busyTxt: { color: HT.violet, fontWeight: "800", flex: 1 },
   fileRow: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: HT.successTint, borderRadius: 10, padding: 8 },
   fileTxt: { color: HT.success, fontWeight: "700", fontSize: 12.5, flex: 1 },
   warn: { color: HT.warning, fontWeight: "700", fontSize: 12.5, backgroundColor: HT.warningTint, borderRadius: 10, padding: 8 },
   switchRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 4 },
   recTxt: { flex: 1, fontSize: 11.5, color: HT.muted, fontWeight: "700", lineHeight: 15 },
-  recPill: { width: 44, height: 44, borderRadius: 12, borderWidth: 1.5, borderColor: HT.violet + '66', backgroundColor: '#FAF5FF', alignItems: "center", justifyContent: "center" },
+  recPill: { width: 44, height: 44, borderRadius: 12, borderWidth: 1.5, borderColor: HT.violet + '66', backgroundColor: HT.violetTint, alignItems: "center", justifyContent: "center" },
 });
