@@ -125,7 +125,7 @@ export default function AxonLabPractice() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: HT.card2 }} edges={["top"]}>
-      <LabHeader icon="document-text" title={p?.contact_name || "Pratica"} sub={p?.company ? `${p.company} · Compilazione CRT` : "Compilazione CRT"} testID="lab-practice" />
+      <LabHeader icon="document-text" title={p?.contact_name || "Pratica"} sub={p?.company ? `${p.company} · Autocompilazione CRT` : "Compilazione CRT"} testID="lab-practice" />
       {loading || !p ? <ActivityIndicator style={{ marginTop: 40 }} color={HT.brand} /> : (
         <ScrollView contentContainerStyle={{ padding: 14, gap: 14, paddingBottom: pagePad + 24 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />} keyboardShouldPersistTaps="handled">
           {/* 1 · Documenti */}

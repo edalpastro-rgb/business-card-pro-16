@@ -22,6 +22,10 @@ import { HeaderWeatherBadge } from "@/src/WeatherWidget";
 import { BrandHeaderImage } from "@/src/BrandHeaderImage"; // V50.z232
 import { MenuIcon, MenuIconName, LOCK_KEY_ICON } from "@/src/LockKeyIcon"; // V50.z237
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+// V50.z362 — sezione «Utility»: i pulsanti grigi usano HT.text2 (varia col tema) → chiave di categoria normalizzata,
+// altrimenti l'intestazione «Utility» sparisce nei temi in cui text2 ≠ #475569.
+const UTIL_GRAY = "#475569";
+const catKey = (color: string): string => (color === HT.text2 || color === HT.muted ? UTIL_GRAY : color);
 
 type Banner = { item_id: string; kind: string; title?: string; body?: string; image_base64?: string | null; color?: string } | null;
 type MyThingImage = { item_id: string; image_base64?: string | null };
@@ -82,8 +86,13 @@ function MasterScreen() {
           try {
             const parsed = JSON.parse(ord);
             if (Array.isArray(parsed) && parsed.every((x) => typeof x === "string")) {
-              // V50.z287 — migrazione etichetta rinominata (l'ordine salvato è per etichetta)
-              setButtonOrder(parsed.map((x: string) => (x === "Autocompilazione CRT" ? "Axon Lab" : x))); // V50.z353 — «Compilazione CRT» è di nuovo un pulsante proprio
+              // V50.z287/z353/z362 — migrazione etichette (l'ordine salvato è per etichetta):
+              // «Autocompilazione CRT» era stata rinominata «Axon Lab» (z353); ora torna «Autocompilazione CRT» nello stesso posto,
+              // «Compilazione CRT» (z353) → «Autocompilazione CRT»; «Axon Lab» esce dall'ordine salvato e viene inserito nella sezione AI & Axon.
+              let migrated: string[] = parsed.map((x: string) => (x === "Compilazione CRT" ? "Autocompilazione CRT" : x));
+              if (!migrated.includes("Autocompilazione CRT")) migrated = migrated.map((x) => (x === "Axon Lab" ? "Autocompilazione CRT" : x));
+              migrated = migrated.filter((x, i) => x !== "Axon Lab" && migrated.indexOf(x) === i);
+              setButtonOrder(migrated);
             }
           } catch { /* ignore malformed */ }
         }
@@ -236,6 +245,8 @@ function MasterScreen() {
     // CRM Core (blu #0EA5E9)
     { label: "Agenda", icon: "calendar", color: "#0EA5E9", onPress: () => goto("/(tabs)/calendario") },
     { label: "New Contact", icon: "person-add", color: "#0EA5E9", onPress: () => goto("/contact/new") },
+    // V50.z362 — «Autocompilazione CRT» (flusso consulente 9 step) resta in CRM Core, al posto storico; Axon Lab va nella sezione AI & Axon.
+    { label: "Autocompilazione CRT", icon: "document-text", color: "#0EA5E9", onPress: () => router.push("/axon-lab/business" as any) },
     // Comunicazioni (arancione #F97316)
     { label: "Chat Gruppo", icon: "chatbubbles", color: "#F97316", onPress: () => setChatPickerOpen(true) },
     // Amministrazione / utility (grigio #475569)
@@ -249,9 +260,6 @@ function MasterScreen() {
     { label: "Meteo", icon: "partly-sunny", color: HT.text2, onPress: () => goto("/meteo") },
     { label: "Profilo", icon: "person", color: HT.text2, onPress: () => goto("/(tabs)/impostazioni") }, // V50.z287 — mancava nel blocco Utility
     // CRM Core
-    // V50.z353 — «Compilazione CRT»: flusso consulente in 9 step (cliente → documenti → moduli → Axon compila → revisione → data/luogo → PDF → CRT → condividi). Separato da Axon Lab.
-    { label: "Compilazione CRT", icon: "document-text", color: "#10B981", onPress: () => router.push("/axon-lab/business" as any) },
-    ...(labAccess ? [{ label: "Axon Lab", icon: "color-wand" as const, color: "#0EA5E9", onPress: handleNewContract, badge: alerts.unread }] : []), // V50.z356 — solo Super Master/delegati
     { label: "Mercato", icon: "stats-chart", color: "#EAB308", onPress: () => router.push("/mercato" as any) }, // V50.z345 — DB condizioni economiche concorrenti + benchmark
     { label: "New App", icon: "add-circle", color: "#0EA5E9", onPress: () => goto("/appointment/new") },
     // Comunicazioni
@@ -288,6 +296,7 @@ function MasterScreen() {
     { label: "Script Telefonata", icon: "document-text", color: "#F97316", onPress: () => goto("/call-script-config") },
     // AI & Axon
     { label: "Axon Center", icon: "sparkles", color: "#7C3AED", onPress: () => goto("/axon-hub"), badge: pendingProposals },
+    ...(labAccess ? [{ label: "Axon Lab", icon: "color-wand" as const, color: "#7C3AED", onPress: handleNewContract, badge: alerts.unread }] : []), // V50.z356 — solo Super Master/delegati · V50.z362 — sezione AI & Axon
     // CRM Core
     { label: "Cruscotto", icon: "grid", color: "#0EA5E9", onPress: () => goto("/cruscotto") },
     { label: "Azioni rapide", icon: "flash", color: "#0EA5E9", onPress: () => goto("/quick-actions") },
@@ -303,7 +312,8 @@ function MasterScreen() {
     { label: "Feedback & Bug", icon: "bug", color: "#EAB308", onPress: () => goto("/bug-report") },
   ];
 
-  // V48 — Apply saved order (if any), placing unknown/new buttons at the end.
+  // V48 — Apply saved order (if any). V50.z362 — i pulsanti nuovi/non presenti nell'ordine salvato entrano
+  // DOPO l'ultimo pulsante della stessa sezione (colore), non in coda: così le sezioni restano compatte.
   // V50.z40 — Se non c'è ordine custom, raggruppa per categoria colore
   // (CRM blu → Comunicazioni arancio → AI viola → Documenti verde → Utility grigio).
   const orderedButtons = useMemo(() => {
@@ -315,7 +325,13 @@ function MasterScreen() {
         const b = byLabel.get(label);
         if (b && !seen.has(label)) { out.push(b); seen.add(label); }
       }
-      for (const b of buttons) { if (!seen.has(b.label)) out.push(b); }
+      for (const b of buttons) {
+        if (seen.has(b.label)) continue;
+        let at = -1;
+        for (let i = out.length - 1; i >= 0; i--) { if (catKey(out[i].color) === catKey(b.color)) { at = i; break; } }
+        if (at >= 0) out.splice(at + 1, 0, b); else out.push(b);
+        seen.add(b.label);
+      }
       return out;
     }
     // Default: ordina per priorità categoria (colore) mantenendo ordine
@@ -326,12 +342,12 @@ function MasterScreen() {
       "#7C3AED": 3,  // AI & Axon
       "#10B981": 4,  // Documenti & Cloud
       "#EAB308": 5,  // Team & Insights
-      "#475569": 6,  // Amministrazione / utility
+      [UTIL_GRAY]: 6,  // Amministrazione / utility
       "#DC2626": 2,  // rec attivo → resta accanto a Comunicazioni
     };
     return [...buttons].sort((a, b) => {
-      const pa = catPriority[a.color] ?? 99;
-      const pb = catPriority[b.color] ?? 99;
+      const pa = catPriority[catKey(a.color)] ?? 99;
+      const pb = catPriority[catKey(b.color)] ?? 99;
       if (pa !== pb) return pa - pb;
       return buttons.indexOf(a) - buttons.indexOf(b);
     });
@@ -469,11 +485,11 @@ function MasterScreen() {
               "#7C3AED": { label: "AI & Axon", icon: "sparkles" },
               "#10B981": { label: "Anagrafica & DB Master", icon: "id-card" },
               "#EAB308": { label: "Team & Insights", icon: "people" },
-              "#475569": { label: "Utility", icon: "options" },
+              [UTIL_GRAY]: { label: "Utility", icon: "options" },
             };
-            const prevColor = idx > 0 ? orderedButtons[idx - 1].color : null;
-            const isCategoryStart = !reorderMode && (idx === 0 || (prevColor && prevColor !== b.color));
-            const cat = catLabelMap[b.color];
+            const prevColor = idx > 0 ? catKey(orderedButtons[idx - 1].color) : null;
+            const isCategoryStart = !reorderMode && (idx === 0 || (prevColor && prevColor !== catKey(b.color)));
+            const cat = catLabelMap[catKey(b.color)];
             return (
               <React.Fragment key={b.label}>
                 {isCategoryStart && cat ? (

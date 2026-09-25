@@ -46,7 +46,7 @@ export default function AxonLabBusiness() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: HT.card2 }} edges={["top"]}>
-      <LabHeader icon="document-text" title="Compilazione CRT" sub="Step 1 · Scegli il cliente: i suoi documenti compaiono subito"
+      <LabHeader icon="document-text" title="Autocompilazione CRT" sub="Step 1 · Scegli il cliente: i suoi documenti compaiono subito"
         right={<Pressable onPress={() => setCreating((v) => !v)} style={s.newBtn} testID="lab-practice-new"><Ionicons name={creating ? "close" : "add"} size={20} color={HT.white} /></Pressable>} testID="lab-business" />
       <ScrollView contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: pagePad + 24 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />} keyboardShouldPersistTaps="handled">
         {creating ? (
