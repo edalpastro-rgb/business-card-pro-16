@@ -268,6 +268,7 @@ def _nav_prompt_section(user: dict, msg: str) -> str:
         "Se sì → rispondi con 1-2 frasi che spiegano cosa fa la funzione e aggiungi il deep link nel formato ESATTO [[NAV:<route>|<etichetta breve>]] (uno per riga, in fondo, max 3). L'app lo trasforma in un pulsante che porta direttamente alla schermata.",
         "NON descrivere il percorso a parole (es. 'vai in Impostazioni → Generale'): usa sempre il marker. Se la route contiene {id}, sostituiscilo con il contact_id reale se lo conosci, altrimenti usa la lista (/contatti).",
         "Solo se NESSUNA funzione corrisponde al bisogno, rispondi in modo conversazionale senza marker.",
+        "⛔ CHECK PRIMA DI OGNI MARKER: chiediti «è davvero una richiesta di funzione dell'app, o è conversazione?». Domande personali, riflessive o di controllo («come ti senti?», «hai visto le novità?», «leggi tutto e dimmi cosa ne pensi», saluti, ringraziamenti, commenti sul tuo lavoro) → rispondi come Axon leggendo TUTTO il messaggio (forma e contenuto), ZERO marker [[NAV]]/[[ACTION]], mai estrarre una parola-chiave dal contesto per proporre una schermata.",
         "RICHIESTE CREATIVE / DI SCRITTURA (es. «scrivimi un discorso per il team», «prepara una mail al cliente», «testo di 300 parole», traduzioni, script, post): l'utente vuole IL CONTENUTO, non una schermata → scrivi tu il testo completo, curato e pronto all'uso, rispettando lunghezza/tono/lingua richiesti; NESSUN marker [[NAV]] a meno che non chieda esplicitamente di aprire una funzione.",
         "Bisogni vaghi/indiretti → interpreta e proponi la funzione: " + "; ".join(f"«{v}» → {', '.join(_NAV_BY_ID[i]['name'] for i in ids if i in _NAV_BY_ID)}" for v, ids in VAGUE_MAP) + ".",
         "«Come faccio a impostare/configurare X» → cerca X nell'elenco e porta direttamente alla configurazione.",
@@ -696,6 +697,31 @@ _RX_DATA_Q = _nav_re.compile(r"\b(quanti|quante|quanto (ho|abbiamo|manca)|a che 
 _RX_CREATIVE = _nav_re.compile(
     r"(\b(scriv\w*|redig\w*|compon\w*|traduc\w*|riformul\w*|riscriv\w*|correggi (il|la|questo|questa)|sintetizz\w*|invent\w*|butta\w* gi[uù]|suggerisc\w* (un|una|il|la|come)|proponi\w* (un|una|il|la)|(prepar\w*|gener\w*|cre\w*|fammi|dammi|voglio|vorrei|mi servirebbe|mi serve|serve|ho bisogno di|potresti (scrivere|preparare|fare|farmi))\s+(un|una|uno|un'|il|la|lo|le|gli|dei|delle|degli|del|della|\d+)?\s*(bozza|bozze|testo|testi|discorso|discorsi|speech|mail|e-mail|email|messaggio|messaggi|whatsapp|sms|lettera|lettere|post|articolo|articoli|poesia|poesie|slogan|frase|frasi|risposta|risposte|script|copione|comunicato|racconto|storia|elenco puntato|scaletta|riassunto|sintesi|traduzione|paragrafo|paragrafi|titolo|titoli|didascalia|descrizione|pitch|obiezion\w*|argomentazion\w*|spiegazione|idee|consigli|esempi|battuta|auguri|biglietto di auguri|invito))"
     r"|\b\d+\s*(parole|righe|versi|frasi|punti|paragrafi)\b|\bmotivazional\w*|\bdiscorso\b|\bpoesia\b|\bslogan\b|\bstorytelling\b|\bin (inglese|tedesco|francese|spagnolo|italiano)\b|\btono (formale|informale|professionale|amichevole)\b)", _nav_re.I)
+# V50.z358 — CONVERSAZIONE PERSONALE / RIFLESSIVA (es. «come ti senti?», «hai visto le novità?», «leggi tutto e dimmi cosa ne pensi»):
+# NON è una richiesta di funzione → il Navigatore si ferma e nessun marker [[NAV]] viene emesso (correzione chiesta dall'utente
+# dopo che Axon aveva risposto a una domanda personale con un deep link estrapolando la parola «collaboratore»).
+_RX_CONVERSATIONAL = _nav_re.compile(r"\b(come (ti senti|stai|va|ti trovi|procede)|hai (visto|letto|notato|capito) (le |la |il |i |gli |tutto|che)|leggi tutto|leggi (il|la|le|i) |cosa (ne )?pensi|che ne (pensi|dici)|secondo te|ti (piace|piacciono|sembra|sembrano|ricordi|convince)|sei (pronto|contento|d'accordo)|rifletti|una tua (opinione|riflessione)|parliamo|chiacchier\w+|raccontami)", _nav_re.I)
+_RX_GREETING = _nav_re.compile(r"\b(grazie|bravo|brava|ottimo lavoro|complimenti|buongiorno|buonasera|buonanotte|ciao|ehi|hey)\b", _nav_re.I)
+_RX_NAV_MARK = _nav_re.compile(r"[ \t]*\[\[(NAV|ACTION):[^\]]*\]\][ \t]*\n?")
+
+
+def _nav_is_conversation(msg: str) -> bool:
+    t = (msg or "").strip()
+    if _RX_OPEN_SCREEN.search(t):
+        return False
+    if _RX_CONVERSATIONAL.search(t):
+        return True
+    return len(t) <= 40 and bool(_RX_GREETING.search(t))  # saluto/ringraziamento «puro» (non «Buongiorno, che appuntamenti ho?»)
+
+
+def _nav_strip_if_conversation(msg: str, reply: str) -> str:
+    """Zero marker nelle risposte a messaggi conversazionali (anche se il modello li ha aggiunti)."""
+    if reply and _nav_is_conversation(msg) and ("[[NAV:" in reply or "[[ACTION:" in reply):
+        logger.info("[NAV] marker rimossi: messaggio conversazionale «%s»", (msg or "")[:60])
+        return _RX_NAV_MARK.sub("\n", reply).strip()
+    return reply
+
+
 _RX_OPEN_SCREEN = _nav_re.compile(r"\b(apri|aprire|aprimi|portami|vai (a|su|in|al|alla)|mostrami la schermata|dove (trovo|si trova|sta)|come (apro|arrivo|entro))\b", _nav_re.I)
 
 
@@ -869,6 +895,8 @@ async def _maybe_push_command(msg: str, user: dict):  # noqa: F811
     t0 = (msg or "").strip()
     if _RX_WHY_META.search(t0) and not _RX_OPEN_SCREEN.search(t0) and not _nav_re.search(r"\b(cancell\w*|azzer\w*|elimin\w*|svuot\w*)\b.*\bneo\b", t0, _nav_re.I):
         return None
+    if _nav_is_conversation(t0):  # V50.z358 — conversazione: niente Navigatore L1
+        return None
     r = None if _user_product(user) == "lite" else await _nav_intercept(msg, user)  # noqa: F821 — V50.z327: il Navigatore ha solo schermate AdvisorOS
     if r:
         rep = r.get("reply") or ""
@@ -891,7 +919,7 @@ if _nav_orig_chat is not None:
     @api_router.post("/assistant/chat")
     async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):  # noqa: F811
         user["_client_ctx"] = body.client_context  # V50.z291
-        r = None if _user_product(user) == "lite" else await _nav_intercept(body.message or "", user)  # noqa: F821 — V50.z327
+        r = None if (_user_product(user) == "lite" or _nav_is_conversation(body.message or "")) else await _nav_intercept(body.message or "", user)  # noqa: F821 — V50.z327 / V50.z358
         if r and r.get("reply") is not None:
             sid = body.session_id or f"asst_{user['user_id']}_{uuid.uuid4().hex[:10]}"
             mid = uuid.uuid4().hex[:16]
@@ -903,7 +931,10 @@ if _nav_orig_chat is not None:
             except Exception:
                 pass
             return {"session_id": sid, "message_id": mid, "reply": r["reply"], "used_web_search": False, "web_sources": [], "nav": True}
-        return await _nav_orig_chat(body, user)
+        out = await _nav_orig_chat(body, user)
+        if isinstance(out, dict) and out.get("reply"):
+            out["reply"] = _nav_strip_if_conversation(body.message or "", out["reply"])  # V50.z358
+        return out
 
 
 # ---------------------------------------------------------------------------
