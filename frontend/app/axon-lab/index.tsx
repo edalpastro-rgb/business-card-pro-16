@@ -8,22 +8,21 @@ import { api } from "@/src/api";
 import { HT } from "@/src/homeTheme";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { LabHeader, labStyles as L } from "@/src/axonlab/LabHeader";
-import type { LabModule, LabPractice } from "@/src/axonlab/labApi";
+import type { LabModule } from "@/src/axonlab/labApi";
 
 export default function AxonLabHub() {
   const router = useRouter();
   const pagePad = usePageBottomPadding();
   const [access, setAccess] = useState<{ is_master: boolean; can_train: boolean } | null>(null);
   const [modules, setModules] = useState<LabModule[]>([]);
-  const [practices, setPractices] = useState<LabPractice[]>([]);
-  const [completion, setCompletion] = useState<number | null>(null);
+    const [completion, setCompletion] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     try {
       const a = await api<{ is_master: boolean; can_train: boolean }>("/lab/access");
       setAccess(a);
-      const [m, p] = await Promise.all([api<{ items: LabModule[] }>("/lab/modules"), api<{ items: LabPractice[] }>("/lab/practices")]);
-      setModules(m.items || []); setPractices(p.items || []);
+      const m = await api<{ items: LabModule[] }>("/lab/modules");
+      setModules(m.items || []);
       if (a.can_train) {
         const t = await api<{ completion: { percent: number } }>("/lab/training");
         setCompletion(t.completion.percent);
@@ -35,35 +34,38 @@ export default function AxonLabHub() {
   const trained = modules.filter((m) => m.trained).length;
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: HT.card2 }} edges={["top"]}>
-      <LabHeader title="Axon Lab" sub="Mostra un esempio, collega i campi: Axon impara e compila da solo" testID="lab-hub" />
-      {!access ? <ActivityIndicator style={{ marginTop: 40 }} color={HT.axon} /> : (
+      <LabHeader title="Axon Lab" sub="Super Master · Axon impara dal cliente tipo e dalle tue regole" testID="lab-hub" />
+      {!access ? <ActivityIndicator style={{ marginTop: 40 }} color={HT.axon} /> : !access.can_train ? (
+        <View style={[L.card, { margin: 14, backgroundColor: HT.warningTint, borderColor: HT.warning }]} testID="lab-no-access">
+          <Text style={[L.cardSub, { color: HT.text }]}>Axon Lab è riservato al Super Master e ai suoi delegati.</Text>
+        </View>
+      ) : (
         <ScrollView contentContainerStyle={{ padding: 14, gap: 14, paddingBottom: pagePad + 24 }}>
           <View style={s.principle}>
             <Ionicons name="sparkles" size={18} color={HT.axon} />
-            <Text style={s.principleTxt}>Documento compilato come esempio → modulo vuoto → collega i campi. Axon impara la regola generale e la applica a tutti i clienti.</Text>
+            <Text style={s.principleTxt}>Fase 1: documenti del cliente tipo → Axon impara i campi anagrafici. Fase 2: modulo vuoto + sorgente → per ogni campo scegli da dove prendere il dato. Axon salva la regola, non il valore: vale per tutti i consulenti e tutti i clienti. Data e luogo restano sempre manuali.</Text>
           </View>
 
-          {access.can_train ? (
-            <Pressable onPress={() => router.push("/axon-lab/training" as any)} style={[L.card, s.area, { borderColor: HT.axonLine }]} testID="lab-area-training">
-              <View style={[L.areaBadge, { backgroundColor: HT.axonTint }]}><Text style={[L.areaBadgeTxt, { color: HT.axon }]}>AREA MASTER · ADDESTRAMENTO</Text></View>
-              <View style={s.areaRow}>
-                <View style={[s.areaIcon, { backgroundColor: HT.axonTint }]}><Ionicons name="school" size={26} color={HT.axon} /></View>
-                <View style={{ flex: 1 }}>
-                  <Text style={L.cardTitle}>Insegna ad Axon</Text>
-                  <Text style={L.cardSub}>Fase 1 · anagrafica cliente tipo ({completion ?? 0}%) · Fase 2 · moduli addestrati {trained}/{modules.length}</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color={HT.muted} />
-              </View>
-            </Pressable>
-          ) : null}
-
-          <Pressable onPress={() => router.push("/axon-lab/business" as any)} style={[L.card, s.area, { borderColor: HT.brandLine }]} testID="lab-area-business">
-            <View style={[L.areaBadge, { backgroundColor: HT.brandTint }]}><Text style={[L.areaBadgeTxt, { color: HT.brand }]}>AREA CONSULENTE · COMPILAZIONE BUSINESS</Text></View>
+          {/* V50.z356 — hub Super Master: due aree distinte, nessun riferimento alla compilazione consulente */}
+          <Pressable onPress={() => router.push("/axon-lab/training" as any)} style={[L.card, s.area, { borderColor: HT.axonLine }]} testID="lab-area-training">
+            <View style={[L.areaBadge, { backgroundColor: HT.axonTint }]}><Text style={[L.areaBadgeTxt, { color: HT.axon }]}>AREA 1 · FASE 1 · CLIENTE TIPO</Text></View>
             <View style={s.areaRow}>
-              <View style={[s.areaIcon, { backgroundColor: HT.brandTint }]}><Ionicons name="documents" size={26} color={HT.brand} /></View>
+              <View style={[s.areaIcon, { backgroundColor: HT.axonTint }]}><Ionicons name="person-circle" size={26} color={HT.axon} /></View>
               <View style={{ flex: 1 }}>
-                <Text style={L.cardTitle}>Compila i contratti di un cliente</Text>
-                <Text style={L.cardSub}>{practices.length} pratiche · {trained} moduli pronti · Axon compila tutti i moduli in parallelo</Text>
+                <Text style={L.cardTitle}>Anagrafica base del cliente tipo</Text>
+                <Text style={L.cardSub}>Carica i documenti di un cliente reale: Axon impara nome, CF, P.IVA, indirizzo, legale rappresentante, contatti, timbro · {completion ?? 0}% completato</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={HT.muted} />
+            </View>
+          </Pressable>
+
+          <Pressable onPress={() => router.push("/axon-lab/training?phase=2" as any)} style={[L.card, s.area, { borderColor: HT.brandLine }]} testID="lab-area-modules">
+            <View style={[L.areaBadge, { backgroundColor: HT.brandTint }]}><Text style={[L.areaBadgeTxt, { color: HT.brand }]}>AREA 2 · FASE 2 · ADDESTRAMENTO MODULI</Text></View>
+            <View style={s.areaRow}>
+              <View style={[s.areaIcon, { backgroundColor: HT.brandTint }]}><Ionicons name="git-branch" size={26} color={HT.brand} /></View>
+              <View style={{ flex: 1 }}>
+                <Text style={L.cardTitle}>Un modulo alla volta</Text>
+                <Text style={L.cardSub}>Modulo vuoto + documento sorgente → per ogni campo «Da dove prendo questo dato?» → regola generale valida per tutto il team · {trained}/{modules.length} moduli addestrati</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={HT.muted} />
             </View>
@@ -77,11 +79,6 @@ export default function AxonLabHub() {
             </Pressable>
           ) : null}
 
-          {!access.can_train && trained === 0 ? (
-            <View style={[L.card, { backgroundColor: HT.warningTint, borderColor: HT.warning }]}>
-              <Text style={[L.cardSub, { color: HT.text }]}>{"Nessun modulo addestrato dal Master: chiedi al tuo Master di completare l'Area Addestramento di Axon Lab."}</Text>
-            </View>
-          ) : null}
         </ScrollView>
       )}
     </SafeAreaView>

@@ -45,6 +45,9 @@ function MasterScreen() {
   const [myThingImages, setMyThingImages] = useState<string[]>([]);
   const [myThingIdx, setMyThingIdx] = useState(0);
   const [alerts, setAlerts] = useState<Alerts>({ unread: 0, latest: [] });
+  // V50.z356 — «Axon Lab» visibile SOLO a Super Master e delegati (GET /lab/access); i consulenti non lo vedono
+  const [labAccess, setLabAccess] = useState(false);
+  useEffect(() => { api<{ can_train: boolean }>("/lab/access").then((a) => setLabAccess(!!a?.can_train)).catch(() => setLabAccess(false)); }, []);
   // V45 — Badge counter for pending rule proposals (Master)
   const [pendingProposals, setPendingProposals] = useState<number>(0);
   const [newCourses, setNewCourses] = useState<number>(0); // V50.z285 — badge «Area Corsi» (corsi non ancora aperti)
@@ -248,7 +251,7 @@ function MasterScreen() {
     // CRM Core
     // V50.z353 — «Compilazione CRT»: flusso consulente in 9 step (cliente → documenti → moduli → Axon compila → revisione → data/luogo → PDF → CRT → condividi). Separato da Axon Lab.
     { label: "Compilazione CRT", icon: "document-text", color: "#10B981", onPress: () => router.push("/axon-lab/business" as any) },
-    { label: "Axon Lab", icon: "color-wand", color: "#0EA5E9", onPress: handleNewContract, badge: alerts.unread }, // V50.z343 — Axon Lab (addestramento Master)
+    ...(labAccess ? [{ label: "Axon Lab", icon: "color-wand" as const, color: "#0EA5E9", onPress: handleNewContract, badge: alerts.unread }] : []), // V50.z356 — solo Super Master/delegati
     { label: "Mercato", icon: "stats-chart", color: "#EAB308", onPress: () => router.push("/mercato" as any) }, // V50.z345 — DB condizioni economiche concorrenti + benchmark
     { label: "New App", icon: "add-circle", color: "#0EA5E9", onPress: () => goto("/appointment/new") },
     // Comunicazioni

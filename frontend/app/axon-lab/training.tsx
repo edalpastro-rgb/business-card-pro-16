@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
@@ -24,7 +24,8 @@ export default function AxonLabTraining() {
   const [tr, setTr] = useState<Training | null>(null);
   const [modules, setModules] = useState<LabModule[]>([]);
   const [loading, setLoading] = useState(true);
-  const [phase, setPhase] = useState<1 | 2>(1);
+  const params = useLocalSearchParams<{ phase?: string }>(); // V50.z356 — apertura diretta della Fase 2 dall'hub
+  const [phase, setPhase] = useState<1 | 2>(params.phase === "2" ? 2 : 1);
   const [extraLabel, setExtraLabel] = useState(""); const [extraValue, setExtraValue] = useState("");
   const [modName, setModName] = useState(""); const [blank, setBlank] = useState<PickedFile | null>(null); const [example, setExample] = useState<PickedFile | null>(null);
   const [creating, setCreating] = useState(false);

@@ -1,5 +1,5 @@
 /**
- * V50.z354 — Compilazione CRT · Step 2 · Sorgenti per un documento mancante:
+ * V50.z354 — Sorgenti di caricamento per un documento del dossier (cliente tipo o pratica):
  * Google Drive · Fotocamera · Scanner integrato · Memoria del telefono · Testo manuale · Dettatura vocale.
  * Ogni sorgente restituisce {name, mime, data_base64} (o testo) al foglio documento; nessuna compressione qui (velocità).
  */
@@ -80,7 +80,7 @@ export function LabDocSources({ docLabel, contactId, canUpload, canManual, manua
       <Text style={s.note}>Il documento si salva automaticamente nel profilo del cliente per le prossime pratiche.</Text>
 
       <GoogleDrivePickerModal visible={drive} onClose={() => setDrive(false)} onFilePicked={(f) => { setDrive(false); void onPicked(f); }} />
-      <DocumentScannerModal visible={scanner} onClose={() => setScanner(false)} defaultName={docLabel} hintTitle={`Scansiona: ${docLabel}`} contactId={contactId} source="crt"
+      <DocumentScannerModal visible={scanner} onClose={() => setScanner(false)} defaultName={docLabel} hintTitle={`Scansiona: ${docLabel}`} contactId={contactId} source="dossier"
         onSaved={async (r) => { setScanner(false); await onPicked({ name: r.name || `${docLabel}.pdf`, mime: r.mime || "application/pdf", data_base64: r.pdf_base64.startsWith("data:") ? r.pdf_base64 : `data:${r.mime || "application/pdf"};base64,${r.pdf_base64}` }); }} />
     </View>
   );

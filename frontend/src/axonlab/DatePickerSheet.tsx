@@ -1,5 +1,5 @@
 /**
- * V50.z354 — Compilazione CRT · Step 6 · Calendario libero (date passate, odierna e future) senza dipendenze esterne.
+ * V50.z354 — Calendario libero (date passate, odierna e future) senza dipendenze esterne.
  * Restituisce la data nel formato GG/MM/AAAA atteso da /lab/practices/{id}/sign.
  */
 import React, { useMemo, useState } from "react";

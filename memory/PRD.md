@@ -6869,3 +6869,8 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 ## V50.z355 (Giugno 2026) — Email Resend attiva su dominio proprio
 - Dominio `advisoros.it` verificato su Resend (DNS ok, regione eu-west-1). `RESEND_API_KEY` reale inserita in `backend/.env` → provider attivo «resend» con mittenti info@ / help@ / emanuele@advisoros.it, fallback Emergent mantenuto. Test invio OK dalle 3 caselle (message_id Resend, `db.email_events` status sent).
 - ⚠️ In produzione la chiave va impostata anche nelle variabili d'ambiente del deploy (backend/.env viene copiato dal repo: verificare che il valore reale sia presente nel deploy).
+
+## V50.z356 (Giugno 2026) — Axon Lab = sezione SUPER MASTER (prompt 2)
+- Accesso: `_lab_is_super_master` (owner radice o email in `SUPER_MASTER_EMAILS`, stessa regola del Libretto) + delegati scelti dal Super Master (`/lab/delegates` solo Super Master). `GET /lab/access` → can_train. Pulsante Home «Axon Lab» mostrato solo se can_train; hub `/axon-lab` con messaggio di accesso riservato per gli altri.
+- Hub: due aree — **Area 1 · Fase 1 · Cliente tipo** (dossier documenti con 6 sorgenti, checklist %, Axon impara i campi anagrafici) e **Area 2 · Fase 2 · Addestramento moduli** (un modulo alla volta: PDF vuoto + sorgente → campo per campo «Da dove prendo questo dato?» → regola generale; data/luogo mai estratti; `lab_trained` solo con regole salvate; regole globali per il team) + Delegati. Rimossa dal hub la card consulente; nessun riferimento a CRT nei componenti dell'area (tag scanner `source="dossier"`).
+- Già esistente e conforme: mapping regole generali, universali vs settoriali (`_lab_default_rule`), esclusione data/luogo, flag addestrato.

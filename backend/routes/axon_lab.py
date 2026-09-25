@@ -117,8 +117,18 @@ async def _lab_settings(tid: str) -> dict:
     return await db.axon_lab_settings.find_one({"tenant_id": tid}, {"_id": 0}) or {"tenant_id": tid, "delegates": []}
 
 
+def _lab_is_super_master(user: dict) -> bool:
+    """V50.z356 — Axon Lab è riservato al SUPER MASTER: owner radice del tenant oppure email in SUPER_MASTER_EMAILS
+    (stessa regola del Libretto, cfr. _require_super_master). Gli altri owner/member NON lo vedono."""
+    try:
+        _require_super_master(user)
+        return True
+    except HTTPException:
+        return False
+
+
 async def _lab_can_train(user: dict) -> bool:
-    if is_owner(user):
+    if _lab_is_super_master(user):
         return True
     st = await _lab_settings(tenant_id(user))
     return user["user_id"] in (st.get("delegates") or [])
@@ -126,19 +136,19 @@ async def _lab_can_train(user: dict) -> bool:
 
 async def _lab_require_train(user: dict):
     if not await _lab_can_train(user):
-        raise HTTPException(status_code=403, detail="Area Addestramento riservata al Master e ai delegati Axon Lab")
+        raise HTTPException(status_code=403, detail="Axon Lab è riservato al Super Master e ai suoi delegati")
 
 
 @api_router.get("/lab/access")
 async def lab_access(user=Depends(get_current_user)):
     can = await _lab_can_train(user)
-    return {"is_master": is_owner(user), "can_train": can, "docs": LAB_DOCS, "key_labels": LAB_KEY_LABELS}
+    return {"is_master": _lab_is_super_master(user), "can_train": can, "docs": LAB_DOCS, "key_labels": LAB_KEY_LABELS}
 
 
 @api_router.get("/lab/delegates")
 async def lab_delegates(user=Depends(get_current_user)):
-    if not is_owner(user):
-        raise HTTPException(status_code=403, detail="Solo il Master gestisce i delegati")
+    if not _lab_is_super_master(user):
+        raise HTTPException(status_code=403, detail="Solo il Super Master gestisce i delegati di Axon Lab")
     st = await _lab_settings(tenant_id(user))
     members = await db.users.find({"parent_user_id": user["user_id"]}, {"_id": 0, "user_id": 1, "name": 1, "email": 1, "role": 1, "picture": 1}).to_list(500)
     return {"delegates": st.get("delegates") or [], "members": members}
@@ -146,8 +156,8 @@ async def lab_delegates(user=Depends(get_current_user)):
 
 @api_router.put("/lab/delegates")
 async def lab_delegates_put(body: LabDelegatesIn, user=Depends(get_current_user)):
-    if not is_owner(user):
-        raise HTTPException(status_code=403, detail="Solo il Master gestisce i delegati")
+    if not _lab_is_super_master(user):
+        raise HTTPException(status_code=403, detail="Solo il Super Master gestisce i delegati di Axon Lab")
     ids = [m["user_id"] for m in await db.users.find({"parent_user_id": user["user_id"], "user_id": {"$in": body.delegates}}, {"_id": 0, "user_id": 1}).to_list(500)]
     await db.axon_lab_settings.update_one({"tenant_id": tenant_id(user)}, {"$set": {"tenant_id": tenant_id(user), "delegates": ids, "updated_at": utcnow()}}, upsert=True)
     return {"delegates": ids}
