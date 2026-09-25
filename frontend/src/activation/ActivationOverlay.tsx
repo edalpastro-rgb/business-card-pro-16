@@ -3,7 +3,7 @@
 // (vibrazione ritmica + suono identitario in loop finché non si tocca lo schermo o si dice «stop»).
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, DeviceEventEmitter, Vibration, Platform, useWindowDimensions } from "react-native";
-import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, withDelay, Easing, interpolate, FadeIn, FadeOut } from "react-native-reanimated";
+import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, withDelay, withSequence, Easing, interpolate, FadeIn, FadeOut } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
@@ -19,12 +19,23 @@ const CYAN = "#38BDF8";
 const ORANGE = "#F97316";
 const WAVE_MS = 5200; // V50.z335 — +2 s: il momento della connessione utente ↔ Axon deve restare impresso
 const PARTICLES = 24;
-// V50.z337 — Sequenza: 2 s di attesa → vibrazione ritmica di 2 s (4 impulsi ogni 500 ms) in sincronia con le onde
-// circolari del nucleo (una nuova onda parte a ogni impulso). Vista e tatto percepiscono lo stesso istante.
-const BUZZ_DELAY_MS = 2000;
-const BUZZ_TOTAL_MS = 2000;
-const BUZZ_PERIOD_MS = 500;
-const BUZZ_PULSES = BUZZ_TOTAL_MS / BUZZ_PERIOD_MS; // 4
+// V50.z351 — «BrrBrr · BrrBrrrrr»: UNICA sorgente di verità per il motore di vibrazione E per gli scossoni del nucleo.
+// Sequenza (ms): vib 120 · pausa 100 · vib 120 · pausa 380 · vib 120 · pausa 100 · vib 120 · pausa 100 · vib 720, ripetuta
+// BUZZ_CYCLES volte. Parte APPENA compare la schermata blu (BUZZ_DELAY_MS = solo il fade-in dell'overlay).
+const BUZZ_SEGMENTS = [120, 100, 120, 380, 120, 100, 120, 100, 720];
+const BUZZ_CYCLES = 2;
+const BUZZ_CYCLE_GAP_MS = 650;
+const BUZZ_DELAY_MS = 150;
+const BUZZ_CYCLE_MS = BUZZ_SEGMENTS.reduce((a, b) => a + b, 0) + BUZZ_CYCLE_GAP_MS;
+/** Impulsi (inizio relativo all'avvio della vibrazione, durata) — un ciclo. */
+const BUZZ_CYCLE_PULSES: { at: number; dur: number }[] = (() => {
+  const out: { at: number; dur: number }[] = []; let t = 0;
+  BUZZ_SEGMENTS.forEach((ms, i) => { if (i % 2 === 0) out.push({ at: t, dur: ms }); t += ms; });
+  return out;
+})();
+/** Tutti gli impulsi di tutti i cicli. */
+const BUZZ_PULSES: { at: number; dur: number }[] = Array.from({ length: BUZZ_CYCLES }).flatMap((_, c) => BUZZ_CYCLE_PULSES.map((p) => ({ at: p.at + c * BUZZ_CYCLE_MS, dur: p.dur })));
+const BUZZ_TOTAL_MS = BUZZ_CYCLES * BUZZ_CYCLE_MS - BUZZ_CYCLE_GAP_MS;
 
 async function tts(text: string, voice?: string): Promise<void> {
   try {
@@ -34,30 +45,34 @@ async function tts(text: string, voice?: string): Promise<void> {
   } catch { /* senza audio */ }
 }
 
-/** V50.z337 — Vibrazione ritmica di 2 s: 4 impulsi da 250 ms ogni 500 ms (stesso ritmo delle onde del nucleo). */
+/** V50.z351 — Vibrazione «BrrBrr · BrrBrrrrr» (stessa sequenza degli scossoni del nucleo). Da chiamare all'apertura dell'overlay. */
 export async function doubleBuzz() {
   if (Platform.OS === "web") return;
   if (Platform.OS === "android") {
-    const pattern: number[] = [0];
-    for (let i = 0; i < BUZZ_PULSES; i++) pattern.push(BUZZ_PERIOD_MS / 2, BUZZ_PERIOD_MS / 2);
+    const pattern: number[] = [BUZZ_DELAY_MS];
+    for (let c = 0; c < BUZZ_CYCLES; c++) {
+      BUZZ_SEGMENTS.forEach((ms) => pattern.push(ms));
+      if (c < BUZZ_CYCLES - 1) pattern.push(BUZZ_CYCLE_GAP_MS);
+    }
     Vibration.vibrate(pattern);
     return;
   }
-  try {
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    for (let i = 1; i < BUZZ_PULSES; i++) {
-      setTimeout(() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {}); }, i * BUZZ_PERIOD_MS);
+  // iOS: un impatto «Heavy» per impulso; gli impulsi lunghi vengono riempiti con impatti ogni 130 ms
+  for (const p of BUZZ_PULSES) {
+    for (let t = 0; t < p.dur; t += 130) {
+      setTimeout(() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {}); }, BUZZ_DELAY_MS + p.at + t);
     }
-  } catch { /* noop */ }
+  }
 }
 
-function Ring({ delay, size, color, active }: { delay: number; size: number; color: string; active: boolean }) {
+function Ring({ at, size, color, active }: { at: number; size: number; color: string; active: boolean }) {
   const p = useSharedValue(0);
   useEffect(() => {
     if (!active) { p.value = 0; return; }
-    // Una nuova onda ogni BUZZ_PERIOD_MS, sfasata per anello: ogni impulso di vibrazione «lancia» un'onda in uscita
-    p.value = withDelay(delay, withRepeat(withTiming(1, { duration: BUZZ_PERIOD_MS * 2, easing: Easing.out(Easing.cubic) }), -1, false));
-  }, [p, delay, active]);
+    // Un'onda in uscita per OGNI impulso della vibrazione (stesso istante), ripetuta a ogni ciclo
+    const travel = Math.min(900, BUZZ_CYCLE_MS - 50);
+    p.value = withDelay(at, withRepeat(withSequence(withTiming(1, { duration: travel, easing: Easing.out(Easing.cubic) }), withTiming(0, { duration: 0 }), withTiming(0, { duration: BUZZ_CYCLE_MS - travel })), BUZZ_CYCLES, false));
+  }, [p, at, active]);
   const st = useAnimatedStyle(() => ({ transform: [{ scale: interpolate(p.value, [0, 1], [0.15, 1]) }], opacity: interpolate(p.value, [0, 0.15, 1], [0, 0.9, 0]) }));
   return <Animated.View style={[{ position: "absolute", width: size, height: size, borderRadius: size / 2, borderWidth: 3, borderColor: color, shadowColor: color, shadowOpacity: 1, shadowRadius: 24 }, st]} />;
 }
@@ -74,15 +89,36 @@ function Particle({ i, radius }: { i: number; radius: number }) {
   return <Animated.View style={[{ position: "absolute", width: 8, height: 8, borderRadius: 4, backgroundColor: color, shadowColor: color, shadowOpacity: 1, shadowRadius: 10 }, st]} />;
 }
 
-function Core({ pulseMs = 900 }: { pulseMs?: number }) {
+function Core({ pulseMs = 900, shake = false }: { pulseMs?: number; shake?: boolean }) {
   const p = useSharedValue(0);
+  const sx = useSharedValue(0);     // V50.z351 — scossone orizzontale (±6 px) a ogni impulso di vibrazione
+  const flash = useSharedValue(0);  // flash di luminosità sul nucleo a ogni impulso
   useEffect(() => { p.value = withRepeat(withTiming(1, { duration: pulseMs, easing: Easing.inOut(Easing.ease) }), -1, true); }, [p, pulseMs]);
-  const st = useAnimatedStyle(() => ({ transform: [{ scale: interpolate(p.value, [0, 1], [0.92, 1.12]) }], shadowOpacity: interpolate(p.value, [0, 1], [0.5, 1]) }));
+  useEffect(() => {
+    if (!shake) { sx.value = 0; flash.value = 0; return; }
+    // Il nucleo legge la STESSA sequenza di impulsi del motore di vibrazione: tremore per tutta la durata dell'impulso,
+    // fermo (solo respiro) nelle pause. Impossibile andare fuori sincrono.
+    const shakeSeq: any[] = []; const flashSeq: any[] = []; let t = 0;
+    for (const pl of BUZZ_PULSES) {
+      const gap = pl.at - t;
+      if (gap > 0) { shakeSeq.push(withTiming(0, { duration: gap })); flashSeq.push(withTiming(0, { duration: gap })); }
+      const n = Math.max(2, Math.round(pl.dur / 40));
+      for (let i = 0; i < n; i++) shakeSeq.push(withTiming(i % 2 ? -6 : 6, { duration: 40, easing: Easing.linear }));
+      shakeSeq.push(withTiming(0, { duration: 60, easing: Easing.out(Easing.back(2)) }));
+      flashSeq.push(withTiming(1, { duration: 50 }), withTiming(0.35, { duration: Math.max(10, pl.dur - 50) }), withTiming(0, { duration: 60 }));
+      t = pl.at + n * 40 + 60;
+    }
+    sx.value = withSequence(...shakeSeq);
+    flash.value = withSequence(...flashSeq);
+  }, [shake, sx, flash]);
+  const st = useAnimatedStyle(() => ({ transform: [{ translateX: sx.value }, { scale: interpolate(p.value, [0, 1], [0.92, 1.12]) + flash.value * 0.06 }], shadowOpacity: interpolate(p.value, [0, 1], [0.5, 1]) }));
+  const fl = useAnimatedStyle(() => ({ opacity: flash.value * 0.85 }));
   return (
-    <Animated.View style={[{ width: 130, height: 130, borderRadius: 65, shadowColor: CYAN, shadowRadius: 50, shadowOffset: { width: 0, height: 0 }, elevation: 20 }, st]}>
+    <Animated.View style={[{ width: 130, height: 130, borderRadius: 65, shadowColor: CYAN, shadowRadius: 50, shadowOffset: { width: 0, height: 0 }, elevation: 20 }, st]} testID="activation-core">
       <LinearGradient colors={[CYAN, VIOLET, "#1E1B4B"]} start={{ x: 0.2, y: 0 }} end={{ x: 0.9, y: 1 }} style={{ flex: 1, borderRadius: 65, alignItems: "center", justifyContent: "center" }}>
         <View style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: HT.card, opacity: 0.95 }} />
       </LinearGradient>
+      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: 65, backgroundColor: "#FFFFFF" }, fl]} />
     </Animated.View>
   );
 }
@@ -102,16 +138,17 @@ export function ActivationOverlay({ mirror = false }: { mirror?: boolean }) {
   const findTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const radius = Math.min(width, height) * 0.48;
 
-  // ONDA DI ENERGIA: 2 s nucleo che «prende vita» → vibrazione 2 s + onde in sincronia → voce → chiusura
+  // ONDA DI ENERGIA: schermata blu → SUBITO vibrazione «BrrBrr · BrrBrrrrr» + scossoni del nucleo + onde → voce → chiusura
   useEffect(() => {
     const sub = DeviceEventEmitter.addListener(AXON_ACTIVATION_EVENT, (p: ActivationPayload) => {
       setWave(p);
       setPhase(0);
       setPulse(false);
+      // V50.z351 — vibrazione + scossoni del nucleo + onde partono INSIEME appena la schermata blu è visibile
       setTimeout(() => { setPulse(true); setPhase(1); }, BUZZ_DELAY_MS);
       setTimeout(() => setPhase(2), BUZZ_DELAY_MS + BUZZ_TOTAL_MS);
       if (mirror) return;
-      setTimeout(() => { void doubleBuzz(); }, BUZZ_DELAY_MS);
+      void doubleBuzz(); // il pattern include già l'attesa BUZZ_DELAY_MS
       const greet = p.greet !== false;
       setTimeout(async () => {
         if (greet) await tts(`Ciao, sono ${p.name || "Axon"}. Sono pronto.`, p.voice);
@@ -163,9 +200,9 @@ export function ActivationOverlay({ mirror = false }: { mirror?: boolean }) {
       <Pressable style={StyleSheet.absoluteFill} onPress={find ? () => { stopFind(); stopFindPhone(); } : undefined} accessibilityRole="button" accessibilityLabel={find ? "Trovato: ferma" : "Attivazione"}>
         <LinearGradient colors={["#0B1226", "#1E1B4B", "#0B1226"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
         <View style={styles.center}>
-          {[0, 1, 2, 3].map((i) => <Ring key={i} delay={i * BUZZ_PERIOD_MS} size={radius * 2} color={i % 2 ? VIOLET : CYAN} active={!!find || pulse} />)}
+          {BUZZ_CYCLE_PULSES.map((pl, i) => <Ring key={i} at={pl.at} size={radius * 2} color={i % 2 ? VIOLET : CYAN} active={!!find || pulse} />)}
           {Array.from({ length: PARTICLES }).map((_, i) => <Particle key={i} i={i} radius={radius} />)}
-          <Core pulseMs={find ? 500 : 900} />
+          <Core pulseMs={find ? 500 : 900} shake={pulse && !find} />
         </View>
         <View style={styles.caption}>
           {wave ? (

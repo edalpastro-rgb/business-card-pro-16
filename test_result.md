@@ -487,3 +487,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z350 — FIX LOOP RIAVVIO APK (Home 0,5 s → spinner infinito dopo login): causa useThemeSync (ThemePicker.tsx) che chiamava reloadApp()/RNRestart senza guard quando /me/theme ≠ ACTIVE_THEME_ID e SecureStore sync non rileggeva il valore salvato. Nuovo src/themes.ts safeThemeReload(target): riavvio automatico solo se (a) readSync(LAST_KEY)===target (read-back) e (b) guard persistito axon_theme_reload_guard {target,at} non presente negli ultimi 2 min e a sua volta rileggibile; altrimenti nessun riavvio (app usabile col tema di default). Cambio tema manuale (ThemePicker.choose) invariato. Regole permanenti nel PRD. Richiesto test di sistema completo (login, home, temi, mercato, voce, contatti, chat) prima della build 1.0.87."
+
+  - agent: "main"
+    message: "V50.z351 — BrandSplash (src/BrandSplash.tsx, testID brand-splash) sostituisce AnimatedSplash: navy fisso #0F2438 + solo logo AdvisorOS, skip se getToken() vuoto. ActivationOverlay: BUZZ_SEGMENTS/BUZZ_PULSES unica sorgente per vibrazione, scossoni Core (testID activation-core, translateX ±6 + flash) e Ring per impulso; doubleBuzz parte subito (pattern con attesa 150 ms). Web verificato via viola-wake «fai l'effetto»."

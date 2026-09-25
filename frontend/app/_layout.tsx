@@ -31,7 +31,7 @@ import { CalculatorFAB } from "@/src/CalculatorFAB";
 import { OfflineBanner } from "@/src/OfflineBanner"; // V50.z279 — modalità aereo/offline
 import { EdgePanel } from "@/src/EdgePanel";
 import { OnboardingWizard } from "@/src/OnboardingWizard";
-import { AnimatedSplash } from "@/src/AnimatedSplash";
+import { BrandSplash } from "@/src/BrandSplash"; // V50.z351 — splash leggera (solo logo, colori fissi)
 import { FabStackProvider } from "@/src/FabStack";
 import { usePaywallGuard } from "@/src/paywall"; // V50.z330
 import { ActiveCallProvider } from "@/src/CallTimerBar";
@@ -314,7 +314,7 @@ export default function RootLayout() {
             <RootInsetsProbe />
             <AuthProvider>
               <LockGate />
-              <AnimatedSplash />
+              <BrandSplash />
             </AuthProvider>
           </KeyboardProvider>
         </SafeAreaProvider>
