@@ -1344,7 +1344,15 @@ function ContactDetail() {
                 <Text style={[styles.addFileTxt, { color: "#FF6B35" }]}>Scanner</Text>
               </Pressable>
             </View>
-            {c.files && c.files.length > 0 ? c.files.map((f) => (
+            {/* V50.z357 — Step 8: cartella «CRT» con i PDF compilati da Axon, separata dagli altri file */}
+            {c.files?.some((f: any) => f.folder === "CRT") ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 }} testID="contact-folder-crt">
+                <Ionicons name="folder" size={18} color="#10B981" />
+                <Text style={{ color: HT.text, fontWeight: "900", fontSize: 13 }}>CRT · contratti compilati</Text>
+                <Text style={{ color: HT.muted, fontSize: 12 }}>({c.files.filter((f: any) => f.folder === "CRT").length})</Text>
+              </View>
+            ) : null}
+            {c.files && c.files.length > 0 ? [...c.files].sort((a: any, b: any) => (a.folder === "CRT" ? -1 : 0) - (b.folder === "CRT" ? -1 : 0)).map((f) => (
               <Pressable
                 key={f.id}
                 testID={`file-open-${f.id}`}

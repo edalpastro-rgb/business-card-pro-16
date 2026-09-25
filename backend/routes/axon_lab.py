@@ -539,6 +539,38 @@ async def _lab_practice(practice_id: str, user: dict) -> dict:
     return p
 
 
+@api_router.get("/lab/rules")
+async def lab_rules(user=Depends(get_current_user)):
+    """V50.z357 — Riepilogo per il Super Master: tutte le regole salvate (campo → documento sorgente → campo sorgente)
+    e i moduli che le usano. Data/luogo esclusi (sempre manuali)."""
+    await _lab_require_train(user)
+    tid = tenant_id(user)
+    tpls = await db.form_templates.find({"tenant_id": tid, "lab": True}, {"_id": 0, "pdf_b64": 0, "pages": 0}).to_list(200)
+    tr = await _lab_training(user)
+    docs_label = {d["id"]: d["label"] for d in LAB_DOCS}
+    for e in (tr.get("extra") or []):
+        docs_label[e["id"]] = e.get("label") or e["id"]
+    rules: Dict[str, Dict[str, Any]] = {}
+    manual_fields = 0
+    for t in tpls:
+        mapping = t.get("lab_mapping") or {}
+        fields = {f["id"]: f for f in (t.get("fields") or [])}
+        for fid, src in mapping.items():
+            f = fields.get(fid)
+            if not f or src in ("manual", "sign_date", "sign_place", None, ""):
+                if src == "manual":
+                    manual_fields += 1
+                continue
+            doc_id, _, key = str(src).partition(".")  # formato sorgente: <doc_id>.<chiave>  (es. bill_electric.pod, stamp.image)
+            rk = f"{(f.get('key') or f.get('label') or fid).lower()}|{src}"
+            r = rules.setdefault(rk, {"field_key": f.get("key") or "", "field_label": f.get("label") or f.get("key") or fid, "source": src, "source_doc_id": doc_id,
+                                       "source_doc": docs_label.get(doc_id, doc_id), "source_key": key or doc_id, "source_key_label": LAB_KEY_LABELS.get(key) or ({"image": "Immagine del timbro"}.get(key) or key), "modules": []})
+            if not any(m["template_id"] == t["template_id"] for m in r["modules"]):
+                r["modules"].append({"template_id": t["template_id"], "name": t.get("name"), "trained": bool(t.get("lab_trained"))})
+    items = sorted(rules.values(), key=lambda r: (r["source_doc"], r["field_label"]))
+    return {"items": items, "total": len(items), "modules": len(tpls), "trained": sum(1 for t in tpls if t.get("lab_trained")), "manual_fields": manual_fields}
+
+
 @api_router.get("/lab/practices")
 async def lab_practices(user=Depends(get_current_user)):
     q: Dict[str, Any] = {"tenant_id": tenant_id(user)}
@@ -837,7 +869,7 @@ async def lab_practice_archive(practice_id: str, user=Depends(get_current_user))
         await db.master_files.insert_one({"file_id": fid, "user_id": owner_id, "created_by": user["user_id"], "category": "files", "name": f"{safe}.pdf", "title": f"Axon Lab · {ff.get('template_name', '')}",
                                           "body": f"Contratto compilato per {p.get('contact_name', '')}", "mime": "application/pdf", "data_base64": b64, "size": len(out), "created_at": utcnow(), "updated_at": utcnow(),
                                           "source": "axon_lab", "source_practice_id": practice_id, "source_contact_id": p["contact_id"]})
-        await db.contacts.update_one({"contact_id": p["contact_id"]}, {"$push": {"files": {"id": f"cf_{uuid.uuid4().hex[:10]}", "name": f"{safe}.pdf", "mime": "application/pdf", "size": len(out), "data_base64": b64, "uploaded_at": utcnow().isoformat(), "source": "axon_lab"}}})
+        await db.contacts.update_one({"contact_id": p["contact_id"]}, {"$push": {"files": {"id": f"cf_{uuid.uuid4().hex[:10]}", "name": f"{safe}.pdf", "mime": "application/pdf", "size": len(out), "data_base64": b64, "uploaded_at": utcnow().isoformat(), "source": "axon_lab", "folder": "CRT", "created_at": utcnow().isoformat()}}})  # V50.z357 — Step 8: cartella «CRT» nel profilo cliente
         saved.append({"form_id": f["form_id"], "file_id": fid, "name": f"{safe}.pdf"})
     await db.axon_lab_practices.update_one({"practice_id": practice_id}, {"$set": {"archived_at": utcnow(), "status": "done", "updated_at": utcnow()}})
     return {"saved": saved}

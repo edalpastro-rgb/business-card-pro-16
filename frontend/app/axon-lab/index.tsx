@@ -71,6 +71,12 @@ export default function AxonLabHub() {
             </View>
           </Pressable>
 
+          <Pressable onPress={() => router.push("/axon-lab/rules" as any)} style={[L.card, { flexDirection: "row", alignItems: "center", gap: 10 }]} testID="lab-rules-link">
+            <Ionicons name="list" size={20} color={HT.axon} />
+            <View style={{ flex: 1 }}><Text style={[L.cardTitle, { fontSize: 14 }]}>Regole apprese</Text><Text style={L.cardSub}>Tabella di tutte le regole: campo, documento sorgente e moduli che le usano</Text></View>
+            <Ionicons name="chevron-forward" size={18} color={HT.muted} />
+          </Pressable>
+
           {access.is_master ? (
             <Pressable onPress={() => router.push("/axon-lab/delegates" as any)} style={[L.card, { flexDirection: "row", alignItems: "center", gap: 10 }]} testID="lab-delegates-link">
               <Ionicons name="people" size={20} color={HT.text2} />

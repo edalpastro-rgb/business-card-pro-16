@@ -17,7 +17,7 @@ import { LabDocChecklist } from "@/src/axonlab/LabDocChecklist";
 import { LabDocSheet } from "@/src/axonlab/LabDocSheet";
 import { useLabDossier } from "@/src/axonlab/useLabDossier";
 import { DatePickerSheet } from "@/src/axonlab/DatePickerSheet"; // V50.z354 — Step 6 calendario libero
-import { type LabDocSpec, type LabDocEntry, type LabPractice, type LabForm, type LabField, fetchFormPdf, sharePdfBase64 } from "@/src/axonlab/labApi";
+import { type LabDocSpec, type LabDocEntry, type LabPractice, type LabForm, type LabField, fetchFormPdf, sharePdfBase64, printPdfBase64 } from "@/src/axonlab/labApi";
 
 type FormDetail = LabForm & { fields: LabField[] };
 
@@ -101,6 +101,12 @@ export default function AxonLabPractice() {
   };
 
   // 6 — PDF
+  const printPdf = async (f: LabForm) => {
+    setPdfBusy(f.form_id);
+    try { const r = await fetchFormPdf(f.form_id); await printPdfBase64(r.name, r.data_base64); }
+    catch (e: any) { notify("Stampa", e?.message || "Stampa non disponibile"); }
+    finally { setPdfBusy(null); }
+  };
   const openPdf = async (f: LabForm, share = false) => {
     setPdfBusy(f.form_id);
     try { const r = await fetchFormPdf(f.form_id); if (share) await sharePdfBase64(r.name, r.data_base64); else setViewer({ name: r.name, b64: r.data_base64 }); }
@@ -187,6 +193,9 @@ export default function AxonLabPractice() {
                         </Pressable>
                         <Pressable onPress={() => openPdf(f, true)} style={[L.btn, L.btnGhost, { flex: 1, minHeight: 40 }]} testID={`lab-share-${f.template_id}`}>
                           <Ionicons name="share-social" size={15} color={HT.brand} /><Text style={[L.btnTxt, { color: HT.brand, fontSize: 12.5 }]}>Condividi</Text>
+                        </Pressable>
+                        <Pressable onPress={() => printPdf(f)} style={[L.btn, L.btnGhost, { flex: 1, minHeight: 40 }]} testID={`lab-print-${f.template_id}`}>
+                          <Ionicons name="print" size={15} color={HT.text} /><Text style={[L.btnTxt, { color: HT.text, fontSize: 12.5 }]}>Stampa</Text>
                         </Pressable>
                       </View>
                     ) : null}

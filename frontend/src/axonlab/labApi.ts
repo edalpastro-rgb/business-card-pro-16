@@ -2,6 +2,7 @@
  * V50.z343 — Axon Lab: tipi + helper condivisi (Area Master addestramento / Area Consulente business).
  */
 import { Platform } from "react-native";
+import * as Print from "expo-print"; // V50.z357 — Step 9: stampa WiFi/AirPrint/Bluetooth via servizio di stampa di sistema
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { api } from "@/src/api";
@@ -42,4 +43,12 @@ export async function sharePdfBase64(name: string, b64: string): Promise<void> {
 
 export async function fetchFormPdf(formId: string): Promise<{ name: string; data_base64: string }> {
   return api<{ name: string; mime: string; data_base64: string }>(`/filled-forms/${formId}/pdf`);
+}
+
+/** V50.z357 — Step 9: stampa del PDF tramite il servizio di stampa del sistema (stampanti WiFi, AirPrint, Bluetooth). */
+export async function printPdfBase64(name: string, b64: string): Promise<void> {
+  if (Platform.OS === "web" || Platform.OS === "ios") { await Print.printAsync({ uri: `data:application/pdf;base64,${b64}` }); return; }
+  const path = `${FileSystem.cacheDirectory}${name.replace(/[^\w.\-]+/g, "_")}`;
+  await FileSystem.writeAsStringAsync(path, b64, { encoding: FileSystem.EncodingType.Base64 });
+  await Print.printAsync({ uri: path });
 }
