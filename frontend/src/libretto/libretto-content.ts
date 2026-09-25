@@ -99,14 +99,14 @@ export const LIBRETTO_SECTIONS: LibrettoSection[] = [
     subtitle: "Da Play Store / App Store al primo lancio",
     paragraphs: [
       "AdvisorOS è disponibile su Google Play (Android) e su App Store (iOS). Cerca «AdvisorOS» e installa la versione ufficiale con logo blu/oro. Il download è gratuito.",
-      "Alla prima apertura l'app scarica i pacchetti aggiornati (bundle) via OTA: aspetta il caricamento della splash con il logo animato.",
+      "Alla prima apertura vai subito al login: dopo l'accesso, il Tour di benvenuto ti presenta Axon con la sua onda di energia (il nucleo pulsa e il telefono vibra a ritmo). Dagli avvii successivi compare per un attimo la splash con il logo AdvisorOS.",
     ],
     mockup: {
       title: "Come si presenta",
       lines: [
-        "🟦 Splash blu navy",
-        "  ⭐ Logo AdvisorOS + AxonOS animato",
-        "  ⏳ «Caricamento aggiornamenti...»",
+        "🟦 Splash blu navy · solo logo AdvisorOS (1 secondo)",
+        "  🔐 Login → Tour di benvenuto",
+        "  💠 Nucleo Axon: onda di energia + vibrazione «BrrBrr»",
       ],
     },
     tips: [

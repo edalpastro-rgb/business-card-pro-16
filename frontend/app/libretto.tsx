@@ -38,7 +38,7 @@ import { BrandLogosBlock, tuttunizzatoreHtml } from "@/src/Tuttunizzatore"; // V
 import { TourStories } from "@/src/TourStories"; // V50.z244 — Tour Guidato: 4 storie utente al posto delle slide funzionalità
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 const ADVISOR_LOGO = require("@/assets/images/advisoros-logo-transparent.png");
-const AXON_LOGO = require("@/assets/images/axonos-logo-light.png"); // V50.z228
+const AXON_LOGO = require("@/assets/images/axonos-logo-white.png"); // V50.z352 — grafica nuova (bianco su navy)
 const ADVISOR_ICON = require("@/assets/images/advisoros-icon-1024.png");
 
 /** Legge un asset locale come base64 per embedderlo nell'HTML del PDF. */

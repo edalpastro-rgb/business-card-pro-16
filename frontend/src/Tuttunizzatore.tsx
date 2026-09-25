@@ -37,14 +37,11 @@ type LogosProps = {
 /** Logo AdvisorOS, sotto AxonOS al 60%, poi la tagline. */
 export function BrandLogosBlock({ advisorLogo, axonLogo, width = 150, dark = true, tagline = true, style, testID }: LogosProps) {
   const h = Math.round(width * 0.46);
-  const aw = Math.round(width * 0.6);
   return (
     <View style={[styles.block, style]} testID={testID}>
       <Image source={advisorLogo} style={{ width, height: h }} resizeMode="contain" accessibilityLabel="AdvisorOS" />
-      {/* V50.z228 — nuovo logo AxonOS su pill bianca (sfondo chiaro), sempre più piccolo di AdvisorOS */}
-      <View style={{ backgroundColor: '#E6EBEE', borderRadius: 10, overflow: "hidden", marginTop: 6 }}>
-        <Image source={axonLogo} style={{ width: aw, height: Math.round(aw / 2.73) }} resizeMode="contain" accessibilityLabel="AxonOS" />
-      </View>
+      {/* V50.z352 — logo AxonOS bianco trasparente (stessa grafica dell'header/FAB), niente più card grigia; 70% di AdvisorOS */}
+      <Image source={axonLogo} style={{ width: Math.round(width * 0.7), height: Math.round((width * 0.7) / 4.68), marginTop: 10 }} resizeMode="contain" accessibilityLabel="AxonOS" />
       {tagline ? <TuttunizzatoreTagline dark={dark} size={15} style={{ marginTop: 10 }} /> : null}
     </View>
   );
