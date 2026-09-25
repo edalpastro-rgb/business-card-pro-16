@@ -6865,3 +6865,7 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 - Prossimi: Step 2 (fonti di caricamento) → 3 → … → 9.
 - **Step 2/3/4/6 (fatti, V50.z354)**: foglio documento con 6 sorgenti (Google Drive, fotocamera, scanner integrato, memoria, testo, dettatura) + salvataggio automatico nel profilo cliente (`contacts.crt_docs`, riuso nelle pratiche future, nessuna compressione); moduli tutti visibili con checkbox, non addestrati bloccati con avviso; «Compila con Axon» = fase unica parallela (compressione PDF pratica + dati + compilazione, barra unica); data da calendario libero in-app (`DatePickerSheet`) + luogo testo, validazione calendario lato server. Test `iteration_113`.
 - Restano: Step 5 (già presente: revisione campo per campo), 7 (modifica testo direttamente sul PDF), 8 (cartella «CRT» nel profilo), 9 (stampa WiFi/Bluetooth).
+
+## V50.z355 (Giugno 2026) — Email Resend attiva su dominio proprio
+- Dominio `advisoros.it` verificato su Resend (DNS ok, regione eu-west-1). `RESEND_API_KEY` reale inserita in `backend/.env` → provider attivo «resend» con mittenti info@ / help@ / emanuele@advisoros.it, fallback Emergent mantenuto. Test invio OK dalle 3 caselle (message_id Resend, `db.email_events` status sent).
+- ⚠️ In produzione la chiave va impostata anche nelle variabili d'ambiente del deploy (backend/.env viene copiato dal repo: verificare che il valore reale sia presente nel deploy).
