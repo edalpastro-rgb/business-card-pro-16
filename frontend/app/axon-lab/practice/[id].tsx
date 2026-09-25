@@ -1,6 +1,7 @@
-// app/axon-lab/practice/[id].tsx — V50.z343 — AXON LAB · AREA CONSULENTE · pratica cliente:
-// 1 checklist documenti (% completamento) → 2 selezione moduli (multipla) → 3 Axon compila in parallelo (anteprima live)
-// → 4 revisione campo per campo → 5 data e luogo (unico inserimento) → 6 PDF condivisibili / archivio.
+// app/axon-lab/practice/[id].tsx — V50.z354 — COMPILAZIONE CRT · pratica cliente (flusso consulente):
+// 1 documenti verde/rosso → 2 sorgenti di caricamento (foglio documento) → 3 moduli con checkbox (non addestrati = avviso)
+// → 4 «Compila con Axon» fase unica parallela (compressione + dati + compilazione, una sola barra) → 5 revisione campo per campo
+// → 6 luogo + data da calendario libero (unico inserimento) → 7 anteprima PDF → 8 salvataggio → 9 condivisione.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Modal, RefreshControl } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -15,6 +16,7 @@ import { LabHeader, labStyles as L } from "@/src/axonlab/LabHeader";
 import { LabDocChecklist } from "@/src/axonlab/LabDocChecklist";
 import { LabDocSheet } from "@/src/axonlab/LabDocSheet";
 import { useLabDossier } from "@/src/axonlab/useLabDossier";
+import { DatePickerSheet } from "@/src/axonlab/DatePickerSheet"; // V50.z354 — Step 6 calendario libero
 import { type LabDocSpec, type LabDocEntry, type LabPractice, type LabForm, type LabField, fetchFormPdf, sharePdfBase64 } from "@/src/axonlab/labApi";
 
 type FormDetail = LabForm & { fields: LabField[] };
@@ -33,6 +35,14 @@ export default function AxonLabPractice() {
   const [signDate, setSignDate] = useState(""); const [signPlace, setSignPlace] = useState(""); const [signing, setSigning] = useState(false);
   const [viewer, setViewer] = useState<{ name: string; b64: string } | null>(null); const [pdfBusy, setPdfBusy] = useState<string | null>(null);
   const [archiving, setArchiving] = useState(false);
+  const [datePick, setDatePick] = useState(false);
+  const [fillProgress, setFillProgress] = useState(0); // V50.z354 — barra unica «Preparazione documenti e compilazione in corso…»
+  useEffect(() => {
+    if (!filling) { setFillProgress(0); return; }
+    setFillProgress(0.06);
+    const t = setInterval(() => setFillProgress((v) => Math.min(0.93, v + (0.93 - v) * 0.09)), 350);
+    return () => clearInterval(t);
+  }, [filling]);
 
   const load = useCallback(async () => {
     try {
@@ -55,9 +65,11 @@ export default function AxonLabPractice() {
     setFilling(true);
     setLiveForms(sel.map((tid) => ({ form_id: `tmp_${tid}`, template_id: tid, template_name: trainedModules.find((m) => m.template_id === tid)?.name || "Modulo", name: "", values: {}, sources: {}, missing: [] })));
     try {
-      const r = await api<{ forms: LabForm[] }>(`/lab/practices/${id}/fill`, { method: "POST", body: { template_ids: sel } });
+      const r = await api<{ forms: LabForm[]; errors?: { name?: string; error: string }[]; compression?: { docs: number; saved_bytes: number } }>(`/lab/practices/${id}/fill`, { method: "POST", body: { template_ids: sel } });
+      setFillProgress(1);
       setLiveForms(r.forms);
       setP((old) => (old ? { ...old, forms: r.forms, form_ids: r.forms.map((f) => f.form_id), status: "review" } : old));
+      if (r.errors?.length) notify("Alcuni moduli non compilati", r.errors.map((e) => `${e.name || "Modulo"}: ${e.error}`).join("\n"));
     } catch (e: any) { notify("Compilazione non riuscita", e?.message || ""); setLiveForms(p?.forms || []); }
     finally { setFilling(false); }
   };
@@ -117,20 +129,35 @@ export default function AxonLabPractice() {
           {/* 2 · Moduli */}
           <Step n={2} title="Moduli da compilare" sub="Selezione multipla" />
           <View style={L.card} testID="lab-modules-select">
-            {trainedModules.length === 0 ? <Text style={L.cardSub}>Nessun modulo disponibile per la compilazione.</Text> : null}
-            {trainedModules.map((m) => {
+            {(p.modules || []).length === 0 ? <Text style={L.cardSub}>Nessun modulo disponibile per la compilazione.</Text> : null}
+            {(p.modules || []).map((m) => {
               const on = sel.includes(m.template_id);
+              const ready = !!m.trained;
               return (
-                <Pressable key={m.template_id} onPress={() => setSel((s) => (on ? s.filter((x) => x !== m.template_id) : [...s, m.template_id]))} style={s.modRow} testID={`lab-select-${m.template_id}`}>
-                  <Ionicons name={on ? "checkbox" : "square-outline"} size={22} color={on ? HT.brand : HT.muted} />
-                  <View style={{ flex: 1 }}><Text style={s.modName}>{m.name}</Text><Text style={L.muted}>{m.field_count} campi · {m.mapping_count} regole</Text></View>
+                <Pressable key={m.template_id} disabled={!ready || filling} onPress={() => setSel((s) => (on ? s.filter((x) => x !== m.template_id) : [...s, m.template_id]))} style={[s.modRow, !ready && { opacity: 0.55 }]} testID={`lab-select-${m.template_id}`}>
+                  <Ionicons name={!ready ? "lock-closed-outline" : on ? "checkbox" : "square-outline"} size={22} color={on && ready ? HT.brand : HT.muted} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.modName}>{m.name}</Text>
+                    {ready ? <Text style={L.muted}>{m.field_count} campi · pronto</Text> : <Text style={[L.muted, { color: HT.warning }]}>⚠️ Modulo non ancora addestrato · non selezionabile</Text>}
+                  </View>
                 </Pressable>
               );
             })}
-            <Pressable onPress={fill} disabled={filling || !sel.length} style={[L.btn, L.btnBrand, (filling || !sel.length) && { opacity: 0.5 }]} testID="lab-fill">
-              {filling ? <ActivityIndicator size="small" color={HT.white} /> : <Ionicons name="flash" size={16} color={HT.white} />}
-              <Text style={L.btnTxt}>{filling ? "Axon sta compilando…" : `Compila ${sel.length} moduli con Axon`}</Text>
-            </Pressable>
+            {filling ? (
+              <View style={s.progressBox} testID="lab-fill-progress">
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <ActivityIndicator size="small" color={HT.axon} />
+                  <Text style={s.progressTxt}>Preparazione documenti e compilazione in corso…</Text>
+                </View>
+                <View style={s.track}><View style={[s.fill, { width: `${Math.round(fillProgress * 100)}%` }]} /></View>
+                <Text style={L.muted}>Compressione documenti · estrazione dati · compilazione di {sel.length} {sel.length === 1 ? "modulo" : "moduli"} — tutto in parallelo</Text>
+              </View>
+            ) : (
+              <Pressable onPress={fill} disabled={!sel.length} style={[L.btn, L.btnBrand, !sel.length && { opacity: 0.5 }]} testID="lab-fill">
+                <Ionicons name="flash" size={16} color={HT.white} />
+                <Text style={L.btnTxt}>Compila con Axon{sel.length ? ` (${sel.length})` : ""}</Text>
+              </Pressable>
+            )}
           </View>
 
           {/* 3/4 · Anteprima live + revisione */}
@@ -172,11 +199,14 @@ export default function AxonLabPractice() {
           {/* 5 · Data e luogo */}
           {realForms.length > 0 ? (
             <>
-              <Step n={4} title="Data e luogo" sub="Unico inserimento per tutti i moduli aperti · mai automatici" />
+              <Step n={4} title="Data e luogo" sub="Unico inserimento per tutti i moduli aperti · data libera: passata, odierna o futura" />
               <View style={L.card} testID="lab-sign">
                 <View style={{ flexDirection: "row", gap: 10 }}>
-                  <TextInput value={signDate} onChangeText={setSignDate} placeholder="Data GG/MM/AAAA" placeholderTextColor={HT.muted} style={[L.input, { flex: 1 }]} keyboardType="numbers-and-punctuation" testID="lab-sign-date" />
-                  <TextInput value={signPlace} onChangeText={setSignPlace} placeholder="Luogo" placeholderTextColor={HT.muted} style={[L.input, { flex: 1.3 }]} testID="lab-sign-place" />
+                  <Pressable onPress={() => setDatePick(true)} style={[L.input, { flex: 1, flexDirection: "row", alignItems: "center", gap: 8 }]} testID="lab-sign-date">
+                    <Ionicons name="calendar-outline" size={18} color={HT.brand} />
+                    <Text style={{ color: signDate ? HT.text : HT.muted, fontWeight: "700" }}>{signDate || "Scegli la data"}</Text>
+                  </Pressable>
+                  <TextInput value={signPlace} onChangeText={setSignPlace} placeholder="Luogo (es. Milano)" placeholderTextColor={HT.muted} style={[L.input, { flex: 1.3 }]} testID="lab-sign-place" />
                 </View>
                 <Pressable onPress={sign} disabled={signing} style={[L.btn, L.btnBrand, signing && { opacity: 0.5 }]} testID="lab-sign-apply">
                   {signing ? <ActivityIndicator size="small" color={HT.white} /> : <Ionicons name="calendar" size={16} color={HT.white} />}<Text style={L.btnTxt}>Applica a tutti i moduli</Text>
@@ -194,8 +224,10 @@ export default function AxonLabPractice() {
         </ScrollView>
       )}
 
+      <DatePickerSheet visible={datePick} value={signDate} onClose={() => setDatePick(false)} onPick={(v) => { setSignDate(v); setDatePick(false); }} />
+
       {dossier.open ? (
-        <LabDocSheet spec={dossier.open} entry={p?.docs[dossier.open.id]} keyLabels={keyLabels} busy={!!dossier.busy[dossier.open.id]}
+        <LabDocSheet spec={dossier.open} entry={p?.docs[dossier.open.id]} keyLabels={keyLabels} contactId={p?.contact_id} busy={!!dossier.busy[dossier.open.id]}
           onClose={() => dossier.setOpen(null)} onUpload={(b) => dossier.upload(dossier.open!, b)} onConfirm={(v, st) => dossier.confirm(dossier.open!, v, st)} />
       ) : null}
 
@@ -255,6 +287,10 @@ const s = StyleSheet.create({
   formCard: { gap: 10 },
   formIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   missTxt: { color: HT.warning, fontSize: 12 },
+  progressBox: { backgroundColor: HT.card2, borderRadius: 12, padding: 12, gap: 10, borderWidth: 1, borderColor: HT.border },
+  progressTxt: { color: HT.text, fontWeight: "800", fontSize: 13 },
+  track: { height: 8, borderRadius: 999, backgroundColor: HT.bg, overflow: "hidden" },
+  fill: { height: 8, borderRadius: 999, backgroundColor: HT.axon },
   pdfRow: { flexDirection: "row", gap: 8 },
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
   sheet: { backgroundColor: HT.bg, borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingHorizontal: 16, paddingTop: 8, borderWidth: 1, borderColor: HT.border },

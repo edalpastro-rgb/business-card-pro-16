@@ -1,0 +1,44 @@
+{
+  "summary": "V50.z354 — Compilazione CRT (Axon Lab) consultant flow. BACKEND: 7/9 pytest passed. Doc auto-save to contact.crt_docs works end-to-end: POST /lab/practices/{id}/docs/sdi {manual:{sdi_code:'ABC1234'}} → 200 entry.status='uploaded'; GET /contacts/{cid} exposes crt_docs.sdi.extracted.sdi_code='ABC1234'; GET /contacts list does NOT leak crt_docs on any item; new practice for same contact reuses the SDI (status='uploaded', reused_from starts with 'Profilo cliente'); DELETE of new practice cleans up. Parallel fill: POST /lab/practices/{id}/fill with all trained template_ids → 200 with forms[] (len = # trained), errors=[], compression={docs, saved_bytes}. Invalid template_ids ['nope'] → 400. Valid sign 15/09/2026 → 200 sign_date normalized to 2026-09-15, forms_updated>=0. SIGN-DATE BUGS: PUT sign_date='2026-09-15' (ISO) is ACCEPTED (200) — problem statement said this should be 400. PUT sign_date='31/02/2026' (impossible calendar date) is ACCEPTED (200) — should be 400. FRONTEND (390x844, owner test@dalpastro.it): /axon-lab/practice/lab_22ab6a9929a0 opens correctly; header shows 'Compilazione CRT' (no 'Axon Lab' text on that screen). All 12 lab-doc-<id> rows render; tapping lab-doc-sdi opens lab-doc-sheet with all sources present (lab-src-drive, lab-src-camera, lab-src-scanner, lab-src-memory, lab-src-voice, lab-src-manual); lab-src-manual toggle reveals lab-doc-manual-sdi_code input; lab-doc-manual-save sets status pill to 'Caricato'. Step 2 lists all modules as lab-select-<id> (2 in seeded practice); lab-fill label reads 'Compila con Axon (2)'. Step 6 date picker: lab-sign-date opens lab-date-picker with lab-date-prev / lab-date-next / lab-date-prev-year all working; lab-date-day-10 selectable; lab-date-today sets today (25/09/2026); lab-date-clear present; lab-sign-place accepts input; lab-sign-apply fires (toast 'Data e luogo applicati' not observed but request succeeds). Regression: /axon-lab hub opens showing 'Axon Lab' title; /mercato opens showing 'Mercato' title. Practice DOM contains 'Interfaccia Master' text because the underlying Home tab remains mounted below the stack — not a rendering issue on the CRT screen itself.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "PUT /api/lab/practices/{id}/sign", "issue": "Accepts ISO format 'YYYY-MM-DD' returning 200 — spec requires 400 (only GG/MM/AAAA allowed). Regex at axon_lab.py line ~782 matches both formats.", "priority": "HIGH"},
+      {"endpoint": "PUT /api/lab/practices/{id}/sign", "issue": "Accepts impossible calendar dates like '31/02/2026' returning 200 (stored as 2026-02-31). Backend only validates format via regex, never uses datetime.strptime to verify real calendar validity.", "priority": "HIGH"}
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Practice screen sign-apply toast", "issue": "After lab-sign-apply the notify text 'Data e luogo applicati' was not detected in DOM within 2.5s window. Backend request likely succeeded (returned earlier during manual test) but the confirmation toast may be too fast or not rendered on web.", "testID": "lab-sign-apply", "priority": "LOW"},
+      {"component": "Home menu / grid", "issue": "Neither the text 'Compilazione CRT' nor 'Axon Lab' is exposed on Home (main screen or drawer visible portion). Drawer under AI & AXON exposes 'Axon Hub' and 'Insegna ad Axon' instead. The review request expected both labels present on Home. Please verify whether this is intentional relabeling or a regression.", "testID": "home-drawer-open", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v50z354_crt_reuse.py",
+    "/app/test_reports/pytest/v50z354_results.xml"
+  ],
+  "action_items": [
+    "Fix PUT /api/lab/practices/{id}/sign to reject ISO 'YYYY-MM-DD' format with 400 (per spec — only GG/MM/AAAA).",
+    "Add real calendar validation (datetime.strptime with strict format) so '31/02/2026' returns 400.",
+    "Confirm whether Home should explicitly expose 'Compilazione CRT' and 'Axon Lab' labels or whether current 'Axon Hub'/'Insegna ad Axon' labelling is intentional.",
+    "Optionally verify that lab-sign-apply shows the 'Data e luogo applicati' notify on web (may already work — inspect duration)."
+  ],
+  "critical_code_review_comments": [
+    "axon_lab.py:_lab_practice_doc_upload (lines 623-637) correctly auto-saves the uploaded/manual document into contacts.crt_docs.<doc_type> without base64 blobs of the file body preserved in the snapshot (data_base64 stripped). The reuse path in _lab_prefill_from_contact (lines 568-576) correctly promotes crt_docs to a new practice with source='scheda' and reused_from starting with 'Profilo cliente (...)'.",
+    "_lab_practice_fill (lines 742-769) runs asyncio.gather over _lab_compress_practice_docs + N _lab_fill_one calls — matches Step 4 spec (single parallel phase). Errors are collected without aborting the batch.",
+    "PUT /lab/practices/{id}/sign date validation (lines 777-783) uses only re.fullmatch(YYYY-MM-DD) after converting DD/MM/YYYY. This accepts semantically invalid dates and mixed formats — should switch to datetime.strptime(sd, '%d/%m/%Y').date() with try/except → HTTPException(400)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v50z354_crt_reuse.py (new)",
+    "/app/test_reports/iteration_113.json (this report)"
+  ],
+  "success_rate": {"backend": "77%", "frontend": "90%"},
+  "seed_data_creation": "Test suite left contact.crt_docs.sdi = {sdi_code:'ABC1234'} on the contact linked to practice lab_22ab6a9929a0. Newly created practice was DELETEd. Sign date on the primary practice is set to 2026-09-15, sign_place='Milano'. Fill was executed once so filled_forms for the 2 trained templates are now present.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Practice ID lab_22ab6a9929a0 has 2 trained templates (ftpl_cfe93d331830, ftpl_332236937196). All 12 lab-doc-<id> rows use IDs: id_card, visura, iban, sdi, stamp, bill_electric, bill_gas, cte, phone_company, mobile_referent, email_referent, pec. Owner test@dalpastro.it/Test1234! login page has 7-8s AnimatedSplash — always wait. Backend accepts both DD/MM/YYYY and YYYY-MM-DD sign dates today; fix requires stricter parsing in axon_lab.py lines 777-783.",
+  "rca_of_issue": "Sign-date bug RCA: axon_lab.py PUT /lab/practices/{id}/sign only enforces format via a regex fullmatch, first mapping DD/MM/YYYY→YYYY-MM-DD then validating the resulting string with r'\\d{4}-\\d{2}-\\d{2}'. That regex admits (a) requests already sent as ISO 'YYYY-MM-DD' (bypassing the intended DD/MM/YYYY-only interface) and (b) impossible calendar days such as 31/02/2026 which get converted to '2026-02-31' and match the regex. Reproduction: `curl -X PUT .../lab/practices/{id}/sign -d '{\"sign_date\":\"31/02/2026\"}'` → 200. Fix: replace the regex validator with `datetime.strptime(sd_it, '%d/%m/%Y').date()` inside a try/except that raises HTTPException(400) on both format and calendar errors, and reject any input that is not DD/MM/YYYY (four-slash format explicit)."
+}

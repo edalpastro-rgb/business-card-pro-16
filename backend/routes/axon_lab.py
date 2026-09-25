@@ -566,6 +566,14 @@ async def _lab_prefill_from_contact(user: dict, p: dict) -> None:
         docs[doc_id] = {**docs.get(doc_id, {}), "status": "uploaded", "extracted": vals, "values": {}, "files": docs.get(doc_id, {}).get("files") or [], "source": "scheda", "reused_from": src, "updated_at": utcnow()}
 
     try:
+        # V50.z354 — documenti caricati in pratiche precedenti e salvati nel profilo (contacts.crt_docs) → riuso immediato
+        cd = await db.contacts.find_one({"contact_id": p["contact_id"]}, {"_id": 0, "crt_docs": 1})
+        for doc_id, snap in ((cd or {}).get("crt_docs") or {}).items():
+            if doc_id in docs and docs[doc_id]["status"] == "none" and (snap.get("extracted") or snap.get("image_b64")):
+                propose(doc_id, snap.get("extracted") or {"presente": "sì"}, f"Profilo cliente ({(snap.get('files') or [{}])[0].get('name') or 'documento salvato'})")
+                if snap.get("image_b64"):
+                    docs[doc_id]["image_b64"] = snap["image_b64"]
+                docs[doc_id]["files"] = snap.get("files") or []
         d = await db.identity_documents.find_one({"tenant_id": tid, "subject_type": "contact", "subject_id": p["contact_id"]}, {"_id": 0, "front_b64": 0, "back_b64": 0}, sort=[("created_at", -1)])
         if d:
             ex = d.get("extracted") or {}
@@ -617,6 +625,14 @@ async def lab_practice_doc_upload(practice_id: str, doc_type: str, body: LabDocI
     p = await _lab_practice(practice_id, user)
     entry = await _lab_dossier_upload("prac", practice_id, p, doc_type, body, p["tenant_id"])
     await db.axon_lab_practices.update_one({"practice_id": practice_id}, {"$set": {"docs": p["docs"], "updated_at": utcnow()}})
+    # V50.z354 — Step 2: il documento si salva AUTOMATICAMENTE nel profilo CRM del cliente (contacts.crt_docs[doc_type])
+    # per essere riusato nelle pratiche future (nessuna compressione qui: priorità alla velocità).
+    try:
+        snap = {"doc_type": doc_type, "label": LAB_DOC_BY_ID[doc_type]["label"], "extracted": entry.get("extracted") or {}, "files": [{k: v for k, v in f.items() if k != "data_base64"} for f in (entry.get("files") or [])[-1:]],
+                "image_b64": entry.get("image_b64"), "source": entry.get("source"), "practice_id": practice_id, "saved_at": utcnow().isoformat(), "saved_by": user["user_id"]}
+        await db.contacts.update_one({"contact_id": p["contact_id"]}, {"$set": {f"crt_docs.{doc_type}": snap, "updated_at": utcnow()}})
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[lab] salvataggio doc nel profilo cliente fallito: %s", exc)
     pub = _lab_pub_dossier(p)
     return {"doc_type": doc_type, "entry": pub["docs"][doc_type], "docs": pub["docs"], "completion": _lab_completion(p), "extracted": entry.get("extracted") or {}}
 
@@ -699,23 +715,58 @@ async def _lab_fill_one(p: dict, t: dict, contact_vals: Dict[str, str], user: di
     return doc
 
 
+async def _lab_compress_practice_docs(p: dict) -> Dict[str, Any]:
+    """V50.z354 — Step 4: compressione (PyMuPDF via bridge) dei PDF caricati nella pratica, in PARALLELO alla compilazione.
+    Rimpiazza il file nello storage se la compressione fa risparmiare spazio; non blocca mai la compilazione."""
+    stats = {"docs": 0, "saved_bytes": 0}
+    for doc_type, entry in (p.get("docs") or {}).items():
+        for f in (entry.get("files") or []):
+            if f.get("compressed") or not str(f.get("mime") or "").startswith("application/pdf"):
+                continue
+            try:
+                raw = await _ft_load_pdf(f)
+                if not raw:
+                    continue
+                out, info = await pdf_auto_compress(raw, "application/pdf", f.get("name") or "", f"crt {doc_type}")
+                if out and len(out) < len(raw):
+                    meta = await _ft_store_pdf(p["tenant_id"], "lab_prac", f"{p['practice_id']}_{doc_type}_c{uuid.uuid4().hex[:6]}", out)
+                    f.pop("pdf_b64", None); f.pop("pdf_path", None); f.update(meta)
+                    stats["saved_bytes"] += len(raw) - len(out); f["size"] = len(out)
+                f["compressed"] = True
+                stats["docs"] += 1
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("[lab] compressione doc %s fallita: %s", doc_type, exc)
+    return stats
+
+
 @api_router.post("/lab/practices/{practice_id}/fill")
 async def lab_practice_fill(practice_id: str, body: LabFillIn, user=Depends(get_current_user)):
-    """Compila TUTTI i moduli selezionati in parallelo con le regole del Master (nessuna estrazione: dati già nel dossier)."""
+    """V50.z354 — Step 4 «Compila con Axon»: UNICA fase parallela = compressione documenti + raccolta dati + compilazione
+    di tutti i moduli selezionati (regole apprese + dati del profilo cliente; timbro replicato in tutti i campi stamp.image)."""
     p = await _lab_practice(practice_id, user)
-    tpls = await db.form_templates.find({"template_id": {"$in": body.template_ids}, "tenant_id": p["tenant_id"], "lab": True}, {"_id": 0, "pdf_b64": 0}).to_list(50)
+    tpls = await db.form_templates.find({"template_id": {"$in": body.template_ids}, "tenant_id": p["tenant_id"], "lab": True, "lab_trained": True}, {"_id": 0, "pdf_b64": 0}).to_list(50)
     if not tpls:
-        raise HTTPException(status_code=400, detail="Seleziona almeno un modulo addestrato")
+        raise HTTPException(status_code=400, detail="Seleziona almeno un modulo pronto per la compilazione")
+    await db.axon_lab_practices.update_one({"practice_id": practice_id}, {"$set": {"filling": {"started_at": utcnow(), "total": len(tpls)}}})
     try:
         contact_vals, _ = await _ft_collect_contact_data(user, p["contact_id"], read_attachments=False)
     except HTTPException:
         contact_vals = {}
-    # sostituisce i moduli già compilati per gli stessi modelli
     await db.filled_forms.delete_many({"lab_practice_id": practice_id, "template_id": {"$in": [t["template_id"] for t in tpls]}})
-    forms = await asyncio.gather(*[_lab_fill_one(p, t, contact_vals, user) for t in tpls])
+    results = await asyncio.gather(_lab_compress_practice_docs(p), *[_lab_fill_one(p, t, contact_vals, user) for t in tpls], return_exceptions=True)
+    comp = results[0] if isinstance(results[0], dict) else {"docs": 0, "saved_bytes": 0}
+    forms, errors = [], []
+    for t, r in zip(tpls, results[1:]):
+        if isinstance(r, Exception):
+            errors.append({"template_id": t["template_id"], "name": t.get("name"), "error": str(r)[:200]})
+        else:
+            forms.append(r)
     form_ids = [f["form_id"] for f in await db.filled_forms.find({"lab_practice_id": practice_id}, {"_id": 0, "form_id": 1}).to_list(50)]
-    await db.axon_lab_practices.update_one({"practice_id": practice_id}, {"$set": {"template_ids": sorted(set((p.get("template_ids") or []) + body.template_ids)), "form_ids": form_ids, "status": "review", "updated_at": utcnow()}})
-    return {"forms": [{k: v for k, v in f.items() if k != "_id"} for f in forms]}
+    await db.axon_lab_practices.update_one({"practice_id": practice_id}, {"$set": {"docs": p["docs"], "template_ids": sorted(set((p.get("template_ids") or []) + body.template_ids)), "form_ids": form_ids,
+                                                                                  "status": "review" if forms else p.get("status", "docs"), "updated_at": utcnow()}, "$unset": {"filling": ""}})
+    if not forms:
+        raise HTTPException(status_code=502, detail=errors[0]["error"] if errors else "Compilazione non riuscita")
+    return {"forms": [{k: v for k, v in f.items() if k != "_id"} for f in forms], "errors": errors, "compression": comp}
 
 
 @api_router.put("/lab/practices/{practice_id}/sign")
@@ -730,6 +781,11 @@ async def lab_practice_sign(practice_id: str, body: LabSignIn, user=Depends(get_
             sd = f"{m.group(3)}-{m.group(2)}-{m.group(1)}"
         if sd and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", sd):
             raise HTTPException(status_code=400, detail="Data non valida (usa GG/MM/AAAA)")
+        if sd:
+            try:
+                datetime.strptime(sd, "%Y-%m-%d")  # V50.z354 — anche il calendario deve essere valido (es. 31/02 → errore)
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Data inesistente nel calendario")
         upd["sign_date"] = sd
         p["sign_date"] = sd
     if body.sign_place is not None:

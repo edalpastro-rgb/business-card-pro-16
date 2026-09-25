@@ -7,7 +7,8 @@ import { View, Text, StyleSheet, Modal, Pressable, TextInput, ScrollView, Activi
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { HT } from "@/src/homeTheme";
-import { CrtFilePick, type PickedFile } from "@/src/CrtFilePick";
+import type { PickedFile } from "@/src/CrtFilePick";
+import { LabDocSources } from "@/src/axonlab/LabDocSources"; // V50.z354 — Step 2: GDrive · fotocamera · scanner · memoria · testo · dettatura
 import { type LabDocSpec, type LabDocEntry, STATUS_LABEL } from "@/src/axonlab/labApi";
 import { statusColor } from "@/src/axonlab/LabDocChecklist";
 
@@ -15,21 +16,23 @@ type Props = {
   spec: LabDocSpec | null;
   entry: LabDocEntry | undefined;
   keyLabels: Record<string, string>;
+  contactId?: string;
   busy: boolean;
   onClose: () => void;
   onUpload: (body: { name?: string; mime?: string; data_base64?: string; manual?: Record<string, string> }) => Promise<void>;
   onConfirm: (values: Record<string, string>, status: "confirmed" | "discarded") => Promise<void>;
 };
 
-export function LabDocSheet({ spec, entry, keyLabels, busy, onClose, onUpload, onConfirm }: Props) {
+export function LabDocSheet({ spec, entry, keyLabels, contactId, busy, onClose, onUpload, onConfirm }: Props) {
   const insets = useSafeAreaInsets();
   const [vals, setVals] = useState<Record<string, string>>({});
   const [manual, setManual] = useState<Record<string, string>>({});
   const [progress, setProgress] = useState(0);
+  const [manualOpen, setManualOpen] = useState(false);
 
   const st = entry?.status || "none";
   const extracted = useMemo(() => ({ ...(entry?.extracted || {}), ...(entry?.values || {}) }), [entry]);
-  useEffect(() => { setVals(extracted); setManual({}); }, [extracted, spec?.id]);
+  useEffect(() => { setVals(extracted); setManual({}); setManualOpen(spec?.mode === "manual"); }, [extracted, spec?.id, spec?.mode]);
 
   // barra di avanzamento «finta ma onesta»: avanza mentre Axon legge, completa al ritorno
   useEffect(() => {
@@ -46,6 +49,12 @@ export function LabDocSheet({ spec, entry, keyLabels, busy, onClose, onUpload, o
   const keys = Object.keys(vals).filter((k) => !k.endsWith("_uncertain") && k !== "iban_valid");
 
   const pick = async (f: PickedFile) => { await onUpload({ name: f.name, mime: f.mime, data_base64: f.data_base64 }); };
+  // Dettatura: il testo va nel primo campo manuale (correggibile) oppure, per i documenti solo-file, come nota estratta
+  const dictation = (text: string) => {
+    const t = (text || "").trim(); if (!t) return;
+    if (manualKeys.length) { setManualOpen(true); setManual((m) => ({ ...m, [manualKeys[0]]: `${m[manualKeys[0]] ? m[manualKeys[0]] + " " : ""}${t}` })); }
+    else void onUpload({ manual: { nota_dettatura: t } });
+  };
   const submitManual = async () => {
     const m = Object.fromEntries(Object.entries(manual).filter(([, v]) => v.trim()));
     if (!Object.keys(m).length) return;
@@ -82,13 +91,13 @@ export function LabDocSheet({ spec, entry, keyLabels, busy, onClose, onUpload, o
 
               {/* Sorgenti */}
               {!busy ? (
-                <View style={s.srcRow}>
-                  {canUpload ? <CrtFilePick onPicked={pick} label={spec.mode === "stamp" ? "Foto del timbro" : "Carica foto / PDF"} testID="lab-doc-upload" /> : null}
+                <View style={{ gap: 6 }}>
+                  <LabDocSources docLabel={spec.label} contactId={contactId} canUpload={canUpload} canManual={canManual} manualOpen={manualOpen} onPicked={pick} onToggleManual={() => setManualOpen((v) => !v)} onDictation={dictation} testID="lab-doc-sources" />
                   {entry?.files?.length ? <Text style={s.fileTxt} numberOfLines={1}>📎 {entry.files[entry.files.length - 1].name}</Text> : null}
                 </View>
               ) : null}
 
-              {canManual && !busy ? (
+              {canManual && manualOpen && !busy ? (
                 <View style={s.box}>
                   <Text style={s.boxTitle}>{spec.mode === "stamp" ? "Oppure scrivi il testo del timbro" : "Inserimento manuale"}</Text>
                   {manualKeys.map((k) => (

@@ -48,7 +48,7 @@ async def list_contacts(area: Optional[str] = None, q: Optional[str] = None, gro
         ]})
     if and_clauses:
         query["$and"] = and_clauses
-    items = await db.contacts.find(query, {"_id": 0, "notes": 0, "files": 0, "business_card": 0}).sort([("created_at", -1)]).to_list(1000)
+    items = await db.contacts.find(query, {"_id": 0, "notes": 0, "files": 0, "business_card": 0, "crt_docs": 0}).sort([("created_at", -1)]).to_list(1000)
     return {"items": items}
 
 
@@ -1176,7 +1176,7 @@ async def get_contact_referrals(contact_id: str, user=Depends(get_current_user))
         raise HTTPException(status_code=404, detail="Contatto non trovato")
     referrals = await db.contacts.find(
         scope_query(user, {"referred_by_contact_id": contact_id}),
-        {"_id": 0, "notes": 0, "files": 0, "business_card": 0},
+        {"_id": 0, "notes": 0, "files": 0, "business_card": 0, "crt_docs": 0},
     ).sort("created_at", -1).to_list(500)
     # And the "referred by" info for parent
     referred_by = None
