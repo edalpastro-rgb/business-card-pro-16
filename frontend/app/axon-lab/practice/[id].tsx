@@ -107,17 +107,17 @@ export default function AxonLabPractice() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: HT.card2 }} edges={["top"]}>
-      <LabHeader title={p?.contact_name || "Pratica"} sub={p?.company ? `${p.company} · Compilazione business` : "Compilazione business"} testID="lab-practice" />
+      <LabHeader icon="document-text" title={p?.contact_name || "Pratica"} sub={p?.company ? `${p.company} · Compilazione CRT` : "Compilazione CRT"} testID="lab-practice" />
       {loading || !p ? <ActivityIndicator style={{ marginTop: 40 }} color={HT.brand} /> : (
         <ScrollView contentContainerStyle={{ padding: 14, gap: 14, paddingBottom: pagePad + 24 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />} keyboardShouldPersistTaps="handled">
           {/* 1 · Documenti */}
-          <Step n={1} title="Documenti del cliente" sub={`${p.completion.percent}% completato`} />
+          <Step n={1} title="Documenti del cliente" sub={`${p.completion.percent}% completato · verde = presente · rosso = mancante`} />
           <LabDocChecklist specs={specs} docs={p.docs} busy={dossier.busy} completion={p.completion} onPress={(sp) => dossier.setOpen(sp)} title="Checklist documenti" />
 
           {/* 2 · Moduli */}
-          <Step n={2} title="Moduli da compilare" sub="Selezione multipla · regole apprese dal Master" />
+          <Step n={2} title="Moduli da compilare" sub="Selezione multipla" />
           <View style={L.card} testID="lab-modules-select">
-            {trainedModules.length === 0 ? <Text style={L.cardSub}>Nessun modulo addestrato dal Master.</Text> : null}
+            {trainedModules.length === 0 ? <Text style={L.cardSub}>Nessun modulo disponibile per la compilazione.</Text> : null}
             {trainedModules.map((m) => {
               const on = sel.includes(m.template_id);
               return (
@@ -148,7 +148,7 @@ export default function AxonLabPractice() {
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={L.cardTitle} numberOfLines={1}>{f.template_name}</Text>
-                        <Text style={L.cardSub}>{tmp ? "Axon applica le regole del Master…" : `${n} campi compilati${miss ? ` · ${miss} da inserire` : " · completo"}`}</Text>
+                        <Text style={L.cardSub}>{tmp ? "Axon sta compilando…" : `${n} campi compilati${miss ? ` · ${miss} da inserire` : " · completo"}`}</Text>
                       </View>
                       {!tmp ? <Ionicons name="create-outline" size={20} color={HT.muted} /> : null}
                     </View>

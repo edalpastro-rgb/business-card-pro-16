@@ -80,7 +80,7 @@ function MasterScreen() {
             const parsed = JSON.parse(ord);
             if (Array.isArray(parsed) && parsed.every((x) => typeof x === "string")) {
               // V50.z287 — migrazione etichetta rinominata (l'ordine salvato è per etichetta)
-              setButtonOrder(parsed.map((x: string) => (x === "Compilazione CRT" || x === "Autocompilazione CRT" ? "Axon Lab" : x)));
+              setButtonOrder(parsed.map((x: string) => (x === "Autocompilazione CRT" ? "Axon Lab" : x))); // V50.z353 — «Compilazione CRT» è di nuovo un pulsante proprio
             }
           } catch { /* ignore malformed */ }
         }
@@ -246,7 +246,9 @@ function MasterScreen() {
     { label: "Meteo", icon: "partly-sunny", color: HT.text2, onPress: () => goto("/meteo") },
     { label: "Profilo", icon: "person", color: HT.text2, onPress: () => goto("/(tabs)/impostazioni") }, // V50.z287 — mancava nel blocco Utility
     // CRM Core
-    { label: "Axon Lab", icon: "color-wand", color: "#0EA5E9", onPress: handleNewContract, badge: alerts.unread }, // V50.z343 — Axon Lab (ex Autocompilazione CRT)
+    // V50.z353 — «Compilazione CRT»: flusso consulente in 9 step (cliente → documenti → moduli → Axon compila → revisione → data/luogo → PDF → CRT → condividi). Separato da Axon Lab.
+    { label: "Compilazione CRT", icon: "document-text", color: "#10B981", onPress: () => router.push("/axon-lab/business" as any) },
+    { label: "Axon Lab", icon: "color-wand", color: "#0EA5E9", onPress: handleNewContract, badge: alerts.unread }, // V50.z343 — Axon Lab (addestramento Master)
     { label: "Mercato", icon: "stats-chart", color: "#EAB308", onPress: () => router.push("/mercato" as any) }, // V50.z345 — DB condizioni economiche concorrenti + benchmark
     { label: "New App", icon: "add-circle", color: "#0EA5E9", onPress: () => goto("/appointment/new") },
     // Comunicazioni

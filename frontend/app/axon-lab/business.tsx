@@ -46,13 +46,13 @@ export default function AxonLabBusiness() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: HT.card2 }} edges={["top"]}>
-      <LabHeader title="Axon Lab · Compilazione" sub="Area Consulente · Axon compila, tu controlli"
+      <LabHeader icon="document-text" title="Compilazione CRT" sub="Step 1 · Scegli il cliente: i suoi documenti compaiono subito"
         right={<Pressable onPress={() => setCreating((v) => !v)} style={s.newBtn} testID="lab-practice-new"><Ionicons name={creating ? "close" : "add"} size={20} color={HT.white} /></Pressable>} testID="lab-business" />
       <ScrollView contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: pagePad + 24 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />} keyboardShouldPersistTaps="handled">
         {creating ? (
           <View style={L.card} testID="lab-practice-create">
-            <Text style={L.cardTitle}>Nuova pratica</Text>
-            <Text style={L.cardSub}>Seleziona un cliente dal CRM oppure creane uno nuovo.</Text>
+            <Text style={L.cardTitle}>Step 1 · Selezione cliente</Text>
+            <Text style={L.cardSub}>Scegli un cliente esistente dal CRM: i documenti già nel suo profilo appariranno in verde, quelli mancanti in rosso.</Text>
             <TextInput value={q} onChangeText={setQ} placeholder="Cerca cliente (nome, azienda…)" placeholderTextColor={HT.muted} style={L.input} autoFocus testID="lab-contact-search" />
             {searching ? <ActivityIndicator size="small" color={HT.brand} /> : null}
             {found.map((c) => (
@@ -71,7 +71,7 @@ export default function AxonLabBusiness() {
         ) : null}
 
         {!loading && items.length === 0 && !creating ? (
-          <View style={L.card}><Text style={L.cardTitle}>Nessuna pratica</Text><Text style={L.cardSub}>Tocca + per scegliere un cliente e far compilare i moduli ad Axon.</Text></View>
+          <View style={L.card}><Text style={L.cardTitle}>Nessuna pratica</Text><Text style={L.cardSub}>Tocca + e scegli un cliente dal CRM per iniziare la compilazione.</Text></View>
         ) : null}
         {items.map((p) => {
           const st = STATUS[p.status] || STATUS.docs;

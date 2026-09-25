@@ -5,14 +5,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { HT } from "@/src/homeTheme";
 
 /** V50.z343 — Axon Lab · intestazione comune (back · titolo · sottotitolo · azione facoltativa). */
-export function LabHeader({ title, sub, right, testID }: { title: string; sub?: string; right?: React.ReactNode; testID?: string }) {
+export function LabHeader({ title, sub, right, testID, icon = "flask" }: { title: string; sub?: string; right?: React.ReactNode; testID?: string; icon?: React.ComponentProps<typeof Ionicons>["name"] }) {
   const router = useRouter();
   return (
     <View style={s.header} testID={testID}>
       <Pressable onPress={() => router.back()} hitSlop={10} style={s.hBtn} testID="lab-back"><Ionicons name="chevron-back" size={24} color={HT.text} /></Pressable>
       <View style={{ flex: 1 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          <Ionicons name="flask" size={16} color={HT.axon} />
+          <Ionicons name={icon} size={16} color={HT.axon} />
           <Text style={s.title} numberOfLines={1}>{title}</Text>
         </View>
         {sub ? <Text style={s.sub} numberOfLines={1}>{sub}</Text> : null}
