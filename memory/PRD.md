@@ -6953,6 +6953,14 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 - Test: `/app/test_reports/iteration_116.json` (17/17 backend + frontend OK). Script: `backend/tests/test_voiceprint_sanity.py`, `test_voiceprint_secondary.py`, `test_voiceprint_v50z372.py`.
 - Note: la registrazione reale (microfono) va provata su build nativa/web con permesso microfono; l'utente test ha già profili «Test Owner» (sara) e «Nicola (collaboratore)» (nicola) creati con VP_MIN_SPEECH_SEC=20 (ora rimosso dal .env → default 120).
 
+## V50.z373 (Giugno 2026) — FIX DEPLOY: impronta vocale senza PyTorch · host OAuth non fisso
+- **Causa del deploy fallito**: `torch==2.14.0+cpu` / `speechbrain` in requirements (aggiunti in z372): ~2 GB, non supportati dal profilo di deploy Emergent (250m CPU / 1 GiB) e il pin `+cpu` non esiste su PyPI. Rimossi (con torchaudio, HyperPyYAML, ruamel, sentencepiece).
+- **Nuovo motore** `routes/axon_voiceprint.py`: `sherpa-onnx` (5 MB, usa onnxruntime già presente per Kokoro) + modello **NVIDIA NeMo TitaNet-small** (`nemo_en_titanet_small.onnx`, 40 MB, 192-d) scaricato al primo utilizzo in `backend/models/speaker` (gitignored). Confronto modelli in `backend/tests/compare_speaker_models.py` (Kokoro sara vs nicola): TitaNet stessa voce ≥0.92 / diversa ≤0.17 (gap +0.75); WeSpeaker CAM++ NON funziona con sherpa-onnx 1.13.8 (gap negativo) → evitare. Carico 0.6 s, embedding 0.1 s; RSS backend ~155 MB con Kokoro + TitaNet caricati.
+- `model_version` sui profili (`titanet_small_192`): profili di un modello precedente sono ignorati dalla verifica e mostrano `needs_reenroll` («Da registrare di nuovo») in UI. Profili di test precedenti eliminati e ricreati.
+- `frontend/src/auth.tsx`: `DEPLOY_BASE` non più fisso (`window.location.origin` → fallback `EXPO_PUBLIC_BACKEND_URL`).
+- ⚠️ Il deployment_agent (analisi statica) segnala comunque come «ML pesante» Kokoro TTS (325 MB, pre-esistente da z347) e il modello speaker: misura reale 155 MB RSS. Se il deploy reale fallisse per memoria/CPU: impostare `KOKORO_DISABLE=1` nell'env di produzione (Axon usa la voce cloud OpenAI, già fallback automatico).
+- **Kokoro disattivato in produzione** (scelta utente): `KOKORO_DISABLE=1` in `backend/.env` → `kokoro_ensure()` ritorna False (nessun warmup/download), `axon_tts_generate` usa la voce cloud OpenAI (sara→nova, nicola→onyx); `GET /tts/engine` espone `local_disabled`; `axon-voice.tsx` spiega «voce locale disattivata su questo server». RSS worker: 273 MB all'avvio (+~60 MB con TitaNet). Deployment check: PASS (solo warn iOS push: manca GoogleService-Info.plist). Per riattivare Kokoro: rimuovere la riga da .env.
+
 ## PROSSIMI PASSI
 - Verifica sul campo (telefono reale) di Blocchi 1-4: multi-dispositivo, impronta vocale in ambienti rumorosi (eventuale «Tollerante» o ri-registrazione), PIN.
 - Call Logging Android (`READ_CALL_LOG`, richiede APK sideload) — backlog.

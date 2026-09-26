@@ -69,6 +69,7 @@ export default function VoiceProfilesScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={s.cardTitle}>{st?.enforced ? "Axon risponde solo alle voci registrate" : mine ? "Riconoscimento voce in pausa" : "Nessuna impronta vocale"}</Text>
                 <Text style={s.meta} testID="voice-profiles-status">{mine ? `La tua voce · ${Math.round(mine.quality?.speech_sec || 0)} s di parlato · coerenza ${Math.round((mine.quality?.consistency || 0) * 100)}% · riconosciuta ${mine.matches || 0} volte` : "Registra la tua voce: Axon ignorerà in silenzio chiunque altro."}</Text>
+                {mine?.needs_reenroll ? <Text style={s.warn}>Motore di riconoscimento aggiornato: registra di nuovo la voce per riattivarla.</Text> : null}
               </View>
             </View>
             {mine ? (
@@ -118,7 +119,7 @@ export default function VoiceProfilesScreen() {
                       <View style={s.icon}><Ionicons name="person" size={18} color={HT.violet} /></View>
                       <View style={{ flex: 1 }}>
                         <Text style={s.cardTitle}>{p.name}</Text>
-                        <Text style={s.meta}>{p.status === "paused" ? "In pausa · " : ""}{Math.round(p.quality?.speech_sec || 0)} s · coerenza {Math.round((p.quality?.consistency || 0) * 100)}% · riconosciuta {p.matches || 0} volte</Text>
+                        <Text style={s.meta}>{p.status === "paused" ? "In pausa · " : ""}{p.needs_reenroll ? "Da registrare di nuovo · " : ""}{Math.round(p.quality?.speech_sec || 0)} s · coerenza {Math.round((p.quality?.consistency || 0) * 100)}% · riconosciuta {p.matches || 0} volte</Text>
                       </View>
                       {busy === p.profile_id ? <ActivityIndicator color={HT.violet} /> : <Switch value={p.status === "active"} onValueChange={(v) => patch(p, { status: v ? "active" : "paused" })} trackColor={{ true: HT.violet }} testID={`voice-profile-active-${p.profile_id}`} />}
                     </View>

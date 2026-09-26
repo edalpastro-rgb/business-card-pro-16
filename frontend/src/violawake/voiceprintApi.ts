@@ -6,7 +6,7 @@ export type VpPermissions = Record<VpPermissionKey, boolean>;
 export type VpProfile = {
   profile_id: string; name: string; role: "owner" | "secondary"; status: "active" | "paused";
   permissions: VpPermissions; quality?: { speech_sec: number; snr_db: number; consistency: number } | null;
-  chunks?: number; created_at?: string; updated_at?: string; last_match_at?: string | null; matches?: number;
+  chunks?: number; created_at?: string; updated_at?: string; last_match_at?: string | null; matches?: number; needs_reenroll?: boolean;
 };
 export type VpStatus = {
   engine_ready: boolean; engine_error?: string | null; ffmpeg: boolean; enabled: boolean; enforced: boolean; threshold: number;

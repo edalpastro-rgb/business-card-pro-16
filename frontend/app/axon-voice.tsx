@@ -47,7 +47,7 @@ export default function AxonVoiceScreen() {
   const pagePad = usePageBottomPadding();
   const [voice, setVoice] = useState("sara");
   const [engine, setEngine] = useState<"local" | "cloud">("local"); // V50.z347
-  const [engStatus, setEngStatus] = useState<{ local_ready: boolean; local_loading: boolean; local_error?: string | null; avg_ms?: number | null; generations?: number } | null>(null);
+  const [engStatus, setEngStatus] = useState<{ local_ready: boolean; local_loading: boolean; local_disabled?: boolean; local_error?: string | null; avg_ms?: number | null; generations?: number } | null>(null);
   const [lang, setLang] = useState("it");
   const [rate, setRate] = useState(1); // V50.z284 — velocità di lettura (0.75–2×)
   const [loading, setLoading] = useState(true);
@@ -110,7 +110,7 @@ export default function AxonVoiceScreen() {
             <View style={[s.note, !engStatus.local_ready && { backgroundColor: HT.warningTint }]} testID="axon-engine-status">
               <Ionicons name={engStatus.local_ready ? "checkmark-circle" : engStatus.local_loading ? "hourglass-outline" : "alert-circle"} size={16} color={engStatus.local_ready ? HT.success : HT.warning} />
               <Text style={[s.noteTxt, !engStatus.local_ready && { color: HT.warning }]}>
-                {engStatus.local_ready ? `Voce locale pronta${engStatus.avg_ms ? ` · ~${(engStatus.avg_ms / 1000).toFixed(1)} s per frase` : ""}${engStatus.generations ? ` · ${engStatus.generations} frasi generate` : ""}` : engStatus.local_loading ? "Voce locale in preparazione (primo avvio: download modello)… nel frattempo si usa il cloud." : `Voce locale non disponibile${engStatus.local_error ? `: ${engStatus.local_error}` : ""} · in uso il cloud.`}
+                {engStatus.local_ready ? `Voce locale pronta${engStatus.avg_ms ? ` · ~${(engStatus.avg_ms / 1000).toFixed(1)} s per frase` : ""}${engStatus.generations ? ` · ${engStatus.generations} frasi generate` : ""}` : engStatus.local_disabled ? "Su questo server la voce locale è disattivata (memoria): Axon parla con la voce cloud, con le stesse voci Sara/Nicola rese in cloud." : engStatus.local_loading ? "Voce locale in preparazione (primo avvio: download modello)… nel frattempo si usa il cloud." : `Voce locale non disponibile${engStatus.local_error ? `: ${engStatus.local_error}` : ""} · in uso il cloud.`}
               </Text>
             </View>
           ) : null}

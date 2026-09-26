@@ -56,10 +56,16 @@ def _kk_load_sync() -> None:
     _kk_state.update({"model": model, "ready": True, "error": None, "loaded_at": utcnow().isoformat()})
 
 
+KOKORO_DISABLED = os.environ.get("KOKORO_DISABLE") == "1"  # V50.z373 — produzione (limite 1 GiB): niente modello locale, Axon usa la voce cloud
+
+
 async def kokoro_ensure() -> bool:
     """Carica (e se serve scarica) il modello una sola volta. Ritorna True se pronto."""
     if _kk_state["ready"]:
         return True
+    if KOKORO_DISABLED:
+        _kk_state["error"] = "voce locale disattivata su questo server (KOKORO_DISABLE=1): in uso la voce cloud"
+        return False
     async with _kk_lock:
         if _kk_state["ready"]:
             return True
@@ -187,7 +193,7 @@ async def tts_engine_status(user=Depends(get_current_user)):
     """Stato del motore vocale locale (per la schermata Voce di Axon)."""
     s = await db.user_settings.find_one({"user_id": user["user_id"]}, {"assistant_tts_engine": 1}) or {}
     n = _kk_state["gen_count"]
-    return {"engine": (s.get("assistant_tts_engine") or "local"), "local_ready": bool(_kk_state["ready"]), "local_loading": bool(_kk_state["loading"]), "local_error": _kk_state["error"],
+    return {"engine": (s.get("assistant_tts_engine") or "local"), "local_ready": bool(_kk_state["ready"]), "local_loading": bool(_kk_state["loading"]), "local_error": _kk_state["error"], "local_disabled": KOKORO_DISABLED,
             "loaded_at": _kk_state["loaded_at"], "generations": n, "avg_ms": int(_kk_state["gen_ms_total"] / n) if n else None,
             "files": {k: (KOKORO_DIR / k).exists() for k in KOKORO_FILES}, "languages": sorted(KOKORO_LANGS), "cloud_available": bool(os.environ.get("EMERGENT_LLM_KEY"))}
 

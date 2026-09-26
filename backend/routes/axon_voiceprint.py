@@ -1,9 +1,10 @@
-# axon_voiceprint.py — V50.z372 — SISTEMA VOCALE · BLOCCHI 2-3: IMPRONTA VOCALE (SpeechBrain ECAPA-TDNN, sul server)
-# Blocco 2: il proprietario legge un testo guidato (≥ 2 minuti di parlato) → embedding 192-d (media di N spezzoni) → Axon
+# axon_voiceprint.py — V50.z372/z373 — SISTEMA VOCALE · BLOCCHI 2-3: IMPRONTA VOCALE (speaker embedding ONNX sul server)
+# Blocco 2: il proprietario legge un testo guidato (≥ 2 minuti di parlato) → embedding (media di N spezzoni) → Axon
 #           risponde SOLO alla sua voce; voce sconosciuta → SILENZIO TOTALE (nessuna risposta, evento «unknown_voice»).
 # Blocco 3: il Master registra voci secondarie (collaboratori/famiglia) con permessi spuntabili fino all'«accesso totale».
-# Modello: speechbrain/spkrec-ecapa-voxceleb (CPU, ~3 s di caricamento lazy, 0.15 s per embedding). Audio m4a/webm/wav → ffmpeg
-# (imageio-ffmpeg, stesso di media_compress) → PCM 16 kHz mono → VAD a energia (parlato effettivo, SNR) → embedding.
+# Motore (z373, deploy-friendly: NIENTE PyTorch): sherpa-onnx + modello NVIDIA NeMo TitaNet-small (192-d, 40 MB; confronto in tests/compare_speaker_models.py: stessa voce ≥0.92, voce diversa ≤0.17) scaricato al
+# primo utilizzo in backend/models/speaker (gitignored, come Kokoro). CPU: ~0.6 s di caricamento, ~0.1 s per embedding.
+# Audio m4a/webm/wav → ffmpeg (imageio-ffmpeg, stesso di media_compress) → PCM 16 kHz mono → VAD a energia → embedding.
 # Endpoint (tutti autenticati):
 #   GET  /voiceprint/status                → {engine_ready, enforced, my_profile, profiles_count, threshold, min_speech_sec}
 #   GET  /voiceprint/enroll/text           → testo guidato (paragrafi) da leggere
@@ -15,8 +16,10 @@
 # Helper condivisi: vp_verify_for_user(user, raw, mime) → None (nessun profilo: comportamento attuale) | {match, profile, score}
 #                   vp_permission_denied(profile, category) → messaggio | None
 
-VP_MODEL = "speechbrain/spkrec-ecapa-voxceleb"
-VP_MODEL_DIR = str(Path(__file__).resolve().parent.parent / "models" / "ecapa")
+VP_MODEL_NAME = "nemo_en_titanet_small.onnx"
+VP_MODEL_URL = f"https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/{VP_MODEL_NAME}"
+VP_MODEL_DIR = Path(__file__).resolve().parent.parent / "models" / "speaker"
+VP_MODEL_VERSION = "titanet_small_192"  # cambia se si cambia modello: i profili con versione diversa vanno ri-registrati
 VP_MIN_SPEECH_SEC = float(os.environ.get("VP_MIN_SPEECH_SEC", "120"))   # parlato effettivo minimo per un profilo operativo
 VP_MIN_CONSISTENCY = float(os.environ.get("VP_MIN_CONSISTENCY", "0.60"))  # coerenza minima tra spezzoni (cos)
 VP_DEFAULT_THRESHOLD = 0.40   # cos ≥ soglia → stessa voce (ECAPA: stessa persona 0.5-0.8, estranei < 0.3)
@@ -56,7 +59,7 @@ _VP_MODEL_ERR: Optional[str] = None
 
 
 def _vp_load_model():
-    """Carica ECAPA una sola volta (thread-safe). Ritorna il classificatore o solleva."""
+    """Carica l'estrattore sherpa-onnx una sola volta (thread-safe); scarica il modello al primo utilizzo. Ritorna l'estrattore o solleva."""
     global _VP_MODEL, _VP_MODEL_LOCK, _VP_MODEL_ERR
     import threading
     if _VP_MODEL_LOCK is None:
@@ -65,11 +68,22 @@ def _vp_load_model():
         if _VP_MODEL is not None:
             return _VP_MODEL
         try:
-            import torch  # noqa: F401
-            from speechbrain.inference.speaker import EncoderClassifier
-            _VP_MODEL = EncoderClassifier.from_hparams(source=VP_MODEL, savedir=VP_MODEL_DIR, run_opts={"device": "cpu"})
+            import sherpa_onnx
+            dest = VP_MODEL_DIR / VP_MODEL_NAME
+            if not dest.exists() or dest.stat().st_size < 1_000_000:
+                VP_MODEL_DIR.mkdir(parents=True, exist_ok=True)
+                tmp = dest.with_suffix(".part")
+                logger.info("voiceprint: download modello %s …", VP_MODEL_NAME)
+                with httpx.stream("GET", VP_MODEL_URL, follow_redirects=True, timeout=600) as r:
+                    r.raise_for_status()
+                    with open(tmp, "wb") as f:
+                        for chunk in r.iter_bytes(1 << 20):
+                            f.write(chunk)
+                tmp.replace(dest)
+            cfg = sherpa_onnx.SpeakerEmbeddingExtractorConfig(model=str(dest), num_threads=1, debug=False, provider="cpu")
+            _VP_MODEL = sherpa_onnx.SpeakerEmbeddingExtractor(cfg)
             _VP_MODEL_ERR = None
-            logger.info("voiceprint: modello ECAPA pronto")
+            logger.info("voiceprint: modello speaker pronto (dim %d)", _VP_MODEL.dim)
         except Exception as exc:  # noqa: BLE001
             _VP_MODEL_ERR = str(exc)[:300]
             logger.exception("voiceprint: caricamento modello fallito")
@@ -129,17 +143,18 @@ def _vp_vad(sig, sr: int = 16000):
 
 
 def _vp_embed_sync(raw: bytes, mime: str) -> dict:
-    """Embedding normalizzato (lista 192 float) + qualità. Sincrono: chiamare in thread."""
+    """Embedding normalizzato (lista float) + qualità. Sincrono: chiamare in thread."""
     import numpy as np
-    import torch
     sig = _vp_pcm16k(raw, mime)
     total_sec = len(sig) / 16000.0
     speech, speech_sec, snr = _vp_vad(sig)
     if len(speech) < 16000 * 0.6:
         return {"ok": False, "reason": "poco parlato", "speech_sec": round(speech_sec, 1), "snr_db": round(snr, 1), "total_sec": round(total_sec, 1)}
     model = _vp_load_model()
-    with torch.no_grad():
-        emb = model.encode_batch(torch.from_numpy(np.ascontiguousarray(speech)).unsqueeze(0)).squeeze().cpu().numpy()
+    stream = model.create_stream()
+    stream.accept_waveform(16000, np.ascontiguousarray(speech, dtype=np.float32))
+    stream.input_finished()
+    emb = np.asarray(model.compute(stream), dtype=np.float32)
     emb = emb / (np.linalg.norm(emb) + 1e-9)
     return {"ok": True, "emb": [float(x) for x in emb], "speech_sec": round(speech_sec, 1), "snr_db": round(snr, 1), "total_sec": round(total_sec, 1)}
 
@@ -169,7 +184,9 @@ def _vp_consistency(embs) -> float:
 
 
 def _vp_profile_out(p: dict) -> dict:
-    return {k: p.get(k) for k in ("profile_id", "name", "role", "status", "permissions", "quality", "chunks", "created_at", "updated_at", "last_match_at", "matches")}
+    out = {k: p.get(k) for k in ("profile_id", "name", "role", "status", "permissions", "quality", "chunks", "created_at", "updated_at", "last_match_at", "matches")}
+    out["needs_reenroll"] = p.get("model_version") != VP_MODEL_VERSION
+    return out
 
 
 async def _vp_settings(uid: str) -> dict:
@@ -184,7 +201,7 @@ async def vp_verify_for_user(user: dict, raw: bytes, mime: str) -> Optional[dict
     st = await _vp_settings(uid)
     if not st["enabled"]:
         return None
-    profiles = await db.voice_profiles.find({"owner_user_id": uid, "status": "active"}, {"_id": 0}).to_list(50)
+    profiles = [p for p in await db.voice_profiles.find({"owner_user_id": uid, "status": "active"}, {"_id": 0}).to_list(50) if p.get("model_version") == VP_MODEL_VERSION]
     if not profiles:
         return None
     try:
@@ -196,6 +213,8 @@ async def vp_verify_for_user(user: dict, raw: bytes, mime: str) -> Optional[dict
         return {"match": False, "profile": None, "score": 0.0, "error": r.get("reason")}
     best, best_score = None, -1.0
     for p in profiles:
+        if len(p.get("embedding") or []) != len(r["emb"]):
+            continue  # profilo creato con un altro modello → va ri-registrato (needs_reenroll)
         sc = _vp_cos(r["emb"], p["embedding"])
         # spezzoni singoli: il massimo aiuta con toni diversi (media pesata 70/30)
         chunk_scores = sorted((_vp_cos(r["emb"], c) for c in (p.get("chunk_embeddings") or [])), reverse=True)
@@ -292,7 +311,7 @@ async def vp_status(user=Depends(get_current_user)):
     st = await _vp_settings(uid)
     profiles = await db.voice_profiles.find({"owner_user_id": uid}, {"_id": 0, "embedding": 0, "chunk_embeddings": 0}).to_list(50)
     mine = next((p for p in profiles if p["role"] == "owner"), None)
-    active = [p for p in profiles if p["status"] == "active"]
+    active = [p for p in profiles if p["status"] == "active" and p.get("model_version") == VP_MODEL_VERSION]
     if _VP_MODEL is None and _VP_MODEL_ERR is None:
         asyncio.create_task(asyncio.to_thread(_vp_load_model))  # riscaldo in background al primo accesso alla sezione
     return {"engine_ready": _VP_MODEL is not None, "engine_error": _VP_MODEL_ERR, "ffmpeg": bool(globals().get("MC_FFMPEG")),
@@ -401,7 +420,7 @@ async def vp_enroll_finish(body: VpFinishIn, user=Depends(get_current_user)):
     is_new = not pid
     pid = pid or f"vp_{uuid.uuid4().hex[:12]}"
     doc = {"name": sess["name"], "role": sess["role"], "status": "active", "embedding": _vp_mean(embs), "chunk_embeddings": embs[-20:],
-           "quality": {"speech_sec": q["speech_sec"], "snr_db": q["snr_db"], "consistency": q["consistency"]}, "chunks": len(embs), "updated_at": now}
+           "quality": {"speech_sec": q["speech_sec"], "snr_db": q["snr_db"], "consistency": q["consistency"]}, "chunks": len(embs), "model_version": VP_MODEL_VERSION, "updated_at": now}
     ins = {"profile_id": pid, "owner_user_id": uid, "tenant_id": sess["tenant_id"], "created_at": now, "matches": 0,
            "permissions": {k: True for k in VP_PERMISSION_KEYS} if sess["role"] == "owner" else dict(VP_SECONDARY_DEFAULT)}
     await db.voice_profiles.update_one({"profile_id": pid}, {"$set": doc, "$setOnInsert": ins}, upsert=True)

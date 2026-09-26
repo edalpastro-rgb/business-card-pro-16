@@ -278,7 +278,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // (l'env di deploy può contenere domini diversi, es. auth.emergent.host → "not found"); redirect per piattaforma;
     // su Android il callback può arrivare da result.url, dal listener `url` o da getInitialURL (dismiss ≠ annullato).
     const AUTH_BASE = "https://auth.emergentagent.com";
-    const DEPLOY_BASE = "https://business-card-pro-16.emergent.host";
+    const DEPLOY_BASE = (process.env.EXPO_PUBLIC_BACKEND_URL || "").replace(/\/+$/, ""); // V50.z373 — nessun host fisso: origine del sito o env di deploy
     let redirectUrl: string;
     if (Platform.OS === "web") {
       const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
