@@ -36,7 +36,7 @@ export default function WakeWordSettingsScreen() {
   // V50.x — usa la utility globale per non essere coperti dalla tab bar
   const bottomPad = usePageBottomPadding();
   const [enabled, setEnabled] = useState(false);
-  const [model, setModel] = useState<"hey_jarvis" | "axon_custom">("hey_jarvis");
+  const [model, setModel] = useState<"hey_jarvis" | "axon_custom">("axon_custom"); // V50.z377 — Axon custom (Job #253) è il default
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -47,7 +47,7 @@ export default function WakeWordSettingsScreen() {
           AsyncStorage.getItem(WAKE_MODEL_KEY),
         ]);
         setEnabled(e === "1");
-        if (m === "axon_custom") setModel("axon_custom");
+        if (m === "hey_jarvis") setModel("hey_jarvis");
       } catch {/* noop */}
       setReady(true);
     })();

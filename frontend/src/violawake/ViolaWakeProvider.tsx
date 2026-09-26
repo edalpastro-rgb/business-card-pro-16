@@ -18,7 +18,8 @@ import { captureCommandWhisper, abortWhisperCapture, WHISPER_CAPTURE_SUPPORTED }
 import type { ViolaState, ViolaSettings, ViolaModule, WakeEngine, PermissionStatus } from "./types";
 import { VIOLA_KEYWORD_LABEL } from "./types";
 import { vdApi, isSwitchCommand } from "./devices";
-import { confirmCritical } from "./guard"; // V50.z371 — Blocco 4: comandi critici → PIN/impronta // V50.z370 — Blocco 1: selezione dispositivo
+import { confirmCritical } from "./guard";
+import { WakeWord } from "./wakeWord"; // V50.z377 — motore Axon custom (start/stop/onWake) // V50.z371 — Blocco 4: comandi critici → PIN/impronta // V50.z370 — Blocco 1: selezione dispositivo
 import { vpApi, takeLastSpeaker, setLastSpeaker, type SpeakerInfo } from "./voiceprintApi"; // V50.z372 — Blocchi 2-3: impronta vocale
 
 const ACCESS_KEY = (process.env.EXPO_PUBLIC_PICOVOICE_ACCESS_KEY || "").trim();
@@ -294,7 +295,7 @@ export function ViolaWakeProvider({ children }: { children: React.ReactNode }) {
       setKeywordLabel(engine.keywordLabel);
       setState("listening");
       // Android: servizio in primo piano con notifica «Viola in ascolto» → microfono attivo anche a schermo bloccato
-      if (Platform.OS === "android") void startForegroundService(engine.keywordLabel);
+      if (Platform.OS === "android" && !WakeWord.isAvailable()) void startForegroundService(engine.keywordLabel);
     } catch (e: any) {
       engineRef.current = null;
       setError(String(e?.message || e));
@@ -358,8 +359,11 @@ export function ViolaWakeProvider({ children }: { children: React.ReactNode }) {
 
   const openSettings = useCallback(() => { Linking.openSettings().catch(() => {}); }, []);
 
+  // V50.z377 — «Simula rilevamento Axon»: stesso percorso di una wake-word reale (callback onWake del motore) + apre la chat con Axon.
   const simulateWake = useCallback(() => {
+    openAxonChat(); // apre la chat con Axon
     if (!supported || !recognitionAvailable()) { setError("Cattura vocale non disponibile su questo dispositivo/anteprima: usa il comando scritto."); return; }
+    if (engineRef.current && WakeWord.isAvailable() && WakeWord.isRunning()) { WakeWord.simulate(); return; } // → onWake → handleWake
     void handleWake();
   }, [supported, handleWake]);
 

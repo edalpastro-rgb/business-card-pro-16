@@ -139,11 +139,14 @@
         {
           "microphonePermission": "Di' «Viola» e parla con Axon a mani libere",
           "speechRecognitionPermission": "Trascrive sul telefono i comandi vocali per Axon",
-          "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox"
+          ]
         }
       ],
       "./plugins/withViolaWake.js",
-      "./plugins/withViolaWakeService.js"
+      "./plugins/withViolaWakeService.js",
+      "./plugins/withAxonWakeAudio.js"
     ],
     "experiments": {
       "typedRoutes": true

@@ -8,14 +8,39 @@ import { PorcupineManager, BuiltInKeywords } from "@picovoice/porcupine-react-na
 import type { WakeEngine, WakeEngineOptions } from "./types";
 import { VIOLA_FALLBACK_KEYWORD_LABEL, VIOLA_KEYWORD_LABEL } from "./types";
 import { createSpeechWakeEngine } from "./speechWakeEngine.native"; // V50.z341 — fallback senza Picovoice
+import { WakeWord } from "./wakeWord"; // V50.z377 — motore Axon custom (AudioRecord nativo + TemporalCNN onnx)
 
 export const WAKE_ENGINE_SUPPORTED = true;
+
+/** V50.z377 — Motore wake-word Axon: WakeWord.start()/stop() + onWake → opts.onWake (anche da «Simula rilevamento»). */
+function createAxonWakeEngine(opts: WakeEngineOptions): WakeEngine {
+  let unsub: (() => void)[] = [];
+  return {
+    get keywordLabel() { return VIOLA_KEYWORD_LABEL; },
+    async start() {
+      if (unsub.length) return;
+      unsub = [
+        WakeWord.onWake(() => opts.onWake()),
+        WakeWord.onError((m) => opts.onError(m)),
+      ];
+      try { await WakeWord.start({ sensitivity: opts.sensitivity, keywordLabel: VIOLA_KEYWORD_LABEL }); }
+      catch (e: any) { unsub.forEach((u) => u()); unsub = []; throw e; }
+    },
+    async stop() {
+      unsub.forEach((u) => u()); unsub = [];
+      await WakeWord.stop();
+    },
+  };
+}
 
 const CUSTOM_KEYWORD_PATH = Platform.OS === "android" ? "viola_android.ppn" : "ViolaWakeModels/viola_ios.ppn";
 // «Axon» → Porcupine richiede il modello lingua IT (assets/keywords/porcupine_params_it.pv, copiato dal plugin)
 const IT_MODEL_PATH = Platform.OS === "android" ? "porcupine_params_it.pv" : "ViolaWakeModels/porcupine_params_it.pv";
 
 export function createWakeEngine(opts: WakeEngineOptions): WakeEngine {
+  // V50.z377 — DEFAULT: modello Axon custom (TemporalCNN, Job #253) su streaming nativo AudioRecord, 100% offline, nessuna chiave.
+  // Fallback (iOS / build senza modulo nativo): Porcupine se c'è la AccessKey, altrimenti riconoscimento vocale di sistema.
+  if (WakeWord.isAvailable()) return createAxonWakeEngine(opts);
   // V50.z341 — Senza AccessKey Picovoice → riconoscimento vocale di sistema in ascolto continuo («Axon» nella trascrizione).
   // Appena la chiave viene inserita (EXPO_PUBLIC_PICOVOICE_ACCESS_KEY) l'app torna automaticamente a Porcupine (offline).
   if (!opts.accessKey) return createSpeechWakeEngine(opts);
