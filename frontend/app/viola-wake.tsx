@@ -46,14 +46,14 @@ export default function ViolaWakeScreen() {
         if (!ok) { notify("Microfono", v.permission && !v.permission.canAskAgain ? "Permesso negato: aprilo dalle Impostazioni del telefono." : "Serve il microfono per sentire «Viola»."); }
       }
       await v.updateSettings({ enabled: on });
-    } catch (e: any) { notify("ViolaWake", e?.message || "Operazione non riuscita"); }
+    } catch (e: any) { notify("Comandi vocali", e?.message || "Operazione non riuscita"); }
     finally { setBusy(null); }
   };
 
   const toggleModule = async (on: boolean) => {
     setBusy("module");
     try { await v.setModule(on, on ? "Attivato dal Master (servizio opzionale)" : undefined); }
-    catch (e: any) { notify("ViolaWake", e?.message || "Operazione non riuscita"); }
+    catch (e: any) { notify("Comandi vocali", e?.message || "Operazione non riuscita"); }
     finally { setBusy(null); }
   };
 
@@ -66,7 +66,7 @@ export default function ViolaWakeScreen() {
       <View style={s.header}>
         <Pressable onPress={() => router.back()} hitSlop={10} style={s.backBtn} testID="viola-back"><Ionicons name="chevron-back" size={22} color={C.onSurfaceInverse} /></Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={s.hTitle}>Viola · comandi vocali</Text>
+          <Text style={s.hTitle}>Axon · comandi vocali</Text>
           <Text style={s.hSub}>Di' «{v.keywordLabel}» e parla con Axon, a mani libere</Text>
         </View>
         <Ionicons name="ear" size={22} color={C.onSurfaceInverse} />
@@ -102,7 +102,7 @@ export default function ViolaWakeScreen() {
         <View style={s.card} testID="viola-module-card">
           <View style={s.row}>
             <Ionicons name="business" size={18} color={VIOLA} />
-            <Text style={s.cardTitle}>Modulo ViolaWake per l'azienda</Text>
+            <Text style={s.cardTitle}>Comandi vocali «Axon» per l'azienda</Text>
             <View style={{ flex: 1 }} />
             {v.isMaster ? (
               busy === "module" ? <ActivityIndicator color={VIOLA} /> : <Switch value={moduleOn} onValueChange={toggleModule} trackColor={{ true: VIOLA }} testID="viola-module-switch" />
@@ -125,13 +125,13 @@ export default function ViolaWakeScreen() {
             <View style={{ flex: 1 }} />
             {busy === "user" ? <ActivityIndicator color={VIOLA} /> : <Switch value={userOn} disabled={!moduleOn} onValueChange={toggleUser} trackColor={{ true: VIOLA }} testID="viola-user-switch" />}
           </View>
-          <Text style={s.hint}>Il microfono resta sul telefono: «Viola» viene riconosciuta in locale (Porcupine se c’è la chiave Picovoice, altrimenti il riconoscimento vocale di sistema), niente audio al cloud finché non senti il segnale. Poi il comando viene trascritto dal telefono {v.onDeviceStt ? "(on-device)" : ""} e passato ad Axon.</Text>
+          <Text style={s.hint}>Il microfono resta sul telefono: «Axon» viene riconosciuta in locale (Porcupine se c’è la chiave Picovoice, altrimenti il riconoscimento vocale di sistema), niente audio al cloud finché non senti il segnale. Poi il comando viene trascritto dal telefono {v.onDeviceStt ? "(on-device)" : ""} e passato ad Axon.</Text>
 
           {/* Permessi — contratto */}
           {v.supported && v.permission && !v.permission.granted ? (
             <View style={s.permBox} testID="viola-perm-box">
               <Text style={s.permTitle}>Serve il microfono</Text>
-              <Text style={s.hint}>Solo per sentire la parola «Viola» e il comando che segue. Nessuna registrazione salvata.</Text>
+              <Text style={s.hint}>Solo per sentire la parola «Axon» e il comando che segue. Nessuna registrazione salvata.</Text>
               {v.permission.canAskAgain ? (
                 <Pressable style={s.btn} onPress={() => void v.askPermission()} testID="viola-perm-ask"><Ionicons name="mic" size={16} color={C.onSurfaceInverse} /><Text style={s.btnTxt}>Consenti microfono</Text></Pressable>
               ) : (
@@ -196,8 +196,8 @@ export default function ViolaWakeScreen() {
         <Text style={s.foot}>
           {Platform.OS === "android"
             ? (v.backgroundService
-              ? "Android: servizio in primo piano attivo — mentre l'ascolto è acceso vedi la notifica fissa «Viola in ascolto» e il microfono resta attivo anche a schermo bloccato. Dalla notifica puoi spegnerlo."
-              : "Android: questa build non include ancora il servizio in primo piano «Viola in ascolto» (serve una nuova build): l'ascolto continua con app aperta o in secondo piano recente.")
+              ? "Android: servizio in primo piano attivo — mentre l'ascolto è acceso vedi la notifica fissa «Axon in ascolto» e il microfono resta attivo anche a schermo bloccato. Dalla notifica puoi spegnerlo."
+              : "Android: questa build non include ancora il servizio in primo piano «Axon in ascolto» (serve una nuova build): l'ascolto continua con app aperta o in secondo piano recente.")
             : "iOS: funziona con app aperta e a schermo spento (audio in background); Apple non consente il microfono sempre acceso con app chiusa."}
         </Text>
       </ScrollView>

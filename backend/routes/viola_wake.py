@@ -2,7 +2,7 @@ import re
 """
 V50.z315 — VIOLAWAKE (modulo standalone opzionale) — backend.
 
-Ascolto della wake-word «Viola» sul telefono (Picovoice Porcupine, 100% offline) → cattura del comando
+Ascolto della wake-word «Axon» (motore interno "ViolaWake", nome MAI in UI) sul telefono (Picovoice Porcupine, 100% offline) → cattura del comando
 (riconoscimento vocale on-device, nessun costo) → AxonOS in modalità voce (risposta parlata) oppure
 trigger proattivo (briefing / scansione / report) tramite POST /axon/proactive/trigger (source=wake_word).
 
@@ -22,7 +22,7 @@ VW_DEFAULT_SETTINGS = {
     "enabled": False,            # ascolto attivo per QUESTO utente
     "sensitivity": 0.6,          # Porcupine 0..1
     "stt_engine": "device",      # device (on-device, gratis) | whisper (cloud, dopo la wake-word)
-    "keyword_mode": "custom",    # custom («Viola», file .ppn) | builtin (parola di fallback finché manca il modello)
+    "keyword_mode": "custom",    # custom («Axon», file .ppn) | builtin (parola di fallback finché manca il modello)
     "speak_reply": True,         # risposta parlata
     "confirm_sound": True,       # segnale acustico alla rilevazione
     "listen_seconds": 6,         # finestra massima per il comando
@@ -74,7 +74,7 @@ async def _vw_module_enabled(tid: str) -> dict:
 def _vw_strip_wake(text: str) -> str:
     t = (text or "").strip()
     low = t.lower()
-    for w in ("ehi viola", "hey viola", "ok viola", "viola,", "viola "):
+    for w in ("ehi axon", "hey axon", "ok axon", "ciao axon", "axon,", "axon ", "ehi viola", "hey viola", "ok viola", "viola,", "viola "):  # V50.z369 — wake-word «Axon»
         if low.startswith(w):
             t = t[len(w):].strip(" ,.!?")
             break
@@ -117,7 +117,7 @@ async def viola_settings_put(body: ViolaSettingsIn, user=Depends(get_current_use
     if upd.get("enabled"):
         mod = await _vw_module_enabled(tenant_id(user))
         if not mod["enabled"]:
-            raise HTTPException(status_code=403, detail="ViolaWake non è attivo per la tua azienda: chiedi al Master di attivare il modulo")
+            raise HTTPException(status_code=403, detail="I comandi vocali «Axon» non sono attivi per la tua azienda: chiedi al Master di attivare il modulo")
     upd["updated_at"] = utcnow()
     await db.viola_wake_settings.update_one({"user_id": user["user_id"]}, {"$set": upd, "$setOnInsert": {"user_id": user["user_id"], "created_at": utcnow()}}, upsert=True)
     return await viola_settings_get(user)

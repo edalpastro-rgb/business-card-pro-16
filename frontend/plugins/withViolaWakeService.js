@@ -2,7 +2,7 @@
  * V50.z316 — Config plugin: SERVIZIO NATIVO ANDROID IN PRIMO PIANO per ViolaWake.
  * Genera in prebuild il codice Kotlin (Service + modulo React Native) e lo registra:
  *  - ViolaWakeService.kt: Foreground Service con foregroundServiceType="microphone" e notifica
- *    persistente «Viola in ascolto» → Android non sospende il microfono con schermo bloccato.
+ *    persistente «Axon in ascolto» → Android non sospende il microfono con schermo bloccato.
  *  - ViolaWakeServiceModule.kt / ViolaWakePackage.kt: NativeModules.ViolaWakeService.start(title, body) / stop()
  *  - AndroidManifest: <service android:name=".violawake.ViolaWakeService" .../>
  *  - MainApplication.kt: add(ViolaWakePackage())
@@ -29,7 +29,7 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 
-/** Servizio in primo piano: tiene vivo il processo e il microfono per la wake-word «Viola». */
+/** Servizio in primo piano: tiene vivo il processo e il microfono per la wake-word «Axon». */
 class ViolaWakeService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -39,8 +39,8 @@ class ViolaWakeService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
-        val title = intent?.getStringExtra("title") ?: "Viola in ascolto"
-        val body = intent?.getStringExtra("body") ?: "Di' «Viola» per parlare con Axon"
+        val title = intent?.getStringExtra("title") ?: "Axon in ascolto"
+        val body = intent?.getStringExtra("body") ?: "Di' «Axon» per parlare con l'assistente"
         val notification = buildNotification(title, body)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
@@ -53,7 +53,7 @@ class ViolaWakeService : Service() {
     private fun buildNotification(title: String, body: String): Notification {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val ch = NotificationChannel(CHANNEL_ID, "Viola · ascolto vocale", NotificationManager.IMPORTANCE_LOW)
+            val ch = NotificationChannel(CHANNEL_ID, "Axon · ascolto vocale", NotificationManager.IMPORTANCE_LOW)
             ch.description = "Mostra quando Viola è in ascolto della parola di attivazione"
             ch.setShowBadge(false)
             nm.createNotificationChannel(ch)

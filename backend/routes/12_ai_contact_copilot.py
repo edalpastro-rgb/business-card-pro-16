@@ -391,6 +391,53 @@ async def ai_contact_from_voice(body: AIVoiceIn, user=Depends(get_current_user))
 class VoiceCopilotIn(BaseModel):
     transcript: str
     session_id: Optional[str] = None
+    pending_contact_id: Optional[str] = None   # V50.z368 — conferma «Intendi il tuo cliente X?» in corso
+    pending_question: Optional[str] = None
+    want_audio: bool = True                    # V50.z368 — TTS nella stessa risposta (voce del profilo Axon), niente 2° round-trip
+
+
+# V50.z368 — PRIORITÀ CRM: prima di qualsiasi ragionamento si cercano i NOMI presenti nella frase tra contatti/clienti del tenant
+# (match esatto o parziale/fonetico, es. «col ferraio» → «Carlo Colferai»). Mai fonti esterne se il dato può essere nel CRM.
+_VC_STOP = {"che", "chi", "come", "cosa", "dove", "quando", "quale", "quanto", "numero", "telefono", "mail", "email", "cliente", "contatto",
+            "chiama", "chiamare", "manda", "mandare", "nota", "appuntamento", "domani", "oggi", "alle", "ore", "con", "per", "del", "della",
+            "dello", "dei", "delle", "il", "lo", "la", "le", "gli", "un", "una", "uno", "di", "da", "in", "su", "mi", "ti", "ci", "si", "ha",
+            "hai", "ho", "è", "sono", "sai", "dimmi", "dammi", "cerca", "trova", "vorrei", "voglio", "sapere", "signor", "signora", "dottor",
+            "crea", "nuovo", "nuova", "segna", "ricorda", "ricordami", "fissa", "quanti", "quante", "questo", "questa", "axon", "viola"}
+
+
+def _vc_norm(t: str) -> str:
+    import unicodedata
+    t = unicodedata.normalize("NFKD", t or "").encode("ascii", "ignore").decode().lower()
+    return re.sub(r"[^a-z ]+", " ", t).strip()
+
+
+async def _vc_crm_candidates(user: dict, transcript: str) -> List[dict]:
+    import difflib
+    words = [w for w in _vc_norm(transcript).split() if len(w) >= 3 and w not in _VC_STOP]
+    if not words:
+        return []
+    queries = set(words) | {f"{a}{b}" for a, b in zip(words, words[1:])} | {f"{a} {b}" for a, b in zip(words, words[1:])}
+    rows = await db.contacts.find({"user_id": tenant_id(user)}, {"_id": 0, "contact_id": 1, "id": 1, "first_name": 1, "last_name": 1, "company": 1, "phone": 1,
+                                                                  "phone_alt": 1, "email": 1, "address_city": 1, "area": 1, "general_note": 1}).to_list(4000)
+    out = []
+    for c in rows:
+        first, last, comp = _vc_norm(c.get("first_name") or ""), _vc_norm(c.get("last_name") or ""), _vc_norm(c.get("company") or "")
+        full = f"{first} {last}".strip()
+        best = 0.0
+        for q in queries:
+            for target in (first, last, full, comp, last.replace(" ", ""), full.replace(" ", "")):
+                if not target or len(target) < 3:
+                    continue
+                if q == target or (len(q) >= 4 and (q in target or target in q)):
+                    best = max(best, 0.95 if q == target else 0.85)
+                else:
+                    best = max(best, difflib.SequenceMatcher(None, q, target).ratio())
+        if best >= 0.62:
+            out.append({"score": round(best, 2), "contact_id": c.get("contact_id") or c.get("id"), "name": f"{c.get('first_name') or ''} {c.get('last_name') or ''}".strip(),
+                        "company": c.get("company"), "phone": c.get("phone") or c.get("phone_alt"), "email": c.get("email"), "city": c.get("address_city"), "area": c.get("area"),
+                        "note": (c.get("general_note") or "")[:160]})
+    out.sort(key=lambda x: -x["score"])
+    return out[:4]
 
 
 _VOICE_INTENT_PROMPT = """Sei un intent classifier per un CRM italiano.
@@ -403,22 +450,27 @@ identifica l'intent tra:
 
 Rispondi SOLO con un JSON valido in questo formato esatto:
 {
-  "intent": "create_contact" | "add_note" | "schedule_call" | "query",
+  "intent": "create_contact" | "add_note" | "schedule_call" | "query" | "confirm_contact",
   "params": {
     // per create_contact: first_name, last_name, phone, email, city, area (energy/network)
     // per add_note: contact_query (nome/cognome cercabile), note_text
     // per schedule_call: contact_query, when_iso (ISO8601 con timezone Europe/Rome), notes
-    // per query: question
+    // per query: question, answer (RISPOSTA COMPLETA da leggere a voce, max 45 parole, usando SOLO i dati CRM forniti)
+    // per confirm_contact: contact_id, contact_name (quando il nome detto corrisponde solo PARZIALMENTE a un cliente)
   },
-  "confirmation": "frase in italiano da leggere all'utente per confermare (max 15 parole)"
+  "confirmation": "frase in italiano da leggere all'utente (max 15 parole; per confirm_contact ESATTAMENTE: Intendi il tuo cliente <Nome Cognome>?)"
 }
+
+PRIORITÀ CRM (obbligatoria): se la frase contiene un nome di persona/azienda, la fonte è SOLO la sezione CONTATTI CRM qui sotto.
+- Match forte (score ≥ 0.9): rispondi subito con i dati del CRM (intent "query" + "answer").
+- Match parziale (score < 0.9, es. «col ferraio» → «Carlo Colferai»): intent "confirm_contact", NON rispondere ancora.
+- Nessun candidato: di' che nel CRM non c'è un cliente con quel nome e proponi di crearlo. MAI Google o fonti esterne.
 
 Regole:
 - Se una data è "domani alle 10", calcola l'ISO8601 rispetto a ORA (%s).
 - Se un campo manca, ometti la chiave (non mettere null o stringa vuota).
 - La confirmation deve essere naturale e concisa, es. "Ho creato Mario Rossi con numero 3331234567".
 
-Trascrizione utente:
 """
 
 
@@ -435,7 +487,21 @@ async def voice_copilot_execute(body: VoiceCopilotIn, user=Depends(get_current_u
     from emergentintegrations.llm.chat import LlmChat, UserMessage
 
     now_iso = utcnow().isoformat()
-    prompt = _VOICE_INTENT_PROMPT % now_iso + transcript
+    # V50.z368 — CRM-first: candidati dal CRM (o cliente in attesa di conferma) nel prompt, prima di tutto il resto
+    candidates = await _vc_crm_candidates(user, transcript)
+    if body.pending_contact_id:
+        pc = await db.contacts.find_one({"user_id": tenant_id(user), "$or": [{"contact_id": body.pending_contact_id}, {"id": body.pending_contact_id}]},
+                                        {"_id": 0, "contact_id": 1, "id": 1, "first_name": 1, "last_name": 1, "company": 1, "phone": 1, "phone_alt": 1, "email": 1, "address_city": 1, "area": 1, "general_note": 1})
+        if pc:
+            candidates = [{"score": 1.0, "contact_id": pc.get("contact_id") or pc.get("id"), "name": f"{pc.get('first_name') or ''} {pc.get('last_name') or ''}".strip(), "company": pc.get("company"),
+                           "phone": pc.get("phone") or pc.get("phone_alt"), "email": pc.get("email"), "city": pc.get("address_city"), "area": pc.get("area"), "note": (pc.get("general_note") or "")[:160]}] + [c for c in candidates if c["contact_id"] != (pc.get("contact_id") or pc.get("id"))]
+    crm_block = "\nCONTATTI CRM (candidati per i nomi nella frase, score 0-1):\n" + ("\n".join(
+        f"- {c['name']}{' · ' + c['company'] if c.get('company') else ''} · score {c['score']} · id {c['contact_id']} · tel {c.get('phone') or 'n.d.'} · email {c.get('email') or 'n.d.'} · città {c.get('city') or 'n.d.'} · area {c.get('area') or 'n.d.'}{' · note: ' + c['note'] if c.get('note') else ''}"
+        for c in candidates) if candidates else "(nessun cliente corrispondente nel CRM)")
+    if body.pending_contact_id and body.pending_question:
+        crm_block += f"\nCONFERMA IN CORSO: avevi chiesto «Intendi il tuo cliente {candidates[0]['name'] if candidates else ''}?» per la domanda «{body.pending_question}». " \
+                     "Se l'utente conferma (sì/esatto/giusto/lui/lei), rispondi ORA alla domanda con i dati di quel cliente (intent query + answer). Se nega, chiedi il nome esatto."
+    prompt = _VOICE_INTENT_PROMPT % now_iso + crm_block + "\n\nTrascrizione utente:\n" + transcript
     session_id = body.session_id or f"voice-copilot-{uuid.uuid4().hex[:8]}"
 
     chat = LlmChat(
@@ -503,6 +569,8 @@ async def voice_copilot_execute(body: VoiceCopilotIn, user=Depends(get_current_u
             result_extra = {"contact_id": contact_doc["id"], "name": f"{first_name} {last_name}".strip()}
 
         elif intent == "add_note":
+            if body.pending_contact_id and candidates:
+                params["contact_query"] = candidates[0]["name"]  # V50.z368 — cliente appena confermato
             q = (params.get("contact_query") or "").strip()
             note_text = (params.get("note_text") or "").strip()
             if not q or not note_text:
@@ -514,14 +582,14 @@ async def voice_copilot_execute(body: VoiceCopilotIn, user=Depends(get_current_u
                 or_conds.append({"first_name": {"$regex": t, "$options": "i"}})
                 or_conds.append({"last_name": {"$regex": t, "$options": "i"}})
             contact = await db.contacts.find_one(
-                {"tenant_id": tenant, "$or": or_conds or [{"_": None}]},
-                {"_id": 0, "id": 1, "first_name": 1, "last_name": 1},
+                {"user_id": tenant, "$or": or_conds or [{"_": None}]},
+                {"_id": 0, "contact_id": 1, "first_name": 1, "last_name": 1},
             )
             if not contact:
                 raise HTTPException(status_code=404, detail=f"Cliente '{q}' non trovato")
             note_doc = {
                 "id": uuid.uuid4().hex,
-                "contact_id": contact["id"],
+                "contact_id": contact["contact_id"],
                 "tenant_id": tenant,
                 "user_id": user["user_id"],
                 "text": note_text,
@@ -529,9 +597,11 @@ async def voice_copilot_execute(body: VoiceCopilotIn, user=Depends(get_current_u
                 "source": "voice_copilot",
             }
             await db.contact_notes.insert_one(note_doc)
-            result_extra = {"contact_id": contact["id"], "note_id": note_doc["id"]}
+            result_extra = {"contact_id": contact["contact_id"], "note_id": note_doc["id"]}
 
         elif intent == "schedule_call":
+            if body.pending_contact_id and candidates:
+                params["contact_query"] = candidates[0]["name"]
             q = (params.get("contact_query") or "").strip()
             when_iso = (params.get("when_iso") or "").strip()
             if not q or not when_iso:
@@ -547,14 +617,14 @@ async def voice_copilot_execute(body: VoiceCopilotIn, user=Depends(get_current_u
                 or_conds.append({"first_name": {"$regex": t, "$options": "i"}})
                 or_conds.append({"last_name": {"$regex": t, "$options": "i"}})
             contact = await db.contacts.find_one(
-                {"tenant_id": tenant, "$or": or_conds or [{"_": None}]},
-                {"_id": 0, "id": 1, "first_name": 1, "last_name": 1, "phone": 1},
+                {"user_id": tenant, "$or": or_conds or [{"_": None}]},
+                {"_id": 0, "contact_id": 1, "first_name": 1, "last_name": 1, "phone": 1},
             )
             if not contact:
                 raise HTTPException(status_code=404, detail=f"Cliente '{q}' non trovato")
             cb_doc = {
                 "id": uuid.uuid4().hex,
-                "contact_id": contact["id"],
+                "contact_id": contact["contact_id"],
                 "tenant_id": tenant,
                 "user_id": user["user_id"],
                 "phone": contact.get("phone", ""),
@@ -565,11 +635,18 @@ async def voice_copilot_execute(body: VoiceCopilotIn, user=Depends(get_current_u
                 "source": "voice_copilot",
             }
             await db.callbacks.insert_one(cb_doc)
-            result_extra = {"callback_id": cb_doc["id"], "contact_id": contact["id"]}
+            result_extra = {"callback_id": cb_doc["id"], "contact_id": contact["contact_id"]}
 
         elif intent == "query":
-            # Delega alla chat Axon normale
-            result_extra = {"delegate_to_axon": params.get("question") or transcript}
+            # V50.z368 — risposta diretta (CRM-first) già nel JSON; nessun 2° giro LLM
+            result_extra = {"answer": (params.get("answer") or "").strip() or None, "crm_candidates": candidates[:3]}
+
+        elif intent == "confirm_contact":
+            cid = params.get("contact_id") or (candidates[0]["contact_id"] if candidates else None)
+            cname = params.get("contact_name") or (candidates[0]["name"] if candidates else "")
+            result_extra = {"pending_contact_id": cid, "pending_question": transcript, "contact_name": cname}
+            if cname:
+                parsed["confirmation"] = f"Intendi il tuo cliente {cname}?"
 
         else:
             raise HTTPException(status_code=422, detail=f"Intent sconosciuto: {intent}")
@@ -580,7 +657,18 @@ async def voice_copilot_execute(body: VoiceCopilotIn, user=Depends(get_current_u
         logger.exception("[voice-copilot] execution failed: %s", exc)
         raise HTTPException(status_code=500, detail=f"Errore esecuzione: {exc}")
 
+    spoken = (result_extra.get("answer") if isinstance(result_extra, dict) else None) or parsed.get("confirmation") or "Fatto."
+    audio_b64 = None; audio_mime = None
+    if body.want_audio:
+        try:
+            tts = await axon_tts_generate(user, spoken[:320], None)  # noqa: F821 — voce del PROFILO Axon (assistant_voice), mai voce fissa
+            audio_b64, audio_mime = tts.get("audio_base64"), tts.get("mime")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[voice-copilot] tts failed: %s", exc)
     return {
+        "spoken": spoken,
+        "audio_base64": audio_b64,
+        "audio_mime": audio_mime,
         "intent": intent,
         "params": params,
         "confirmation": confirmation,
@@ -592,7 +680,7 @@ async def voice_copilot_execute(body: VoiceCopilotIn, user=Depends(get_current_u
 # V50.o — TTS endpoint via OpenAI proxy Emergent (per copilot vocale).
 class TTSIn(BaseModel):
     text: str
-    voice: Optional[str] = "nova"  # openai voices: alloy/echo/fable/onyx/nova/shimmer
+    voice: Optional[str] = None  # V50.z368 — default = voce del profilo Axon (assistant_voice)  # openai voices: alloy/echo/fable/onyx/nova/shimmer
 
 
 @api_router.post("/ai/tts")

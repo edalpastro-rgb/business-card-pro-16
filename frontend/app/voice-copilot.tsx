@@ -38,11 +38,13 @@ type HistoryItem = {
 
 export default function VoiceCopilotScreen() {
   const router = useRouter();
-  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  // V50.z368 — preset voce (file ~4× più piccolo → upload e Whisper più rapidi)
+  const recorder = useAudioRecorder({ ...RecordingPresets.HIGH_QUALITY, sampleRate: 16000, numberOfChannels: 1, bitRate: 48000 });
 
   const [phase, setPhase] = useState<Phase>("idle");
   const [currentTranscript, setCurrentTranscript] = useState("");
   const [currentConfirm, setCurrentConfirm] = useState("");
+  const pendingRef = useRef<{ contact_id: string; question: string } | null>(null); // V50.z368 — «Intendi il tuo cliente X?»
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [permission, setPermission] = useState<boolean | null>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -91,13 +93,16 @@ export default function VoiceCopilotScreen() {
     }
   }, [phase, pulseAnim]);
 
-  const speak = async (text: string) => {
+  const speak = async (text: string, preB64?: string | null) => {
     if (!text) return;
     setPhase("speaking");
     try {
-      // Emergent OpenAI TTS via backend
-      const res = await api("/ai/tts", { method: "POST", body: { text: text.slice(0, 500), voice: "nova" } }); // V50.z186 fix: api.post non esiste
-      const b64 = (res as any)?.data?.audio_base64 || (res as any)?.audio_base64;
+      // V50.z368 — audio già incluso nella risposta di /voice/copilot/execute (voce del PROFILO Axon); fallback /ai/tts senza voce fissa
+      let b64 = preB64 || null;
+      if (!b64) {
+        const res = await api("/ai/tts", { method: "POST", body: { text: text.slice(0, 320) } });
+        b64 = (res as any)?.data?.audio_base64 || (res as any)?.audio_base64;
+      }
       if (b64) {
         if (Platform.OS === "web") {
           const audio = new (globalThis as any).Audio(`data:audio/mp3;base64,${b64}`);
@@ -157,10 +162,12 @@ export default function VoiceCopilotScreen() {
 
       // Execute intent
       setPhase("executing");
-      const eRes: any = await api("/voice/copilot/execute", { method: "POST", body: { transcript } });
+      const pend = pendingRef.current;
+      const eRes: any = await api("/voice/copilot/execute", { method: "POST", body: { transcript, want_audio: true, ...(pend ? { pending_contact_id: pend.contact_id, pending_question: pend.question } : {}) } });
       const j = eRes?.data || eRes;
-      const confirmation = j?.confirmation || "Fatto.";
+      const confirmation = j?.spoken || j?.extra?.answer || j?.confirmation || "Fatto.";
       const intent = j?.intent || "";
+      pendingRef.current = intent === "confirm_contact" && j?.extra?.pending_contact_id ? { contact_id: j.extra.pending_contact_id, question: j.extra.pending_question || transcript } : null;
       setCurrentConfirm(confirmation);
       setHistory(prev => [{
         id: `h-${Date.now()}`,
@@ -169,8 +176,8 @@ export default function VoiceCopilotScreen() {
         confirmation,
       }, ...prev].slice(0, 20));
 
-      // TTS
-      await speak(confirmation);
+      // TTS (audio già pronto → nessun secondo round-trip)
+      await speak(confirmation, j?.audio_base64);
     } catch (e: any) {
       const err = e?.response?.data?.detail || e?.message || String(e);
       setPhase("error");

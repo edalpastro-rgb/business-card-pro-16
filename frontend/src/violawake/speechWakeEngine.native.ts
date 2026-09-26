@@ -1,6 +1,6 @@
 // V50.z341 — ViolaWake: motore wake-word di FALLBACK senza Picovoice.
 // Usa il riconoscimento vocale del telefono (expo-speech-recognition, Apple/Google, on-device quando disponibile)
-// in ascolto CONTINUO e fa scattare onWake quando nella trascrizione compare «Viola» (o la parola di fallback).
+// in ascolto CONTINUO e fa scattare onWake quando nella trascrizione compare «Axon» (o la parola di fallback).
 // Si riavvia da solo su "end"/"error" con un piccolo backoff finché è attivo. Quando è presente la chiave Picovoice
 // l'app usa Porcupine (wakeEngine.native.ts); questo motore resta l'upgrade path inverso: zero chiavi, zero costi.
 import { Platform } from "react-native";
@@ -8,12 +8,12 @@ import { ExpoSpeechRecognitionModule } from "expo-speech-recognition";
 import type { WakeEngine, WakeEngineOptions } from "./types";
 import { VIOLA_KEYWORD_LABEL } from "./types";
 
-// varianti che il riconoscitore produce spesso al posto di «viola»
-const WAKE_VARIANTS = ["viola", "violla", "vjola", "viol", "hey viola", "ehi viola", "ok viola"];
+// V50.z369 — varianti che il riconoscitore produce spesso al posto di «axon»
+const WAKE_VARIANTS = ["axon", "acson", "akson", "axson", "axo", "ex on", "hey axon", "ehi axon", "ok axon", "ciao axon"];
 
 function containsWake(text: string): boolean {
   const t = text.toLowerCase().replace(/[^a-zàèéìòù\s]/g, " ");
-  return WAKE_VARIANTS.some((v) => new RegExp(`(^|\\s)${v}(\\s|$)`).test(t)) || /\bviol[ae]\b/.test(t);
+  return WAKE_VARIANTS.some((v) => new RegExp(`(^|\\s)${v}(\\s|$)`).test(t)) || /\ba[ck]s[oò]n[e]?\b/.test(t);
 }
 
 export function createSpeechWakeEngine(opts: Pick<WakeEngineOptions, "onWake" | "onError">): WakeEngine {

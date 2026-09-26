@@ -136,7 +136,7 @@ export default function WakeWordSettingsScreen() {
           <Pressable style={[styles.modelRow, model === "axon_custom" && styles.modelActive]} onPress={() => chooseModel("axon_custom")}>
             <Ionicons name={model === "axon_custom" ? "radio-button-on" : "radio-button-off"} size={22} color={model === "axon_custom" ? "#EA580C" : HT.muted} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.modelName}>Axon custom · ViolaWake ✅</Text>
+              <Text style={styles.modelName}>Axon custom ✅</Text>
               <Text style={styles.modelSub}>Modello TemporalCNN addestrato · 154 samples · Job #253</Text>
             </View>
             <View style={styles.badgeReady}>

@@ -21,7 +21,7 @@ export async function startForegroundService(keywordLabel: string): Promise<bool
   if (!native) return false;
   try {
     await ensureNotificationPermission();
-    await native.start("Viola in ascolto", `Di' «${keywordLabel}» per parlare con Axon · tocca per aprire`);
+    await native.start("Axon in ascolto", `Di' «${keywordLabel}» per parlare con Axon · tocca per aprire`);
     return true;
   } catch {
     return false;

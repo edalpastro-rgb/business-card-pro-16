@@ -59,7 +59,7 @@ export type WakeEngineOptions = {
 export type WakeEngine = {
   start: () => Promise<void>;
   stop: () => Promise<void>;
-  /** etichetta della parola effettivamente in ascolto («Viola» o la parola di fallback) */
+  /** etichetta della parola effettivamente in ascolto («Axon» o la parola di fallback) */
   keywordLabel: string;
 };
 
@@ -70,6 +70,6 @@ export type CaptureOptions = {
 
 export type PermissionStatus = { granted: boolean; canAskAgain: boolean };
 
-/** Parola di fallback finché non sono presenti i file .ppn «Viola» (addestrati su console.picovoice.ai). */
+/** V50.z369 — La wake-word è «Axon» (ViolaWake è solo il nome interno del motore: mai in UI). Fallback Porcupine built-in: Jarvis. */
 export const VIOLA_FALLBACK_KEYWORD_LABEL = "Jarvis";
-export const VIOLA_KEYWORD_LABEL = "Viola";
+export const VIOLA_KEYWORD_LABEL = "Axon";
