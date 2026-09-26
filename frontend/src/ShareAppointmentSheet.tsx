@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, TextInput, Modal, Platform, Linking, ActivityIndicator, Alert } from "react-native";
+import { KModalBody } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { Ionicons } from "@expo/vector-icons";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import * as DocumentPicker from "expo-document-picker";
@@ -120,7 +121,7 @@ export function ShareAppointmentSheet({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}><KModalBody>
       <View style={styles.backdrop} pointerEvents="box-none">
         <View style={styles.sheet}>
           <View style={styles.header}>
@@ -243,7 +244,7 @@ export function ShareAppointmentSheet({
           )}
         </View>
       </View>
-    </Modal>
+    </KModalBody></Modal>
   );
 }
 

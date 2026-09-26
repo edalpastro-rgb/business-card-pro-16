@@ -1,10 +1,8 @@
 // V50.z42 — Anagrafica Master & Password Vault
 // Ogni utente vede SOLO i propri dati. Password cifrate lato server con Fernet.
 import { useCallback, useEffect, useState } from "react";
-import {
-  View, Text, StyleSheet, ScrollView, TextInput, Pressable, Alert,
-  ActivityIndicator, Modal, Platform,
-} from "react-native";
+import { KScrollView, KModalBody } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
+import { View, Text, StyleSheet, TextInput, Pressable, Alert, ActivityIndicator, Modal, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -110,7 +108,7 @@ export default function AnagraficaMasterScreen() {
           <Text style={styles.sub}>Dati personali · Password vault cifrato</Text>
         </View>
       </View>
-      <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: pagePad }}>
+      <KScrollView contentContainerStyle={{ padding: 14, paddingBottom: pagePad }}>
         {/* Dati anagrafici */}
         <View style={styles.card}>
           <Text style={styles.section}>Dati personali</Text>
@@ -178,10 +176,10 @@ export default function AnagraficaMasterScreen() {
             </View>
           ))}
         </View>
-      </ScrollView>
+      </KScrollView>
 
       {/* Modal nuova credenziale */}
-      <Modal visible={addOpen} transparent animationType="slide" onRequestClose={() => setAddOpen(false)}>
+      <Modal visible={addOpen} transparent animationType="slide" onRequestClose={() => setAddOpen(false)}><KModalBody>
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
             <Text style={styles.section}>Nuova credenziale</Text>
@@ -194,7 +192,7 @@ export default function AnagraficaMasterScreen() {
             </View>
           </View>
         </View>
-      </Modal>
+      </KModalBody></Modal>
     </SafeAreaView>
   );
 }

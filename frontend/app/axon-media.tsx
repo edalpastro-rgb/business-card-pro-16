@@ -2,7 +2,8 @@
 // Cattura (foto, video, nota vocale) o allega → Axon trascrive/descrive in background → chiede «Privata o aziendale?».
 // Sfere 🔵 Business / 🟢 Home / ⚪ Non classificato (mai mescolate). Ricerca nel testo trascritto, descrizioni, OCR e tag.
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Platform, Alert, Linking, TextInput, Modal, Image } from "react-native";
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, Platform, Alert, Linking, TextInput, Modal, Image } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -170,7 +171,7 @@ export default function AxonMediaScreen() {
         ))}
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: insets.bottom + 120 }} keyboardShouldPersistTaps="handled">
+      <KScrollView contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: insets.bottom + 120 }} keyboardShouldPersistTaps="handled">
         <View style={styles.actions}>
           <Pressable onPress={() => void send(capture("photo"))} disabled={!!busy || recording} style={[styles.big, { backgroundColor: color }]} testID="axm-capture-photo">
             <Ionicons name="camera" size={22} color="#FFF" /><Text style={styles.bigTxt}>Foto</Text>
@@ -213,7 +214,7 @@ export default function AxonMediaScreen() {
             ) : <Ionicons name="chevron-forward" size={16} color={HT.muted} />}
           </Pressable>
         ))}
-      </ScrollView>
+      </KScrollView>
 
       {/* «Privata o aziendale?» — Axon chiede subito dopo la cattura */}
       <Modal visible={!!askFor} transparent animationType="fade" onRequestClose={() => setAskFor(null)}>
@@ -236,7 +237,7 @@ export default function AxonMediaScreen() {
         <View style={styles.sheetRoot}>
           <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]} testID="axm-detail">
             {open && (
-              <ScrollView contentContainerStyle={{ gap: 10 }}>
+              <KScrollView contentContainerStyle={{ gap: 10 }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                   <Ionicons name={KIND_ICON[open.kind]} size={20} color={COLOR[open.sphere]} />
                   <Text style={[styles.rowTitle, { flex: 1, fontSize: 16 }]}>{open.title}</Text>
@@ -266,7 +267,7 @@ export default function AxonMediaScreen() {
                 {!!open.ocr_text && <View style={styles.card}><Text style={styles.secTitle}>Testo nella foto</Text><Text style={styles.body} selectable>{open.ocr_text}</Text></View>}
                 {!!open.tags?.length && <View style={styles.tags}>{open.tags.map((t) => <Text key={t} style={styles.tag}>#{t}</Text>)}</View>}
                 <Pressable onPress={() => remove(open)} style={styles.delBtn} testID="axm-detail-delete"><Ionicons name="trash-outline" size={16} color="#DC2626" /><Text style={styles.delTxt}>Elimina dall&apos;archivio</Text></Pressable>
-              </ScrollView>
+              </KScrollView>
             )}
           </View>
         </View>

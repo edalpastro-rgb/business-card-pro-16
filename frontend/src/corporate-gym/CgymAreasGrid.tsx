@@ -2,7 +2,8 @@
 // stato sessioni). Master: pressione lunga o matita → rinomina + logo; «+ Nuova area». Tap → rotta storica (Obiezioni/WIN-WIN)
 // oppure pagina area (/corporate-gym/area/[id]).
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, Image, Modal, TextInput, ActivityIndicator, ScrollView } from "react-native";
+import { View, Text, StyleSheet, Pressable, Image, Modal, TextInput, ActivityIndicator } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import { notify } from "@/src/utils/notify";
@@ -95,9 +96,9 @@ export function CgymAreasGrid({ pendingByKey }: { pendingByKey?: Record<string, 
             <TextInput value={edit?.name || ""} onChangeText={(v) => setEdit((e) => e && { ...e, name: v })} placeholder="Nome area" placeholderTextColor={HT.muted} style={[styles.input, { flex: 1 }]} testID="cgym-area-name" />
           </View>
           <Text style={styles.label}>Blocchi (uno per riga, come nel manuale)</Text>
-          <ScrollView style={{ maxHeight: 160 }}>
+          <KScrollView style={{ maxHeight: 160 }}>
             <TextInput value={edit?.blocks || ""} onChangeText={(v) => setEdit((e) => e && { ...e, blocks: v })} multiline placeholder={"Dalla telefonata al rapport\nChi sono\n…"} placeholderTextColor={HT.muted} style={[styles.input, { minHeight: 110, textAlignVertical: "top" }]} testID="cgym-area-blocks" />
-          </ScrollView>
+          </KScrollView>
           <View style={{ flexDirection: "row", gap: 10 }}>
             <Pressable onPress={() => setEdit(null)} style={[styles.btn, { backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border }]}><Text style={[styles.btnTxt, { color: HT.text }]}>Annulla</Text></Pressable>
             <Pressable onPress={save} disabled={busy} style={[styles.btn, { flex: 1 }]} testID="cgym-area-save">{busy ? <ActivityIndicator color="#FFF" /> : <Text style={styles.btnTxt}>Salva</Text>}</Pressable>

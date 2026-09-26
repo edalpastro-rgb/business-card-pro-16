@@ -1,0 +1,35 @@
+{
+  "summary": "V50.z375 Axon Lab multi-profile + test-extract + module examples: 21/22 backend tests passed (1 skipped - lab modules pre-existed), all frontend testIDs verified on axon-lab/training, Fase 2 shows 9 modules. Regression on 6 key routes (/login, /contact/new, /viola-wake, /axon-voice, /(tabs)/impostazioni, /axon-lab/training) all render without red-screen/KScrollView/KModalBody crashes. Login flow working, profile CRUD (create/rename/delete) works end-to-end via UI.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v50z375_axon_lab.py",
+    "/app/test_reports/pytest/v50z375_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "axon_lab.py is very large (1000+ lines) - consider further splitting for maintainability, but not blocking",
+    "test-extract endpoint has 180s timeout which is appropriate given 20-90s LLM latency mentioned in agent-to-agent context"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v50z375_axon_lab.py (new)",
+    "/app/test_reports/pytest/v50z375_results.xml (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (21/21 executed passed, 1 skipped due to pre-existing lab module)",
+    "frontend": "100% (all 11 checked testIDs found, add/rename/delete profile end-to-end works, Fase 2 tab renders 9 modules, 6/6 regression routes OK)"
+  },
+  "seed_data_creation": "Test-only: temp profile 'Cliente tipo test' created and deleted; temp 'TEST_all_mode' profile used for all-mode test and deleted; 'default' profile NEVER modified as instructed. No LAB module created (existing 'Modulo Test V50z343' + 'Modulo Test' reused for tests). last_test payload written to axon_lab_training and axon_lab_settings for default and 'all' - benign.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Login on web: there are TWO 'Accedi' buttons on /login (tab + submit) - always click the LAST one. axon-lab/training screen after login has all testIDs: lab-profiles, lab-profile-default, lab-profile-new-name, lab-profile-add, lab-profile-rename, lab-profile-rename-input, lab-profile-rename-save, lab-profile-delete, lab-test-mode-single/all, lab-test-pick, lab-test-run, lab-phase-2, lab-module-<id>. Delete confirms via window.confirm on web - register `page.on('dialog', ...)` before clicking. PDF test extraction needs >=4KB synthetic PDF: reportlab default compression makes small PDFs <2.5KB - use multiple pages with unique random-ish text or pad with a trailing comment.",
+  "rca_of_issue": "N/A - no bugs found. Two initial test failures were test-side issues: (1) reportlab compresses simple text below 4KB threshold; fixed by generating 3 pages of random-per-page content + optional trailing padding; (2) 'at' timestamp comparison failed because API returns tz-aware ISO string but MongoDB roundtrip loses microseconds/tz format; fixed by comparing only the first 19 chars (YYYY-MM-DDTHH:MM:SS)."
+}

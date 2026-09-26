@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import {
-  View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Image, Alert, Platform,
-} from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Image, Alert, Platform } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import * as LocalAuthentication from "expo-local-authentication";
 import { QuickUnlockSettingRow } from "@/src/quickUnlock/QuickUnlockCard"; // V50.z187
@@ -271,7 +270,7 @@ function SecurityScreen() {
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: bottomPad }}>
+      <KScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: bottomPad }}>
         {/* 2FA CARD */}
         <View style={styles.card}>
           <View style={styles.rowHead}>
@@ -587,7 +586,7 @@ function SecurityScreen() {
             </View>
           )}
         </View>
-      </ScrollView>
+      </KScrollView>
     </SafeAreaView>
   );
 }

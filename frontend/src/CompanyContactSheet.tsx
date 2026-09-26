@@ -14,19 +14,8 @@
  * `/settings` (campi communica_azienda_*) così è condivisa in tutto il tenant.
  */
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Modal,
-  View,
-  Text,
-  StyleSheet,
-  Pressable,
-  ScrollView,
-  Linking,
-  TextInput,
-  Platform,
-  Alert,
-  ActivityIndicator,
-} from "react-native";
+import { KScrollView, KModalBody } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
+import { Modal, View, Text, StyleSheet, Pressable, Linking, TextInput, Platform, Alert, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { api } from "@/src/api";
@@ -665,7 +654,7 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
             </Pressable>
           </View>
 
-          <ScrollView
+          <KScrollView
             style={{ maxHeight: 520 }}
             contentContainerStyle={{ padding: 16, gap: 12 }}
             keyboardShouldPersistTaps="handled"
@@ -1106,7 +1095,7 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
                 )}
               </>
             )}
-          </ScrollView>
+          </KScrollView>
         </View>
       </View>
 
@@ -1148,7 +1137,7 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
                 <Ionicons name="close" size={22} color={C.navy} />
               </Pressable>
             </View>
-            <ScrollView
+            <KScrollView
               style={{ maxHeight: 420 }}
               contentContainerStyle={{ padding: 16, gap: 10 }}
             >
@@ -1196,7 +1185,7 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
                   </View>
                 ))
               )}
-            </ScrollView>
+            </KScrollView>
           </View>
         </View>
       </Modal>
@@ -1249,7 +1238,7 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
                       </Text>
                     </Pressable>
                   </View>
-                  <ScrollView style={{ maxHeight: 340 }} keyboardShouldPersistTaps="handled">
+                  <KScrollView style={{ maxHeight: 340 }} keyboardShouldPersistTaps="handled">
                     {pickerLinks.map((lk) => {
                       const checked = pickerSelected.has(lk.link_id);
                       const already = links.some((l) => l.url === lk.url);
@@ -1278,7 +1267,7 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
                         </Pressable>
                       );
                     })}
-                  </ScrollView>
+                  </KScrollView>
                   <View style={styles.actionsRow}>
                     <Pressable
                       onPress={() => setPickerOpen(false)}
@@ -1317,7 +1306,7 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
           visible={!!linkEditor}
           animationType="slide"
           onRequestClose={() => setLinkEditor(null)}
-        >
+        ><KModalBody>
           {/* V50.z59 — Bug fix: rimosso il Pressable backdrop con onPress che
               chiudeva il modal. Il re-render del componente causato da
               onChangeText veniva interpretato come tap sulla backdrop dal
@@ -1391,7 +1380,7 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
               </View>
             </View>
           </View>
-        </Modal>
+        </KModalBody></Modal>
       )}
 
       {/* V50.z58 — WebView interna: apre l'URL dentro l'app.

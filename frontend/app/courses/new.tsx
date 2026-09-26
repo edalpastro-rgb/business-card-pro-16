@@ -1,7 +1,8 @@
 // courses/new.tsx — V50.z273 — Nuova cartella corso (Master/Manager): titolo, descrizione, data, luogo, link mappa,
 // destinatari (singoli o tutti), reminder (0/3/7/14 gg), allegati (PDF, foto, audio, testo) da dispositivo.
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Platform } from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Platform } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -56,7 +57,7 @@ export default function NewCourseScreen() {
         <Text style={[s.title, { flex: 1 }]}>Nuova cartella corso</Text>
         <Pressable onPress={save} disabled={saving} style={[s.saveBtn, saving && { opacity: 0.6 }]} testID="course-save">{saving ? <ActivityIndicator color="#FFF" size="small" /> : <Text style={s.saveTxt}>Crea</Text>}</Pressable>
       </View>
-      <ScrollView contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: pagePad }} keyboardShouldPersistTaps="handled">
+      <KScrollView contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: pagePad }} keyboardShouldPersistTaps="handled">
         <TextInput value={title} onChangeText={setTitle} placeholder="Titolo del corso *" placeholderTextColor={HT.muted} style={s.input} testID="course-title" />
         <TextInput value={desc} onChangeText={setDesc} placeholder="Descrizione / indicazioni" placeholderTextColor={HT.muted} style={[s.input, { minHeight: 70 }]} multiline testID="course-desc" />
         <View style={{ flexDirection: "row", gap: 8 }}>
@@ -92,7 +93,7 @@ export default function NewCourseScreen() {
         <Text style={s.section}>Allegati (PDF, Excel, foto, audio, testo)</Text>
         {files.map((f, i) => <View key={i} style={s.row}><Ionicons name="document" size={18} color="#7C3AED" /><Text style={{ flex: 1, color: HT.text }} numberOfLines={1}>{f.name}</Text><Pressable onPress={() => setFiles((l) => l.filter((_, k) => k !== i))} hitSlop={8}><Ionicons name="close-circle" size={18} color={HT.muted} /></Pressable></View>)}
         <Pressable onPress={pick} style={s.pick} testID="course-add-file"><Ionicons name="attach" size={18} color="#7C3AED" /><Text style={{ color: "#7C3AED", fontWeight: "800" }}>Aggiungi file {Platform.OS === "web" ? "dal computer" : "dal dispositivo"}</Text></Pressable>
-      </ScrollView>
+      </KScrollView>
     </SafeAreaView>
   );
 }

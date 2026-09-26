@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndicator, Modal } from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Modal } from "react-native";
+import { KScrollView, KModalBody } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -191,7 +192,7 @@ export default function CustomFieldsScreen() {
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
+      <KScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
         <View style={styles.infoBox}>
           <Text style={styles.infoTxt}>
             Aggiungi campi non presenti di default alla scheda anagrafica. Puoi decidere se ogni campo è visibile a tutti oppure solo al Master.
@@ -271,10 +272,10 @@ export default function CustomFieldsScreen() {
             </View>
           ))
         )}
-      </ScrollView>
+      </KScrollView>
 
       {/* Modal Crea / Modifica */}
-      <Modal visible={modalOpen} transparent animationType="fade" onRequestClose={() => setModalOpen(false)}>
+      <Modal visible={modalOpen} transparent animationType="fade" onRequestClose={() => setModalOpen(false)}><KModalBody>
         <View style={styles.backdrop} pointerEvents="box-none">
           <View style={styles.sheet}>
             <KeyboardAwareScrollView bottomOffset={20} contentContainerStyle={{ padding: 18, gap: 14 }} keyboardShouldPersistTaps="handled">
@@ -379,7 +380,7 @@ export default function CustomFieldsScreen() {
             </KeyboardAwareScrollView>
           </View>
         </View>
-      </Modal>
+      </KModalBody></Modal>
     </SafeAreaView>
   );
 }

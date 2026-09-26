@@ -2,7 +2,8 @@
 // le mie sessioni (completa / elimina), nuova sessione (auto-assegnazione; Titolare/Admin anche ad altri),
 // quadro team (Titolare/Admin).
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, RefreshControl, Modal, TextInput, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, RefreshControl, Modal, TextInput } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller"; // V50.z374 — behavior "padding" valido su iOS e Android
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -290,7 +291,7 @@ export default function CorporateGymHome() {
 
       {/* Nuova sessione */}
       <Modal visible={newOpen} transparent animationType="slide" onRequestClose={() => setNewOpen(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.sheetBg}>
+        <KeyboardAvoidingView behavior="padding" style={styles.sheetBg}>
           <Pressable style={{ flex: 1 }} onPress={() => setNewOpen(false)} />
           <View style={[styles.sheet, { paddingBottom: sheetPad }]} testID="cgym-new-sheet">
             <View style={styles.sheetHead}>

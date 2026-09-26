@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, TextInput, Modal, Platform, Animated } from "react-native";
+import { KScrollView, KModalBody } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
@@ -544,7 +545,7 @@ function MasterFilesScreen() {
           ) : null}
         </View>
       ) : null}
-      <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 140 }}>
+      <KScrollView contentContainerStyle={{ padding: 12, paddingBottom: 140 }}>
         {loading ? (
           <ActivityIndicator style={{ marginTop: 30 }} color={catMeta.color} />
         ) : items.length === 0 ? (
@@ -624,7 +625,7 @@ function MasterFilesScreen() {
             </View>
           ))
         )}
-      </ScrollView>
+      </KScrollView>
 
       {/* V50.z226 — Popup duplicato: stesso nome + stessa dimensione */}
       <Modal visible={!!dupPrompt} animationType="fade" transparent onRequestClose={() => dupPrompt?.resolve("cancel")}>
@@ -654,7 +655,7 @@ function MasterFilesScreen() {
 
 
       {/* Note editor modal */}
-      <Modal visible={!!noteEditor} animationType="slide" transparent onRequestClose={() => setNoteEditor(null)}>
+      <Modal visible={!!noteEditor} animationType="slide" transparent onRequestClose={() => setNoteEditor(null)}><KModalBody>
         <View style={styles.modalBack}>
           <View style={[styles.modalCard, { paddingBottom: bottomPad }]}>
             <Text style={styles.modalTitle}>{noteEditor?.file_id ? "Modifica nota" : "Nuova nota"}</Text>
@@ -694,10 +695,10 @@ function MasterFilesScreen() {
             </View>
           </View>
         </View>
-      </Modal>
+      </KModalBody></Modal>
 
       {/* Rename modal */}
-      <Modal visible={!!renameTarget} animationType="fade" transparent onRequestClose={() => setRenameTarget(null)}>
+      <Modal visible={!!renameTarget} animationType="fade" transparent onRequestClose={() => setRenameTarget(null)}><KModalBody>
         <View style={styles.modalBack}>
           <View style={[styles.modalCard, { padding: 20 }, { paddingBottom: bottomPad }]}>
             <Text style={styles.modalTitle}>Rinomina file</Text>
@@ -724,7 +725,7 @@ function MasterFilesScreen() {
             </View>
           </View>
         </View>
-      </Modal>
+      </KModalBody></Modal>
 
       {/* File viewer */}
       <FileViewer

@@ -2,7 +2,8 @@
 // campi mancanti da completare, correzione di ogni valore (tocca il riquadro sulla pagina o la riga), testo libero aggiunto
 // toccando un punto della pagina, poi Stampa / Condividi / Email. Ogni modifica rigenera il PDF.
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Modal, Platform, Linking } from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Modal, Platform, Linking } from "react-native";
+import { KScrollView, KModalBody } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -82,7 +83,7 @@ export default function FilledFormScreen() {
         <View style={{ flex: 1 }}><Text style={s.title} numberOfLines={1}>{f.template_name}</Text><Text style={s.sub}>{f.contact_name} · {missingIds.size === 0 ? "✅ completo" : `${missingIds.size} campi da completare`}</Text></View>
         <Pressable onPress={save} disabled={saving || !dirty} style={[s.saveBtn, (!dirty || saving) && { opacity: 0.5 }]} testID="ff-save">{saving ? <ActivityIndicator color="#FFF" size="small" /> : <Text style={s.saveTxt}>Salva</Text>}</Pressable>
       </View>
-      <ScrollView contentContainerStyle={{ padding: 12, gap: 12, paddingBottom: pagePad + 70 }}>
+      <KScrollView contentContainerStyle={{ padding: 12, gap: 12, paddingBottom: pagePad + 70 }}>
         {pageCount > 1 ? <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>{Array.from({ length: pageCount }).map((_, i) => <Pressable key={i} onPress={() => setPageIdx(i)} style={[s.chip, i === pageIdx && s.chipOn]} testID={`ff-page-${i}`}><Text style={[s.chipTxt, i === pageIdx && { color: "#FFF" }]}>Pag. {i + 1}</Text></Pressable>)}</View> : null}
         <Text style={s.hint}>Tocca un riquadro per correggere il valore · tocca un punto libero della pagina per aggiungere un testo.</Text>
         <FormPageView page={pages[pageIdx] || null} boxes={pageFields.map((x) => ({ id: x.id, bbox: x.bbox, filled: !!(values[x.id] || "").trim(), color: missingIds.has(x.id) ? "#F59E0B" : "#10B981" }))}
@@ -122,7 +123,7 @@ export default function FilledFormScreen() {
             </View>
           ))}
         </>) : null}
-      </ScrollView>
+      </KScrollView>
 
       <View style={[s.actions, { paddingBottom: Math.max(pagePad, 12) }]}>
         {busy ? <View style={{ flexDirection: "row", gap: 8, alignItems: "center", flex: 1, justifyContent: "center" }}><ActivityIndicator color="#059669" /><Text style={s.hint}>{busy}</Text></View> : (<>
@@ -132,7 +133,7 @@ export default function FilledFormScreen() {
         </>)}
       </View>
 
-      <Modal visible={!!editField} transparent animationType="fade" onRequestClose={() => setEdit(null)}>
+      <Modal visible={!!editField} transparent animationType="fade" onRequestClose={() => setEdit(null)}><KModalBody>
         <Pressable style={s.backdrop} onPress={() => setEdit(null)}>
           <View style={s.sheet} onStartShouldSetResponder={() => true}>
             {editField ? (<>
@@ -147,9 +148,9 @@ export default function FilledFormScreen() {
             </>) : null}
           </View>
         </Pressable>
-      </Modal>
+      </KModalBody></Modal>
 
-      <Modal visible={!!addText} transparent animationType="fade" onRequestClose={() => setAddText(null)}>
+      <Modal visible={!!addText} transparent animationType="fade" onRequestClose={() => setAddText(null)}><KModalBody>
         <Pressable style={s.backdrop} onPress={() => setAddText(null)}>
           <View style={s.sheet} onStartShouldSetResponder={() => true}>
             <Text style={s.section}>Aggiungi testo sulla pagina {pageIdx + 1}</Text>
@@ -157,7 +158,7 @@ export default function FilledFormScreen() {
             <Pressable onPress={() => { if (addText?.text.trim()) { setExtras((l) => [...l, { page: pageIdx, x: addText.x, y: addText.y, text: addText.text.trim(), font_size: 10 }]); setDirty(true); } setAddText(null); }} style={s.primary} testID="ff-extra-add"><Text style={s.primaryTxt}>Aggiungi</Text></Pressable>
           </View>
         </Pressable>
-      </Modal>
+      </KModalBody></Modal>
     </SafeAreaView>
   );
 }

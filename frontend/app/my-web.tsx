@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Modal, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, Modal, ActivityIndicator } from "react-native";
+import { KScrollView, KModalBody } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -130,7 +131,7 @@ export default function MyWebScreen() {
           <Pressable onPress={openCreate} style={styles.emptyBtn}><Ionicons name="add" size={18} color="#FFF" /><Text style={styles.emptyBtnTxt}>Aggiungi link</Text></Pressable>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: pagePad }}>
+        <KScrollView contentContainerStyle={{ padding: 16, paddingBottom: pagePad }}>
           <View style={styles.grid}>
             {items.map((lk) => {
               const busy = addingCompanyId === lk.link_id;
@@ -187,10 +188,10 @@ export default function MyWebScreen() {
             <Ionicons name="add-circle" size={22} color="#FFF" />
             <Text style={styles.addBigBtnTxt}>Aggiungi link</Text>
           </Pressable>
-        </ScrollView>
+        </KScrollView>
       )}
 
-      <Modal transparent visible={addOpen} onRequestClose={() => { setAddOpen(false); setEditingId(null); }} animationType="slide">
+      <Modal transparent visible={addOpen} onRequestClose={() => { setAddOpen(false); setEditingId(null); }} animationType="slide"><KModalBody>
         {/* V50.z62 — Bug fix (stesso di CompanyContactSheet):
             rimosso il backdrop <Pressable onPress={setAddOpen(false)}> che
             veniva ri-triggerato dal re-render causato dagli onChangeText,
@@ -227,7 +228,7 @@ export default function MyWebScreen() {
             </Pressable>
           </View>
         </View>
-      </Modal>
+      </KModalBody></Modal>
 
       {/* V50.z74 — WebView interna: apre i link senza uscire dall'app */}
       <Modal visible={!!webView} animationType="slide" onRequestClose={() => setWebView(null)}>

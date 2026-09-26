@@ -5,10 +5,8 @@
 // viene registrata e resa visibile all'amministratore (Master).
 
 import { useState } from "react";
-import {
-  View, Text, StyleSheet, ScrollView, Pressable, TextInput,
-  ActivityIndicator, Alert, Modal, Platform,
-} from "react-native";
+import { KScrollView, KModalBody } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Alert, Modal, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -87,7 +85,7 @@ export default function HelpCenterScreen() {
         )}
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: pagePad, gap: 12 }}>
+      <KScrollView contentContainerStyle={{ padding: 16, paddingBottom: pagePad, gap: 12 }}>
         {/* V50.z136 — Prima voce: riavvia il tour guidato (intro animata + libretto) */}
         <Pressable
           testID="help-replay-tour"
@@ -226,7 +224,7 @@ export default function HelpCenterScreen() {
             <Text style={styles.gotItTxt}>Ho capito</Text>
           </Pressable>
         ) : null}
-      </ScrollView>
+      </KScrollView>
 
       {/* Modal richiesta cancellazione */}
       <Modal
@@ -235,7 +233,7 @@ export default function HelpCenterScreen() {
         animationType="fade"
         onRequestClose={() => setAskOpen(false)}
         statusBarTranslucent
-      >
+      ><KModalBody>
         <View style={styles.mBackdrop}>
           <View style={styles.mBox}>
             <View style={styles.mHeaderRow}>
@@ -277,7 +275,7 @@ export default function HelpCenterScreen() {
             </View>
           </View>
         </View>
-      </Modal>
+      </KModalBody></Modal>
     </SafeAreaView>
   );
 }

@@ -10,10 +10,8 @@
  *  - Reset totale
  */
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  View, Text, StyleSheet, ScrollView, Pressable, TextInput, Alert,
-  ActivityIndicator, Switch,
-} from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
+import { View, Text, StyleSheet, Pressable, TextInput, Alert, ActivityIndicator, Switch } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { Ionicons } from "@expo/vector-icons";
@@ -164,7 +162,7 @@ export default function AxonBrainScreen() {
         <View style={{ width: 30 }} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: bottomInset }}>
+      <KScrollView contentContainerStyle={{ padding: 14, paddingBottom: bottomInset }}>
         {/* Toggle apprendimento */}
         <View style={styles.card}>
           <View style={{ flex: 1 }}>
@@ -258,7 +256,7 @@ export default function AxonBrainScreen() {
             <Text style={styles.resetTxt}>Cancella tutto</Text>
           </Pressable>
         ) : null}
-      </ScrollView>
+      </KScrollView>
     </SafeAreaView>
   );
 }

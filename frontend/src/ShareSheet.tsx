@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, Modal, Pressable, StyleSheet, ActivityIndicator, Platform, TextInput } from "react-native";
+import { KModalBody } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import * as Clipboard from "expo-clipboard";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
@@ -178,7 +179,7 @@ export function ShareSheet({ visible, target, onClose, suggestedMessage }: Props
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}><KModalBody>
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable style={[styles.sheet, { paddingBottom: bottomPad }]} onPress={(e) => e.stopPropagation()}>
           <View style={styles.head}>
@@ -300,7 +301,7 @@ export function ShareSheet({ visible, target, onClose, suggestedMessage }: Props
           )}
         </Pressable>
       </Pressable>
-    </Modal>
+    </KModalBody></Modal>
   );
 }
 

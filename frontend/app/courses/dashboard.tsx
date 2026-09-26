@@ -2,6 +2,7 @@
 // totali, tabella corsi (partecipanti, letture, % partecipazione, test, media), statistiche per Manager e per area.
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -40,7 +41,7 @@ export default function CoursesDashboard() {
         <Pressable onPress={() => router.back()} hitSlop={10} style={s.hBtn}><Ionicons name="chevron-back" size={24} color={HT.text} /></Pressable>
         <View style={{ flex: 1 }}><Text style={s.title}>Dashboard Azienda · Corsi</Text><Text style={s.sub}>Vista globale con filtri Manager, area/gruppo, periodo</Text></View>
       </View>
-      <ScrollView contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: pagePad }}>
+      <KScrollView contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: pagePad }}>
         <Text style={s.section}>Filtri</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
           <Pressable onPress={() => setManager(null)} style={[s.chip, !manager && s.chipOn]}><Text style={[s.chipTxt, !manager && { color: "#FFF" }]}>Tutti i Manager</Text></Pressable>
@@ -71,7 +72,7 @@ export default function CoursesDashboard() {
             </Pressable>
           ))}
         </>)}
-      </ScrollView>
+      </KScrollView>
     </SafeAreaView>
   );
 }

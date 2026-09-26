@@ -3,7 +3,8 @@
 // → 4 «Compila con Axon» fase unica parallela (compressione + dati + compilazione, una sola barra) → 5 revisione campo per campo
 // → 6 luogo + data da calendario libero (unico inserimento) → 7 anteprima PDF → 8 salvataggio → 9 condivisione.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Modal, RefreshControl } from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Modal, RefreshControl } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -127,7 +128,7 @@ export default function AxonLabPractice() {
     <SafeAreaView style={{ flex: 1, backgroundColor: HT.card2 }} edges={["top"]}>
       <LabHeader icon="document-text" title={p?.contact_name || "Pratica"} sub={p?.company ? `${p.company} · Autocompilazione CRT` : "Compilazione CRT"} testID="lab-practice" />
       {loading || !p ? <ActivityIndicator style={{ marginTop: 40 }} color={HT.brand} /> : (
-        <ScrollView contentContainerStyle={{ padding: 14, gap: 14, paddingBottom: pagePad + 24 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />} keyboardShouldPersistTaps="handled">
+        <KScrollView contentContainerStyle={{ padding: 14, gap: 14, paddingBottom: pagePad + 24 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />} keyboardShouldPersistTaps="handled">
           {/* 1 · Documenti */}
           <Step n={1} title="Documenti del cliente" sub={`${p.completion.percent}% completato · verde = presente · rosso = mancante`} />
           <LabDocChecklist specs={specs} docs={p.docs} busy={dossier.busy} completion={p.completion} onPress={(sp) => dossier.setOpen(sp)} title="Checklist documenti" />
@@ -230,7 +231,7 @@ export default function AxonLabPractice() {
               {p.archived_at ? <Text style={[L.muted, { textAlign: "center" }]}>Archiviati il {new Date(p.archived_at).toLocaleString("it-IT")}</Text> : null}
             </>
           ) : null}
-        </ScrollView>
+        </KScrollView>
       )}
 
       <DatePickerSheet visible={datePick} value={signDate} onClose={() => setDatePick(false)} onPick={(v) => { setSignDate(v); setDatePick(false); }} />
@@ -249,7 +250,7 @@ export default function AxonLabPractice() {
               <Text style={[s.sheetTitle, { flex: 1 }]} numberOfLines={1}>{review?.template_name}</Text>
               <Pressable onPress={() => setReview(null)} hitSlop={10} testID="lab-review-close"><Ionicons name="close" size={22} color={HT.text2} /></Pressable>
             </View>
-            <ScrollView style={{ maxHeight: 480 }} contentContainerStyle={{ gap: 8, paddingTop: 8 }} keyboardShouldPersistTaps="handled">
+            <KScrollView style={{ maxHeight: 480 }} contentContainerStyle={{ gap: 8, paddingTop: 8 }} keyboardShouldPersistTaps="handled">
               {review ? fieldsFor(review).map((f) => {
                 const rule = review.rules?.[f.id] || "";
                 const isSign = rule === "sign_date" || rule === "sign_place";
@@ -264,7 +265,7 @@ export default function AxonLabPractice() {
                   </View>
                 );
               }) : null}
-            </ScrollView>
+            </KScrollView>
             <Pressable onPress={saveReview} disabled={savingReview} style={[L.btn, L.btnBrand, { marginTop: 10 }]} testID="lab-review-save">
               {savingReview ? <ActivityIndicator size="small" color={HT.white} /> : <Ionicons name="save" size={16} color={HT.white} />}<Text style={L.btnTxt}>Salva correzioni</Text>
             </Pressable>

@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import {
-  View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Image,
-  Modal, Alert, Platform, KeyboardAvoidingView, Switch,
-} from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Image, Modal, Alert, Platform, Switch } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller"; // V50.z374 — behavior "padding" valido su iOS e Android
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -403,7 +401,7 @@ export default function MyThingScreen() {
 
       {/* EDITOR MODAL */}
       <Modal visible={editorOpen} animationType="slide" transparent>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalWrap}>
+        <KeyboardAvoidingView behavior="padding" style={styles.modalWrap}>
           <View style={[styles.modalCard, { paddingBottom: bottomPad }]}>
             <View style={styles.modalHead}>
               <Text style={styles.modalTitle}>

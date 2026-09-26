@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Platform, TextInput, Modal } from "react-native";
+import { KScrollView, KModalBody } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -179,7 +180,7 @@ export default function MyAudiosScreen() {
           </Pressable>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
+        <KScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
           {visible.length === 0 && <Text style={styles.noneTxt}>Nessun audio in questa sfera.</Text>}
           {visible.map((rec) => {
             const isPlaying = playingId === rec.audio_id;
@@ -251,10 +252,10 @@ export default function MyAudiosScreen() {
               </View>
             );
           })}
-        </ScrollView>
+        </KScrollView>
       )}
 
-      <Modal transparent visible={!!renameFor} animationType="fade" onRequestClose={() => setRenameFor(null)}>
+      <Modal transparent visible={!!renameFor} animationType="fade" onRequestClose={() => setRenameFor(null)}><KModalBody>
         <View style={styles.modalRoot}>
           <View style={styles.modalBox}>
             <Text style={styles.modalT}>Rinomina audio</Text>
@@ -269,7 +270,7 @@ export default function MyAudiosScreen() {
             </View>
           </View>
         </View>
-      </Modal>
+      </KModalBody></Modal>
     </SafeAreaView>
   );
 }

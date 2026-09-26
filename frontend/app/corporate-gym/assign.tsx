@@ -1,6 +1,7 @@
 // Corporate Gym — Blocco 3: assegnazioni del Master (agente o tutto il team, tipo, frequenza 1/2/3 al giorno, scadenza).
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, TextInput, RefreshControl } from "react-native";
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, TextInput, RefreshControl } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -111,7 +112,7 @@ export default function CgymAssignScreen() {
         <Text style={styles.title}>Assegna sessioni</Text>
         <View style={{ width: 26 }} />
       </View>
-      <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: pagePad }} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}>
+      <KScrollView contentContainerStyle={{ padding: 14, paddingBottom: pagePad }} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}>
         <View style={styles.card} testID="cgym-assign-form">
           <Text style={styles.lbl}>A chi</Text>
           <View style={styles.chips}>
@@ -215,7 +216,7 @@ export default function CgymAssignScreen() {
             );
           })
         )}
-      </ScrollView>
+      </KScrollView>
     </SafeAreaView>
   );
 }

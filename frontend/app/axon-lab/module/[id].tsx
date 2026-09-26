@@ -1,7 +1,8 @@
 // app/axon-lab/module/[id].tsx — V50.z343 — AXON LAB · Fase 2: mapping campo per campo «Da dove prendo questo dato?»
 // Il Master sceglie la FONTE (documento.chiave, campo aggiuntivo, speciali) per ogni campo del modulo vuoto → regola generale salvata.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Modal, Image, useWindowDimensions } from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Modal, Image, useWindowDimensions } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -11,6 +12,7 @@ import { HT } from "@/src/homeTheme";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { LabHeader, labStyles as L } from "@/src/axonlab/LabHeader";
 import { type LabModule, type LabSource, type LabField, specialLabel } from "@/src/axonlab/labApi";
+import { LabExamplesCard } from "@/src/axonlab/LabExamplesCard"; // V50.z375 — esempi compilati multipli
 
 export default function AxonLabModule() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -68,10 +70,11 @@ export default function AxonLabModule() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: HT.card2 }} edges={["top"]}>
-      <LabHeader title={m?.name || "Modulo"} sub={`Regole ${done}/${fields.length}${m?.mapping_source === "example" ? " · proposte dall'esempio compilato" : ""}`} testID="lab-module" />
+      <LabHeader title={m?.name || "Modulo"} sub={`Regole ${done}/${fields.length}${m?.mapping_source === "example" || (m?.mapping_source || "").startsWith("examples:") ? ` · proposte da ${m?.examples?.length || 1} ${(m?.examples?.length || 1) === 1 ? "esempio compilato" : "esempi compilati"}` : ""}`} testID="lab-module" />
       {!m ? <ActivityIndicator style={{ marginTop: 40 }} color={HT.axon} /> : (
-        <ScrollView contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: pagePad + 90 }}>
+        <KScrollView contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: pagePad + 90 }}>
           <View style={s.track}><View style={[s.fill, { width: `${fields.length ? Math.round((done / fields.length) * 100) : 0}%` }]} /></View>
+          <LabExamplesCard templateId={String(id)} examples={m.examples || []} onUpdated={(r) => { setM((old) => (old ? { ...old, ...r, fields: r.fields || old.fields, sources: r.sources || old.sources } : r)); setMapping(r.mapping || {}); }} />
           {/* Anteprima pagina con i campi evidenziati */}
           {page ? (
             <View style={[L.card, { padding: 6 }]}>
@@ -105,7 +108,7 @@ export default function AxonLabModule() {
               </Pressable>
             );
           })}
-        </ScrollView>
+        </KScrollView>
       )}
       {m ? (
         <View style={[s.footer, { paddingBottom: insets.bottom + 10 }]}>
@@ -123,7 +126,7 @@ export default function AxonLabModule() {
             <View style={s.handle} />
             <Text style={s.sheetTitle}>Da dove prendo «{pick?.label || pick?.key}»?</Text>
             <TextInput value={q} onChangeText={setQ} placeholder="Cerca fonte o valore…" placeholderTextColor={HT.muted} style={L.input} testID="lab-source-search" />
-            <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ gap: 4, paddingTop: 8 }} keyboardShouldPersistTaps="handled">
+            <KScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ gap: 4, paddingTop: 8 }} keyboardShouldPersistTaps="handled">
               {Object.entries(grouped).map(([g, list]) => (
                 <View key={g}>
                   <Text style={s.group}>{g}</Text>
@@ -141,7 +144,7 @@ export default function AxonLabModule() {
                   })}
                 </View>
               ))}
-            </ScrollView>
+            </KScrollView>
             <Pressable onPress={() => setPick(null)} style={[L.btn, L.btnGhost, { marginTop: 8 }]} testID="lab-source-close"><Text style={[L.btnTxt, { color: HT.text }]}>Chiudi</Text></Pressable>
           </View>
         </View>

@@ -3,7 +3,8 @@
 // Biometria (se il dispositivo la supporta) come alternativa al PIN. «Ho dimenticato il PIN» → codice via email → nuovo PIN.
 // Il PIN vive sul server (bcrypt): vale su tutti i dispositivi. La preferenza biometria è locale (secure storage).
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Platform, ScrollView } from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Platform } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { Ionicons } from "@expo/vector-icons";
 import * as LocalAuthentication from "expo-local-authentication";
 import { api } from "@/src/api";
@@ -178,7 +179,7 @@ export function PersonalLockGate({ onUnlocked }: { onUnlocked: () => void }) {
   const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" testID="personal-lock-gate">
+    <KScrollView style={styles.root} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" testID="personal-lock-gate">
       {mode === "loading" ? <ActivityIndicator color={GREEN} style={{ marginTop: 60 }} /> : null}
 
       {mode === "error" ? (
@@ -251,7 +252,7 @@ export function PersonalLockGate({ onUnlocked }: { onUnlocked: () => void }) {
           <Pressable onPress={() => { reset(); setCode(""); setMode("verify"); }} style={styles.linkBtn} testID="lock-forgot-back"><Text style={[styles.linkTxt, { color: HT.muted }]}>Torna al PIN</Text></Pressable>
         </>
       ) : null}
-    </ScrollView>
+    </KScrollView>
   );
 }
 

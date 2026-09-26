@@ -3,7 +3,8 @@
 // conferma/correzione solo di ciò che manca. Digitazione manuale disponibile ma mai per prima. Ogni file: «Dove lo salvo?»
 // Personale / Lavoro / Famiglia (un tap). Passi: upload | choice | link | custom (aree personalizzate).
 import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, Modal, Pressable, TextInput, ScrollView, ActivityIndicator, Switch, Platform, KeyboardAvoidingView } from "react-native";
+import { View, Text, StyleSheet, Modal, Pressable, TextInput, ScrollView, ActivityIndicator, Switch, Platform } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller"; // V50.z374 — behavior "padding" valido su iOS e Android
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { useRouter } from "expo-router";
@@ -132,7 +133,7 @@ export function AreaMiniWizard({ area, visible, onClose, onDone }: { area: AreaC
   if (!area || !step) return null;
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <KeyboardAvoidingView style={styles.back} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <KeyboardAvoidingView style={styles.back} behavior="padding">
         <View style={[styles.card, { paddingBottom: bottomPad }]} testID="area-mini-wizard">
           <View style={styles.hdr}>
             <View style={[styles.hdrIcon]}><Ionicons name={area.icon as any} size={20} color="#FFF" /></View>

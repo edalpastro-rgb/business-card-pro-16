@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput, Linking, Platform, Image, Modal } from "react-native";
+import { KModalBody } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { LinearGradient } from "expo-linear-gradient"; // V50.z335 — header dark premium
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -1546,7 +1547,7 @@ function ContactDetail() {
       </Modal>
 
       {/* V50.z71 — Modal per impostare/cambiare l'indirizzo di partenza per calcolo distanze */}
-      <Modal visible={originOverrideOpen} transparent animationType="fade" onRequestClose={() => setOriginOverrideOpen(false)}>
+      <Modal visible={originOverrideOpen} transparent animationType="fade" onRequestClose={() => setOriginOverrideOpen(false)}><KModalBody>
         <View style={styles.originModalBackdrop} pointerEvents="box-none">
           <View style={styles.originModalSheet}>
             <Text style={styles.originModalTitle}>Indirizzo di partenza</Text>
@@ -1595,7 +1596,7 @@ function ContactDetail() {
             </View>
           </View>
         </View>
-      </Modal>
+      </KModalBody></Modal>
     </SafeAreaView>
   );
 }

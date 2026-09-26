@@ -3,7 +3,8 @@
 // se il Master non modifica nulla il consulente vede i default. Le fasi si aggiungono/rimuovono/rinominano/riordinano,
 // ognuna con un riferimento Drive (cartella o file) opzionale come manuale.
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, TextInput, Image, Platform, KeyboardAvoidingView } from "react-native";
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, TextInput, Image } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller"; // V50.z374 — behavior "padding" valido su iOS e Android
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -112,7 +113,7 @@ export default function CgymCoachPanel() {
         <Text style={styles.title} numberOfLines={1}>{form ? `Role-play · ${form.label}` : "Pannello Master Coach"}</Text>
         <View style={{ width: 26 }} />
       </View>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: pagePad + 40, gap: 12 }} keyboardShouldPersistTaps="handled">
         {!items ? <ActivityIndicator color={CGYM_ORANGE} style={{ marginTop: 30 }} /> : !form ? (
           <>

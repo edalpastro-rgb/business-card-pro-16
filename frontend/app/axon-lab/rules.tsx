@@ -1,6 +1,7 @@
 // app/axon-lab/rules.tsx — V50.z357 — AXON LAB · Riepilogo regole (Super Master): campo → documento sorgente → campo sorgente → moduli che la usano.
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable, TextInput } from "react-native";
+import { View, Text, StyleSheet, ActivityIndicator, Pressable, TextInput } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -33,7 +34,7 @@ export default function AxonLabRules() {
       {!data && !err ? <ActivityIndicator style={{ marginTop: 40 }} color={HT.axon} /> : null}
       {err ? <Text style={[L.cardSub, { margin: 14, color: HT.danger }]}>{err}</Text> : null}
       {data ? (
-        <ScrollView contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: pagePad + 24 }}>
+        <KScrollView contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: pagePad + 24 }}>
           <View style={s.stats}>
             {[[data.total, "regole"], [data.trained, "moduli addestrati"], [data.modules - data.trained, "da addestrare"], [data.manual_fields, "campi manuali"]].map(([n, l]) => (
               <View key={String(l)} style={s.stat}><Text style={s.statN}>{n}</Text><Text style={s.statL}>{l}</Text></View>
@@ -67,7 +68,7 @@ export default function AxonLabRules() {
               ))}
             </View>
           ))}
-        </ScrollView>
+        </KScrollView>
       ) : null}
     </SafeAreaView>
   );

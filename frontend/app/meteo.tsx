@@ -4,7 +4,8 @@
  * residenza per-utente usato come fallback al GPS).
  */
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, RefreshControl, Modal, TextInput, Alert as RNAlert } from "react-native";
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, RefreshControl, Modal, TextInput, Alert as RNAlert } from "react-native";
+import { KScrollView, KModalBody } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -150,7 +151,7 @@ function MeteoInner() {
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); if (cityActive) { setCityActive(null); setCityQuery(""); } load(); }} />}>
+      <KScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); if (cityActive) { setCityActive(null); setCityQuery(""); } load(); }} />}>
         {/* V50.z163 — Cerca meteo per città (temporaneo, separato dalla residenza) */}
         <View style={[styles.card, { marginBottom: 12 }]} testID="meteo-city-search">
           <Text style={styles.cardTitle}>Cerca meteo per città</Text>
@@ -285,9 +286,9 @@ function MeteoInner() {
             </View>
           </>
         )}
-      </ScrollView>
+      </KScrollView>
 
-      <Modal visible={addrModal} transparent animationType="fade" onRequestClose={() => setAddrModal(false)}>
+      <Modal visible={addrModal} transparent animationType="fade" onRequestClose={() => setAddrModal(false)}><KModalBody>
         <View style={styles.modalBack}>
           <View style={styles.modalCard}>
             <Text style={styles.cardTitle}>Indirizzo di residenza</Text>
@@ -299,7 +300,7 @@ function MeteoInner() {
             </View>
           </View>
         </View>
-      </Modal>
+      </KModalBody></Modal>
     </SafeAreaView>
   );
 }

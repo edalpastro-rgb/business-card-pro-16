@@ -10,10 +10,8 @@
  */
 import React, { useEffect, useState } from "react";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
-import {
-  View, Text, StyleSheet, ScrollView, Pressable, TextInput, Image,
-  ActivityIndicator, Alert, Modal, KeyboardAvoidingView, Platform,
-} from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Image, ActivityIndicator, Alert, Modal } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller"; // V50.z374 — behavior "padding" valido su iOS e Android
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AndroidKeyboardPadding } from "@/src/keyboard/AndroidKeyboardPadding"; // V50.z186 — tastiera Android dentro Modal
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
@@ -376,7 +374,7 @@ function SectionEditor({ section, onChange, onClose }: {
           <Text style={styles.hTitle}>Modifica Sezione</Text>
           <View style={{ width: 30 }} />
         </View>
-        <AndroidKeyboardPadding><KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+        <AndroidKeyboardPadding><KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
           <ScrollView contentContainerStyle={{ padding: 14, gap: 14, paddingBottom: 100 }} keyboardShouldPersistTaps="handled">
             <Field label="Titolo" value={section.title} onChange={(t) => onChange({ title: t })} />
             <Field label="Sottotitolo" value={section.subtitle || ""} onChange={(t) => onChange({ subtitle: t })} />

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, useWindowDimensions, Image } from "react-native";
+import { View, Text, TextInput, Pressable, StyleSheet, Platform, ScrollView, ActivityIndicator, useWindowDimensions, Image } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller"; // V50.z374 — behavior "padding" valido su iOS e Android
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -92,7 +93,7 @@ export default function LoginScreen() {
             <Text style={styles.subtitle}>Inserisci il codice della tua app Authenticator</Text>
           </View>
         </LinearGradient>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.formWrap}>
+        <KeyboardAvoidingView behavior="padding" style={styles.formWrap}>
           <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
             <View style={styles.field}>
               <Text style={styles.label}>Codice a 6 cifre (o codice di recupero)</Text>
@@ -125,7 +126,7 @@ export default function LoginScreen() {
   return (
     <View style={styles.root}>
       <LinearGradient colors={[HT.text, "#1C4869", "#3A739C"]} style={StyleSheet.absoluteFillObject as any} />
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.pageWrap}>
+      <KeyboardAvoidingView behavior="padding" style={styles.pageWrap}>
         <ScrollView
           contentContainerStyle={[styles.pageScroll, isWide && styles.pageScrollCentered]}
           keyboardShouldPersistTaps="handled"

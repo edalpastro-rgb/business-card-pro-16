@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
-import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, ActivityIndicator, Modal } from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Modal } from "react-native";
+import { KScrollView, KModalBody } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
@@ -142,7 +143,7 @@ export default function InvitaPickContact() {
         <Ionicons name="chevron-forward" size={18} color={HT.muted} />
       </Pressable>
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: pagePad, gap: 8 }}>
+      <KScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: pagePad, gap: 8 }}>
         <Text style={styles.sectionLbl}>Contatti in rubrica ({filtered.length})</Text>
         {loading ? (
           <ActivityIndicator style={{ marginTop: 20 }} color={HT.brand} />
@@ -179,10 +180,10 @@ export default function InvitaPickContact() {
             </Pressable>
           ))
         )}
-      </ScrollView>
+      </KScrollView>
 
       {/* Quick-create modal */}
-      <Modal transparent visible={showCreate} animationType="slide" onRequestClose={() => setShowCreate(false)}>
+      <Modal transparent visible={showCreate} animationType="slide" onRequestClose={() => setShowCreate(false)}><KModalBody>
         <View style={styles.backdrop}>
           <View style={[styles.sheet, { paddingBottom: bottomPad }]}>
             <View style={styles.sheetHdr}>
@@ -209,7 +210,7 @@ export default function InvitaPickContact() {
             </Pressable>
           </View>
         </View>
-      </Modal>
+      </KModalBody></Modal>
     </SafeAreaView>
   );
 }

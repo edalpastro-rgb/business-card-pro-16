@@ -1,7 +1,8 @@
 // crt/[id].tsx — V50.z282 — Pratica CRT: servizi · dossier documenti (Axon estrae) · per servizio: fatture → forniture (una per POD/PDR,
 // consumo 12 mesi stimato) → modelli → compila (replica automatica) → verifica · PDF unico + condivisione (WhatsApp/mail/QR code)
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator, Image, Modal } from "react-native";
+import { View, Text, Pressable, TextInput, ActivityIndicator, Image, Modal } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -77,7 +78,7 @@ export default function CrtPracticeScreen() {
         <Pressable onPress={() => router.back()} hitSlop={10} style={s.hBtn} testID="crt-detail-back"><Ionicons name="chevron-back" size={24} color={HT.text} /></Pressable>
         <View style={{ flex: 1 }}><Text style={s.title} numberOfLines={1}>{p.title}</Text><Text style={s.sub}>Autocompilazione CRT · {p.contact_name} · {STATUS_LABEL[p.status] || p.status}</Text></View>
       </View>
-      <ScrollView contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: pagePad + 24 }}>
+      <KScrollView contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: pagePad + 24 }}>
         {/* V50.z326 — BLOCCO 1 · Modelli di addestramento */}
         <CrtTrainingBlock isMaster={!!isMaster} signDate={p.sign_date || ""} signDateEffective={p.sign_date_effective} signPlace={p.sign_place || ""} signPlaceSuggested={p.sign_place_suggested}
           onSignDate={(iso) => void setSignDate(iso)} onSignPlace={(v) => void savePlace(v)} busy={busy === "sign"} />
@@ -189,18 +190,18 @@ export default function CrtPracticeScreen() {
 
         {/* V50.z326 — BLOCCO 4 · Salvataggio e condivisione */}
         <CrtSaveShareBlock practiceId={p.practice_id} contactName={p.contact_name} hasPdf={!!p.merged_pdf} busy={busy} run={run} onQr={qr} onMerge={() => void merge()} />
-      </ScrollView>
+      </KScrollView>
 
       {/* scelta fatture */}
       <Modal visible={!!pickBills} transparent animationType="slide" onRequestClose={() => setPickBills(null)}>
         <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)" }} onPress={() => setPickBills(null)} />
         <View style={{ backgroundColor: HT.card, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 16, maxHeight: "70%", gap: 8 }}>
           <Text style={s.section}>Fatture {pickBills ? (SVC as any)[pickBills]?.label : ""} del cliente</Text>
-          <ScrollView contentContainerStyle={{ gap: 6 }}>
+          <KScrollView contentContainerStyle={{ gap: 6 }}>
             {p.available_bills.filter((b) => b.bill_type === pickBills).map((b) => { const on = pickBills ? (p.per_service[pickBills]?.bill_ids || []).includes(b.bill_id) : false; return (
               <Pressable key={b.bill_id} onPress={() => pickBills && toggleBill(pickBills, b.bill_id)} style={[s.selRow, on && { backgroundColor: HT.violetTint }]} testID={`crt-bill-${b.bill_id}`}><Ionicons name={on ? "checkbox" : "square-outline"} size={20} color={HT.brand} /><Text style={{ flex: 1, color: HT.text }} numberOfLines={1}>{b.file_name}</Text><Text style={s.hint}>{b.extracted?.pod || b.extracted?.pdr || ""}</Text></Pressable>
             ); })}
-          </ScrollView>
+          </KScrollView>
           <Pressable onPress={() => setPickBills(null)} style={[s.btn, { backgroundColor: HT.brand }]} testID="crt-bills-done"><Text style={s.btnTxt}>Fatto</Text></Pressable>
         </View>
       </Modal>

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Share, Platform, Modal } from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Share, Platform, Modal } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
@@ -169,7 +170,7 @@ export default function InviteCollaboratorScreen() {
         <Text style={styles.headerTitle}>Invita Collaboratore</Text>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: pagePad }}>
+      <KScrollView contentContainerStyle={{ padding: 16, paddingBottom: pagePad }}>
         {!invite ? (
           <>
             <Text style={styles.label}>Nome collaboratore</Text>
@@ -311,7 +312,7 @@ export default function InviteCollaboratorScreen() {
             })
           )}
         </View>
-      </ScrollView>
+      </KScrollView>
 
       <Modal transparent visible={!!editRole} animationType="fade" onRequestClose={() => setEditRole(null)}>
         <View style={styles.backdrop}>

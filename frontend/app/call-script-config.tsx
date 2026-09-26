@@ -8,6 +8,7 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndicator } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -111,7 +112,7 @@ export default function CallScriptConfigScreen() {
       </View>
 
       {loading ? <ActivityIndicator style={{ marginTop: 40 }} color={C.primary} /> : (
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: pagePad, gap: 10 }}>
+        <KScrollView contentContainerStyle={{ padding: 16, paddingBottom: pagePad, gap: 10 }}>
           <View style={styles.tipCard}>
             <Ionicons name="information-circle" size={18} color={C.primary} />
             <Text style={styles.tipTxt}>
@@ -199,7 +200,7 @@ export default function CallScriptConfigScreen() {
               </>
             )}
           </Pressable>
-        </ScrollView>
+        </KScrollView>
       )}
     </SafeAreaView>
   );

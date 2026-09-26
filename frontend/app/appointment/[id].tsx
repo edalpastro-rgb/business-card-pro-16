@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput, Platform, Linking, Alert, Modal, Image } from "react-native";
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, TextInput, Platform, Linking, Alert, Modal, Image } from "react-native";
+import { KScrollView, KModalBody } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
@@ -406,7 +407,7 @@ function AppointmentDetail() {
         <Pressable testID="delete-appt" onPress={del}><Ionicons name="trash-outline" size={22} color="#FFF" /></Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: pagePad }}>
+      <KScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: pagePad }}>
         {a.read_only && (
           <View style={styles.roBanner}>
             <Ionicons name="lock-closed" size={16} color="#FFF" />
@@ -842,10 +843,10 @@ function AppointmentDetail() {
         </View>
 
         <View style={{ height: 40 }} />
-      </ScrollView>
+      </KScrollView>
 
       {/* V26.q — Modal Rinviato/Da ricontattare */}
-      <Modal visible={!!rescheduleModal} transparent animationType="fade" onRequestClose={() => setRescheduleModal(null)}>
+      <Modal visible={!!rescheduleModal} transparent animationType="fade" onRequestClose={() => setRescheduleModal(null)}><KModalBody>
         <View style={omstyles.back}>
           <View style={omstyles.card}>
             <Text style={omstyles.title}>{rescheduleModal?.kind === "rescheduled" ? "Rinvia appuntamento" : "Programma ricontatto"}</Text>
@@ -936,10 +937,10 @@ function AppointmentDetail() {
             </View>
           </View>
         </View>
-      </Modal>
+      </KModalBody></Modal>
 
 
-      <Modal visible={!!outcomeModal} transparent animationType="fade" onRequestClose={() => setOutcomeModal(null)}>
+      <Modal visible={!!outcomeModal} transparent animationType="fade" onRequestClose={() => setOutcomeModal(null)}><KModalBody>
         <View style={omstyles.back}>
           <View style={omstyles.card}>
             <Text style={omstyles.title}>{outcomeModal?.mode === "create" ? "Nuovo esito appuntamento" : "Modifica esito"}</Text>
@@ -991,7 +992,7 @@ function AppointmentDetail() {
             </View>
           </View>
         </View>
-      </Modal>
+      </KModalBody></Modal>
 
       {/* Anteprima foto allegata a schermo intero */}
       <Modal visible={!!photoPreview} transparent animationType="fade" onRequestClose={() => setPhotoPreview(null)}>
@@ -1021,7 +1022,7 @@ function AppointmentDetail() {
               style={omstyles.input}
               autoFocus
             />
-            <ScrollView style={{ maxHeight: 360, marginTop: 10 }} contentContainerStyle={{ gap: 6, paddingBottom: 140 }}>
+            <KScrollView style={{ maxHeight: 360, marginTop: 10 }} contentContainerStyle={{ gap: 6, paddingBottom: 140 }}>
               {linkLoading ? (
                 <ActivityIndicator style={{ marginTop: 20 }} color={HT.brand} />
               ) : linkContacts.length === 0 ? (
@@ -1059,7 +1060,7 @@ function AppointmentDetail() {
                   </Pressable>
                 ))
               )}
-            </ScrollView>
+            </KScrollView>
           </View>
         </View>
       </Modal>

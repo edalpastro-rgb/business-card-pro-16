@@ -6,7 +6,8 @@
  * Regola modal (CHANGELOG §12): footer FISSO con azione primaria + chiudi sempre visibili.
  */
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Modal, Pressable, TextInput, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform, useWindowDimensions } from "react-native";
+import { View, Text, StyleSheet, Modal, Pressable, TextInput, ScrollView, ActivityIndicator, useWindowDimensions } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller"; // V50.z374 — behavior "padding" valido su iOS e Android
 import { Ionicons } from "@expo/vector-icons";
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { api } from "@/src/api";
@@ -74,7 +75,7 @@ export function DistillConversationModal({ visible, onClose, onDone }: Props) {
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={() => !busy && onClose()}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.back}>
+      <KeyboardAvoidingView behavior="padding" style={styles.back}>
         <View style={[styles.card, { maxHeight: winH * 0.9, paddingBottom: Math.max(insets.bottom, 12) }]}>
           <View style={styles.hdr}>
             <View style={[styles.hdrIcon]}><Ionicons name="flask" size={18} color="#FFF" /></View>

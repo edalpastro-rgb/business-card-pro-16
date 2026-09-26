@@ -5,10 +5,8 @@
  * Axon usa questi script nel prompt quando l'utente chiede un modello.
  */
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  View, Text, StyleSheet, ScrollView, Pressable, TextInput, Alert,
-  ActivityIndicator, Modal, KeyboardAvoidingView, Platform,
-} from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Alert, ActivityIndicator, Modal } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller"; // V50.z374 — behavior "padding" valido su iOS e Android
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AndroidKeyboardPadding } from "@/src/keyboard/AndroidKeyboardPadding"; // V50.z186 — tastiera Android dentro Modal
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
@@ -312,7 +310,7 @@ export default function AxonScriptsScreen() {
             <Text style={styles.hTitle}>📝 Incolla Testo</Text>
             <View style={{ width: 30 }} />
           </View>
-          <AndroidKeyboardPadding><KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+          <AndroidKeyboardPadding><KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
             <ScrollView contentContainerStyle={{ padding: 12, gap: 10, paddingBottom: 140 }} keyboardShouldPersistTaps="handled">
               <Text style={styles.formLabel}>Incolla qui il tuo materiale: Axon lo dividerà automaticamente in N script</Text>
               <TextInput
@@ -385,7 +383,7 @@ function ScriptEditor({ script, onClose, onSaved }: { script: Script | null; onC
           <Text style={styles.hTitle}>{script ? "Modifica" : "Nuovo Script"}</Text>
           <View style={{ width: 30 }} />
         </View>
-        <AndroidKeyboardPadding><KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+        <AndroidKeyboardPadding><KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
           <ScrollView contentContainerStyle={{ padding: 12, gap: 10, paddingBottom: 140 }} keyboardShouldPersistTaps="handled">
             <Text style={styles.formLabel}>Categoria</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>

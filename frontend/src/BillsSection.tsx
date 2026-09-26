@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { View, Text, StyleSheet, Pressable, ActivityIndicator, ScrollView, Platform, TextInput, Modal } from "react-native";
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, Platform, TextInput, Modal } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import * as Print from "expo-print";
@@ -1003,7 +1004,7 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
 
   return (
     <View style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }}>
+      <KScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }}>
         {/* V50.p — Micro-tutorial slideshow: mostra in 3 step come funziona
             l'analisi bolletta prima del pulsante di upload. */}
         <MicroTutorial steps={TUTORIAL_ANALIZZA_BOLLETTA} />
@@ -1400,7 +1401,7 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
           </>
         );
       })()}
-      </ScrollView>
+      </KScrollView>
 
       {/* V38 — Analysis parameters config modal */}
       <Modal visible={!!pendingUpload} animationType="slide" transparent onRequestClose={cancelPendingUpload}>
@@ -1430,7 +1431,7 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
                     </Text>
                   </View>
 
-                  <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ padding: 12 }}>
+                  <KScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ padding: 12 }}>
                     <PresetQuickRow
                       bundle={billCfg}
                       bt={bt}
@@ -1513,7 +1514,7 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
                         <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 12 }}>Aggiungi</Text>
                       </Pressable>
                     </View>
-                  </ScrollView>
+                  </KScrollView>
 
                   <View style={{ padding: 12, paddingBottom: 12 + safeBottom, borderTopWidth: 1, borderTopColor: HT.border, backgroundColor: HT.card, gap: 8 }}>
                     <Text style={{ fontSize: 11, color: HT.muted, textAlign: "center" }}>
@@ -1639,7 +1640,7 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
                 </Text>
               </View>
             ) : (
-              <ScrollView>
+              <KScrollView>
                 {contactPdfFiles.map((f: any) => (
                   <Pressable
                     key={f.id}
@@ -1658,7 +1659,7 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
                     <Ionicons name="chevron-forward" size={16} color={HT.muted} />
                   </Pressable>
                 ))}
-              </ScrollView>
+              </KScrollView>
             )}
           </View>
         </View>

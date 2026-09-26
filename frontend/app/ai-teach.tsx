@@ -6,7 +6,8 @@
  * Il contenuto viene usato da Axon come contesto prioritario durante l'analisi.
  */
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, Modal, TextInput, ActivityIndicator, Platform, KeyboardAvoidingView, Alert } from "react-native";
+import { View, Text, StyleSheet, Pressable, ScrollView, Modal, TextInput, ActivityIndicator, Platform, Alert } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller"; // V50.z374 — behavior "padding" valido su iOS e Android
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -1038,7 +1039,7 @@ export default function AiTeachScreen() {
         hardwareAccelerated={true}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "padding"}
+          behavior="padding"
           keyboardVerticalOffset={0}
           style={{ flex: 1 }}
         >
@@ -1135,7 +1136,7 @@ export default function AiTeachScreen() {
         hardwareAccelerated={true}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "padding"}
+          behavior="padding"
           keyboardVerticalOffset={0}
           style={{ flex: 1 }}
         >

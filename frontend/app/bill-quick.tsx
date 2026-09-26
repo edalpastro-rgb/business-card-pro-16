@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Platform, TextInput, Modal } from "react-native";
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, Platform, TextInput, Modal } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
@@ -554,7 +555,7 @@ function BillQuickScreen() {
         <View style={{ width: 26 }} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
+      <KScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
         {/* Intro card — mirrors BillsSection */}
         <View style={styles.introCard}>
           <Ionicons name="sparkles" size={20} color={HT.brand} />
@@ -919,7 +920,7 @@ function BillQuickScreen() {
             </Text>
           </View>
         ) : null}
-      </ScrollView>
+      </KScrollView>
 
       {/* V50.z76 — Preview HTML in WebView interna (senza uscire dall'app) */}
       <Modal visible={!!previewHtml} animationType="slide" onRequestClose={() => setPreviewHtml(null)}>
@@ -962,7 +963,7 @@ function BillQuickScreen() {
                     </Text>
                   </View>
 
-                  <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ padding: 12, paddingBottom: 140 }}>
+                  <KScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ padding: 12, paddingBottom: 140 }}>
                     <TextInput
                       testID="quick-label-input"
                       value={labelInput}
@@ -1101,7 +1102,7 @@ function BillQuickScreen() {
                         </>
                       )}
                     </View>
-                  </ScrollView>
+                  </KScrollView>
 
                   <View style={{ padding: 12, paddingBottom: bottomPad, borderTopWidth: 1, borderTopColor: HT.border, backgroundColor: HT.card, gap: 8 }}>
                     <Text style={{ fontSize: 11, color: HT.muted, textAlign: "center" }}>
@@ -1175,7 +1176,7 @@ function BillQuickScreen() {
           <View style={[styles.modalCard, { paddingBottom: bottomPad }]}>
             <Text style={styles.modalTitle}>Scegli fattura dai file Master</Text>
             <Text style={styles.modalSub}>Sono elencati i PDF salvati nelle sezioni Fatture e File del Master.</Text>
-            <ScrollView style={{ maxHeight: 380, marginTop: 12 }}>
+            <KScrollView style={{ maxHeight: 380, marginTop: 12 }}>
               {loadingMasterFiles ? (
                 <ActivityIndicator style={{ marginTop: 20 }} color={HT.brand} />
               ) : masterFiles.length === 0 ? (
@@ -1203,7 +1204,7 @@ function BillQuickScreen() {
                   </Pressable>
                 ))
               )}
-            </ScrollView>
+            </KScrollView>
             <Pressable onPress={() => setMasterFilePicker(null)} style={[styles.modalBtn, { backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border, marginTop: 8 }]}>
               <Text style={{ color: HT.text, fontWeight: "700" }}>Chiudi</Text>
             </Pressable>
@@ -1235,7 +1236,7 @@ function BillQuickScreen() {
               placeholderTextColor={HT.muted}
               style={[styles.labelInput, { marginTop: 10 }]}
             />
-            <ScrollView style={{ maxHeight: 340, marginVertical: 10 }}>
+            <KScrollView style={{ maxHeight: 340, marginVertical: 10 }}>
               {filteredContacts.length === 0 && (
                 <Text style={{ color: HT.muted, textAlign: "center", padding: 16, fontStyle: "italic" }}>
                   Nessun cliente trovato.
@@ -1259,7 +1260,7 @@ function BillQuickScreen() {
                   <Ionicons name="chevron-forward" size={18} color={HT.muted} />
                 </Pressable>
               ))}
-            </ScrollView>
+            </KScrollView>
             <Pressable
               testID="quick-assoc-cancel"
               onPress={() => setAssociateTarget(null)}

@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from "react";
-import {
-  View, Text, StyleSheet, Pressable, Modal, TextInput, ActivityIndicator,
-  KeyboardAvoidingView, Platform, Alert,
-} from "react-native";
+import { View, Text, StyleSheet, Pressable, Modal, TextInput, ActivityIndicator, Platform, Alert } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller"; // V50.z374 — behavior "padding" valido su iOS e Android
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
@@ -114,7 +112,7 @@ export function DeadlineActionsSheet({ item, onClose, onChanged }: Props) {
     <Modal transparent visible={!!item} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
       <KeyboardAvoidingView
         style={styles.backdrop}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior="padding"
         pointerEvents="box-none"
       >
         <View style={[styles.sheet, { paddingBottom: bottomPad + 12 }]} testID="deadline-actions-sheet">

@@ -1,7 +1,8 @@
 // app/axon-lab/training.tsx — V50.z343 — AXON LAB · AREA MASTER: Fase 1 cliente tipo (checklist 12 documenti + campi liberi)
 // e Fase 2 addestramento moduli (modulo vuoto + esempio compilato facoltativo → regole di mapping campo per campo).
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, RefreshControl } from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, RefreshControl } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -13,10 +14,13 @@ import { CrtFilePick, type PickedFile } from "@/src/CrtFilePick";
 import { LabHeader, labStyles as L } from "@/src/axonlab/LabHeader";
 import { LabDocChecklist } from "@/src/axonlab/LabDocChecklist";
 import { LabDocSheet } from "@/src/axonlab/LabDocSheet";
+import { LabExtractionTest } from "@/src/axonlab/LabExtractionTest"; // V50.z375 — test estrazione completa
+import { confirmAsync } from "@/src/utils/notify";
 import { useLabDossier } from "@/src/axonlab/useLabDossier";
 import type { LabDocSpec, LabDocEntry, LabDossier, LabModule } from "@/src/axonlab/labApi";
 
-type Training = LabDossier & { docs_spec: LabDocSpec[]; key_labels: Record<string, string> };
+type LabProfile = { profile_id: string; name: string; completion: { confirmed: number; total: number; percent: number } };
+type Training = LabDossier & { docs_spec: LabDocSpec[]; key_labels: Record<string, string>; profile_id: string; name: string; profiles: LabProfile[] };
 
 export default function AxonLabTraining() {
   const router = useRouter();
@@ -29,26 +33,46 @@ export default function AxonLabTraining() {
   const [extraLabel, setExtraLabel] = useState(""); const [extraValue, setExtraValue] = useState("");
   const [modName, setModName] = useState(""); const [blank, setBlank] = useState<PickedFile | null>(null); const [example, setExample] = useState<PickedFile | null>(null);
   const [creating, setCreating] = useState(false);
+  const [profileId, setProfileId] = useState<string | null>(null); // V50.z375 — clienti tipo multipli
+  const [newProfile, setNewProfile] = useState(""); const [renaming, setRenaming] = useState(false); const [renameVal, setRenameVal] = useState("");
 
   const load = useCallback(async () => {
     try {
-      const [t, m] = await Promise.all([api<Training>("/lab/training"), api<{ items: LabModule[] }>("/lab/modules")]);
-      setTr(t); setModules(m.items || []);
+      const [t, m] = await Promise.all([api<Training>(`/lab/training${profileId ? `?profile=${profileId}` : ""}`), api<{ items: LabModule[] }>("/lab/modules")]);
+      setTr(t); setModules(m.items || []); if (!profileId) setProfileId(t.profile_id);
     } catch (e: any) { notify("Axon Lab", e?.message || "Accesso non consentito"); router.back(); }
     finally { setLoading(false); }
-  }, [router]);
+  }, [router, profileId]);
   useEffect(() => { load(); }, [load]);
 
+  const q = profileId ? `?profile=${profileId}` : "";
+  const addProfile = async () => {
+    if (!newProfile.trim()) return;
+    try { const p = await api<LabProfile>("/lab/training/profiles", { method: "POST", body: { name: newProfile.trim() } }); setNewProfile(""); setProfileId(p.profile_id); }
+    catch (e: any) { notify("Cliente tipo", e?.message || "Creazione non riuscita"); }
+  };
+  const renameProfile = async () => {
+    if (!renameVal.trim() || !profileId) return;
+    try { await api(`/lab/training/profiles/${profileId}`, { method: "PATCH", body: { name: renameVal.trim() } }); setRenaming(false); await load(); }
+    catch (e: any) { notify("Cliente tipo", e?.message || "Rinomina non riuscita"); }
+  };
+  const deleteProfile = async () => {
+    if (!tr || !profileId) return;
+    if (!(await confirmAsync("Elimina cliente tipo", `Eliminare «${tr.name}» con tutti i suoi documenti? Axon non lo userà più come riferimento.`))) return;
+    try { await api(`/lab/training/profiles/${profileId}`, { method: "DELETE" }); setProfileId(null); }
+    catch (e: any) { notify("Cliente tipo", e?.message || "Eliminazione non riuscita"); }
+  };
+
   const onDocs = useCallback((docs: Record<string, LabDocEntry>, completion: Training["completion"]) => setTr((t) => (t ? { ...t, docs, completion } : t)), []);
-  const dossier = useLabDossier("/lab/training", onDocs);
+  const dossier = useLabDossier("/lab/training", onDocs, q);
 
   const addExtra = async () => {
     if (!extraLabel.trim()) return;
-    const r = await api<{ extra: Training["extra"] }>("/lab/training/extra", { method: "POST", body: { label: extraLabel, value: extraValue } });
+    const r = await api<{ extra: Training["extra"] }>(`/lab/training/extra${q}`, { method: "POST", body: { label: extraLabel, value: extraValue } });
     setTr((t) => (t ? { ...t, extra: r.extra } : t)); setExtraLabel(""); setExtraValue("");
   };
   const delExtra = async (id: string) => {
-    const r = await api<{ extra: Training["extra"] }>(`/lab/training/extra/${id}`, { method: "DELETE" });
+    const r = await api<{ extra: Training["extra"] }>(`/lab/training/extra/${id}${q}`, { method: "DELETE" });
     setTr((t) => (t ? { ...t, extra: r.extra } : t));
   };
 
@@ -78,11 +102,36 @@ export default function AxonLabTraining() {
         ))}
       </View>
       {loading || !tr ? <ActivityIndicator style={{ marginTop: 40 }} color={HT.axon} /> : (
-        <ScrollView contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: pagePad + 24 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />} keyboardShouldPersistTaps="handled">
+        <KScrollView contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: pagePad + 24 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />} keyboardShouldPersistTaps="handled">
           {phase === 1 ? (
             <>
-              <Text style={L.cardSub}>{"Carica i documenti di un cliente d'esempio. Axon legge ogni documento e mostra i dati campo per campo: approva, correggi o scarta prima di procedere."}</Text>
-              <LabDocChecklist specs={tr.docs_spec} docs={tr.docs} busy={dossier.busy} completion={tr.completion} onPress={(sp) => dossier.setOpen(sp)} title="Anagrafica cliente tipo" />
+              <Text style={L.cardSub}>{"Carica i documenti di uno o più clienti d'esempio. Axon legge ogni documento e mostra i dati campo per campo: approva, correggi o scarta prima di procedere. Più clienti tipo (azienda con timbro, privato, …) coprono situazioni e documenti diversi: Axon li usa tutti come riferimento."}</Text>
+              {/* V50.z375 — selettore clienti tipo */}
+              <View style={L.card} testID="lab-profiles">
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Text style={[L.cardTitle, { flex: 1 }]}>Clienti tipo ({tr.profiles.length})</Text>
+                  <Pressable onPress={() => { setRenameVal(tr.name); setRenaming((v) => !v); }} hitSlop={8} testID="lab-profile-rename"><Ionicons name="pencil" size={18} color={HT.axon} /></Pressable>
+                  {tr.profiles.length > 1 ? <Pressable onPress={deleteProfile} hitSlop={8} testID="lab-profile-delete"><Ionicons name="trash-outline" size={18} color={HT.danger} /></Pressable> : null}
+                </View>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                  {tr.profiles.map((p) => { const on = p.profile_id === tr.profile_id; return (
+                    <Pressable key={p.profile_id} onPress={() => setProfileId(p.profile_id)} style={[s.pChip, on && s.pChipOn]} testID={`lab-profile-${p.profile_id}`}>
+                      <Text style={[s.pChipTxt, on && { color: HT.white }]} numberOfLines={1}>{p.name}</Text><Text style={[s.pChipPct, on && { color: HT.white }]}>{p.completion.percent}%</Text>
+                    </Pressable>
+                  ); })}
+                </View>
+                {renaming ? (
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    <TextInput value={renameVal} onChangeText={setRenameVal} placeholder="Nome cliente tipo" placeholderTextColor={HT.muted} style={[L.input, { flex: 1 }]} testID="lab-profile-rename-input" />
+                    <Pressable onPress={renameProfile} style={[L.btn, L.btnPrimary, { paddingHorizontal: 14 }]} testID="lab-profile-rename-save"><Text style={L.btnTxt}>Salva</Text></Pressable>
+                  </View>
+                ) : null}
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <TextInput value={newProfile} onChangeText={setNewProfile} placeholder="Es. Cliente tipo 2 - Privato" placeholderTextColor={HT.muted} style={[L.input, { flex: 1 }]} testID="lab-profile-new-name" />
+                  <Pressable onPress={addProfile} disabled={!newProfile.trim()} style={[L.btn, L.btnGhost, { paddingHorizontal: 12 }, !newProfile.trim() && { opacity: 0.5 }]} testID="lab-profile-add"><Ionicons name="person-add" size={16} color={HT.axon} /><Text style={[L.btnTxt, { color: HT.axon }]}>Aggiungi</Text></Pressable>
+                </View>
+              </View>
+              <LabDocChecklist specs={tr.docs_spec} docs={tr.docs} busy={dossier.busy} completion={tr.completion} onPress={(sp) => dossier.setOpen(sp)} title={`Anagrafica · ${tr.name}`} />
               <View style={L.card} testID="lab-extra">
                 <Text style={L.cardTitle}>Campi aggiuntivi liberi</Text>
                 <Text style={L.cardSub}>Ripetibili · diventano fonti disponibili per il mapping dei moduli</Text>
@@ -96,6 +145,7 @@ export default function AxonLabTraining() {
                 <TextInput value={extraValue} onChangeText={setExtraValue} placeholder="Valore d'esempio" placeholderTextColor={HT.muted} style={L.input} testID="lab-extra-value" />
                 <Pressable onPress={addExtra} style={[L.btn, L.btnGhost]} testID="lab-extra-add"><Ionicons name="add" size={18} color={HT.axon} /><Text style={[L.btnTxt, { color: HT.axon }]}>Aggiungi campo</Text></Pressable>
               </View>
+              <LabExtractionTest profileId={tr.profile_id} profileName={tr.name} />
               <Pressable onPress={() => setPhase(2)} style={[L.btn, L.btnPrimary]} testID="lab-go-phase2"><Text style={L.btnTxt}>Avanti · Fase 2 · Addestra i moduli</Text><Ionicons name="arrow-forward" size={16} color={HT.white} /></Pressable>
             </>
           ) : (
@@ -139,7 +189,7 @@ export default function AxonLabTraining() {
               </View>
             </>
           )}
-        </ScrollView>
+        </KScrollView>
       )}
       {dossier.open ? (
         <LabDocSheet spec={dossier.open} entry={tr?.docs[dossier.open.id]} keyLabels={tr?.key_labels || {}} busy={!!dossier.busy[dossier.open.id]}
@@ -150,6 +200,8 @@ export default function AxonLabTraining() {
 }
 
 const s = StyleSheet.create({
+  pChip: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 40, borderRadius: 20, borderWidth: 1, borderColor: HT.border, backgroundColor: HT.card2, paddingHorizontal: 12, maxWidth: "100%" },
+  pChipOn: { backgroundColor: HT.axon, borderColor: HT.axon }, pChipTxt: { fontSize: 13, fontWeight: "800", color: HT.text, flexShrink: 1 }, pChipPct: { fontSize: 11, fontWeight: "800", color: HT.muted },
   tabs: { flexDirection: "row", gap: 8, paddingHorizontal: 14, paddingTop: 12 },
   tab: { flex: 1, minHeight: 40, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border },
   tabOn: { backgroundColor: HT.axon, borderColor: HT.axon },

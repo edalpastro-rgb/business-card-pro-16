@@ -1,7 +1,8 @@
 // V50.z320 — Codici Promozionali (Super Admin): crea codici (settimane/mesi gratuiti, premium, crediti),
 // scadenza, max utilizzi, attiva/disattiva, elimina, elenco utilizzi (chi e quando).
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Modal, TextInput, Switch, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Modal, TextInput, Switch } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller"; // V50.z374 — behavior "padding" valido su iOS e Android
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -153,7 +154,7 @@ function CreatePromoModal({ visible, onClose, onCreated }: { visible: boolean; o
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={s.backdrop}>
+      <KeyboardAvoidingView behavior="padding" style={s.backdrop}>
         <View style={s.sheet} testID="promo-create-modal">
           <View style={s.sheetHead}><Text style={s.sheetTitle}>Nuovo codice promozionale</Text><Pressable onPress={onClose} style={s.iconBtn} testID="promo-create-close"><Ionicons name="close" size={22} color={C.onSurface} /></Pressable></View>
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 24, gap: 12 }}>

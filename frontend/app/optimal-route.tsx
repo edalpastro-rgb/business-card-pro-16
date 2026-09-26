@@ -3,7 +3,8 @@
 // · Step 3 risultato (POST /geo/optimal-route: tappe ordinate, km/min per tappa, totale, Naviga Google Maps / Chiama / Scheda).
 // V50.z241 (Fase 2): mappa del percorso (polilinea + tappe numerate), orario di partenza con ETA per tappa, esporta PDF.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndicator, Linking } from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Linking } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -146,7 +147,7 @@ export default function OptimalRouteScreen() {
         <Pressable onPress={() => router.push("/map-clients" as any)} hitSlop={8} style={styles.headBtn} testID="route-open-map"><Ionicons name="map" size={18} color="#FFF" /></Pressable>
       </View>
       {navChooser.element}
-      <ScrollView contentContainerStyle={{ padding: 14, gap: 10, paddingBottom: navPad + 70 }} keyboardShouldPersistTaps="handled">
+      <KScrollView contentContainerStyle={{ padding: 14, gap: 10, paddingBottom: navPad + 70 }} keyboardShouldPersistTaps="handled">
         {loading ? <ActivityIndicator color={ORANGE} style={{ marginTop: 40 }} /> : null}
 
         {!loading && step === 1 ? (<>
@@ -251,7 +252,7 @@ export default function OptimalRouteScreen() {
           ) : null}
           {res.skipped.length ? <Text style={styles.warn}>⚠️ Esclusi (indirizzo non localizzabile): {res.skipped.map((s) => s.name).join(", ")}</Text> : null}
         </>) : null}
-      </ScrollView>
+      </KScrollView>
       {step < 3 && !loading ? (
         <View style={[styles.footer, { paddingBottom: navPad - 40 }]}>
           {step === 1 ? (

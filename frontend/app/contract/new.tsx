@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Modal } from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Modal } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -83,7 +84,7 @@ export default function NewContractScreen() {
         <Pressable onPress={() => router.back()} style={styles.headerBtn}><Ionicons name="chevron-back" size={22} color={HT.text} /></Pressable>
         <Text style={styles.headerTitle}>Nuovo Contratto</Text>
       </View>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
+      <KScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
         <Text style={styles.label}>Cliente (opzionale)</Text>
         <Pressable onPress={() => setPickerOpen(true)} style={styles.pickerBtn} testID="contract-contact-picker">
           {contact ? (
@@ -139,7 +140,7 @@ export default function NewContractScreen() {
         <Pressable onPress={submit} disabled={saving} style={styles.submitBtn} testID="contract-submit">
           {saving ? <ActivityIndicator color="#FFF" /> : (<><Ionicons name="checkmark-circle" size={20} color="#FFF" /><Text style={styles.submitTxt}>Salva contratto</Text></>)}
         </Pressable>
-      </ScrollView>
+      </KScrollView>
 
       <Modal transparent visible={pickerOpen} onRequestClose={() => setPickerOpen(false)} animationType="slide">
         <Pressable style={styles.backdrop} onPress={() => setPickerOpen(false)}>
@@ -147,7 +148,7 @@ export default function NewContractScreen() {
             <View style={styles.sheetHandle} />
             <Text style={styles.sheetTitle}>Seleziona cliente</Text>
             <TextInput value={search} onChangeText={setSearch} placeholder="Cerca…" style={[styles.input, { marginBottom: 10 }]} />
-            <ScrollView style={{ maxHeight: 400 }}>
+            <KScrollView style={{ maxHeight: 400 }}>
               {filtered.map(c => (
                 <Pressable key={c.contact_id} onPress={() => { setContact(c); setPickerOpen(false); }} style={styles.contactRow} testID={`pick-${c.contact_id}`}>
                   <Ionicons name="person" size={18} color={HT.muted} />
@@ -158,7 +159,7 @@ export default function NewContractScreen() {
                 </Pressable>
               ))}
               {filtered.length === 0 && <Text style={{ textAlign: "center", color: HT.muted, padding: 20 }}>Nessun cliente trovato.</Text>}
-            </ScrollView>
+            </KScrollView>
           </View>
         </Pressable>
       </Modal>

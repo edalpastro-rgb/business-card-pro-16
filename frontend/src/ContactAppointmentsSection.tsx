@@ -1,6 +1,7 @@
 // V26.q — Contact appointments tab (upcoming + past with outcome + inline note editing)
 import { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput, Platform } from "react-native";
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, TextInput, Platform } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { ShareAppointmentSheet } from "@/src/ShareAppointmentSheet";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -84,7 +85,7 @@ export function ContactAppointmentsSection({ contactId }: Props) {
   if (loading) return <ActivityIndicator style={{ marginTop: 30 }} color={HT.brand} />;
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }}>
+    <KScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }}>
       <View style={styles.headerRow}>
         <Text style={styles.headerTitle}>In programma ({upcoming.length})</Text>
         <Pressable
@@ -232,7 +233,7 @@ export function ContactAppointmentsSection({ contactId }: Props) {
           onClose={() => setShareApptId(null)}
         />
       ) : null}
-    </ScrollView>
+    </KScrollView>
   );
 }
 

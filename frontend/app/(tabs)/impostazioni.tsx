@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Image, Share, Platform, Linking } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -426,7 +427,7 @@ function ImpostazioniScreen() {
         ) : null}
         <Text style={[styles.title, { flex: 1 }]} numberOfLines={1}>{sec ? SECTION_META[sec].title : "Profilo & Impostazioni"}</Text>
       </View>
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: pagePad }}>
+      <KScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: pagePad }}>
         {/* V50.z249 — HUB: card Profilo Master (foto, nome, ruolo, azienda) + bottoni raggruppati */}
         {sec === null && (<>
           <View style={styles.card} testID="profile-master-card">
@@ -1130,7 +1131,7 @@ function ImpostazioniScreen() {
         </>)}
 
         {/* V50.z52 — Logout RIMOSSO: presente nell'hub Master (in fondo). */}
-      </ScrollView>
+      </KScrollView>
     </SafeAreaView>
   );
 }

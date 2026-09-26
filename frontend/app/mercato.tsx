@@ -1,6 +1,7 @@
 // app/mercato.tsx — V50.z345 — MERCATO · DB condizioni economiche (concorrenti · ARERA/GME · la mia ditta) + benchmark per voce.
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Switch, RefreshControl } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
@@ -101,7 +102,7 @@ export default function Mercato() {
           <Pressable key={id} onPress={() => setTab(id)} style={[s.tab, tab === id && s.tabOn]} testID={`market-tab-${id}`}><Text style={[s.tabTxt, tab === id && { color: HT.white }]}>{lbl}</Text></Pressable>
         ))}
       </View>
-      <ScrollView contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: pagePad + 24 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />} keyboardShouldPersistTaps="handled">
+      <KScrollView contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: pagePad + 24 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />} keyboardShouldPersistTaps="handled">
         <View style={s.chips}>{COMM.map((c) => <Chip key={c.id} on={commodity === c.id} label={c.label} onPress={() => { setCommodity(c.id); setBand(null); setVoltage(null); }} testID={`market-comm-${c.id}`} />)}</View>
 
         {tab === "bench" ? (
@@ -199,7 +200,7 @@ export default function Mercato() {
             ) : null}
           </View>
         ) : null}
-      </ScrollView>
+      </KScrollView>
     </SafeAreaView>
   );
 }

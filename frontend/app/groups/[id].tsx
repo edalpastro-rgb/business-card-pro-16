@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
-import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator, Modal, TextInput, ScrollView, Linking, Platform, Alert } from "react-native";
+import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator, Modal, TextInput, Linking, Platform, Alert } from "react-native";
+import { KScrollView, KModalBody } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
@@ -138,7 +139,7 @@ export default function GroupDetailScreen() {
         <View style={{ width: 26 }} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: pagePad }}>
+      <KScrollView contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: pagePad }}>
         <View style={styles.actionsCard}>
           <Text style={styles.actionsTitle}>Invia a tutti i {members.length} membri</Text>
           <View style={styles.actionsGrid}>
@@ -172,10 +173,10 @@ export default function GroupDetailScreen() {
             )}
           />
         )}
-      </ScrollView>
+      </KScrollView>
 
       {/* Email modal */}
-      <Modal visible={emailModalOpen} transparent animationType="fade" onRequestClose={() => setEmailModalOpen(false)}>
+      <Modal visible={emailModalOpen} transparent animationType="fade" onRequestClose={() => setEmailModalOpen(false)}><KModalBody>
         <View style={styles.modalBack}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Email al gruppo</Text>
@@ -212,7 +213,7 @@ export default function GroupDetailScreen() {
             </View>
           </View>
         </View>
-      </Modal>
+      </KModalBody></Modal>
 
       {/* Sequential open modal */}
       <Modal visible={!!seqModal} transparent animationType="fade" onRequestClose={() => setSeqModal(null)}>

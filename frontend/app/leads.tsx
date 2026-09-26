@@ -1,6 +1,7 @@
 // V50.z103 — Pagina master: gestione lead pubblici + risposte AxonOS.
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import {
   View,
   Text,
@@ -380,7 +381,7 @@ export default function LeadsPage() {
           </Pressable>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 100 }}>
+        <KScrollView contentContainerStyle={{ padding: 12, paddingBottom: 100 }}>
           {items.map((l) => {
             const stMeta = STATUS_META[l.status] || STATUS_META.new;
             return (
@@ -417,7 +418,7 @@ export default function LeadsPage() {
               </Pressable>
             );
           })}
-        </ScrollView>
+        </KScrollView>
       )}
 
       {/* Detail Modal */}
@@ -437,7 +438,7 @@ export default function LeadsPage() {
                 <Ionicons name="close" size={22} color={HT.text} />
               </Pressable>
             </View>
-            <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
+            <KScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
               {detail ? (
                 <>
                   <View style={styles.detailBox}>
@@ -545,7 +546,7 @@ export default function LeadsPage() {
                   </Pressable>
                 </>
               ) : null}
-            </ScrollView>
+            </KScrollView>
           </View>
         </View>
       </Modal>
@@ -565,7 +566,7 @@ export default function LeadsPage() {
                 <Ionicons name="close" size={22} color={HT.text} />
               </Pressable>
             </View>
-            <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
+            <KScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
               <Text style={{ fontSize: 12, color: HT.muted, marginBottom: 10, lineHeight: 16 }}>
                 Puoi avere da 1 a 12 esigenze. L&apos;ID viene generato automaticamente dal nome.
                 I lead già ricevuti mantengono le esigenze originali.
@@ -633,7 +634,7 @@ export default function LeadsPage() {
                   <Text style={styles.needResetTxt}>Ripristina 5 default</Text>
                 </Pressable>
               ) : null}
-            </ScrollView>
+            </KScrollView>
           </View>
         </View>
       </Modal>

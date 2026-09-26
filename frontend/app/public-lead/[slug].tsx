@@ -2,16 +2,8 @@
 // Aperta da chiunque via link permanente condivisibile dal Master.
 
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  Pressable,
-  TextInput,
-  ScrollView,
-  ActivityIndicator,
-  Platform,
-} from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
@@ -124,7 +116,7 @@ export default function PublicLeadPage() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      <KScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.hero}>
           <Text style={styles.title}>Chiedi una consulenza gratuita ✨</Text>
           <Text style={styles.subtitle}>
@@ -229,7 +221,7 @@ export default function PublicLeadPage() {
         </Pressable>
 
         <Text style={styles.footer}>🔒 I tuoi dati sono usati solo per rispondere alla tua richiesta.</Text>
-      </ScrollView>
+      </KScrollView>
     </SafeAreaView>
   );
 }

@@ -1,7 +1,8 @@
 // VoiceGuardSheet.tsx — V50.z371 — Foglio PIN (6 cifre) per confermare i comandi critici vocali quando impronta/Face ID
 // non è disponibile o fallisce. Montato una volta in app/_layout.tsx. Impostazione PIN: <VoiceGuardPinCard/> (Impostazioni → Voce).
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, Modal, TextInput, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, StyleSheet, Pressable, Modal, TextInput } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller"; // V50.z374 — behavior "padding" valido su iOS e Android
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
@@ -17,7 +18,7 @@ export function VoiceGuardSheet() {
   const done = (v: string | null) => { const r = req; guardStore.set(null); r.resolve(v); };
   return (
     <Modal visible transparent animationType="fade" onRequestClose={() => done(null)}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.back}>
+      <KeyboardAvoidingView behavior="padding" style={styles.back}>
         <View style={styles.card} testID="voice-guard-sheet">
           <View style={styles.icon}><Ionicons name="shield-checkmark" size={22} color="#FFF" /></View>
           <Text style={styles.title}>Conferma comando critico</Text>

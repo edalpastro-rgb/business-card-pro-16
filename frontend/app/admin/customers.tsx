@@ -2,6 +2,7 @@
 // PROMPT 27: Lista utenti, tier assignment, broadcast, tips analytics.
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import {
   View,
   Text,
@@ -236,7 +237,7 @@ export default function AdminCustomersPage() {
           <Text style={styles.emptyTxt}>Nessun utente in questa categoria</Text>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 100 }}>
+        <KScrollView contentContainerStyle={{ padding: 12, paddingBottom: 100 }}>
           <Text style={styles.countLine}>{filteredCount} utenti</Text>
           {items.map(c => (
             <Pressable
@@ -263,7 +264,7 @@ export default function AdminCustomersPage() {
               </View>
             </Pressable>
           ))}
-        </ScrollView>
+        </KScrollView>
       )}
 
       {/* Detail modal */}
@@ -281,7 +282,7 @@ export default function AdminCustomersPage() {
                 <Ionicons name="close" size={22} color={HT.text} />
               </Pressable>
             </View>
-            <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
+            <KScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
               {detail ? (
                 <>
                   <View style={styles.section}>
@@ -366,7 +367,7 @@ export default function AdminCustomersPage() {
                   </View>
                 </>
               ) : null}
-            </ScrollView>
+            </KScrollView>
           </View>
         </View>
       </Modal>
@@ -381,7 +382,7 @@ export default function AdminCustomersPage() {
                 <Ionicons name="close" size={22} color={HT.text} />
               </Pressable>
             </View>
-            <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
+            <KScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
               <Text style={styles.lbl}>Categoria destinatari</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 4 }}>
                 <FilterChip label={`Tutti`} active={bcTarget === "all"} color={HT.brand} onPress={() => setBcTarget("all")} />
@@ -479,7 +480,7 @@ export default function AdminCustomersPage() {
                   ))}
                 </View>
               ) : null}
-            </ScrollView>
+            </KScrollView>
           </View>
         </View>
       </Modal>

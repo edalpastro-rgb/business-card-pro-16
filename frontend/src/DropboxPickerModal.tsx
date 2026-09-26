@@ -4,7 +4,8 @@
  * come base64 così Axon può leggerlo come un allegato locale.
  */
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, Modal, TextInput, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, Pressable, Modal, TextInput, ActivityIndicator } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 import { api } from "@/src/api";
@@ -158,7 +159,7 @@ export function DropboxPickerModal({
                   <Text style={styles.emptyTxt}>Nessun file trovato.</Text>
                 </View>
               ) : (
-                <ScrollView contentContainerStyle={{ paddingBottom: 20 }} keyboardShouldPersistTaps="handled">
+                <KScrollView contentContainerStyle={{ paddingBottom: 20 }} keyboardShouldPersistTaps="handled">
                   {entries.map((f) => {
                     const isFile = f[".tag"] === "file";
                     const icon = isFile ? mimeIcon(f.name) : { name: "folder" as const, color: "#F59E0B" };
@@ -190,7 +191,7 @@ export function DropboxPickerModal({
                       </Pressable>
                     );
                   })}
-                </ScrollView>
+                </KScrollView>
               )}
             </>
           )}

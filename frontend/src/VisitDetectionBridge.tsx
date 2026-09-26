@@ -2,7 +2,8 @@
 // mostra il popup Tempo Reale («Sei da X? Visita effettuata?» Sì/No + nota) e il recap Fine Giornata (spunte pre-selezionate).
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
-import { View, Text, StyleSheet, Pressable, Modal, TextInput, ActivityIndicator, AppState, Platform, ScrollView } from "react-native";
+import { View, Text, StyleSheet, Pressable, Modal, TextInput, ActivityIndicator, AppState, Platform } from "react-native";
+import { KScrollView, KModalBody } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { Ionicons } from "@expo/vector-icons";
 import * as Notifications from "expo-notifications";
 import { api } from "@/src/api";
@@ -86,7 +87,7 @@ function RealtimeVisitModal({ items, onDone }: { items: VisitCandidate[]; onDone
   };
   if (!cur) return null;
   return (
-    <Modal transparent visible animationType="fade" onRequestClose={onDone}>
+    <Modal transparent visible animationType="fade" onRequestClose={onDone}><KModalBody>
       <View style={styles.backdrop}>
         <View style={styles.sheet} testID="visit-realtime-modal">
           <View style={styles.iconWrap}><Ionicons name="location" size={26} color="#FFF" /></View>
@@ -100,7 +101,7 @@ function RealtimeVisitModal({ items, onDone }: { items: VisitCandidate[]; onDone
           <Pressable onPress={onDone} style={{ paddingVertical: 10, alignItems: "center" }} testID="visit-realtime-later"><Text style={{ color: HT.muted, fontWeight: "700", fontSize: 12 }}>Decido nel recap di fine giornata</Text></Pressable>
         </View>
       </View>
-    </Modal>
+    </KModalBody></Modal>
   );
 }
 
@@ -138,7 +139,7 @@ export function EveningRecapModal({ date, onClose }: { date: string; onClose: ()
           {!items ? <ActivityIndicator color={SKY} style={{ marginVertical: 20 }} /> : items.length === 0 ? (
             <Text style={[styles.sub, { marginVertical: 12 }]}>Nessuna sosta rilevata oggi.</Text>
           ) : (
-            <ScrollView style={{ maxHeight: 320 }} contentContainerStyle={{ gap: 6 }}>
+            <KScrollView style={{ maxHeight: 320 }} contentContainerStyle={{ gap: 6 }}>
               {items.map((c) => {
                 const on = !!checked[c.cand_id];
                 return (
@@ -151,7 +152,7 @@ export function EveningRecapModal({ date, onClose }: { date: string; onClose: ()
                   </Pressable>
                 );
               })}
-            </ScrollView>
+            </KScrollView>
           )}
           <View style={{ flexDirection: "row", gap: 8, marginTop: 6 }}>
             <Pressable onPress={onClose} style={[styles.btn, styles.btnNo]} testID="visit-recap-close"><Text style={styles.btnNoTxt}>Più tardi</Text></Pressable>

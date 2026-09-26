@@ -2,7 +2,8 @@
 // (a) logo aziendale → sostituisce il logo AdvisorOS nell'header per tutti gli utenti dell'organizzazione;
 // (b) ragione sociale, P.IVA, indirizzo (+ riga extra) → firma nei PDF, nei documenti generati e nelle comunicazioni automatiche di Axon.
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, Image, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, Image, ActivityIndicator } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -57,7 +58,7 @@ export default function PersonalizzazioneAziendale() {
         <View style={{ width: 26 }} />
       </View>
       {!b ? <ActivityIndicator color={NAVY} style={{ marginTop: 30 }} /> : (
-        <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: bottomPad }} keyboardShouldPersistTaps="handled">
+        <KScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: bottomPad }} keyboardShouldPersistTaps="handled">
           {!b.can_edit && <Text style={styles.warn}>Solo il Master può modificare questi dati.</Text>}
 
           <View style={styles.card}>
@@ -97,7 +98,7 @@ export default function PersonalizzazioneAziendale() {
               </Pressable>
             )}
           </View>
-        </ScrollView>
+        </KScrollView>
       )}
     </SafeAreaView>
   );

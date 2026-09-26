@@ -1,7 +1,8 @@
 // form-template/[id].tsx — V50.z268 — Editor modello modulo (Master): anteprima pagina + riquadri campi, correzione chiave/etichetta,
 // spostamento (tocca il campo, poi tocca sulla pagina dove deve iniziare), ridimensionamento, ordine, aggiunta/eliminazione campi.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Modal } from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Modal } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -58,7 +59,7 @@ export default function FormTemplateEditor() {
         <View style={{ flex: 1 }}><Text style={s.title} numberOfLines={1}>{t.name}</Text><Text style={s.sub}>{fields.length} campi · {t.page_count} pagine · {t.field_source === "acroform" ? "campi PDF nativi" : "rilevati da Axon"}</Text></View>
         <Pressable onPress={save} disabled={saving || !dirty} style={[s.saveBtn, (!dirty || saving) && { opacity: 0.5 }]} testID="fte-save">{saving ? <ActivityIndicator color="#FFF" size="small" /> : <Text style={s.saveTxt}>Salva</Text>}</Pressable>
       </View>
-      <ScrollView contentContainerStyle={{ padding: 12, gap: 12, paddingBottom: pagePad }}>
+      <KScrollView contentContainerStyle={{ padding: 12, gap: 12, paddingBottom: pagePad }}>
         {t.page_count > 1 ? (
           <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>
             {Array.from({ length: Math.min(t.page_count, 8) }).map((_, i) => <Pressable key={i} onPress={() => { setPageIdx(i); setSel(null); }} style={[s.pageChip, i === pageIdx && s.pageChipOn]} testID={`fte-page-${i}`}><Text style={[s.pageChipTxt, i === pageIdx && { color: "#FFF" }]}>Pag. {i + 1}</Text></Pressable>)}
@@ -105,19 +106,19 @@ export default function FormTemplateEditor() {
             {f.key === "other" ? <Ionicons name="help-circle" size={18} color="#F59E0B" /> : <Ionicons name="checkmark-circle" size={18} color="#10B981" />}
           </Pressable>
         ))}
-      </ScrollView>
+      </KScrollView>
 
       <Modal visible={keyPicker} transparent animationType="slide" onRequestClose={() => setKeyPicker(false)}>
         <Pressable style={s.backdrop} onPress={() => setKeyPicker(false)}>
           <View style={s.sheet} onStartShouldSetResponder={() => true}>
             <Text style={s.section}>Quale dato del cliente va in questo campo?</Text>
-            <ScrollView style={{ maxHeight: 420 }}>
+            <KScrollView style={{ maxHeight: 420 }}>
               {Object.entries(keys).map(([k, l]) => (
                 <Pressable key={k} onPress={() => { if (selected) upd(selected.id, { key: k, label: selected.label || l }); setKeyPicker(false); }} style={[s.keyRow, selected?.key === k && { backgroundColor: HT.violetTint }]} testID={`fte-key-${k}`}>
                   <Text style={{ flex: 1, color: HT.text, fontWeight: selected?.key === k ? "900" : "600" }}>{l}</Text><Text style={s.rowMeta}>{k}</Text>
                 </Pressable>
               ))}
-            </ScrollView>
+            </KScrollView>
           </View>
         </Pressable>
       </Modal>

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Modal, TextInput } from "react-native";
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, Modal, TextInput } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
@@ -174,7 +175,7 @@ export function ContactCallsSection({ contactId, contactName, contactPhone, refr
       {loading ? (
         <ActivityIndicator color={HT.brand} style={{ marginTop: 30 }} />
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 4 }}>
+        <KScrollView contentContainerStyle={{ padding: 16, paddingTop: 4 }}>
           {logs.length === 0 ? (
             <View style={styles.empty}>
               <Ionicons name="chatbubbles-outline" size={44} color={HT.muted} />
@@ -232,7 +233,7 @@ export function ContactCallsSection({ contactId, contactName, contactPhone, refr
             })
           )}
           <View style={{ height: 60 }} />
-        </ScrollView>
+        </KScrollView>
       )}
 
       {/* V28.f — Edit modal: outcome + duration + note */}
@@ -245,7 +246,7 @@ export function ContactCallsSection({ contactId, contactName, contactPhone, refr
                 <Ionicons name="close" size={22} color={HT.text} />
               </Pressable>
             </View>
-            <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+            <KScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
               <Text style={styles.editLbl}>Esito chiamata</Text>
               <View style={styles.outcomeGrid}>
                 {outcomes.map((o) => {
@@ -311,7 +312,7 @@ export function ContactCallsSection({ contactId, contactName, contactPhone, refr
                   </>
                 )}
               </Pressable>
-            </ScrollView>
+            </KScrollView>
           </View>
         </View>
       </Modal>

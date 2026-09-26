@@ -1,6 +1,7 @@
 // Corporate Gym — bottone "Leggi Manuale" + sheet AxonOS che elenca i PDF della sottocartella Drive (letti live).
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, Pressable, Modal, TextInput, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, StyleSheet, Pressable, Modal, TextInput, ActivityIndicator, ScrollView } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller"; // V50.z374 — behavior "padding" valido su iOS e Android
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { notify } from "@/src/utils/notify";
@@ -82,7 +83,7 @@ export function CgymManualButton({ type, manualRef, label }: { type: CgymType; m
       </Pressable>
 
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.sheetBg}>
+        <KeyboardAvoidingView behavior="padding" style={styles.sheetBg}>
           <Pressable style={{ flex: 1 }} onPress={() => setOpen(false)} testID="cgym-manual-backdrop" />
           <View style={[styles.sheet, { paddingBottom: sheetPad }]} testID={`cgym-manual-sheet-${type}`}>
             <View style={styles.sheetHead}>

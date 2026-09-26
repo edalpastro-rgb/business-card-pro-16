@@ -1,6 +1,7 @@
 // app/axon-lab/business.tsx — V50.z343 — AXON LAB · AREA CONSULENTE: pratiche di compilazione (cliente CRM o nuovo)
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, RefreshControl } from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, RefreshControl } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -48,7 +49,7 @@ export default function AxonLabBusiness() {
     <SafeAreaView style={{ flex: 1, backgroundColor: HT.card2 }} edges={["top"]}>
       <LabHeader icon="document-text" title="Autocompilazione CRT" sub="Step 1 · Scegli il cliente: i suoi documenti compaiono subito"
         right={<Pressable onPress={() => setCreating((v) => !v)} style={s.newBtn} testID="lab-practice-new"><Ionicons name={creating ? "close" : "add"} size={20} color={HT.white} /></Pressable>} testID="lab-business" />
-      <ScrollView contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: pagePad + 24 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />} keyboardShouldPersistTaps="handled">
+      <KScrollView contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: pagePad + 24 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />} keyboardShouldPersistTaps="handled">
         {creating ? (
           <View style={L.card} testID="lab-practice-create">
             <Text style={L.cardTitle}>Step 1 · Selezione cliente</Text>
@@ -86,7 +87,7 @@ export default function AxonLabBusiness() {
             </Pressable>
           );
         })}
-      </ScrollView>
+      </KScrollView>
     </SafeAreaView>
   );
 }

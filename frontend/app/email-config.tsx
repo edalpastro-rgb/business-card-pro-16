@@ -1,6 +1,7 @@
 // V50.z336 — Email di sistema (Master): stato configurazione Resend advisoros.it, mittenti, test invio, ultimi eventi.
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, RefreshControl } from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, RefreshControl } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -67,7 +68,7 @@ export default function EmailConfigScreen() {
         <Text style={styles.title}>Email di sistema</Text>
       </View>
       {loading ? <ActivityIndicator style={{ marginTop: 40 }} color={HT.brand} /> : !cfg ? null : (
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: pagePad, gap: 12 }} refreshControl={<RefreshControl refreshing={false} onRefresh={load} tintColor={HT.brand} />}>
+        <KScrollView contentContainerStyle={{ padding: 16, paddingBottom: pagePad, gap: 12 }} refreshControl={<RefreshControl refreshing={false} onRefresh={load} tintColor={HT.brand} />}>
           {/* Stato provider */}
           <View style={[styles.card, { borderColor: (prov?.color || HT.border) + "66" }]} testID="email-provider-card">
             <View style={styles.rowBetween}>
@@ -137,7 +138,7 @@ export default function EmailConfigScreen() {
               </View>
             </View>
           ))}
-        </ScrollView>
+        </KScrollView>
       )}
     </SafeAreaView>
   );

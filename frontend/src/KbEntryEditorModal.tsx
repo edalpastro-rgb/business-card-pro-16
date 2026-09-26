@@ -5,7 +5,8 @@
  * Regola modal: footer FISSO con Salva + Annulla sempre visibili.
  */
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Modal, Pressable, TextInput, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform, useWindowDimensions, Keyboard } from "react-native";
+import { View, Text, StyleSheet, Modal, Pressable, TextInput, ScrollView, ActivityIndicator, Platform, useWindowDimensions, Keyboard } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller"; // V50.z374 — behavior "padding" valido su iOS e Android
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as FileSystem from "expo-file-system/legacy";
@@ -155,7 +156,7 @@ export function KbEntryEditorModal({ visible, doc, onClose, onSaved }: Props) {
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={() => !saving && onClose()}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.back}>
+      <KeyboardAvoidingView behavior="padding" style={styles.back}>
         <View style={[styles.card, { maxHeight: Math.max(winH * 0.92 - kbHeight, 320), paddingBottom: Math.max(insets.bottom, 12), marginBottom: kbHeight }]}>
           <View style={styles.hdr}>
             <View style={styles.hdrIcon}><Ionicons name={isEdit ? "create" : "add"} size={18} color="#FFF" /></View>

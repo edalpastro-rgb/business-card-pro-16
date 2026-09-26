@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -41,7 +42,7 @@ export default function NewCorporateScreen() {
         <Pressable onPress={() => router.back()} style={styles.headerBtn}><Ionicons name="chevron-back" size={22} color={HT.text} /></Pressable>
         <Text style={styles.headerTitle}>New Corporate</Text>
       </View>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: pagePad }}>
+      <KScrollView contentContainerStyle={{ padding: 16, paddingBottom: pagePad }}>
         <View style={styles.intro}><Ionicons name="business" size={22} color="#059669" /><Text style={styles.introTxt}>Crea una nuova area business per organizzare i tuoi contatti (es. Aziende, Retail, Consulting).</Text></View>
 
         <Text style={styles.label}>Nome area</Text>
@@ -62,7 +63,7 @@ export default function NewCorporateScreen() {
         <Pressable onPress={submit} disabled={saving} style={styles.submitBtn} testID="corp-submit">
           {saving ? <ActivityIndicator color="#FFF" /> : (<><Ionicons name="checkmark-circle" size={20} color="#FFF" /><Text style={styles.submitTxt}>Crea area</Text></>)}
         </Pressable>
-      </ScrollView>
+      </KScrollView>
     </SafeAreaView>
   );
 }

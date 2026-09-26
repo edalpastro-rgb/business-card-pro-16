@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, FlatList, Pressable, TextInput, ActivityIndicator, Modal, useWindowDimensions } from "react-native";
+import { KModalBody } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -354,7 +355,7 @@ function ContattiScreen() {
       )}
 
       {/* V50.z72 — Modal per impostare origine distanze */}
-      <Modal visible={originModalOpen} transparent animationType="fade" onRequestClose={() => setOriginModalOpen(false)}>
+      <Modal visible={originModalOpen} transparent animationType="fade" onRequestClose={() => setOriginModalOpen(false)}><KModalBody>
         <View style={styles.modalBackdrop} pointerEvents="box-none">
           <View style={styles.modalSheet}>
             <Text style={styles.modalTitle}>Distanze dal punto</Text>
@@ -398,7 +399,7 @@ function ContattiScreen() {
             </View>
           </View>
         </View>
-      </Modal>
+      </KModalBody></Modal>
     </SafeAreaView>
   );
 }

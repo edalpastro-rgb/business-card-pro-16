@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ActivityIndicator, Platform, Animated, Easing, Modal, ScrollView, TextInput } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { useAudioRecorder, RecordingPresets } from "expo-audio"; // V50.z255 — hook ufficiale (createAudioRecorder non esiste in expo-audio)
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
@@ -371,7 +372,7 @@ export function MasterVoiceRecorder({
               <Pressable onPress={() => setConfirmClose(true)} testID="voice-close-btn"><Ionicons name="close" size={22} color={HT.text} /></Pressable>
             </View>
 
-            <ScrollView contentContainerStyle={{ paddingBottom: 20 }} keyboardShouldPersistTaps="handled">
+            <KScrollView contentContainerStyle={{ paddingBottom: 20 }} keyboardShouldPersistTaps="handled">
               {/* Audio card (always visible) */}
               <View style={styles.audioCard} testID="voice-audio-card">
                 <Pressable onPress={playing ? stopPlayback : playAudio} style={[styles.circleBtn, { backgroundColor: playing ? "#DC2626" : "#6366F1" }]} testID="voice-play-btn">
@@ -482,7 +483,7 @@ export function MasterVoiceRecorder({
                   </ScrollView>
                 </View>
               )}
-            </ScrollView>
+            </KScrollView>
 
             {/* Bottom actions */}
             <View style={[styles.footer, { paddingBottom: 12 + safeBottom }]}>

@@ -4,7 +4,8 @@
  * come attachment (viene scaricato via backend e passato come base64 come i file locali).
  */
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, Modal, TextInput, ScrollView, ActivityIndicator, Image, Platform } from "react-native";
+import { View, Text, StyleSheet, Pressable, Modal, TextInput, ActivityIndicator, Image, Platform } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 import { useRouter } from "expo-router";
@@ -258,7 +259,7 @@ export function GoogleDrivePickerModal({
                   </Pressable>
                 </View>
               ) : (
-                <ScrollView contentContainerStyle={{ paddingBottom: 20 }} keyboardShouldPersistTaps="handled">
+                <KScrollView contentContainerStyle={{ paddingBottom: 20 }} keyboardShouldPersistTaps="handled">
                   {files.map((f) => {
                     const icon = mimeIcon(f.mimeType);
                     const isDownloading = downloading === f.id;
@@ -286,7 +287,7 @@ export function GoogleDrivePickerModal({
                       </Pressable>
                     );
                   })}
-                </ScrollView>
+                </KScrollView>
               )}
             </>
           )}

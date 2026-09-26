@@ -2,6 +2,7 @@
 // posizione/ETA e azioni [Invia ora] [Modifica] [Cancella] [Priorità]. Sopra: tab delle chat parallele (sessioni) con [+].
 import React, { useState } from "react";
 import { View, Text, StyleSheet, Pressable, TextInput, ScrollView } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
@@ -22,7 +23,7 @@ export function ChatQueuePanel({ items, recentDone, failed, onChanged, onSendNow
   const retryAll = async () => { try { await api("/chat/queue/retry-all", { method: "POST" }); } catch {} onChanged(); };
 
   return (
-    <ScrollView style={styles.wrap} contentContainerStyle={{ padding: 12, gap: 10 }} keyboardShouldPersistTaps="handled" testID="chat-queue-panel">
+    <KScrollView style={styles.wrap} contentContainerStyle={{ padding: 12, gap: 10 }} keyboardShouldPersistTaps="handled" testID="chat-queue-panel">
       {failed.length > 0 && (
         <View style={styles.failedBox} testID="queue-failed-section">
           <View style={[styles.row, { alignItems: "center" }]}>
@@ -91,7 +92,7 @@ export function ChatQueuePanel({ items, recentDone, failed, onChanged, onSendNow
           ))}
         </>
       )}
-    </ScrollView>
+    </KScrollView>
   );
 }
 

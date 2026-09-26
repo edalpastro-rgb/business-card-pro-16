@@ -2,6 +2,7 @@
 // Register, Libero, Yahoo, IONOS, custom). Legge INBOX e scarica allegati.
 
 import { useCallback, useEffect, useState } from "react";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import {
   View, Text, StyleSheet, ScrollView, Pressable, TextInput,
   ActivityIndicator, Alert, RefreshControl, Modal, Switch, Platform, Image,
@@ -143,7 +144,7 @@ export default function EmailAccountsScreen() {
       {tab === "inbox" ? (
         <CombinedInbox />
       ) : (
-      <ScrollView
+      <KScrollView
         contentContainerStyle={{ padding: 14, paddingBottom: pagePad, gap: 10 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
@@ -194,7 +195,7 @@ export default function EmailAccountsScreen() {
             </Pressable>
           ))
         )}
-      </ScrollView>
+      </KScrollView>
       )}
 
       {addOpen ? (
@@ -326,7 +327,7 @@ function CombinedInbox() {
   };
 
   return (
-    <ScrollView
+    <KScrollView
       contentContainerStyle={{ padding: 12, paddingBottom: Math.max(pagePad, 80), gap: 8 }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
@@ -551,7 +552,7 @@ function CombinedInbox() {
           </View>
         </Modal>
       ) : null}
-    </ScrollView>
+    </KScrollView>
   );
 }
 
@@ -713,7 +714,7 @@ function AddAccountModal({ onClose, onAdded }: { onClose: () => void; onAdded: (
               <Ionicons name="close" size={24} color={HT.text} />
             </Pressable>
           </View>
-          <ScrollView contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: 140 }}>
+          <KScrollView contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: 140 }}>
             <Text style={styles.sectionLabel}>Provider</Text>
             <View style={styles.presetGrid}>
               {presets.map((p) => (
@@ -833,7 +834,7 @@ function AddAccountModal({ onClose, onAdded }: { onClose: () => void; onAdded: (
                 <Text style={styles.errBannerTxt}>{errorMsg}</Text>
               </View>
             ) : null}
-          </ScrollView>
+          </KScrollView>
         </View>
       </View>
     </Modal>
@@ -925,7 +926,7 @@ function MessagesModal({ account, onClose }: { account: MailAccount; onClose: ()
             </Pressable>
           </View>
 
-          <ScrollView contentContainerStyle={{ padding: 12, gap: 8, paddingBottom: 140 }}>
+          <KScrollView contentContainerStyle={{ padding: 12, gap: 8, paddingBottom: 140 }}>
             {loading ? (
               <View style={styles.empty}><ActivityIndicator size="large" color="#0EA5E9" /></View>
             ) : messages.length === 0 ? (
@@ -973,7 +974,7 @@ function MessagesModal({ account, onClose }: { account: MailAccount; onClose: ()
                 </View>
               ))
             )}
-          </ScrollView>
+          </KScrollView>
         </View>
       </View>
       {/* V50.z23 — Modal anteprima allegato IN-APP */}

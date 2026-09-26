@@ -4,10 +4,8 @@
 // custom opzionale via expo-audio.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator,
-  Modal, Alert, Platform, KeyboardAvoidingView, Switch, FlatList,
-} from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Modal, Alert, Platform, Switch, FlatList } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller"; // V50.z374 — behavior "padding" valido su iOS e Android
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -513,7 +511,7 @@ function AlarmEditor({ initial, initialKind, timeFmt, onClose, onSaved }: {
           </Text>
           <View style={{ width: 30 }} />
         </View>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+        <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
           <ScrollView
             contentContainerStyle={{ padding: 14, paddingBottom: 120, gap: 14 }}
             keyboardShouldPersistTaps="handled"

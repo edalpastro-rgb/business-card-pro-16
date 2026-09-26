@@ -4,6 +4,7 @@
 // Mostrato solo al primo accesso (user-settings.onboarding_done + cache locale); replay da Help / Master.
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, Animated, ActivityIndicator, Platform, ScrollView, TextInput } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { useRouter, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -197,11 +198,11 @@ export default function TourScreen() {
       </View>
       {setup === null ? null : setup.needed ? (
         pendingSetup ? (
-          <ScrollView contentContainerStyle={styles.promoStep} keyboardShouldPersistTaps="handled" testID="promo-step">
+          <KScrollView contentContainerStyle={styles.promoStep} keyboardShouldPersistTaps="handled" testID="promo-step">
             <View style={styles.promoOrb}><Ionicons name="gift" size={32} color="#FFFFFF" /></View>
             <Text style={styles.promoTitle}>Quasi pronto, {pendingSetup.name} ti aspetta</Text>
             <PromoCodeField onDone={onPromoDone} />
-          </ScrollView>
+          </KScrollView>
         ) : (
         <AssistantSetupStep initialName={setup.name} initialVoice={setup.voice} onDone={onSetupDone} />
         )

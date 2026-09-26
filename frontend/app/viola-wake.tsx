@@ -2,7 +2,8 @@
 // servizio opzionale a sovrapprezzo), interruttore personale, permessi microfono (contratto: spiega →
 // chiedi → se negato «Apri Impostazioni»), test del flusso e ultimi eventi.
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, Switch, TextInput, ActivityIndicator, Platform, RefreshControl } from "react-native";
+import { View, Text, StyleSheet, Pressable, Switch, TextInput, ActivityIndicator, Platform, RefreshControl } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -73,7 +74,7 @@ export default function ViolaWakeScreen() {
         <Ionicons name="ear" size={22} color={C.onSurfaceInverse} />
       </View>
 
-      <ScrollView contentContainerStyle={s.body} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
+      <KScrollView contentContainerStyle={s.body} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
         {/* Stato */}
         <View style={[s.card, { borderColor: stColor }]} testID="viola-state-card">
           <View style={s.row}>
@@ -204,7 +205,7 @@ export default function ViolaWakeScreen() {
               : "Android: questa build non include ancora il servizio in primo piano «Axon in ascolto» (serve una nuova build): l'ascolto continua con app aperta o in secondo piano recente.")
             : "iOS: funziona con app aperta e a schermo spento (audio in background); Apple non consente il microfono sempre acceso con app chiusa."}
         </Text>
-      </ScrollView>
+      </KScrollView>
     </SafeAreaView>
   );
 }

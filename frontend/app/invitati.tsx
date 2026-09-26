@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Alert, ActivityIndicator, Platform, Share } from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, Alert, ActivityIndicator, Platform, Share } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -138,7 +139,7 @@ export default function InvitatiScreen() {
         <View style={{ width: 26 }} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: pagePad }}>
+      <KScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: pagePad }}>
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Nuovo invito</Text>
           <Text style={styles.hint}>Genera un link da condividere con il cliente. Al primo accesso avrà un trial di N giorni.</Text>
@@ -234,7 +235,7 @@ export default function InvitatiScreen() {
           );
         })}
         <View style={{ height: 40 }} />
-      </ScrollView>
+      </KScrollView>
     </SafeAreaView>
   );
 }

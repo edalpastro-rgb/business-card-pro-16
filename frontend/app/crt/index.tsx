@@ -1,7 +1,8 @@
 // crt/index.tsx — V50.z282 — COMPILAZIONE CRT: elenco pratiche + nuova pratica (cliente + servizi multi) + zona esempi (Master)
 // V50.z332 — Redesign elenco: riepilogo, CTA «Nuova pratica», card pratica (servizi/stato/PDF), blocco Master «Modelli e ordine documenti» con drag & drop
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, RefreshControl } from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, RefreshControl } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -90,7 +91,7 @@ export default function CrtListScreen() {
         <View style={{ flex: 1 }}><Text style={s.title}>Compilazione CRT</Text><Text style={s.sub}>Axon compila i moduli, tu controlli e firmi</Text></View>
         <Pressable onPress={() => setCreating((v) => !v)} style={s.newBtn} testID="crt-new"><Ionicons name={creating ? "close" : "add"} size={20} color="#FFF" /></Pressable>
       </View>
-      <ScrollView contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: pagePad + 24 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}>
+      <KScrollView contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: pagePad + 24 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}>
         {/* Riepilogo */}
         <View style={s.statRow} testID="crt-stats">
           <View style={s.stat}><Text style={s.statN}>{items.length}</Text><Text style={s.statL}>Pratiche</Text></View>
@@ -195,7 +196,7 @@ export default function CrtListScreen() {
             </Pressable>
           </>
         ) : null}
-      </ScrollView>
+      </KScrollView>
     </SafeAreaView>
   );
 }

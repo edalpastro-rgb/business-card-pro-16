@@ -5,7 +5,8 @@
  * anagrafiche esistenti. I chip mostrano avatar + nome; il tap apre l'anagrafica.
  */
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, Pressable, Image, Modal, TextInput, ActivityIndicator, ScrollView } from "react-native";
+import { View, Text, StyleSheet, Pressable, Image, Modal, TextInput, ActivityIndicator } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
@@ -323,7 +324,7 @@ export function ContactReferencesSection({ contactId, contactName }: { contactId
                     <Text style={styles.emptyTxt}>Nessun contatto trovato</Text>
                   </View>
                 ) : (
-                  <ScrollView contentContainerStyle={{ paddingBottom: 20 }} keyboardShouldPersistTaps="handled">
+                  <KScrollView contentContainerStyle={{ paddingBottom: 20 }} keyboardShouldPersistTaps="handled">
                     {filtered.map((c) => {
                       const name = `${c.first_name || ""} ${c.last_name || ""}`.trim() || "Contatto";
                       const color = AREA_COLOR[c.area || "energy"] || "#7C3AED";
@@ -353,7 +354,7 @@ export function ContactReferencesSection({ contactId, contactName }: { contactId
                         </Pressable>
                       );
                     })}
-                  </ScrollView>
+                  </KScrollView>
                 )}
               </>
             )}

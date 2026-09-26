@@ -4,6 +4,7 @@
 // disattiva (non usato da Axon) o cancella i record; "Analizza ora" processa subito le sessioni concluse.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, RefreshControl, Alert, Platform } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
@@ -90,7 +91,7 @@ export default function AxonInsightsScreen() {
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: insets.bottom + 120, gap: 12 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />} keyboardShouldPersistTaps="handled">
+      <KScrollView contentContainerStyle={{ padding: 14, paddingBottom: insets.bottom + 120, gap: 12 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />} keyboardShouldPersistTaps="handled">
         {stats && (
           <View style={styles.statsRow}>
             {[["Insight", stats.total], ["Conversazioni", stats.sessions_analyzed], ["In coda", stats.sessions_pending], ["Disattivati", stats.disabled]].map(([l, v]) => (
@@ -160,7 +161,7 @@ export default function AxonInsightsScreen() {
             <Ionicons name="trash" size={16} color={HT.danger} /><Text style={styles.dangerTxt}>Svuota tutto il knowledge base appreso</Text>
           </Pressable>
         )}
-      </ScrollView>
+      </KScrollView>
     </View>
   );
 }

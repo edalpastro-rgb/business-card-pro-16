@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, ActivityIndicator, Platform, Alert } from "react-native";
+import { View, Text, StyleSheet, TextInput, Pressable, ActivityIndicator, Platform, Alert } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -114,7 +115,7 @@ export default function NewCallbackScreen() {
           </Pressable>
         ) : <View style={{ width: 26 }} />}
       </View>
-      <ScrollView contentContainerStyle={styles.content}>
+      <KScrollView contentContainerStyle={styles.content}>
         <Text style={styles.lbl}>Titolo *</Text>
         <TextInput testID="cb-title" value={form.title} onChangeText={(t) => setForm({ ...form, title: t })} style={styles.input} placeholder="Es. Ritelefonare cliente" placeholderTextColor={HT.muted} />
 
@@ -202,7 +203,7 @@ export default function NewCallbackScreen() {
           {busy ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveBtnTxt}>{editId ? "Salva modifiche" : "Salva ritelefonata"}</Text>}
         </Pressable>
         <View style={{ height: 40 }} />
-      </ScrollView>
+      </KScrollView>
     </SafeAreaView>
   );
 }

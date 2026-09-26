@@ -2,7 +2,8 @@
 // materiali scaricabili, bottoni ✅ Partecipo / ❌ Non partecipo (+ motivo). Creatore: lista partecipanti (lettura, stato,
 // motivazioni espandibili), export Excel / PDF, archivia/elimina.
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Linking, Platform } from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Linking, Platform } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -107,7 +108,7 @@ export default function CourseDetail() {
         <Pressable onPress={() => router.back()} hitSlop={10} style={s.hBtn}><Ionicons name="chevron-back" size={24} color={HT.text} /></Pressable>
         <View style={{ flex: 1 }}><Text style={s.title} numberOfLines={1}>{c.title}</Text><Text style={s.sub}>{c.course_date ? `📅 ${c.course_date.split("-").reverse().join("/")}${c.course_time ? ` ${c.course_time}` : ""}  ` : ""}{c.location ? `📍 ${c.location}` : ""}{c.creator_name ? `  · di ${c.creator_name}` : ""}</Text></View>
       </View>
-      <ScrollView contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: pagePad }}>
+      <KScrollView contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: pagePad }}>
         {c.description ? <View style={s.card}><Text style={s.body}>{c.description}</Text></View> : null}
         {c.maps_url ? <Pressable onPress={() => Linking.openURL(c.maps_url!)} style={s.link}><Ionicons name="navigate" size={16} color="#2563EB" /><Text style={s.linkTxt}>Apri in Maps / Waze</Text></Pressable> : null}
         {c.body_text ? <View style={s.card}><Text style={s.section}>Appunti</Text><Text style={s.body}>{c.body_text}</Text></View> : null}
@@ -219,7 +220,7 @@ export default function CourseDetail() {
             </View>
           </View>
         )}
-      </ScrollView>
+      </KScrollView>
     </SafeAreaView>
   );
 }

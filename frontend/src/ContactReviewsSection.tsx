@@ -2,18 +2,8 @@
 // PROMPT 24: sondaggio qualità post-conversione.
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  Pressable,
-  ScrollView,
-  Modal,
-  TextInput,
-  ActivityIndicator,
-  Linking,
-  Platform,
-} from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
+import { View, Text, StyleSheet, Pressable, Modal, TextInput, ActivityIndicator, Linking, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as Clipboard from "expo-clipboard";
@@ -287,7 +277,7 @@ export function ContactReviewsSection({
 
   return (
     <View style={{ flex: 1, backgroundColor: HT.card2 }}>
-      <ScrollView contentContainerStyle={styles.container}>
+      <KScrollView contentContainerStyle={styles.container}>
         {/* Header */}
         <View style={styles.headerRow}>
           <View style={{ flex: 1 }}>
@@ -465,7 +455,7 @@ export function ContactReviewsSection({
         ))}
 
         <View style={{ height: 100 }} />
-      </ScrollView>
+      </KScrollView>
 
       {/* Modal nuova richiesta */}
       <Modal visible={showNew} transparent animationType="slide" onRequestClose={() => setShowNew(false)}>
@@ -477,7 +467,7 @@ export function ContactReviewsSection({
                 <Ionicons name="close" size={22} color={HT.text} />
               </Pressable>
             </View>
-            <ScrollView contentContainerStyle={{ padding: 16 }}>
+            <KScrollView contentContainerStyle={{ padding: 16 }}>
               <Text style={styles.lbl}>Cliente</Text>
               <Text style={styles.lblVal}>{contactName}</Text>
 
@@ -554,7 +544,7 @@ export function ContactReviewsSection({
                 <Ionicons name="send" size={18} color={HT.brand} />
                 <Text style={styles.btnGhostTxt}>Prepara e invia adesso</Text>
               </Pressable>
-            </ScrollView>
+            </KScrollView>
           </View>
         </View>
       </Modal>

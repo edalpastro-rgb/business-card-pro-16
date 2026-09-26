@@ -2,6 +2,7 @@
 // Naviga livello per livello, cerca globalmente, seleziona una CARTELLA («Collega questa cartella») o un FILE (tap → collega).
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, Modal, TextInput, ActivityIndicator, ScrollView } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { Ionicons } from "@expo/vector-icons";
 import { cgymManualsApi, CgymManualFile, CgymManualRef } from "@/src/corporate-gym/manualsApi";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
@@ -76,7 +77,7 @@ export function CgymDrivePicker({ visible, title, onClose, onPick, allowFiles = 
               <Text style={styles.pickFolderTxt}>Collega questa cartella «{cur.name}» (tutti i file, anche nella radice)</Text>
             </Pressable>
           )}
-          <ScrollView style={{ maxHeight: 380 }} contentContainerStyle={{ paddingBottom: 12 }}>
+          <KScrollView style={{ maxHeight: 380 }} contentContainerStyle={{ paddingBottom: 12 }}>
             {loading ? <ActivityIndicator color={HT.brand} style={{ marginVertical: 20 }} /> : error ? (
               <Text style={styles.msg}>{error}</Text>
             ) : items.length === 0 ? (
@@ -99,7 +100,7 @@ export function CgymDrivePicker({ visible, title, onClose, onPick, allowFiles = 
                 <Ionicons name={f.is_folder ? "chevron-forward" : "link"} size={16} color={HT.muted} />
               </Pressable>
             ))}
-          </ScrollView>
+          </KScrollView>
         </View>
       </View>
     </Modal>

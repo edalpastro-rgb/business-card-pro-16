@@ -1,19 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import {
-  DeviceEventEmitter, // V50.z315 — prompt vocale ViolaWake a chat già aperta
-  View,
-  Text,
-  Pressable,
-  Modal,
-  TextInput,
-  ScrollView,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Keyboard,
-  Platform,
-  Image,
-  Alert,
-} from "react-native";
+import { DeviceEventEmitter, // V50.z315 — prompt vocale ViolaWake a chat già aperta
+  View, Text, Pressable, Modal, TextInput, ScrollView, ActivityIndicator, Keyboard, Platform, Image, Alert } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller"; // V50.z374 — behavior "padding" valido su iOS e Android
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 // V29.au — Import expo-audio per il pulsante microfono su native (APK Android/iOS).
 // Prima era solo web (MediaRecorder), quindi su APK i pulsanti mic + ascolto
@@ -1554,7 +1542,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
             // applichiamo paddingBottom = kbHeight direttamente al container
             // così su Android nel Modal transparent (dove behavior:padding
             // non funziona) il TextInput sale comunque sopra la tastiera.
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            behavior="padding"
             keyboardVerticalOffset={0}
             style={{ flex: 1, paddingBottom: Platform.OS === "android" ? kbHeight : 0 }}
           >

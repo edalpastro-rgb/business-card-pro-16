@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, TextInput } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -64,7 +65,7 @@ function AppointmentStatsScreen() {
         <View style={{ width: 26 }} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
+      <KScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
         {/* Range selector */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 44 }} contentContainerStyle={{ gap: 6 }}>
           {RANGES.map((d) => (
@@ -158,7 +159,7 @@ function AppointmentStatsScreen() {
             )}
           </>
         )}
-      </ScrollView>
+      </KScrollView>
     </SafeAreaView>
   );
 }

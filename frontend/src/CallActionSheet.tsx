@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
-import {
-  View, Text, StyleSheet, Modal, Pressable, ScrollView, TextInput, Alert, Platform, Linking,
-} from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
+import { View, Text, StyleSheet, Modal, Pressable, TextInput, Alert, Platform, Linking } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { api } from "@/src/api";
@@ -176,7 +175,7 @@ export function CallActionSheet({ visible, target, onClose, onCompleted }: Props
           )}
 
           {step === "outcome" && (
-            <ScrollView contentContainerStyle={{ padding: 16, gap: 8 }}>
+            <KScrollView contentContainerStyle={{ padding: 16, gap: 8 }}>
               <Text style={styles.hint}>Com&apos;è andata?</Text>
               {outcomes.map((o) => (
                 <Pressable
@@ -204,11 +203,11 @@ export function CallActionSheet({ visible, target, onClose, onCompleted }: Props
               <Pressable onPress={() => setStep("call")} style={styles.linkBtn}>
                 <Text style={styles.linkBtnTxt}>← Indietro</Text>
               </Pressable>
-            </ScrollView>
+            </KScrollView>
           )}
 
           {step === "reschedule" && (
-            <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+            <KScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
               <Text style={styles.hint}>Quando ri-chiamare?</Text>
               <View style={styles.quickRow}>
                 {QUICK_DELTAS.map((q) => {
@@ -291,7 +290,7 @@ export function CallActionSheet({ visible, target, onClose, onCompleted }: Props
               <Pressable onPress={() => setStep("outcome")} style={styles.linkBtn}>
                 <Text style={styles.linkBtnTxt}>← Cambia esito</Text>
               </Pressable>
-            </ScrollView>
+            </KScrollView>
           )}
         </View>
       </View>

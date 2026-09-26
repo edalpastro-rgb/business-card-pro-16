@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, Modal, Pressable, TextInput, ScrollView, ActivityIndicator, Platform } from "react-native";
+import { View, Text, StyleSheet, Modal, Pressable, TextInput, ActivityIndicator, Platform } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import * as Clipboard from "expo-clipboard";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
@@ -134,7 +135,7 @@ export function MasterPromoteModal({ visible, onClose }: { visible: boolean; onC
       <Pressable style={styles.backdrop} onPress={handleClose}>
         <Pressable style={[styles.sheet, { paddingBottom: safeBottom + 12 }, { paddingBottom: bottomPad }]} onPress={(e) => e.stopPropagation()}>
           <View style={styles.grip} />
-          <ScrollView contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <KScrollView contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
             {/* STEP: Search */}
             {step === "search" && (
               <>
@@ -310,7 +311,7 @@ export function MasterPromoteModal({ visible, onClose }: { visible: boolean; onC
                 </Pressable>
               </>
             )}
-          </ScrollView>
+          </KScrollView>
         </Pressable>
       </Pressable>
     </Modal>

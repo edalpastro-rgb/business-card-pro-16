@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { View, Text, StyleSheet, FlatList, Pressable, TextInput, ActivityIndicator, Modal, Alert } from "react-native";
+import { KModalBody } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -115,7 +116,7 @@ export default function GroupsScreen() {
         />
       )}
 
-      <Modal visible={modalOpen} transparent animationType="fade" onRequestClose={() => setModalOpen(false)}>
+      <Modal visible={modalOpen} transparent animationType="fade" onRequestClose={() => setModalOpen(false)}><KModalBody>
         <View style={styles.modalBack}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>{editing ? "Modifica gruppo" : "Nuovo gruppo"}</Text>
@@ -155,7 +156,7 @@ export default function GroupsScreen() {
             </View>
           </View>
         </View>
-      </Modal>
+      </KModalBody></Modal>
     </SafeAreaView>
   );
 }

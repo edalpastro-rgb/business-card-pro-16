@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Modal } from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Modal } from "react-native";
+import { KScrollView, KModalBody } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -190,7 +191,7 @@ export default function TeamScreen() {
       </View>
 
       {loading ? <ActivityIndicator style={{ marginTop: 40 }} color={HT.brand} /> : (
-        <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: pagePad }}>
+        <KScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: pagePad }}>
           {items.length === 0 ? (
             <View style={styles.empty}>
               <Ionicons name="people-outline" size={40} color={HT.muted} />
@@ -236,10 +237,10 @@ export default function TeamScreen() {
               <MasterOnlyFields member={m} onUpdated={load} />
             </View>
           ))}
-        </ScrollView>
+        </KScrollView>
       )}
 
-      <Modal visible={showInvite} animationType="slide" transparent onRequestClose={() => setShowInvite(false)}>
+      <Modal visible={showInvite} animationType="slide" transparent onRequestClose={() => setShowInvite(false)}><KModalBody>
         <View style={styles.modalBg}>
           <View style={[styles.modal, { paddingBottom: bottomPad }]}>
             <View style={styles.modalHead}>
@@ -268,7 +269,7 @@ export default function TeamScreen() {
             <Text style={styles.hint}>Comunica manualmente al collaboratore email e password iniziale.</Text>
           </View>
         </View>
-      </Modal>
+      </KModalBody></Modal>
     </SafeAreaView>
   );
 }

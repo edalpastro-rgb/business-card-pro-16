@@ -2,7 +2,8 @@
 // OK → salva /user-settings {assistant_name, assistant_voice, assistant_setup_done, activation_done}
 // → vibrazione doppia → apre la chat → onda di energia 3 s → «Ciao, sono {nome}. Sono pronto.»
 import React, { useState } from "react";
-import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, TextInput, Pressable, ActivityIndicator } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { playAudioBase64 } from "@/src/utils/audioPlayback";
@@ -36,7 +37,7 @@ export function AssistantSetupStep({ initialName, initialVoice, onDone }: { init
   };
 
   return (
-    <ScrollView contentContainerStyle={s.body} keyboardShouldPersistTaps="handled" testID="assistant-setup-step">
+    <KScrollView contentContainerStyle={s.body} keyboardShouldPersistTaps="handled" testID="assistant-setup-step">
       <View style={s.orb}><Ionicons name="sparkles" size={34} color={C.onSurfaceInverse} /></View>
       <Text style={s.title}>Dai un nome al tuo assistente</Text>
       <Text style={s.sub}>Prima di iniziare scegli come chiamarlo e con quale voce deve parlarti. Potrai cambiarli quando vuoi dalle Impostazioni.</Text>
@@ -65,7 +66,7 @@ export function AssistantSetupStep({ initialName, initialVoice, onDone }: { init
         {saving ? <ActivityIndicator color={C.onSurfaceInverse} /> : <Text style={s.okTxt}>OK</Text>}
       </Pressable>
       <Text style={s.hint}>Tocca una voce per ascoltarla. Premendo OK {name.trim() || "Axon"} si attiva e si presenta.</Text>
-    </ScrollView>
+    </KScrollView>
   );
 }
 

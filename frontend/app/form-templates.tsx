@@ -1,7 +1,8 @@
 // form-templates.tsx — V50.z268 — «Modelli moduli» (Master): carica il PDF del modulo (dispositivo / Google Drive / Dropbox),
 // Axon rileva i campi (o usa i campi compilabili del PDF) → lista modelli → editor campi (/form-template/[id]).
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Switch } from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Switch } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -69,7 +70,7 @@ export default function FormTemplatesScreen() {
         <Pressable onPress={() => router.back()} hitSlop={10} style={s.hBtn}><Ionicons name="chevron-back" size={24} color={HT.text} /></Pressable>
         <View style={{ flex: 1 }}><Text style={s.title}>Modelli moduli</Text><Text style={s.sub}>PDF da compilare automaticamente con i dati del cliente</Text></View>
       </View>
-      <ScrollView contentContainerStyle={{ padding: 14, gap: 14, paddingBottom: pagePad }}>
+      <KScrollView contentContainerStyle={{ padding: 14, gap: 14, paddingBottom: pagePad }}>
         {isMaster ? (
           <View style={s.card} testID="ft-upload-card">
             <Text style={s.section}>Nuovo modello</Text>
@@ -103,7 +104,7 @@ export default function FormTemplatesScreen() {
             <Ionicons name="chevron-forward" size={18} color={HT.muted} />
           </Pressable>
         ))}
-      </ScrollView>
+      </KScrollView>
       <GoogleDrivePickerModal visible={drive} onClose={() => setDrive(false)} onFilePicked={fromCloud} />
       <DropboxPickerModal visible={dropbox} onClose={() => setDropbox(false)} onFilePicked={fromCloud} />
     </SafeAreaView>

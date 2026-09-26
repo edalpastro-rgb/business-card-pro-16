@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState, useRef } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndicator, Image, Platform, Modal } from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Image, Platform, Modal } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AndroidKeyboardPadding } from "@/src/keyboard/AndroidKeyboardPadding"; // V50.z186 — tastiera Android dentro Modal
 import { Ionicons } from "@expo/vector-icons";
@@ -484,7 +485,7 @@ function EventBannersScreen() {
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
+      <KScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
         <View style={styles.introCard}>
           <Ionicons name="megaphone" size={22} color="#F59E0B" />
           <View style={{ flex: 1, marginLeft: 10 }}>
@@ -536,7 +537,7 @@ function EventBannersScreen() {
             );
           })
         )}
-      </ScrollView>
+      </KScrollView>
 
       {/* Create/Edit modal */}
       <Modal visible={!!editing} animationType="slide" transparent onRequestClose={() => setEditing(null)}>
@@ -549,7 +550,7 @@ function EventBannersScreen() {
               </Pressable>
             </View>
 
-            <ScrollView style={{ maxHeight: 560 }} contentContainerStyle={{ padding: 14, paddingBottom: 140 }}>
+            <KScrollView style={{ maxHeight: 560 }} contentContainerStyle={{ padding: 14, paddingBottom: 140 }}>
               {/* Cover */}
               <Text style={styles.lbl}>Copertina</Text>
               <Pressable testID="event-cover-pick" onPress={pickCover} style={styles.coverBox}>
@@ -878,7 +879,7 @@ function EventBannersScreen() {
                   Salva prima l&apos;evento per abilitare la generazione AI.
                 </Text>
               )}
-            </ScrollView>
+            </KScrollView>
 
             <View style={styles.modalFooter}>
               <Pressable onPress={() => setEditing(null)} style={[styles.btn, { backgroundColor: HT.card2 }]}>

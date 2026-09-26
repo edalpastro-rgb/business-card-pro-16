@@ -1,6 +1,7 @@
 // V50.z322 — Pannello Master › «Invita un amico»: il mio codice + (Super Admin) premi configurabili e registro dei referral.
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, TextInput, Switch } from "react-native";
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, TextInput, Switch } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -40,7 +41,7 @@ export default function InvitaAmicoScreen() {
         <Pressable onPress={() => router.back()} style={s.iconBtn} testID="referral-back"><Ionicons name="chevron-back" size={24} color={C.onSurface} /></Pressable>
         <View style={{ flex: 1 }}><Text style={s.hTitle}>Invita un amico</Text><Text style={s.hSub}>Codice personale · premi per chi invita e chi arriva</Text></View>
       </View>
-      <ScrollView contentContainerStyle={[s.body, { paddingBottom: pagePad }]}>
+      <KScrollView contentContainerStyle={[s.body, { paddingBottom: pagePad }]}>
         <ReferralCard />
         {settings === null ? <ActivityIndicator color={VIOLET} /> : settings ? (
           <>
@@ -66,7 +67,7 @@ export default function InvitaAmicoScreen() {
             </View>
           </>
         ) : null}
-      </ScrollView>
+      </KScrollView>
     </SafeAreaView>
   );
 }

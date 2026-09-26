@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Modal, TextInput, Pressable, ActivityIndicator, Platform } from "react-native";
+import { KModalBody } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
@@ -43,7 +44,7 @@ export function SaveConfirmModal({ visible, title, subtitle, defaultName, extens
   const accent = color || HT.brand;
 
   return (
-    <Modal visible={visible} animationType="fade" transparent onRequestClose={onCancel}>
+    <Modal visible={visible} animationType="fade" transparent onRequestClose={onCancel}><KModalBody>
       <Pressable style={styles.back} onPress={busy ? undefined : onCancel}>
         <Pressable style={[styles.card, { paddingBottom: 18 + safeBottom }]} onPress={(e) => e.stopPropagation()}>
           <View style={styles.head}>
@@ -80,7 +81,7 @@ export function SaveConfirmModal({ visible, title, subtitle, defaultName, extens
           </View>
         </Pressable>
       </Pressable>
-    </Modal>
+    </KModalBody></Modal>
   );
 }
 

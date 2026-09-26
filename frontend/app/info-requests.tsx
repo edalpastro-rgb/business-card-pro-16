@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Platform, RefreshControl } from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Platform, RefreshControl } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { Ionicons } from "@expo/vector-icons";
@@ -204,7 +205,7 @@ export default function InfoRequestsScreen() {
           </Pressable>
         </KeyboardAwareScrollView>
       ) : (
-        <ScrollView
+        <KScrollView
           contentContainerStyle={{ padding: 16, paddingBottom: 40 + insets.bottom + (Platform.OS === "web" ? 60 : 0) }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={HT.brand} />}
         >
@@ -261,7 +262,7 @@ export default function InfoRequestsScreen() {
               </Pressable>
             ))
           )}
-        </ScrollView>
+        </KScrollView>
       )}
 
       {/* V50.z83 — Modal picker contatto */}
@@ -283,7 +284,7 @@ export default function InfoRequestsScreen() {
               style={[styles.input, { margin: 12 }]}
               testID="ireq-contact-search"
             />
-            <ScrollView style={{ maxHeight: 360 }}>
+            <KScrollView style={{ maxHeight: 360 }}>
               {contactLoading ? (
                 <ActivityIndicator style={{ marginVertical: 24 }} color={HT.brand} />
               ) : contactResults.length === 0 ? (
@@ -300,7 +301,7 @@ export default function InfoRequestsScreen() {
                   </Pressable>
                 ))
               )}
-            </ScrollView>
+            </KScrollView>
           </View>
         </View>
       ) : null}

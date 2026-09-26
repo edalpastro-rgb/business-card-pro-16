@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, ActivityIndicator, Platform, Switch, Modal, Image, KeyboardAvoidingView, useWindowDimensions } from "react-native";
+import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, ActivityIndicator, Platform, Switch, Modal, Image, useWindowDimensions } from "react-native";
+import { KModalBody } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
+import { KeyboardAvoidingView } from "react-native-keyboard-controller"; // V50.z374 — behavior "padding" valido su iOS e Android
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { Ionicons } from "@expo/vector-icons";
@@ -1157,7 +1159,7 @@ function NewAppointmentScreen() {
         </Pressable>
       </View>
 
-      <Modal visible={!!typeEditModal} transparent animationType="fade" onRequestClose={() => setTypeEditModal(null)}>
+      <Modal visible={!!typeEditModal} transparent animationType="fade" onRequestClose={() => setTypeEditModal(null)}><KModalBody>
         <View style={mstyles.back}>
           <View style={mstyles.card}>
             <Text style={mstyles.title}>{typeEditModal?.mode === "create" ? "Nuovo tipo di appuntamento" : "Rinomina tipo"}</Text>
@@ -1181,7 +1183,7 @@ function NewAppointmentScreen() {
             </View>
           </View>
         </View>
-      </Modal>
+      </KModalBody></Modal>
 
       <WheelPickerModal
         visible={wheelPicker === "duration"}
@@ -1208,7 +1210,7 @@ function NewAppointmentScreen() {
           "Chiudi senza inviare" è sempre visibile senza scorrere, anche con
           tastiera aperta (KeyboardAvoidingView). */}
       <Modal visible={!!postSave} animationType="slide" transparent onRequestClose={() => { setPostSave(null); router.back(); }}>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={mstyles.postSaveBack}>
+        <KeyboardAvoidingView behavior="padding" style={mstyles.postSaveBack}>
           <View style={[mstyles.postSaveCard, { maxHeight: Math.round(winH * 0.88), paddingBottom: Math.max(insets.bottom, 12) }]}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 6 }}>
               <View style={mstyles.checkCircle}>

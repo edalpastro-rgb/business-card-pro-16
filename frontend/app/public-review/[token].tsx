@@ -3,16 +3,8 @@
 // Nessuna autenticazione richiesta.
 
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  Pressable,
-  TextInput,
-  ScrollView,
-  ActivityIndicator,
-  Platform,
-} from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
@@ -132,7 +124,7 @@ export default function PublicReviewPage() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <KScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.header}>
           <Text style={styles.title}>La tua opinione conta ✨</Text>
           <Text style={styles.subtitle}>
@@ -213,7 +205,7 @@ export default function PublicReviewPage() {
         <Text style={styles.footer}>
           🔒 I tuoi dati sono trattati esclusivamente per la valutazione del servizio.
         </Text>
-      </ScrollView>
+      </KScrollView>
     </SafeAreaView>
   );
 }

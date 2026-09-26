@@ -1,6 +1,7 @@
 // Notifiche AxonOS (V50.z181) — elenco notifiche + preferenze. Route: /axon-notifications?tab=prefs
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Switch, TextInput, RefreshControl, Modal } from "react-native";
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, Switch, TextInput, RefreshControl, Modal } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
@@ -110,7 +111,7 @@ export default function AxonNotificationsScreen() {
       </View>
 
       {loading ? <ActivityIndicator color={AXON} style={{ marginTop: 40 }} /> : tab === "list" ? (
-        <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: pagePad, gap: 8 }} refreshControl={<RefreshControl refreshing={false} onRefresh={load} />}>
+        <KScrollView contentContainerStyle={{ padding: 14, paddingBottom: pagePad, gap: 8 }} refreshControl={<RefreshControl refreshing={false} onRefresh={load} />}>
           <Pressable onPress={() => setOnlyUnread((v) => !v)} style={styles.filter} testID="axn-filter-unread">
             <Ionicons name={onlyUnread ? "checkbox" : "square-outline"} size={18} color={AXON} />
             <Text style={styles.filterTxt}>Solo non lette</Text>
@@ -136,9 +137,9 @@ export default function AxonNotificationsScreen() {
               </Pressable>
             </Pressable>
           ))}
-        </ScrollView>
+        </KScrollView>
       ) : prefs && (
-        <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: pagePad, gap: 12 }}>
+        <KScrollView contentContainerStyle={{ padding: 14, paddingBottom: pagePad, gap: 12 }}>
           <PushStatusCard />
           <PushUrgencyCard />
           <ProactiveSettingsCard />
@@ -185,7 +186,7 @@ export default function AxonNotificationsScreen() {
             {testing ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="paper-plane" size={16} color="#FFF" /><Text style={styles.btnTxt}>Invia notifica di prova</Text></>}
           </Pressable>
           <Text style={styles.note}>Le push native richiedono la build pubblicata (Android e iOS); nell&apos;anteprima web e in Expo Go le notifiche restano visibili in questa lista.</Text>
-        </ScrollView>
+        </KScrollView>
       )}
       {/* V50.z231 — Dettaglio notifica: testo completo + azione collegata */}
       <Modal visible={!!detail} animationType="slide" transparent onRequestClose={() => setDetail(null)}>
@@ -197,9 +198,9 @@ export default function AxonNotificationsScreen() {
               <Pressable onPress={() => setDetail(null)} hitSlop={10} testID="axn-detail-close"><Ionicons name="close" size={22} color={HT.text} /></Pressable>
             </View>
             <Text style={styles.detailMeta}>{detail ? new Date(detail.created_at).toLocaleString("it-IT") : ""}</Text>
-            <ScrollView style={{ maxHeight: 360 }} contentContainerStyle={{ paddingVertical: 8 }}>
+            <KScrollView style={{ maxHeight: 360 }} contentContainerStyle={{ paddingVertical: 8 }}>
               <Text style={styles.detailBody} testID="axn-detail-body">{detail?.body}</Text>
-            </ScrollView>
+            </KScrollView>
             <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
               {detailLink && (
                 <Pressable onPress={() => { const dl = detailLink; setDetail(null); setTimeout(() => router.push(dl as any), 120); }} style={[styles.detailBtn, { backgroundColor: HT.brand, flex: 1 }]} testID="axn-detail-open-link">

@@ -99,6 +99,7 @@ MODULES = [
     "form_templates.py",  # V50.z268 — Modelli moduli (Master): PDF → campi rilevati da Gemini (bbox) / AcroForm; compilazione per cliente da anagrafica + documenti + fatture → PDF pronto per stampa/firma, modificabile (isolato; usa PyMuPDF)
     "crt_practices.py",
     "axon_lab.py",
+    "axon_lab_multi.py",  # V50.z375 — Axon Lab: test estrazione completa (Fase 1), esempi multipli per modulo (Fase 2); DOPO axon_lab
     "market_conditions.py",  # V50.z345 — Mercato: condizioni economiche concorrenti/ufficiali/ditta + benchmark  # V50.z343 — Axon Lab: addestramento Master (cliente tipo + regole mapping moduli) e compilazione business consulenti (DOPO form_templates, crt_practices)  # V50.z282 — Compilazione CRT (pratiche multi-servizio, dossier, forniture per POD, replica moduli, PDF unico, esempi)
     "offline_sync.py",  # V50.z279 — Modalità aereo/offline: replay idempotente della coda client, conflitti segnalati al Master
     "courses.py",  # V50.z273 — Area Corsi (Corporate Gym v2.0 Fase 1): cartelle corsi, lettura/partecipazione, lista partecipanti, export, reminder (isolato)

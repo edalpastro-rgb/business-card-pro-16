@@ -9,10 +9,8 @@
 //   3. Copialo (viene mostrato una sola volta) e incollalo qui.
 
 import { useCallback, useMemo, useState } from "react";
-import {
-  View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator,
-  Alert, RefreshControl, Platform,
-} from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Alert, RefreshControl, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -161,7 +159,7 @@ export default function HomeAssistantScreen() {
           <ActivityIndicator color="#FBBF24" size="large" />
         </View>
       ) : !cfg?.connected ? (
-        <ScrollView
+        <KScrollView
           contentContainerStyle={{ padding: 20, paddingBottom: bottomPad, gap: 14 }}
         >
           <View style={styles.emptyHero}>
@@ -192,9 +190,9 @@ export default function HomeAssistantScreen() {
               o VM. Guida: home-assistant.io/installation
             </Text>
           </View>
-        </ScrollView>
+        </KScrollView>
       ) : (
-        <ScrollView
+        <KScrollView
           contentContainerStyle={{ padding: 14, paddingBottom: bottomPad, gap: 14 }}
           refreshControl={
             <RefreshControl
@@ -244,7 +242,7 @@ export default function HomeAssistantScreen() {
               </View>
             ))
           )}
-        </ScrollView>
+        </KScrollView>
       )}
 
       {showEditor && (
@@ -356,7 +354,7 @@ function HAEditor({ initial, onClose, onSaved }: {
           <Text style={styles.headerTitle}>Configura Home Assistant</Text>
           <View style={{ width: 30 }} />
         </View>
-        <ScrollView contentContainerStyle={{ padding: 14, gap: 14, paddingBottom: 140 }} keyboardShouldPersistTaps="handled">
+        <KScrollView contentContainerStyle={{ padding: 14, gap: 14, paddingBottom: 140 }} keyboardShouldPersistTaps="handled">
           <View>
             <Text style={styles.fieldLabel}>URL Home Assistant</Text>
             <TextInput
@@ -436,7 +434,7 @@ function HAEditor({ initial, onClose, onSaved }: {
               </>
             )}
           </Pressable>
-        </ScrollView>
+        </KScrollView>
       </SafeAreaView>
     </View>
   );

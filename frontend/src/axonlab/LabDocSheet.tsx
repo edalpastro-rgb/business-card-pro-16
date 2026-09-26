@@ -3,7 +3,8 @@
  * → dati estratti mostrati CAMPO PER CAMPO, modificabili → Conferma / Scarta.
  */
 import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, Modal, Pressable, TextInput, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, StyleSheet, Modal, Pressable, TextInput, ScrollView, ActivityIndicator } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller"; // V50.z374 — behavior "padding" valido su iOS e Android
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { HT } from "@/src/homeTheme";
@@ -64,7 +65,7 @@ export function LabDocSheet({ spec, entry, keyLabels, contactId, busy, onClose, 
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
       <View style={s.backdrop}>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, justifyContent: "flex-end" }}>
+        <KeyboardAvoidingView behavior="padding" style={{ flex: 1, justifyContent: "flex-end" }}>
           <View style={[s.sheet, { paddingBottom: insets.bottom + 12 }]} testID="lab-doc-sheet">
             <View style={s.handle} />
             <View style={s.head}>

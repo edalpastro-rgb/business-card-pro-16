@@ -4,7 +4,8 @@
  * Persistenza via PUT /api/user-settings body `{assistant_quick_actions: [...]}`.
  */
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, Modal, TextInput, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, Pressable, Modal, TextInput, ActivityIndicator } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -146,7 +147,7 @@ export default function QuickActionsScreen() {
       </View>
 
       {loading ? <ActivityIndicator style={{ marginTop: 24 }} color={C.primary} /> : (
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 200, gap: 12 }}>
+        <KScrollView contentContainerStyle={{ padding: 16, paddingBottom: 200, gap: 12 }}>
           {/* Add button */}
           <Pressable testID="qa-add-btn" onPress={() => setEdit({ label: "", prompt: "" })} style={styles.addBtn} disabled={busy}>
             <Ionicons name="add-circle" size={20} color="#FFF" />
@@ -199,7 +200,7 @@ export default function QuickActionsScreen() {
               </Pressable>
             ))}
           </View>
-        </ScrollView>
+        </KScrollView>
       )}
 
       {/* Edit modal */}
@@ -210,7 +211,7 @@ export default function QuickActionsScreen() {
               <Text style={styles.sheetTitle}>{edit?.id ? "Modifica azione" : "Nuova azione rapida"}</Text>
               <Pressable onPress={() => setEdit(null)} hitSlop={10}><Ionicons name="close" size={22} color={C.navy} /></Pressable>
             </View>
-            <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
+            <KScrollView contentContainerStyle={{ paddingBottom: 20 }}>
               <Text style={styles.lbl}>Testo del pulsante</Text>
               <TextInput
                 testID="qa-label-input"
@@ -239,7 +240,7 @@ export default function QuickActionsScreen() {
               <Pressable onPress={saveEdit} disabled={busy} style={[styles.saveBtn, { backgroundColor: busy ? C.muted : C.primary }]} testID="qa-save">
                 {busy ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveBtnTxt}>{edit?.id ? "Salva modifiche" : "Aggiungi azione"}</Text>}
               </Pressable>
-            </ScrollView>
+            </KScrollView>
           </View>
         </View>
       </Modal>

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, Pressable, ActivityIndicator, Platform, Alert, Linking, Modal, TextInput } from "react-native";
+import { KModalBody } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { Ionicons } from "@expo/vector-icons";
 import { WebView } from "react-native-webview";
 import { api } from "@/src/api";
@@ -122,7 +123,7 @@ export function InAppWebViewer({
       </View>
 
       {/* V50.z92 — Modal "Dove salvo questi contenuti?" */}
-      <Modal visible={askOpen} transparent animationType="fade" onRequestClose={() => setAskOpen(false)}>
+      <Modal visible={askOpen} transparent animationType="fade" onRequestClose={() => setAskOpen(false)}><KModalBody>
         <View style={styles.askBackdrop}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => (!busy && setAskOpen(false))} />
           <View style={styles.askCard}>
@@ -169,7 +170,7 @@ export function InAppWebViewer({
             </Pressable>
           </View>
         </View>
-      </Modal>
+      </KModalBody></Modal>
     </View>
   );
 }

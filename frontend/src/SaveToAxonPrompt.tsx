@@ -7,7 +7,8 @@
  * L'utente resta nella chat: nessun redirect.
  */
 import React, { useMemo, useState } from "react";
-import { View, Text, StyleSheet, Pressable, Modal, TextInput, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform, useWindowDimensions } from "react-native";
+import { View, Text, StyleSheet, Pressable, Modal, TextInput, ActivityIndicator, ScrollView, useWindowDimensions } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller"; // V50.z374 — behavior "padding" valido su iOS e Android
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
@@ -143,7 +144,7 @@ export function SaveToAxonPrompt({
 
       {/* Rule creation modal */}
       <Modal transparent visible={ruleModalOpen} animationType="fade" onRequestClose={() => !busy && setRuleModalOpen(false)}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <Pressable style={styles.backdrop} onPress={() => !busy && setRuleModalOpen(false)}>
           <Pressable style={[styles.sheet, { paddingBottom: safeBottom + 12, maxHeight: winH * 0.9 }]} onPress={(e) => e.stopPropagation()}>
             <View style={styles.sheetHdr}>

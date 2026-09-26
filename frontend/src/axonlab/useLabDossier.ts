@@ -9,14 +9,14 @@ import { type LabDocEntry, type LabDocSpec } from "@/src/axonlab/labApi";
 
 type Completion = { confirmed: number; uploaded: number; total: number; percent: number };
 
-export function useLabDossier(basePath: string, onChange?: (docs: Record<string, LabDocEntry>, completion: Completion) => void) {
+export function useLabDossier(basePath: string, onChange?: (docs: Record<string, LabDocEntry>, completion: Completion) => void, query: string = "") { // V50.z375 — query es. «?profile=ct_x» (clienti tipo multipli)
   const [busy, setBusy] = useState<Record<string, boolean>>({});
   const [open, setOpen] = useState<LabDocSpec | null>(null);
 
   const upload = useCallback(async (spec: LabDocSpec, body: { name?: string; mime?: string; data_base64?: string; manual?: Record<string, string> }) => {
     setBusy((b) => ({ ...b, [spec.id]: true }));
     try {
-      const r = await api<{ docs: Record<string, LabDocEntry>; completion: Completion; extracted: Record<string, string> }>(`${basePath}/docs/${spec.id}`, {
+      const r = await api<{ docs: Record<string, LabDocEntry>; completion: Completion; extracted: Record<string, string> }>(`${basePath}/docs/${spec.id}${query}`, {
         method: "POST",
         body: { name: body.name || "documento", mime: body.mime || "application/pdf", data_base64: body.data_base64, manual: body.manual },
       });
@@ -27,12 +27,12 @@ export function useLabDossier(basePath: string, onChange?: (docs: Record<string,
     } finally {
       setBusy((b) => ({ ...b, [spec.id]: false }));
     }
-  }, [basePath, onChange]);
+  }, [basePath, onChange, query]);
 
   const confirm = useCallback(async (spec: LabDocSpec, values: Record<string, string>, status: "confirmed" | "discarded") => {
     setBusy((b) => ({ ...b, [spec.id]: true }));
     try {
-      const r = await api<{ docs: Record<string, LabDocEntry>; completion: Completion }>(`${basePath}/docs/${spec.id}`, { method: "PUT", body: { values, status } });
+      const r = await api<{ docs: Record<string, LabDocEntry>; completion: Completion }>(`${basePath}/docs/${spec.id}${query}`, { method: "PUT", body: { values, status } });
       onChange?.(r.docs, r.completion);
       setOpen(null);
     } catch (e: any) {
@@ -40,7 +40,7 @@ export function useLabDossier(basePath: string, onChange?: (docs: Record<string,
     } finally {
       setBusy((b) => ({ ...b, [spec.id]: false }));
     }
-  }, [basePath, onChange]);
+  }, [basePath, onChange, query]);
 
   return { busy, open, setOpen, upload, confirm };
 }

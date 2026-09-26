@@ -1,7 +1,8 @@
 // V50.z192 — BLOCCO 9b: "Cosa sa Axon di me" (Profilo → Memoria AxonOS) — schermata isolata.
 // Linguaggio semplice e rassicurante: Axon ti conosce, ma il controllo è tuo (modifica, cancella, ri-analizza).
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, RefreshControl, Alert, Platform } from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, RefreshControl, Alert, Platform } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
@@ -90,7 +91,7 @@ export default function AxonMemoryScreen() {
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: insets.bottom + 120, gap: 12 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />} keyboardShouldPersistTaps="handled">
+      <KScrollView contentContainerStyle={{ padding: 14, paddingBottom: insets.bottom + 120, gap: 12 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />} keyboardShouldPersistTaps="handled">
         <View style={styles.trust}>
           <Ionicons name="shield-checkmark" size={20} color={HT.success} />
           <Text style={styles.trustTxt}>
@@ -197,7 +198,7 @@ export default function AxonMemoryScreen() {
           <Ionicons name="trash" size={16} color={HT.danger} /><Text style={styles.dangerTxt}>Cancella tutta la memoria</Text>
         </Pressable>
         <Text style={styles.foot}>I tuoi contatti, appuntamenti e documenti non vengono mai toccati da queste azioni: qui gestisci solo ciò che Axon ha imparato su di te.</Text>
-      </ScrollView>
+      </KScrollView>
     </View>
   );
 }

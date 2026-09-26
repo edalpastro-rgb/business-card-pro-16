@@ -4,6 +4,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 import { View, Text, StyleSheet, Pressable, ScrollView, Modal, TextInput, ActivityIndicator, Platform } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "@/src/theme";
@@ -219,7 +220,7 @@ export function BillAnalysisConfigModal({ visible, onClose, onSaved, previewBuil
             <ActivityIndicator color={ACCENT} />
           </View>
         ) : (
-          <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+          <KScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
             {/* V50.z252 — Preset salvati */}
             <View style={styles.presetBox}>
               <View style={styles.rowBetween}>
@@ -392,7 +393,7 @@ export function BillAnalysisConfigModal({ visible, onClose, onSaved, previewBuil
                 <Text style={styles.hint}>Suggerimento: frasi brevi, una richiesta per riga. I dati aggiuntivi trovati compariranno tra i «Parametri richiesti» di ogni analisi.</Text>
               </>
             )}
-          </ScrollView>
+          </KScrollView>
         )}
 
         {/* Footer */}

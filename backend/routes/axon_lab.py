@@ -356,67 +356,169 @@ async def _lab_propose_mapping(fields: List[dict], example_fields: Optional[List
         return mapping, "default"
 
 
-# ------------------------------------------------------------------ AREA MASTER — Fase 1: cliente tipo
-async def _lab_training(tid: str) -> dict:
-    t = await db.axon_lab_training.find_one({"tenant_id": tid}, {"_id": 0})
-    if not t:
-        t = {"tenant_id": tid, **_lab_empty_dossier(), "created_at": utcnow(), "updated_at": utcnow()}
+# ------------------------------------------------------------------ AREA MASTER — Fase 1: clienti tipo (V50.z375: più profili per tenant)
+LAB_DEFAULT_PROFILE = "default"
+
+
+async def _lab_profiles(tid: str) -> List[dict]:
+    """Tutti i clienti tipo del tenant (migra il documento singolo legacy → profile_id 'default'; crea il primo se manca)."""
+    rows = await db.axon_lab_training.find({"tenant_id": tid}, {"_id": 0}).sort("created_at", 1).to_list(50)
+    if rows and any(not r.get("profile_id") for r in rows):
+        await db.axon_lab_training.update_many({"tenant_id": tid, "profile_id": {"$exists": False}}, {"$set": {"profile_id": LAB_DEFAULT_PROFILE, "name": "Cliente tipo 1"}})
+        rows = await db.axon_lab_training.find({"tenant_id": tid}, {"_id": 0}).sort("created_at", 1).to_list(50)
+    if not rows:
+        t = {"tenant_id": tid, "profile_id": LAB_DEFAULT_PROFILE, "name": "Cliente tipo 1", **_lab_empty_dossier(), "created_at": utcnow(), "updated_at": utcnow()}
         await db.axon_lab_training.insert_one(dict(t))
-    for k in LAB_DOC_IDS:
-        t["docs"].setdefault(k, {"status": "none", "files": [], "extracted": {}, "values": {}})
-    return t
+        rows = [t]
+    for t in rows:
+        for k in LAB_DOC_IDS:
+            t.setdefault("docs", {}).setdefault(k, {"status": "none", "files": [], "extracted": {}, "values": {}})
+    return rows
+
+
+async def _lab_training_profile(tid: str, profile: Optional[str]) -> dict:
+    rows = await _lab_profiles(tid)
+    if not profile:
+        return rows[0]
+    for t in rows:
+        if t["profile_id"] == profile:
+            return t
+    raise HTTPException(status_code=404, detail="Cliente tipo non trovato")
+
+
+def _lab_merge_dossiers(rows: List[dict]) -> dict:
+    """Vista unificata di TUTTI i clienti tipo (fonti per il mapping, regole, moduli): chiavi in unione, campione dal primo che lo ha."""
+    merged = _lab_empty_dossier()
+    for t in rows:
+        for k, e in (t.get("docs") or {}).items():
+            m = merged["docs"].setdefault(k, {"status": "none", "files": [], "extracted": {}, "values": {}})
+            for kk, vv in (e.get("extracted") or {}).items():
+                m["extracted"].setdefault(kk, vv)
+            for kk, vv in (e.get("values") or {}).items():
+                m["values"].setdefault(kk, vv)
+            if e.get("status") == "confirmed" or (e.get("status") == "uploaded" and m["status"] == "none"):
+                m["status"] = e["status"] if m["status"] != "confirmed" else "confirmed"
+            m["files"] = (m.get("files") or []) + list(e.get("files") or [])
+            if e.get("image_b64") and not m.get("image_b64"):
+                m["image_b64"] = e["image_b64"]
+        seen = {x["id"] for x in merged["extra"]}
+        merged["extra"] += [x for x in (t.get("extra") or []) if x["id"] not in seen]
+    merged["profiles"] = [{"profile_id": t["profile_id"], "name": t.get("name") or t["profile_id"]} for t in rows]
+    merged["updated_at"] = max((t.get("updated_at") for t in rows if t.get("updated_at")), default=None)
+    return merged
+
+
+async def _lab_training(tid: str, profile: Optional[str] = None) -> dict:
+    """profile=None → vista unificata di tutti i clienti tipo (sola lettura); profile=<id> → quel cliente tipo."""
+    if profile:
+        return await _lab_training_profile(tid, profile)
+    return _lab_merge_dossiers(await _lab_profiles(tid))
+
+
+def _lab_profile_pub(t: dict) -> dict:
+    return {"profile_id": t["profile_id"], "name": t.get("name") or t["profile_id"], "completion": _lab_completion(t), "updated_at": t.get("updated_at"), "created_at": t.get("created_at"),
+            "last_test_at": ((t.get("last_test") or {}).get("at"))}
 
 
 def _lab_training_pub(t: dict) -> dict:
-    return {**_lab_pub_dossier(t), "completion": _lab_completion(t), "docs_spec": LAB_DOCS, "key_labels": LAB_KEY_LABELS, "updated_at": t.get("updated_at")}
+    return {**_lab_pub_dossier(t), "completion": _lab_completion(t), "docs_spec": LAB_DOCS, "key_labels": LAB_KEY_LABELS, "updated_at": t.get("updated_at"),
+            "profile_id": t.get("profile_id"), "name": t.get("name"), "last_test": t.get("last_test")}
+
+
+class LabProfileIn(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+
+
+@api_router.get("/lab/training/profiles")
+async def lab_training_profiles(user=Depends(get_current_user)):
+    await _lab_require_train(user)
+    rows = await _lab_profiles(tenant_id(user))
+    return {"items": [_lab_profile_pub(t) for t in rows], "total": len(rows)}
+
+
+@api_router.post("/lab/training/profiles")
+async def lab_training_profile_create(body: LabProfileIn, user=Depends(get_current_user)):
+    await _lab_require_train(user)
+    tid = tenant_id(user)
+    rows = await _lab_profiles(tid)
+    if len(rows) >= 20:
+        raise HTTPException(status_code=400, detail="Massimo 20 clienti tipo")
+    t = {"tenant_id": tid, "profile_id": f"ct_{uuid.uuid4().hex[:8]}", "name": body.name.strip(), **_lab_empty_dossier(), "created_at": utcnow(), "updated_at": utcnow(), "created_by": user["user_id"]}
+    await db.axon_lab_training.insert_one(dict(t))
+    return _lab_profile_pub(t)
+
+
+@api_router.patch("/lab/training/profiles/{profile_id}")
+async def lab_training_profile_rename(profile_id: str, body: LabProfileIn, user=Depends(get_current_user)):
+    await _lab_require_train(user)
+    tid = tenant_id(user)
+    await _lab_training_profile(tid, profile_id)
+    await db.axon_lab_training.update_one({"tenant_id": tid, "profile_id": profile_id}, {"$set": {"name": body.name.strip(), "updated_at": utcnow()}})
+    return _lab_profile_pub(await _lab_training_profile(tid, profile_id))
+
+
+@api_router.delete("/lab/training/profiles/{profile_id}")
+async def lab_training_profile_delete(profile_id: str, user=Depends(get_current_user)):
+    await _lab_require_train(user)
+    tid = tenant_id(user)
+    rows = await _lab_profiles(tid)
+    if len(rows) <= 1:
+        raise HTTPException(status_code=400, detail="Deve restare almeno un cliente tipo")
+    r = await db.axon_lab_training.delete_one({"tenant_id": tid, "profile_id": profile_id})
+    if not r.deleted_count:
+        raise HTTPException(status_code=404, detail="Cliente tipo non trovato")
+    return {"ok": True}
 
 
 @api_router.get("/lab/training")
-async def lab_training_get(user=Depends(get_current_user)):
+async def lab_training_get(profile: Optional[str] = None, user=Depends(get_current_user)):
     await _lab_require_train(user)
-    return _lab_training_pub(await _lab_training(tenant_id(user)))
+    tid = tenant_id(user)
+    rows = await _lab_profiles(tid)
+    t = await _lab_training_profile(tid, profile) if profile else rows[0]
+    return {**_lab_training_pub(t), "profiles": [_lab_profile_pub(x) for x in rows]}
 
 
 @api_router.post("/lab/training/docs/{doc_type}")
-async def lab_training_doc_upload(doc_type: str, body: LabDocIn, user=Depends(get_current_user)):
+async def lab_training_doc_upload(doc_type: str, body: LabDocIn, profile: Optional[str] = None, user=Depends(get_current_user)):
     await _lab_require_train(user)
     tid = tenant_id(user)
-    t = await _lab_training(tid)
-    entry = await _lab_dossier_upload("train", tid, t, doc_type, body, tid)
-    await db.axon_lab_training.update_one({"tenant_id": tid}, {"$set": {"docs": t["docs"], "updated_at": utcnow(), "updated_by": user["user_id"]}})
+    t = await _lab_training_profile(tid, profile)
+    entry = await _lab_dossier_upload("train", f"{tid}_{t['profile_id']}", t, doc_type, body, tid)
+    await db.axon_lab_training.update_one({"tenant_id": tid, "profile_id": t["profile_id"]}, {"$set": {"docs": t["docs"], "updated_at": utcnow(), "updated_by": user["user_id"]}})
     pub = _lab_pub_dossier(t)
-    return {"doc_type": doc_type, "entry": pub["docs"][doc_type], "docs": pub["docs"], "completion": _lab_completion(t), "extracted": entry.get("extracted") or {}}
+    return {"doc_type": doc_type, "entry": pub["docs"][doc_type], "docs": pub["docs"], "completion": _lab_completion(t), "extracted": entry.get("extracted") or {}, "profile_id": t["profile_id"]}
 
 
 @api_router.put("/lab/training/docs/{doc_type}")
-async def lab_training_doc_confirm(doc_type: str, body: LabConfirmIn, user=Depends(get_current_user)):
+async def lab_training_doc_confirm(doc_type: str, body: LabConfirmIn, profile: Optional[str] = None, user=Depends(get_current_user)):
     await _lab_require_train(user)
     tid = tenant_id(user)
-    t = await _lab_training(tid)
+    t = await _lab_training_profile(tid, profile)
     _lab_dossier_confirm(t, doc_type, body)
-    await db.axon_lab_training.update_one({"tenant_id": tid}, {"$set": {"docs": t["docs"], "updated_at": utcnow(), "updated_by": user["user_id"]}})
+    await db.axon_lab_training.update_one({"tenant_id": tid, "profile_id": t["profile_id"]}, {"$set": {"docs": t["docs"], "updated_at": utcnow(), "updated_by": user["user_id"]}})
     pub = _lab_pub_dossier(t)
-    return {"doc_type": doc_type, "entry": pub["docs"][doc_type], "docs": pub["docs"], "completion": _lab_completion(t)}
+    return {"doc_type": doc_type, "entry": pub["docs"][doc_type], "docs": pub["docs"], "completion": _lab_completion(t), "profile_id": t["profile_id"]}
 
 
 @api_router.post("/lab/training/extra")
-async def lab_training_extra(body: LabExtraIn, user=Depends(get_current_user)):
+async def lab_training_extra(body: LabExtraIn, profile: Optional[str] = None, user=Depends(get_current_user)):
     await _lab_require_train(user)
     tid = tenant_id(user)
-    t = await _lab_training(tid)
+    t = await _lab_training_profile(tid, profile)
     extra = [x for x in (t.get("extra") or []) if x["id"] != body.id]
     extra.append({"id": body.id or f"x_{uuid.uuid4().hex[:6]}", "label": body.label.strip()[:80] or "Campo", "value": body.value.strip()[:300]})
-    await db.axon_lab_training.update_one({"tenant_id": tid}, {"$set": {"extra": extra, "updated_at": utcnow()}})
+    await db.axon_lab_training.update_one({"tenant_id": tid, "profile_id": t["profile_id"]}, {"$set": {"extra": extra, "updated_at": utcnow()}})
     return {"extra": extra}
 
 
 @api_router.delete("/lab/training/extra/{extra_id}")
-async def lab_training_extra_del(extra_id: str, user=Depends(get_current_user)):
+async def lab_training_extra_del(extra_id: str, profile: Optional[str] = None, user=Depends(get_current_user)):
     await _lab_require_train(user)
     tid = tenant_id(user)
-    t = await _lab_training(tid)
+    t = await _lab_training_profile(tid, profile)
     extra = [x for x in (t.get("extra") or []) if x["id"] != extra_id]
-    await db.axon_lab_training.update_one({"tenant_id": tid}, {"$set": {"extra": extra, "updated_at": utcnow()}})
+    await db.axon_lab_training.update_one({"tenant_id": tid, "profile_id": t["profile_id"]}, {"$set": {"extra": extra, "updated_at": utcnow()}})
     return {"extra": extra}
 
 
@@ -476,6 +578,7 @@ async def lab_module_create(body: LabModuleIn, user=Depends(get_current_user)):
     doc = {"template_id": template_id, "tenant_id": tid, "name": body.name.strip()[:120] or "Modulo", "notes": (body.notes or "").strip()[:500],
            "page_count": n_pages, "pages": pages, "fields": fields, "field_source": source, "is_filled_example": False, "lab": True,
            "lab_mapping": mapping, "lab_mapping_source": msrc, "lab_trained": False, "lab_has_example": bool(example_fields),
+           "lab_examples": [{"id": f"ex_{uuid.uuid4().hex[:8]}", "name": "Esempio 1", "fields": example_fields, "uploaded_at": utcnow()}] if example_fields else [],  # V50.z375
            "created_by": user["user_id"], "created_at": utcnow(), "updated_at": utcnow()}
     doc.update(await _ft_store_pdf(tid, "tpl", template_id, raw))
     await db.form_templates.insert_one(doc)
@@ -546,7 +649,7 @@ async def lab_rules(user=Depends(get_current_user)):
     await _lab_require_train(user)
     tid = tenant_id(user)
     tpls = await db.form_templates.find({"tenant_id": tid, "lab": True}, {"_id": 0, "pdf_b64": 0, "pages": 0}).to_list(200)
-    tr = await _lab_training(user)
+    tr = await _lab_training(tenant_id(user))
     docs_label = {d["id"]: d["label"] for d in LAB_DOCS}
     for e in (tr.get("extra") or []):
         docs_label[e["id"]] = e.get("label") or e["id"]

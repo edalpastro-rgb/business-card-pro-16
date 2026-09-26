@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform, Image, Modal, Alert } from "react-native";
+import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, ActivityIndicator, Platform, Image, Modal, Alert } from "react-native";
+import { KModalBody } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
+import { KeyboardAvoidingView } from "react-native-keyboard-controller"; // V50.z374 — behavior "padding" valido su iOS e Android
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -1231,7 +1233,7 @@ function NewContactScreen() {
         <Text style={styles.title}>{isEdit ? "Modifica contatto" : "Nuovo contatto"}</Text>
         <View style={{ width: 26 }} />
       </View>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
           <Pressable testID="import-phone-btn" onPress={importFromPhone} style={styles.importBtn}>
@@ -1909,7 +1911,7 @@ function NewContactScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      <Modal visible={newAreaModal} transparent animationType="fade" onRequestClose={() => setNewAreaModal(false)}>
+      <Modal visible={newAreaModal} transparent animationType="fade" onRequestClose={() => setNewAreaModal(false)}><KModalBody>
         <View style={styles.modalBack}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Nuova area personalizzata</Text>
@@ -1941,9 +1943,9 @@ function NewContactScreen() {
             </View>
           </View>
         </View>
-      </Modal>
+      </KModalBody></Modal>
 
-      <Modal visible={!!groupModal} transparent animationType="fade" onRequestClose={() => setGroupModal(null)}>
+      <Modal visible={!!groupModal} transparent animationType="fade" onRequestClose={() => setGroupModal(null)}><KModalBody>
         <View style={styles.modalBack}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>{groupModal?.mode === "create" ? "Nuovo gruppo" : "Modifica gruppo"}</Text>
@@ -1981,7 +1983,7 @@ function NewContactScreen() {
             </View>
           </View>
         </View>
-      </Modal>
+      </KModalBody></Modal>
 
       {/* Phone contacts multi-select picker */}
       <Modal visible={!!phoneContactsModal} animationType="slide" transparent onRequestClose={() => setPhoneContactsModal(null)}>

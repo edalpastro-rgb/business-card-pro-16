@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, Modal, Pressable, ScrollView, Image, ActivityIndicator, TextInput, Platform, Keyboard, useWindowDimensions } from "react-native";
+import { View, Text, StyleSheet, Modal, Pressable, Image, ActivityIndicator, TextInput, Platform, Keyboard, useWindowDimensions } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
@@ -441,7 +442,7 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
           </View>
 
           {/* Pages preview */}
-          <ScrollView style={{ maxHeight: keyboardOpen ? 120 : 300 }} contentContainerStyle={{ padding: 12, gap: 8 }} keyboardShouldPersistTaps="handled">
+          <KScrollView style={{ maxHeight: keyboardOpen ? 120 : 300 }} contentContainerStyle={{ padding: 12, gap: 8 }} keyboardShouldPersistTaps="handled">
             {pages.length === 0 ? (
               <View style={styles.empty}>
                 <Ionicons name="scan" size={36} color={HT.muted} />
@@ -478,7 +479,7 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
                 <Pressable onPress={() => removePage(i)} style={styles.iconBtn} testID={`scanner-page-remove-${i}`}><Ionicons name="trash-outline" size={17} color="#DC2626" /></Pressable>
               </View>
             ))}
-          </ScrollView>
+          </KScrollView>
 
           {/* Name */}
           <View style={styles.nameWrap}>

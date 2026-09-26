@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, ScrollView, Alert } from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Alert } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -56,7 +57,7 @@ export default function NewChatScreen() {
         <View style={{ width: 26 }} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
+      <KScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140 }}>
         <Text style={styles.lbl}>Nome (opzionale — per chat di gruppo)</Text>
         <TextInput
           testID="chat-name-input"
@@ -88,7 +89,7 @@ export default function NewChatScreen() {
         <Pressable testID="chat-create-btn" onPress={create} disabled={busy || selCount === 0} style={[styles.saveBtn, { opacity: selCount === 0 ? 0.5 : 1 }]}>
           {busy ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveBtnTxt}>Crea chat</Text>}
         </Pressable>
-      </ScrollView>
+      </KScrollView>
     </SafeAreaView>
   );
 }

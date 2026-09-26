@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, Modal, Pressable, TextInput, ActivityIndicator, ScrollView, Image, Platform, NativeSyntheticEvent, TextInputChangeEventData } from "react-native";
+import { View, Text, StyleSheet, Modal, Pressable, TextInput, ActivityIndicator, Image, Platform, NativeSyntheticEvent, TextInputChangeEventData } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { notify, confirmAsync } from "@/src/utils/notify";
@@ -168,7 +169,7 @@ export function ReportHeaderConfigModal({ visible, onClose }: Props) {
             </Pressable>
           </View>
 
-          <ScrollView style={{ maxHeight: 520 }} contentContainerStyle={{ padding: 14 }}>
+          <KScrollView style={{ maxHeight: 520 }} contentContainerStyle={{ padding: 14 }}>
             {/* Live preview */}
             <View style={styles.preview}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
@@ -244,7 +245,7 @@ export function ReportHeaderConfigModal({ visible, onClose }: Props) {
               maxLength={240}
             />
             <Text style={styles.hint}>Puoi inserire più righe: telefono, email, sito, indirizzo studio…</Text>
-          </ScrollView>
+          </KScrollView>
 
           <View style={[styles.footer, { paddingBottom: 14 + safeBottom }]}>
             <Pressable onPress={onClose} style={[styles.btn, { backgroundColor: HT.card2 }]}>

@@ -2,7 +2,8 @@
 // Piani (Stripe Checkout ospitato), codice promo/amico, richiesta di attivazione al Super Admin, contatto, logout.
 // Ritorno da Stripe: /paywall?session_id=… → polling GET /billing/checkout-status → se pagato → Home.
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Linking, Platform, TextInput } from "react-native";
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, Linking, Platform, TextInput } from "react-native";
+import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -96,7 +97,7 @@ export default function PaywallScreen() {
 
   return (
     <SafeAreaView style={s.root} edges={["top", "bottom"]}>
-      <ScrollView contentContainerStyle={s.body} keyboardShouldPersistTaps="handled" testID="paywall-screen">
+      <KScrollView contentContainerStyle={s.body} keyboardShouldPersistTaps="handled" testID="paywall-screen">
         <View style={s.hero}>
           <View style={s.heroIcon}><Ionicons name={expired ? "lock-closed" : "time"} size={30} color={theme.color.onBrandPrimary} /></View>
           <Text style={s.h1} testID="paywall-title">{expired ? "La tua prova gratuita è terminata" : "Il tuo abbonamento"}</Text>
@@ -156,7 +157,7 @@ export default function PaywallScreen() {
             </View>
           </>
         )}
-      </ScrollView>
+      </KScrollView>
     </SafeAreaView>
   );
 }
