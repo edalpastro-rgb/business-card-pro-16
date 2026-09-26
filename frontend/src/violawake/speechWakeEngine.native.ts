@@ -1,8 +1,8 @@
-// V50.z341 — ViolaWake: motore wake-word di FALLBACK senza Picovoice.
+// V50.z341 — ViolaWake: motore wake-word di FALLBACK (iOS / build senza modulo nativo AxonWakeAudio).
 // Usa il riconoscimento vocale del telefono (expo-speech-recognition, Apple/Google, on-device quando disponibile)
 // in ascolto CONTINUO e fa scattare onWake quando nella trascrizione compare «Axon» (o la parola di fallback).
-// Si riavvia da solo su "end"/"error" con un piccolo backoff finché è attivo. Quando è presente la chiave Picovoice
-// l'app usa Porcupine (wakeEngine.native.ts); questo motore resta l'upgrade path inverso: zero chiavi, zero costi.
+// Si riavvia da solo su "end"/"error" con un piccolo backoff finché è attivo. Quando c'è il modulo nativo
+// l'app usa il modello Axon ONNX (wakeEngine.native.ts); questo motore resta il fallback: zero chiavi, zero costi.
 import { Platform } from "react-native";
 import { ExpoSpeechRecognitionModule } from "expo-speech-recognition";
 import type { WakeEngine, WakeEngineOptions } from "./types";

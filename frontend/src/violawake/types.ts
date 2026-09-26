@@ -2,7 +2,6 @@
 export type ViolaState =
   | "off"            // modulo/utente disattivato
   | "unsupported"    // web / Expo Go: nessun motore nativo
-  | "needs_key"      // manca EXPO_PUBLIC_PICOVOICE_ACCESS_KEY
   | "no_permission"  // microfono negato
   | "starting"
   | "listening"      // in attesa della wake-word
@@ -51,7 +50,6 @@ export type ViolaEvent = {
 };
 
 export type WakeEngineOptions = {
-  accessKey: string;
   keywordMode: "custom" | "builtin";
   sensitivity: number;
   onWake: () => void;
@@ -72,6 +70,6 @@ export type CaptureOptions = {
 
 export type PermissionStatus = { granted: boolean; canAskAgain: boolean };
 
-/** V50.z369 — La wake-word è «Axon» (ViolaWake è solo il nome interno del motore: mai in UI). Fallback Porcupine built-in: Jarvis. */
+/** V50.z369 — La wake-word è «Axon» (ViolaWake è solo il nome interno del motore: mai in UI). Etichetta di fallback storica: Jarvis (non più usata dal motore). */
 export const VIOLA_FALLBACK_KEYWORD_LABEL = "Jarvis";
 export const VIOLA_KEYWORD_LABEL = "Axon";

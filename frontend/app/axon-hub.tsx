@@ -40,7 +40,7 @@ const CARDS: Card[] = [
     title: "📊 Cheat Sheet Fornitori", sub: "Prezzi medi visti nelle tue bollette" },
   { id: "neo-memory", href: "/neo-memory", icon: "hardware-chip", color: "#7C3AED",
     title: "💾 Memoria Assistente", sub: "Consulta o cancella cosa ricorda l'assistente" },
-  { id: "wake-word", href: "/wake-word", icon: "mic", color: "#7C3AED",
+  { id: "wake-word", href: "/viola-wake", icon: "mic", color: "#7C3AED",
     title: "🎙️ Wake Word \"Axon\"", sub: "Ascolto continuo per attivare Axon a voce" },
   { id: "axon-alarms", href: "/axon-alarms", icon: "alarm", color: "#7C3AED",
     title: "⏰ Timer & Sveglie", sub: "Sveglie, timer e promemoria in-app" },

@@ -14,8 +14,6 @@
   "dependencies": {
     "@expo/metro-runtime": "6.1.2",
     "@expo/vector-icons": "15.1.1",
-    "@picovoice/porcupine-react-native": "4.0.0",
-    "@picovoice/react-native-voice-processor": "1.2.3",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/datetimepicker": "8.4.4",
     "@react-native-community/slider": "5.0.1",

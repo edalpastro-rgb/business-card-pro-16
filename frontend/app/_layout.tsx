@@ -1,5 +1,5 @@
 import "@/src/polyfills"; // MUST be first — TextEncoder/TextDecoder polyfill for Hermes (xlsx e altre libs legacy)
-import { Stack, router as expoRouter, useRouter, usePathname } from "expo-router";
+import { Stack, useRouter, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import * as Notifications from "expo-notifications";
 import React, { useEffect } from "react";
@@ -11,8 +11,6 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 import { AuthProvider, useAuth, isAppLockEnabled, isTrustStillValid } from "@/src/auth";
 import { AppLockOverlay } from "@/src/AppLock";
-import { WakeWordService } from "@/src/wakeword/WakeWordService";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AssistantFAB } from "@/src/AssistantFAB";
 import { ViolaWakeProvider } from "@/src/violawake/ViolaWakeProvider"; // V50.z315 — ViolaWake (wake-word «Viola»)
 import { ViolaStatusPill } from "@/src/violawake/ViolaStatusPill";
@@ -276,29 +274,7 @@ export default function RootLayout() {
     }
   }, [loaded, error, proceed]);
 
-  // V50.x — Wake Word globale: se l'utente ha attivato il toggle in Impostazioni,
-  // avvia il servizio (native se disponibile, mock altrimenti) e alla rilevazione
-  // apre la schermata Axon Drive in modalità automatica.
-  useEffect(() => {
-    let unsub: (() => void) | null = null;
-    let mounted = true;
-    (async () => {
-      try {
-        const enabled = await AsyncStorage.getItem("wake_word_enabled_v1");
-        if (!mounted || enabled !== "1") return;
-        await WakeWordService.start({ threshold: 0.8 });
-        unsub = WakeWordService.onWake(({ score, source }) => {
-          console.log(`[WakeWord] Axon rilevato (${source}, score=${score.toFixed(2)}) → Axon Drive`);
-          try { expoRouter.push("/voice-copilot?auto=1" as any); } catch {/* noop */}
-        });
-      } catch (e) { console.warn("[WakeWord] init error:", e); }
-    })();
-    return () => {
-      mounted = false;
-      if (unsub) unsub();
-      WakeWordService.stop().catch(() => {});
-    };
-  }, []);
+  // V50.z378 — Wake word: gestita SOLO da ViolaWakeProvider (src/violawake) → motore Axon ONNX (axonWakeAudio + axonWakeModel). Mock rimosso.
 
   if (!loaded && !error && !proceed) return null;
 

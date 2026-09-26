@@ -1,5 +1,5 @@
 // V50.z315 — ViolaWake SDK: orchestratore (context + hook).
-// wake-word «Viola» (Porcupine, offline) → cattura comando (riconoscimento on-device, gratis)
+// wake-word «Axon» (modello ONNX offline, V50.z378) → cattura comando (riconoscimento on-device, gratis)
 // → routing deterministico backend → trigger proattivo (source=wake_word) con risposta parlata
 //   oppure chat Axon in modalità voce (comandi liberi: agenda, ricerche web, tutto ciò che sa fare Axon).
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
@@ -22,7 +22,6 @@ import { confirmCritical } from "./guard";
 import { WakeWord } from "./wakeWord"; // V50.z377 — motore Axon custom (start/stop/onWake) // V50.z371 — Blocco 4: comandi critici → PIN/impronta // V50.z370 — Blocco 1: selezione dispositivo
 import { vpApi, takeLastSpeaker, setLastSpeaker, type SpeakerInfo } from "./voiceprintApi"; // V50.z372 — Blocchi 2-3: impronta vocale
 
-const ACCESS_KEY = (process.env.EXPO_PUBLIC_PICOVOICE_ACCESS_KEY || "").trim();
 
 type Ctx = {
   state: ViolaState;
@@ -34,7 +33,8 @@ type Ctx = {
   module: ViolaModule | null;
   isMaster: boolean;
   supported: boolean;
-  hasKey: boolean;
+  /** V50.z378 — motore Axon ONNX nativo disponibile (build Android); altrimenti riconoscitore di sistema. */
+  axonEngine: boolean;
   backgroundService: boolean; // Android: servizio in primo piano disponibile nella build
   onDeviceStt: boolean;
   permission: PermissionStatus | null;
@@ -89,7 +89,7 @@ export function ViolaWakeProvider({ children }: { children: React.ReactNode }) {
   moduleRef.current = module;
 
   const supported = WAKE_ENGINE_SUPPORTED && CAPTURE_SUPPORTED;
-  const hasKey = !!ACCESS_KEY;
+  const axonEngine = WakeWord.isAvailable();
   const onDeviceStt = useMemo(() => (supported ? supportsOnDevice() : false), [supported]);
 
   const refresh = useCallback(async () => {
@@ -274,7 +274,7 @@ export function ViolaWakeProvider({ children }: { children: React.ReactNode }) {
 
   const startEngine = useCallback(async () => {
     if (!supported) { setState("unsupported"); return; }
-    // V50.z341 — senza chiave Picovoice si usa il riconoscimento vocale di sistema (nessun blocco «needs_key»)
+    // V50.z378 — motore Axon ONNX (modulo nativo) oppure riconoscitore di sistema: nessuna chiave esterna
     const perm = await getMicPermission();
     setPermission(perm);
     if (!perm.granted) { setState("no_permission"); return; }
@@ -283,7 +283,6 @@ export function ViolaWakeProvider({ children }: { children: React.ReactNode }) {
     setError(null);
     const st = settingsRef.current;
     const engine = createWakeEngine({
-      accessKey: ACCESS_KEY,
       keywordMode: st?.keyword_mode || "custom",
       sensitivity: st?.sensitivity ?? 0.6,
       onWake: () => { void handleWake(); },
@@ -368,9 +367,9 @@ export function ViolaWakeProvider({ children }: { children: React.ReactNode }) {
   }, [supported, handleWake]);
 
   const value = useMemo<Ctx>(() => ({
-    state, error, lastTranscript, lastReply, keywordLabel, settings, module, isMaster, supported, hasKey, backgroundService: FOREGROUND_SERVICE_AVAILABLE, onDeviceStt, permission, voiceprintEnforced, lastSpeaker,
+    state, error, lastTranscript, lastReply, keywordLabel, settings, module, isMaster, supported, axonEngine, backgroundService: FOREGROUND_SERVICE_AVAILABLE, onDeviceStt, permission, voiceprintEnforced, lastSpeaker,
     refresh, updateSettings, setModule, askPermission, openSettings, simulateWake, runCommand,
-  }), [state, error, lastTranscript, lastReply, keywordLabel, settings, module, isMaster, supported, hasKey, onDeviceStt, permission, voiceprintEnforced, lastSpeaker, refresh, updateSettings, setModule, askPermission, openSettings, simulateWake, runCommand]);
+  }), [state, error, lastTranscript, lastReply, keywordLabel, settings, module, isMaster, supported, axonEngine, onDeviceStt, permission, voiceprintEnforced, lastSpeaker, refresh, updateSettings, setModule, askPermission, openSettings, simulateWake, runCommand]);
 
   return <ViolaCtx.Provider value={value}>{children}</ViolaCtx.Provider>;
 }

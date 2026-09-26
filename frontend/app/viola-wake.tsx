@@ -18,10 +18,10 @@ const C = theme.color;
 const VIOLA = "#8B5CF6"; // identità Viola/Axon (uguale in chiaro e scuro)
 
 const STATE_LABEL: Record<ViolaState, string> = {
-  off: "Spento", unsupported: "Non disponibile qui", needs_key: "Motore non configurato", no_permission: "Microfono non autorizzato",
+  off: "Spento", unsupported: "Non disponibile qui", no_permission: "Microfono non autorizzato",
   starting: "Avvio…", listening: "In ascolto", capturing: "Ti ascolto…", thinking: "Elaboro…", speaking: "Sto rispondendo", error: "Errore",
 };
-const STATE_COLOR: Partial<Record<ViolaState, string>> = { listening: C.success, capturing: C.error, speaking: VIOLA, thinking: C.warning, error: C.error, no_permission: C.warning, needs_key: C.warning };
+const STATE_COLOR: Partial<Record<ViolaState, string>> = { listening: C.success, capturing: C.error, speaking: VIOLA, thinking: C.warning, error: C.error, no_permission: C.warning };
 
 const KIND_LABEL: Record<string, string> = { wake: "Wake-word", capture: "Anti-rumore", command: "Comando", trigger: "Trigger", chat: "Chat Axon", cancelled: "Annullato", error: "Errore", permission: "Permessi", unknown_voice: "Voce sconosciuta (ignorata)", denied: "Non autorizzato", voiceprint: "Impronta vocale", guard: "Conferma PIN" };
 
@@ -92,10 +92,12 @@ export default function ViolaWakeScreen() {
               <Text style={s.infoTxt}>L'ascolto in background funziona solo nell'app installata (build Android/iOS), non su web o Expo Go. Qui puoi configurare il modulo e provare i comandi scritti.</Text>
             </View>
           ) : null}
-          {v.supported && !v.hasKey ? (
+          {v.supported ? (
             <View style={s.infoBox} testID="viola-engine-fallback">
-              <Ionicons name="ear-outline" size={16} color={C.info} />
-              <Text style={s.infoTxt}>Motore: riconoscimento vocale del telefono in ascolto continuo (nessuna chiave, nessun costo). Su iOS resta attivo con l'app in primo piano; su Android anche a schermo bloccato. Inserendo la chiave Picovoice (EXPO_PUBLIC_PICOVOICE_ACCESS_KEY) l'app passa da sola a Porcupine offline.</Text>
+              <Ionicons name={v.axonEngine ? "hardware-chip-outline" : "ear-outline"} size={16} color={C.info} />
+              <Text style={s.infoTxt}>{v.axonEngine
+                ? "Motore: modello Axon (TemporalCNN, 100% offline sul telefono) su microfono nativo: nessun costo, l'audio non lascia il dispositivo. Su Android resta attivo anche a schermo bloccato."
+                : "Motore: riconoscimento vocale del telefono in ascolto continuo (nessuna chiave, nessun costo). Il modello Axon offline si attiva con la build Android nativa."}</Text>
             </View>
           ) : null}
         </View>
@@ -127,7 +129,7 @@ export default function ViolaWakeScreen() {
             <View style={{ flex: 1 }} />
             {busy === "user" ? <ActivityIndicator color={VIOLA} /> : <Switch value={userOn} disabled={!moduleOn} onValueChange={toggleUser} trackColor={{ true: VIOLA }} testID="viola-user-switch" />}
           </View>
-          <Text style={s.hint}>Il microfono resta sul telefono: «Axon» viene riconosciuta in locale (Porcupine se c’è la chiave Picovoice, altrimenti il riconoscimento vocale di sistema), niente audio al cloud finché non senti il segnale. Poi il comando viene trascritto dal telefono {v.onDeviceStt ? "(on-device)" : ""} e passato ad Axon.</Text>
+          <Text style={s.hint}>Il microfono resta sul telefono: «Axon» viene riconosciuta in locale (modello Axon offline sul telefono; riconoscimento vocale di sistema dove il modulo nativo non c’è), niente audio al cloud finché non senti il segnale. Poi il comando viene trascritto dal telefono {v.onDeviceStt ? "(on-device)" : ""} e passato ad Axon.</Text>
 
           {/* Permessi — contratto */}
           {v.supported && v.permission && !v.permission.granted ? (

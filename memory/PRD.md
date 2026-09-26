@@ -6984,6 +6984,12 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 - `app/wake-word.tsx`: default modello «axon_custom».
 - ⚠️ Verificabile SOLO su build Android nativa (non Expo Go / web). Su web `WakeWord.isAvailable()` = false.
 
+## V50.z378 (Giugno 2026) — PULIZIA WAKE WORD: solo percorso ONNX Axon, niente Picovoice/mock
+- Rimossi: `src/wakeword/WakeWordService.ts` (mock) + suo avvio in `app/_layout.tsx`; pacchetti `@picovoice/porcupine-react-native` e `@picovoice/react-native-voice-processor` (yarn remove); codice Porcupine e `accessKey`/`hasKey`/`needs_key` da `wakeEngine.native.ts`, `ViolaWakeProvider.tsx`, `types.ts`, `viola-wake.tsx` (ora `axonEngine: boolean` nel context = modulo nativo AxonWakeAudio presente).
+- `wakeEngine.native.ts`: `createWakeEngine` = motore Axon ONNX (WakeWord → axonWakeAudio + axonWakeModel, assets/wake) se il modulo nativo esiste, altrimenti riconoscitore vocale di sistema. Nessun'altra dipendenza.
+- `app/axon-hub.tsx` voce «Wake Word Axon» → `/viola-wake`; `app/wake-word.tsx` = Redirect a `/viola-wake`. `app.json` plugins include `./plugins/withAxonWakeAudio.js` (plugin `withViolaWake.js` lasciato: solo permessi/copia asset, nessun codice Picovoice).
+- Deploy/build: da fare dall'utente con Publish → build Android.
+
 ## PROSSIMI PASSI
 - Verifica sul campo (telefono reale) di Blocchi 1-4: multi-dispositivo, impronta vocale in ambienti rumorosi (eventuale «Tollerante» o ri-registrazione), PIN.
 - Call Logging Android (`READ_CALL_LOG`, richiede APK sideload) — backlog.
