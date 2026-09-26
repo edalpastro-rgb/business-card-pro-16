@@ -1,4 +1,4 @@
-// wakeWord.ts — V50.z377 — Stub WEB dell'API WakeWord (il motore reale è in wakeWord.native.ts: AudioRecord + onnxruntime-react-native).
+// wakeWord.ts — V50.z377 — Stub WEB dell'API WakeWord (il motore reale è in wakeWord.native.ts: modulo nativo AxonWakeAudio con inferenza ONNX in Kotlin).
 // Su web non c'è streaming nativo: isAvailable() = false; simulate() invoca comunque i callback onWake («Simula rilevamento Axon»).
 type Cb<T> = (v: T) => void;
 const wakeSubs = new Set<Cb<{ score: number; simulated: boolean }>>();

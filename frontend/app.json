@@ -120,7 +120,6 @@
         }
       ],
       "expo-asset",
-      "onnxruntime-react-native",
       [
         "expo-build-properties",
         {

@@ -1,21 +1,18 @@
-// wakeWord.ts — V50.z377 — API pubblica dell'ascolto continuo «Axon» (Android, 100% offline):
+// wakeWord.native.ts — V50.z381 — API pubblica dell'ascolto continuo «Axon» (Android, 100% offline, inferenza nativa):
 //   WakeWord.isAvailable()            → modulo nativo AxonWakeAudio presente (build nativa Android)
-//   WakeWord.start({ sensitivity })   → streaming microfono (AudioRecord) + servizio in primo piano + rilevatore TemporalCNN (Job #253)
+//   WakeWord.start({ sensitivity })   → microfono (AudioRecord) + pipeline ONNX nativa (TemporalCNN Job #253) + servizio in primo piano
 //   WakeWord.stop()
 //   WakeWord.onWake(cb) / onScore(cb) / onLevel(cb) / onError(cb) → sottoscrizioni (ritornano remove())
 //   WakeWord.simulate()               → invoca i callback onWake come se la parola fosse stata sentita («Simula rilevamento Axon»)
-import { AXON_WAKE_AUDIO_AVAILABLE, startAudioStream } from "./axonWakeAudio";
-import { AxonWakeDetector, thresholdFromSensitivity } from "./axonWakeModel";
+import { AXON_WAKE_AUDIO_AVAILABLE, startNativeWake, thresholdFromSensitivity } from "./axonWakeAudio";
 import { startForegroundService, stopForegroundService } from "./foregroundService";
 
 type Cb<T> = (v: T) => void;
 const subs = { wake: new Set<Cb<{ score: number; simulated: boolean }>>(), score: new Set<Cb<number>>(), level: new Set<Cb<number>>(), error: new Set<Cb<string>>() };
 let stream: { stop: () => Promise<void> } | null = null;
-let detector: AxonWakeDetector | null = null;
 let running = false;
 
 function emitWake(score: number, simulated: boolean) { subs.wake.forEach((cb) => { try { cb({ score, simulated }); } catch { /* noop */ } }); }
-function emitError(msg: string) { subs.error.forEach((cb) => { try { cb(msg); } catch { /* noop */ } }); }
 
 export const WakeWord = {
   isAvailable: () => AXON_WAKE_AUDIO_AVAILABLE,
@@ -29,15 +26,13 @@ export const WakeWord = {
     if (running) return;
     if (!AXON_WAKE_AUDIO_AVAILABLE) throw new Error("Modulo audio nativo non disponibile (serve la build Android)");
     const thr = opts.threshold ?? thresholdFromSensitivity(opts.sensitivity);
-    const det = detector && detector.threshold === thr ? detector : new AxonWakeDetector({ threshold: thr, consecutive: 2, onScore: (s) => subs.score.forEach((cb) => cb(s)) });
-    await det.load();
-    det.reset();
-    detector = det;
-    stream = startAudioStream((c) => {
-      subs.level.forEach((cb) => cb(c.dbfs));
-      det.feed(c.pcm).then((wake) => { if (wake) emitWake(det.threshold, false); }).catch((e) => emitError(String(e?.message || e)));
-    }, emitError);
-    if (!stream) throw new Error("Streaming audio non avviato");
+    stream = startNativeWake(thr, 2, {
+      onWake: (score) => emitWake(score, false),
+      onScore: (s) => subs.score.forEach((cb) => cb(s)),
+      onLevel: (d) => subs.level.forEach((cb) => cb(d)),
+      onError: (m) => subs.error.forEach((cb) => cb(m)),
+    });
+    if (!stream) throw new Error("Ascolto nativo non avviato");
     running = true;
     void startForegroundService(opts.keywordLabel || "Axon"); // Android: microfono vivo anche con schermo bloccato
   },

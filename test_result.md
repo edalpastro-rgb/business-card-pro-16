@@ -508,3 +508,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z377 — Ascolto continuo Axon: plugin nativo Android plugins/withAxonWakeAudio.js (AudioRecord → eventi PCM 80 ms), API src/violawake/wakeWord.native.ts (start/stop/onWake/simulate), pipeline onnx in JS src/violawake/axonWakeModel.ts (melspectrogram+embedding openWakeWord + axon.onnx TemporalCNN Job #253, default), integrazione in wakeEngine.native.ts (default Axon, fallback Porcupine/speech), simulateWake → openAxonChat + WakeWord.simulate/handleWake. Foreground service ViolaWakeService riusato. Validazione pipeline: backend/tests/validate_wake_pipeline.py. Testabile solo su build Android nativa."
+
+  - agent: "main"
+    message: "V50.z381 — Crash avvio APK 1.0.91 causato da onnxruntime-react-native (install() JSI all'import, incompatibile con New Architecture). Libreria rimossa; inferenza wake-word spostata in Kotlin (onnxruntime-android via plugin withAxonWakeAudio.js). JS: axonWakeAudio.ts ponte eventi, wakeWord.native.ts API. Verifica possibile solo su build Android."

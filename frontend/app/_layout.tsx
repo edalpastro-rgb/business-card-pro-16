@@ -274,7 +274,7 @@ export default function RootLayout() {
     }
   }, [loaded, error, proceed]);
 
-  // V50.z378 — Wake word: gestita SOLO da ViolaWakeProvider (src/violawake) → motore Axon ONNX (axonWakeAudio + axonWakeModel). Mock rimosso.
+  // V50.z378 — Wake word: gestita SOLO da ViolaWakeProvider (src/violawake) → motore Axon ONNX (modulo nativo AxonWakeAudio, inferenza ONNX in Kotlin). Mock rimosso.
 
   if (!loaded && !error && !proceed) return null;
 

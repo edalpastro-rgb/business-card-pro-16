@@ -6999,6 +6999,19 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 - Lo screenshot dell'utente (pagina «Wake Word Axon» con alert «Wake-word in modalità TEST», modello Hey Jarvis) è la VECCHIA pagina placeholder `app/wake-word.tsx` + mock, rimossi in z378: la build 1.0.90 non contiene il modulo nativo. Serve Publish (redeploy) → nuova build Android. Come verificare nella nuova build: `/viola-wake` → box «Motore: modello Axon (TemporalCNN, 100% offline…)» = modulo nativo presente.
 - Hardening `axonWakeModel.ts` → `loadSession`: se l'asset incorporato non è `file://` (release Android `asset:///`), copia in `cacheDirectory` con expo-file-system e passa il percorso a ORT (ORT RN gestisce `file:/` nativamente, verificato in cpp/InferenceSessionHostObject.cpp).
 
+## V50.z381 (Giugno 2026) — FIX CRASH AVVIO APK 1.0.91 · wake-word interamente nativa
+- **Causa del crash**: `onnxruntime-react-native` (1.24) esegue `NativeModules.Onnxruntime.install()` all'IMPORT del modulo JS; su Android con New Architecture (`newArchEnabled: true`, bridgeless) `getCatalystInstance()` non esiste → eccezione nativa → l'app si chiude prima della UI. L'import era in `axonWakeModel.ts` ← `wakeWord.native.ts` ← `ViolaWakeProvider` (montato in `_layout`). REGOLA: mai importare librerie con side-effect nativi a livello di modulo nella catena di `_layout`; verificare compatibilità New Architecture.
+- **Fix**: rimosso `onnxruntime-react-native` (yarn remove) e `axonWakeModel.ts`. Tutta l'inferenza wake-word è ora in Kotlin dentro `plugins/withAxonWakeAudio.js` → `AxonWakeAudioModule.kt` con `com.microsoft.onnxruntime:onnxruntime-android:1.20.0` (aggiunto ad app/build.gradle dal plugin; modelli copiati in `android/app/src/main/assets/wake/` — opset 11/13, compatibili). API nativa: `start(threshold, consecutive)`, `stop()`, `isRunning()`, `setThreshold()`; eventi `AxonWakeDetected {score}`, `AxonWakeScore`, `AxonWakeLevel {dbfs}`, `AxonWakeError`. `src/violawake/axonWakeAudio.ts` = ponte sottile (NativeEventEmitter creato solo allo start), `wakeWord.native.ts` = API WakeWord (start/stop/onWake/simulate) + ViolaWakeService.
+- Rimossi anche in z378 `@picovoice/*`. Dipendenze native attuali per la voce: expo-audio, expo-speech-recognition (fallback), react-native-keyboard-controller, modulo custom AxonWakeAudio.
+- `app.json`: rimosso anche il plugin `onnxruntime-react-native` (rimasto in lista → prebuild falliva «Failed to resolve plugin»). `npx expo config --type prebuild` OK.
+- ⚠️ Richiede Publish + nuova build Android. Verifica: app si apre; `/viola-wake` mostra «Motore: modello Axon (TemporalCNN, 100% offline…)»; toggle Home → notifica «Axon in ascolto».
+
 ## PROSSIMI PASSI
 - Verifica sul campo (telefono reale) di Blocchi 1-4: multi-dispositivo, impronta vocale in ambienti rumorosi (eventuale «Tollerante» o ri-registrazione), PIN.
 - Call Logging Android (`READ_CALL_LOG`, richiede APK sideload) — backlog.
+
+## V50.z382 — Verifica pre-build 1.0.92 (crash 1.0.91)
+- Causa crash 1.0.91: `onnxruntime-react-native` (getCatalystInstance all'import, incompatibile con New Architecture). Rimosso da package.json/app.json/JS.
+- Verifiche eseguite: `expo config --type prebuild` OK; `expo export --platform android` OK (2527 moduli, 0 riferimenti a onnxruntime-react-native/@picovoice nel bundle); lint src/violawake pulito; anteprima web avviata correttamente.
+- Inferenza wake-word: 100% Kotlin in `plugins/withAxonWakeAudio.js` (onnxruntime-android 1.20.0, modelli in assets/wake).
+- Stato: pronto per Publish → build Android 1.0.92 (verifica utente).
