@@ -40,13 +40,15 @@ export function AppInfoCard() {
   const load = useCallback(async () => {
     try {
       const k = await deviceKey();
-      setInfo(await api<Info>("/axon/app-info", { query: { device_key: k } }));
+      // V50.z379 — dichiara al server la versione REALMENTE installata (Application.nativeApplicationVersion): niente falsi «disponibile v…»
+      const native = isNative && Application.nativeApplicationVersion ? { installed_version: Application.nativeApplicationVersion, ...(buildNumber ? { build_number: buildNumber } : {}) } : {};
+      setInfo(await api<Info>("/axon/app-info", { query: { device_key: k, ...native } }));
       if (isNative) {
         try { const t = await Application.getInstallationTimeAsync(); setInstalledAt(t.toISOString()); } catch { /* n/a */ }
         try { const u = await (Application as any).getLastUpdateTimeAsync?.(); if (u) setUpdatedAt(new Date(u).toISOString()); } catch { /* iOS non lo espone */ }
       }
     } catch { setErr(true); }
-  }, [isNative]);
+  }, [isNative, buildNumber]);
   useEffect(() => { void load(); }, [load]);
 
   const latest = info?.latest_version || null;

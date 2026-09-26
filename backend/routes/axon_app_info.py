@@ -63,14 +63,42 @@ _APX_TYPE_LABELS["app_update"] = "Aggiornamento app disponibile"
 _APX_DEFAULT_CONFIG["alerts"]["app_update"] = True
 
 
+async def _api_close_update_alert(it: dict, reason: str, now: datetime) -> None:
+    """Chiude un avviso «Aggiornamento disponibile»: alert Home, notifica, messaggio in chat."""
+    await db.axon_proactive_log.update_one({"item_id": it["item_id"]}, {"$set": {"dismissed_at": now, "read_at": now, "dismiss_reason": reason}})
+    await db.axon_notifications.delete_many({"user_id": it["user_id"], "$or": [{"notif_id": it.get("notif_id")}, {"dedupe_key": f"apx:{it['item_id']}"}]})
+    await db.assistant_messages.delete_many({"user_id": it["user_id"], "proactive_id": it["item_id"]})
+
+
+async def _api_current_device(uid: str, dev: Optional[dict]) -> Optional[dict]:
+    """V50.z379 — Dispositivo «di riferimento» = quello visto PIÙ di recente sulla stessa piattaforma (una reinstallazione con
+    device_key nuovo lascia un doc vecchio con la versione precedente: non deve generare avvisi)."""
+    if not dev:
+        return None
+    newest = await db.axon_client_versions.find_one({"user_id": uid, "app_env": "standalone", "platform": dev.get("platform"), "app_version": {"$ne": None}}, {"_id": 0}, sort=[("last_seen", -1)])
+    return newest or dev
+
+
 async def _api_check_outdated(user: dict, dev: Optional[dict]) -> Optional[dict]:
-    """APK installata più vecchia di quella disponibile → UN avviso in chat (dedupe per coppia installata→disponibile)."""
+    """V50.z379 — APK installata STRETTAMENTE più vecchia di quella disponibile → UN SOLO avviso aperto per utente (dedupe per
+    versione disponibile). Se esce una versione ancora più nuova, l'avviso precedente viene chiuso e sostituito (niente raffiche
+    per le versioni intermedie). Se l'installata è ≥ disponibile, gli avvisi aperti vengono chiusi."""
     if not dev or dev.get("app_env") != "standalone" or not dev.get("app_version"):
         return None
+    uid = user["user_id"]
+    dev = await _api_current_device(uid, dev) or dev
     latest = (await _api_latest_version()).get("version")
     c = _api_vcmp(dev["app_version"], latest)
+    now = utcnow()
+    open_alerts = await db.axon_proactive_log.find({"user_id": uid, "type": "app_update", "dismissed_at": None}, {"_id": 0, "item_id": 1, "user_id": 1, "latest_version": 1, "notif_id": 1}).to_list(20)
     if c is None or c >= 0:
+        for it in open_alerts:  # già aggiornato → nessun avviso deve restare
+            await _api_close_update_alert(it, "installed_up_to_date", now)
         return None
+    if any(it.get("latest_version") == latest for it in open_alerts):
+        return None  # già avvisato per QUESTA versione disponibile
+    for it in open_alerts:  # avvisi verso versioni intermedie → sostituiti dall'unico avviso sull'ultima
+        await _api_close_update_alert(it, "superseded", now)
     news = _api_whats_new(3)
     bullets = "\n".join(f"• {r['version']}: {r['desc'][:140]}" for r in news) or "• miglioramenti e correzioni"
     return await _apx_emit(
@@ -79,24 +107,23 @@ async def _api_check_outdated(user: dict, dev: Optional[dict]) -> Optional[dict]
         f"📲 **La tua app è da aggiornare.** Sul dispositivo {dev.get('device_name') or dev.get('platform') or ''} hai installata la **v{dev['app_version']}**"
         f"{(' (build ' + str(dev.get('build_number')) + ')') if dev.get('build_number') else ''}, mentre è disponibile la **v{latest}**.\n\nCosa ti perdi:\n{bullets}\n\n"
         "Scarica la nuova build dell'app e installala: i tuoi dati restano tutti al loro posto. Trovi lo stato in Profilo → prima card.",
-        f"app_update:{dev['app_version']}->{latest}", [{"label": "Apri Profilo", "route": "/(tabs)/impostazioni"}], "app-info", {"installed_version": dev["app_version"], "latest_version": latest})
+        f"app_update:{latest}", [{"label": "Apri Profilo", "route": "/(tabs)/impostazioni"}], "app-info", {"installed_version": dev["app_version"], "latest_version": latest})
 
 
 async def _api_purge_false_updates() -> int:
-    """V50.z361 — chiude gli avvisi «Aggiornamento disponibile» già emessi verso una versione che NON è una build reale
-    (es. v2.0.0 da app.json) o quando l'installata è ormai ≥ disponibile: alert Home, notifica, messaggio in chat."""
+    """V50.z361/z379 — chiude gli avvisi «Aggiornamento disponibile» verso una versione che NON è più l'ultima reale, o quando
+    l'utente ha ormai installato una versione ≥ disponibile (dispositivo più recente): alert Home, notifica, messaggio in chat."""
     n = 0
     try:
         latest = (await _api_latest_version()).get("version")
         now = utcnow()
         async for it in db.axon_proactive_log.find({"type": "app_update", "dismissed_at": None}, {"_id": 0, "item_id": 1, "user_id": 1, "latest_version": 1, "installed_version": 1, "notif_id": 1}):
-            c = _api_vcmp(it.get("installed_version"), latest) if latest else None
+            cur = await db.axon_client_versions.find_one({"user_id": it["user_id"], "app_env": "standalone", "app_version": {"$ne": None}}, {"_id": 0, "app_version": 1}, sort=[("last_seen", -1)])
+            c = _api_vcmp((cur or {}).get("app_version") or it.get("installed_version"), latest) if latest else None
             stale = latest is None or it.get("latest_version") != latest or (c is not None and c >= 0)
             if not stale:
                 continue
-            await db.axon_proactive_log.update_one({"item_id": it["item_id"]}, {"$set": {"dismissed_at": now, "read_at": now, "dismiss_reason": "false_update"}})
-            await db.axon_notifications.delete_many({"user_id": it["user_id"], "$or": [{"notif_id": it.get("notif_id")}, {"dedupe_key": f"apx:{it['item_id']}"}]})
-            await db.assistant_messages.delete_many({"user_id": it["user_id"], "proactive_id": it["item_id"]})
+            await _api_close_update_alert(it, "false_update", now)
             n += 1
         # notifiche orfane (stesso titolo, versione non reale)
         pat = r"^📲 Aggiornamento disponibile: v" + (r"(?!" + re.escape(latest) + r"$)" if latest else "")
@@ -125,13 +152,24 @@ async def _api_outdated_tick() -> int:
 
 
 @api_router.get("/axon/app-info")
-async def axon_app_info(device_key: Optional[str] = None, user=Depends(get_current_user)):
+async def axon_app_info(device_key: Optional[str] = None, installed_version: Optional[str] = None, build_number: Optional[str] = None, user=Depends(get_current_user)):
     tid = tenant_id(user)
     owner = await db.users.find_one({"user_id": tid}, {"_id": 0, "plan_name": 1, "name": 1}) or {}
     plan = owner.get("plan_name") or _API_DEFAULT_PLAN
     dev = None
     if device_key:
         dev = await db.axon_client_versions.find_one({"user_id": user["user_id"], "device_key": device_key}, {"_id": 0})
+        # V50.z379 — la versione installata la dichiara il CLIENT (Application.nativeApplicationVersion): aggiorniamo subito il
+        # dispositivo, senza aspettare l'heartbeat (evitava l'avviso «disponibile la v1.0.90» subito dopo aver installato la 1.0.90)
+        if installed_version and (not dev or dev.get("app_version") != installed_version or (build_number and dev.get("build_number") != build_number)):
+            now = utcnow()
+            upd = {"user_id": user["user_id"], "tenant_id": tid, "device_key": device_key, "app_version": installed_version, "app_env": "standalone", "last_seen": now}
+            if build_number:
+                upd["build_number"] = build_number
+            if dev and dev.get("app_version") and dev.get("app_version") != installed_version:
+                upd["previous_version"] = dev.get("app_version"); upd["updated_at"] = now
+            await db.axon_client_versions.update_one({"user_id": user["user_id"], "device_key": device_key}, {"$set": upd, "$setOnInsert": {"first_seen": now, "platform": "android"}}, upsert=True)
+            dev = await db.axon_client_versions.find_one({"user_id": user["user_id"], "device_key": device_key}, {"_id": 0})
     if not dev:
         dev = await db.axon_client_versions.find_one({"user_id": user["user_id"], "app_version": {"$ne": None}}, {"_id": 0}, sort=[("last_seen", -1)])
     latest = await _api_latest_version()

@@ -6990,6 +6990,11 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 - `app/axon-hub.tsx` voce «Wake Word Axon» → `/viola-wake`; `app/wake-word.tsx` = Redirect a `/viola-wake`. `app.json` plugins include `./plugins/withAxonWakeAudio.js` (plugin `withViolaWake.js` lasciato: solo permessi/copia asset, nessun codice Picovoice).
 - Deploy/build: da fare dall'utente con Publish → build Android.
 
+## V50.z379 (Giugno 2026) — FIX AVVISI AGGIORNAMENTO APK (raffica di notifiche · versione installata non rilevata)
+- Causa 1 (raffica): dedupe per coppia `installata→disponibile` → ogni build intermedia vista nella flotta (1.0.81, .85, .88, .90) generava un nuovo avviso. Ora `_api_check_outdated` (routes/axon_app_info.py): dedupe per versione disponibile (`app_update:{latest}`), **un solo avviso aperto per utente**; se esce una versione più nuova l'avviso precedente viene chiuso («superseded») e sostituito; se installata ≥ disponibile tutti gli avvisi aperti vengono chiusi (`_api_close_update_alert`: alert Home + notifica + messaggio chat).
+- Causa 2 (installata non rilevata): la versione installata veniva letta solo dal doc heartbeat (`axon_client_versions`), aggiornato max ogni 30 min → subito dopo l'installazione il controllo usava il doc vecchio; inoltre una reinstallazione con `device_key` nuovo lasciava un doc stale. Ora: `GET /axon/app-info?device_key&installed_version&build_number` — `AppInfoCard.tsx` dichiara `Application.nativeApplicationVersion` e il server aggiorna subito il dispositivo; `_api_current_device` usa il dispositivo visto più di recente sulla stessa piattaforma; il purge orario confronta con la versione corrente dell'utente.
+- Test `backend/tests/test_app_update_alerts.py`: 4 versioni intermedie → 1 avviso/1 notifica; installazione 1.0.90 → 0 avvisi; doc stale → 0 avvisi.
+
 ## PROSSIMI PASSI
 - Verifica sul campo (telefono reale) di Blocchi 1-4: multi-dispositivo, impronta vocale in ambienti rumorosi (eventuale «Tollerante» o ri-registrazione), PIN.
 - Call Logging Android (`READ_CALL_LOG`, richiede APK sideload) — backlog.
