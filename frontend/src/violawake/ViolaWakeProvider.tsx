@@ -53,6 +53,11 @@ export function useViolaWake(): Ctx {
   return c;
 }
 
+/** V50.z367 — variante senza throw (header Home): null se il provider non è montato. */
+export function useViolaWakeOptional(): Ctx | null {
+  return useContext(ViolaCtx);
+}
+
 export function ViolaWakeProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const [state, setState] = useState<ViolaState>("off");
@@ -194,7 +199,7 @@ export function ViolaWakeProvider({ children }: { children: React.ReactNode }) {
       if (st?.stt_engine === "whisper" && WHISPER_CAPTURE_SUPPORTED) {
         const r = await captureCommandWhisper({ maxSeconds: st?.listen_seconds || 6, onPartial: setLastTranscript });
         text = r.text;
-        void violaApi.logEvent("capture", { engine: "whisper", detail: `noise ${r.noiseDb == null ? "n.d." : Math.round(r.noiseDb)} dB · ${r.durationMs} ms`, latency_ms: r.durationMs });
+        void violaApi.logEvent("capture", { engine: "whisper", detail: `ambiente ${r.ambientDb == null ? "n.d." : r.ambientDb} dB (${r.band || "auto"}) · noise ${r.noiseDb == null ? "n.d." : Math.round(r.noiseDb)} dBFS · ${r.durationMs} ms`, latency_ms: r.durationMs });
         if (!text && r.durationMs > 0 && r.durationMs < 1500) text = await captureCommand({ maxSeconds: st?.listen_seconds || 6, onPartial: setLastTranscript });
       } else {
         text = await captureCommand({ maxSeconds: st?.listen_seconds || 6, onPartial: setLastTranscript });

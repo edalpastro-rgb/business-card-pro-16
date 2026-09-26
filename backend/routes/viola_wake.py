@@ -155,6 +155,8 @@ class ViolaTranscribeIn(BaseModel):
     audio_base64: str
     mime: Optional[str] = "audio/m4a"
     noise_db: Optional[float] = None       # rumore di fondo misurato dal telefono (dBFS), solo per statistiche
+    ambient_db: Optional[int] = None       # V50.z367 — dB ambiente (≈ dBFS+90) e profilo scelto dal telefono (silent/normal/noisy)
+    band: Optional[str] = None
 
 
 def _vw_clean_transcript(segments: List[dict], text: str) -> str:
@@ -214,7 +216,7 @@ async def viola_transcribe(body: ViolaTranscribeIn, user=Depends(get_current_use
         except Exception:
             pass
     transcript = _vw_clean_transcript(segs, text)
-    return {"transcript": transcript, "raw": (text or "").strip(), "segments": len(segs), "engine": "whisper", "latency_ms": int((utcnow() - t0).total_seconds() * 1000), "noise_db": body.noise_db}
+    return {"transcript": transcript, "raw": (text or "").strip(), "segments": len(segs), "engine": "whisper", "latency_ms": int((utcnow() - t0).total_seconds() * 1000), "noise_db": body.noise_db, "ambient_db": body.ambient_db, "band": body.band}
 
 
 @api_router.post("/viola-wake/event")

@@ -2,6 +2,6 @@
 import type { CaptureOptions } from "./types";
 
 export const WHISPER_CAPTURE_SUPPORTED = false;
-export type WhisperCaptureResult = { text: string; noiseDb: number | null; durationMs: number };
+export type WhisperCaptureResult = { text: string; noiseDb: number | null; durationMs: number; ambientDb?: number | null; band?: string | null };
 export async function captureCommandWhisper(_opts: CaptureOptions): Promise<WhisperCaptureResult> { return { text: "", noiseDb: null, durationMs: 0 }; }
 export function abortWhisperCapture() { /* noop */ }

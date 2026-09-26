@@ -25,6 +25,7 @@ import { SetupProcessingBadge } from "@/src/SetupProcessingBadge"; // V50.z216 �
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { useOrgBranding } from "@/src/BrandHeaderImage"; // logo aziendale (Personalizzazione Aziendale) nella barra
 import { HT } from "@/src/homeTheme";
+import { ViolaHeaderDot } from "@/src/violawake/ViolaHeaderDot";
 
 /* ────────────────────────────────────────────────────────────────
    V50.z334 — Home DARK/PREMIUM coerente con la landing (src/homeTheme.ts)
@@ -427,6 +428,7 @@ export default function HomeScreen() {
           <Text style={styles.topBarDate} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} testID="home-today-date">{todayLabel}</Text>
         </View>
         <View style={{ flex: 1 }} />
+        <ViolaHeaderDot />{/* V50.z367 — Axon in ascolto (ViolaWake) */}
         <Text style={styles.topBarClock} numberOfLines={1} testID="home-clock">
           {new Date(nowTick).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
         </Text>

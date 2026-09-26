@@ -3,6 +3,7 @@
 // in ascolto CONTINUO e fa scattare onWake quando nella trascrizione compare «Viola» (o la parola di fallback).
 // Si riavvia da solo su "end"/"error" con un piccolo backoff finché è attivo. Quando è presente la chiave Picovoice
 // l'app usa Porcupine (wakeEngine.native.ts); questo motore resta l'upgrade path inverso: zero chiavi, zero costi.
+import { Platform } from "react-native";
 import { ExpoSpeechRecognitionModule } from "expo-speech-recognition";
 import type { WakeEngine, WakeEngineOptions } from "./types";
 import { VIOLA_KEYWORD_LABEL } from "./types";
@@ -27,8 +28,10 @@ export function createSpeechWakeEngine(opts: Pick<WakeEngineOptions, "onWake" | 
 
   const startRecognizer = () => {
     if (!active) return;
+    // V50.z367 — Android: il riconoscimento «solo sul dispositivo» richiede il pacchetto lingua IT scaricato, altrimenti errore continuo
+    // (language-not-supported) e la wake-word non risponde mai → su Android usiamo il riconoscitore standard (Google).
     let onDevice = false;
-    try { onDevice = ExpoSpeechRecognitionModule.supportsOnDeviceRecognition(); } catch { /* noop */ }
+    if (Platform.OS === "ios") { try { onDevice = ExpoSpeechRecognitionModule.supportsOnDeviceRecognition(); } catch { /* noop */ } }
     try {
       ExpoSpeechRecognitionModule.start({
         lang: "it-IT",
