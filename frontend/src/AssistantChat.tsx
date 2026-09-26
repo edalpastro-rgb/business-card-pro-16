@@ -33,6 +33,7 @@ import { ChatQueuePanel, type QueueItem } from "@/src/ChatQueuePanel"; // V50.z2
 import { ChatQueueInline } from "@/src/ChatQueueInline"; // V50.z301 — bozze in coda visibili dentro la chat
 import { ChoiceButtons, extractChoices } from "@/src/axon-choice-buttons"; // V50.z304 — pulsanti A)/B) e azioni «ORA»
 import { consumePendingPrompt, consumePendingVoice, AXON_OPEN_CHAT_EVENT } from "@/src/axonProactive";
+import { flagAxonUnread, markAxonRead } from "@/src/axonUnread"; // V50.z383 — risposta arrivata a chat chiusa → FAB verde lampeggiante
 import { matchLocalCommand, playActivationEffect, startFindPhone, stopFindPhone } from "@/src/activation/events"; // V50.z318
 import { ActivationOverlay } from "@/src/activation/ActivationOverlay"; // V50.z318 — mirror dentro il Modal chat // V50.z196 — Blocco 9 apertura chat proattiva
 import { syncAlarmNotifs } from "@/src/alarmNotifs";
@@ -278,6 +279,18 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     const t = setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
     return () => clearTimeout(t);
   }, [messages.length, sending]);
+
+  // V50.z383 — Risposta di Axon completata: se la chat è CHIUSA → segnala «non letto» (FAB verde lampeggiante);
+  // se è aperta → è già letta (aggiorna il segnalibro di lettura).
+  const visibleRef = useRef(visible);
+  useEffect(() => { visibleRef.current = visible; }, [visible]);
+  useEffect(() => {
+    const last = messages[messages.length - 1];
+    if (!last || last.role !== "assistant" || last.streaming || loadingHist) return;
+    if (visibleRef.current) void markAxonRead();
+    else flagAxonUnread();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages]);
 
 
   // V28.v — Helper condiviso: aggiunge un file (già letto come base64) alla lista
@@ -958,15 +971,17 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
           if (!ended) { ended = true; if (onEnded) onEnded(); }
         };
       }
-      // Fallback timer in case 'ended' event never fires
-      const dur = Math.max(2000, Math.min(60000, text.length * 55));
+      // Fallback timer in case 'ended' event never fires (V50.z383 — stima generosa e stop dell'audio residuo: mai due voci)
+      const myCleanup = cleanupAudioRef.current;
+      const dur = Math.max(2500, Math.min(90000, text.length * 110 + 3000));
       setTimeout(() => {
         if (ended) return;
         ended = true;
+        if (myCleanup && cleanupAudioRef.current === myCleanup) { try { myCleanup(); } catch {} cleanupAudioRef.current = null; }
         setPlayingIdx((v) => (v === targetIdx ? null : v));
         setPaused(false);
         if (onEnded) onEnded();
-      }, dur + 500);
+      }, dur);
     } catch {
       setPlayingIdx(null); setPaused(false);
       if (onEnded) onEnded();

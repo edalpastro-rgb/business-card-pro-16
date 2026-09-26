@@ -10,6 +10,7 @@ import { useFabStack } from "@/src/FabStack";
 import { AXON_OPEN_CHAT_EVENT } from "@/src/axonProactive";
 import { CHAT_OPEN_KEY } from "@/src/utils/appStatePersist";
 import { axnApi, AXN_UNREAD_CHANGED_EVENT } from "@/src/axonNotifications";
+import { AXON_UNREAD_EVENT, checkAxonUnread, markAxonRead } from "@/src/axonUnread"; // V50.z383 — messaggio Axon non letto → verde lampeggiante
 import { AssistantChatModal } from "@/src/AssistantChat";
 import { styles } from "@/src/assistant/chatStyles";
 
@@ -153,6 +154,10 @@ export function AssistantFAB() {
   // V50.z248 — + avvisi CRITICI non letti (axon-notifications/unread-count.critical) → lampeggio ROSSO pulsante finché
   // l'utente non apre la notifica. Refresh: ogni 30 s, al ritorno in foreground, all'arrivo di una push, dopo lettura.
   const [criticalUnread, setCriticalUnread] = useState(0);
+  // V50.z383 — messaggio di Axon non letto (chat chiusa): il pulsante lampeggia in VERDE finché la chat non viene aperta
+  const [axonUnread, setAxonUnread] = useState(false);
+  const openRef = useRef(open);
+  useEffect(() => { openRef.current = open; }, [open]);
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
@@ -165,11 +170,13 @@ export function AssistantFAB() {
         const n = await axnApi.unread();
         if (!cancelled) setCriticalUnread(n?.critical || 0);
       } catch { /* ignore */ }
+      void checkAxonUnread(openRef.current);
     };
     fetchCount();
     const iv = setInterval(fetchCount, 30000);
     const appSub = AppState.addEventListener("change", (st) => { if (st === "active") fetchCount(); });
     const evSub = DeviceEventEmitter.addListener(AXN_UNREAD_CHANGED_EVENT, (r: any) => { if (typeof r?.critical === "number") setCriticalUnread(r.critical); else fetchCount(); });
+    const unreadSub = DeviceEventEmitter.addListener(AXON_UNREAD_EVENT, (r: any) => { if (!cancelled) setAxonUnread(!!r?.unread && !openRef.current); });
     let pushSub: { remove: () => void } | null = null;
     if (Platform.OS !== "web") {
       try {
@@ -178,8 +185,33 @@ export function AssistantFAB() {
         pushSub = Notif.addNotificationReceivedListener(() => { setTimeout(fetchCount, 800); });
       } catch { /* Expo Go/web */ }
     }
-    return () => { cancelled = true; clearInterval(iv); appSub.remove(); evSub.remove(); pushSub?.remove(); };
+    return () => { cancelled = true; clearInterval(iv); appSub.remove(); evSub.remove(); unreadSub.remove(); pushSub?.remove(); };
   }, [user]);
+
+  // V50.z383 — chat aperta = messaggi letti: memorizza la lettura e spegne il verde; anche alla chiusura (tutto ciò che
+  // è arrivato mentre era aperta è stato letto) → il pulsante torna viola normale
+  const everOpened = useRef(false);
+  useEffect(() => {
+    if (!user) return;
+    if (open) everOpened.current = true;
+    else if (!everOpened.current) return;
+    setAxonUnread(false);
+    void markAxonRead();
+  }, [open, user]);
+
+  // V50.z383 — Lampeggio VERDE (opacità del velo verde 0 ↔ 0.95) attivo solo con un messaggio Axon non letto
+  const greenBlink = useRef(new Animated.Value(0)).current;
+  const showGreen = axonUnread && !open && criticalUnread <= 0;
+  useEffect(() => {
+    if (!showGreen) { greenBlink.setValue(0); return; }
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(greenBlink, { toValue: 1, duration: 550, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
+      Animated.timing(greenBlink, { toValue: 0, duration: 550, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
+    ]));
+    loop.start();
+    return () => { loop.stop(); greenBlink.setValue(0); };
+  }, [showGreen, greenBlink]);
+  const greenOpacity = greenBlink.interpolate({ inputRange: [0, 1], outputRange: [0, 0.95] });
 
   // V50.z248 — Alone rosso pulsante (scale 1→1.7, opacità 0.75→0) attivo solo con avvisi critici non letti
   const redPulse = useRef(new Animated.Value(0)).current;
@@ -297,13 +329,16 @@ export function AssistantFAB() {
           <Animated.View pointerEvents="none" style={[styles.fabHalo, { opacity: haloOpacity, transform: [{ scale: haloScale }] }]} testID="assistant-fab-critical-halo" />
         ) : null}
         <Pressable
-          style={[styles.fab, criticalUnread > 0 && styles.fabCritical]}
+          style={[styles.fab, criticalUnread > 0 && styles.fabCritical, showGreen && styles.fabUnreadGreen]}
           onPress={fireTap}
           hitSlop={6}
           accessibilityRole="button"
-          accessibilityLabel={criticalUnread > 0 ? `Avviso critico: ${criticalUnread} notifiche urgenti non lette — tocca per aprire` : unreadInfoReq > 0 ? `Apri richieste info (${unreadInfoReq} nuove) — trascina per spostare` : "Apri assistente AI — trascina per spostare"}
+          accessibilityLabel={criticalUnread > 0 ? `Avviso critico: ${criticalUnread} notifiche urgenti non lette — tocca per aprire` : unreadInfoReq > 0 ? `Apri richieste info (${unreadInfoReq} nuove) — trascina per spostare` : showGreen ? "Nuovo messaggio di Axon non letto — tocca per aprire la chat" : "Apri assistente AI — trascina per spostare"}
           testID="assistant-fab"
         >
+          {showGreen ? (
+            <Animated.View pointerEvents="none" style={[styles.fabGreenOverlay, { opacity: greenOpacity }]} testID="assistant-fab-unread-green" />
+          ) : null}
           <Image
             source={AXONOS_LOGO_WHITE}
             style={{ width: 46, height: Math.round(46 / AXONOS_LOGO_WHITE_ASPECT) }}

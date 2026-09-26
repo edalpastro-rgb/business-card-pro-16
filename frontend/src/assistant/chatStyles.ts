@@ -44,6 +44,9 @@ export const styles = StyleSheet.create({
   // V50.z248 — avvisi critici
   fabHalo: { position: "absolute", left: 0, top: 0, width: 56, height: 56, borderRadius: 28, backgroundColor: "#DC2626" },
   fabCritical: { borderColor: "#DC2626", borderWidth: 3, shadowColor: "#DC2626", shadowOpacity: 0.7 },
+  // V50.z383 — messaggio Axon non letto: velo verde lampeggiante sopra il viola + bordo/ombra verdi
+  fabGreenOverlay: { position: "absolute", left: -2, top: -2, width: 56, height: 56, borderRadius: 28, backgroundColor: "#22C55E" },
+  fabUnreadGreen: { borderColor: "#22C55E", shadowColor: "#16A34A", shadowOpacity: 0.7 },
   fabBadgeCritical: { backgroundColor: "#B91C1C", minWidth: 20, height: 20, borderRadius: 10 },
   fabBadge: {
     position: "absolute",

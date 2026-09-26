@@ -13,6 +13,17 @@ export type Chip = NavChip | ActionChip;
 const NAV_RX = /\[\[NAV:([^|\]]+)\|([^\]]+)\]\]/g;
 const ACT_RX = /\[\[ACTION:([a-z_]+)\|([^|\]]+)\|(\{[\s\S]*?\})\]\]/g;
 
+/** V50.z383 — «Impostazioni AxonOS» (lingua, tono, voce, nome) deve aprire SEMPRE la sezione «AI & Axon · Assistente»
+ *  (/impostazioni?section=axon): se il modello ha messo /axon-hub o /axon-voice con quell'etichetta, correggiamo qui. */
+const AXON_SETTINGS_ROUTE = "/impostazioni?section=axon";
+export function normalizeNavRoute(route: string, label: string): string {
+  const base = route.split("?")[0];
+  if (base !== "/axon-hub" && base !== "/axon-voice") return route;
+  const l = (label || "").toLowerCase();
+  if (/impostazioni|assistente|\btono\b|\blingua\b|\bvoce\b/.test(l)) return AXON_SETTINGS_ROUTE;
+  return route;
+}
+
 /** Estrae i marker dal testo e restituisce il contenuto pulito + i chip. */
 export function extractNavChips(content: string): { clean: string; chips: Chip[] } {
   if (!content || content.indexOf("[[") === -1) return { clean: content, chips: [] };
@@ -24,7 +35,7 @@ export function extractNavChips(content: string): { clean: string; chips: Chip[]
     return "";
   });
   clean = clean.replace(NAV_RX, (_m, route, label) => {
-    chips.push({ kind: "nav", route: route.trim(), label: label.trim() });
+    chips.push({ kind: "nav", route: normalizeNavRoute(route.trim(), label.trim()), label: label.trim() });
     return "";
   });
   // Rimuove righe rimaste vuote dai marker

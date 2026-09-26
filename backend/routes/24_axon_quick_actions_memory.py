@@ -156,6 +156,19 @@ async def assistant_history(session_id: Optional[str] = None, user=Depends(get_c
     }
 
 
+@api_router.get("/assistant/unread")
+async def assistant_unread(user=Depends(get_current_user)):
+    """V50.z383 — Ultimo messaggio scritto da Axon (chat, proattività, push bridge): il FAB lo confronta con l'ultima
+    apertura della chat per lampeggiare in verde quando c'è un messaggio non letto."""
+    last = await db.assistant_messages.find_one(
+        {"user_id": user["user_id"], "role": "assistant"}, {"created_at": 1, "message_id": 1}, sort=[("created_at", -1)]
+    )
+    at = (last or {}).get("created_at")
+    if isinstance(at, datetime):
+        at = at.isoformat()
+    return {"last_assistant_at": at, "message_id": (last or {}).get("message_id")}
+
+
 @api_router.post("/assistant/reset")
 async def assistant_reset(user=Depends(get_current_user)):
     """Start a new conversation. Old sessions remain in DB but a new session_id is issued."""

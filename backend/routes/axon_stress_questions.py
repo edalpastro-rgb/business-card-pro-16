@@ -294,8 +294,8 @@ QUESTIONS = [
     ("moduli", "Dove carico i modelli dei moduli aziendali da far compilare ad Axon?", ["/form-templates"], ""),
     ("documenti", "Dove salvo la mia carta d'identità con la data di scadenza?", ["/anagrafica-master"], ""),
     ("documenti", "Mi avvisi quando scade la patente?", ["/anagrafica-master"], "conv"),
-    ("voce", "Voglio cambiare la voce di Axon", ["/axon-voice"], ""),
-    ("voce", "Come cambio la lingua con cui Axon mi risponde?", ["/axon-voice"], ""),
+    ("voce", "Voglio cambiare la voce di Axon", ["/impostazioni?section=axon", "/axon-voice"], ""),
+    ("voce", "Come cambio la lingua con cui Axon mi risponde?", ["/impostazioni?section=axon", "/axon-voice"], ""),
     # ── V50.z279 — MODALITÀ OFFLINE ──
     ("offline", "L'app funziona anche in modalità aereo?", ["/offline-sync"], "conv"),
     ("offline", "Ho inserito un cliente senza rete: quando lo vedono i miei colleghi?", ["/offline-sync"], "conv"),

@@ -1,0 +1,36 @@
+{
+  "summary": "V50.z383 — Axon chat 3-bug fix testing. Backend: 7/7 pytest PASSED. TTS engine=cloud/local_disabled=true; POST /assistant/tts returns engine='openai', lang='it', mime='audio/mpeg' with valid base64; 3 parallel Italian TTS calls all use openai (never kokoro). GET /assistant/unread returns {last_assistant_at, ...} and advances after POST /assistant/chat. Navigator: 'Come cambio lingua, tono e voce di Axon?' and 'Dove sono le impostazioni AxonOS?' → reply contains [[NAV:/impostazioni?section=axon|...]] and NEVER [[NAV:/axon-hub or [[NAV:/axon-voice. Frontend: login + FAB open + testIDs assistant-fab and assistant-fab-unread-green confirmed present in DOM. Full playwright E2E of NAV chip click + green blink cycle was partially inconclusive in headless: tour intro / Help-Center overlays intermittently intercepted (Salta intro dismissed inconsistently) and once the FAB tap routed to help-center instead of opening the chat modal — likely because a previous automation session had unreadInfoReq>0 for this shared account (handlePress opens /info-requests when unread>0). Backend evidence and DOM presence of both green overlay testID and unread endpoint returning proper timestamps strongly indicate the fix is working; recommend main agent do a quick self-test in a fresh browser session to visually confirm green blink + NAV chip end-to-end.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v50z383_axon_bugs.py",
+    "/app/test_reports/pytest/v50z383_results.xml"
+  ],
+  "action_items": [
+    "Main agent: verify end-to-end in a fresh browser (clear info-requests unread first) that clicking NAV chip navigates to /impostazioni?section=axon and shows 'AxonOS · Assistente & Header tabella' section with 'Nome dell\\'assistente' and 'Modalità di risposta' labels.",
+    "Main agent: manually confirm the green blink overlay appears on the FAB while chat is closed and disappears when reopened (backend + DOM testIDs confirmed, but headless click order was flaky).",
+    "Optionally add a `data-testid=\"assistant-chat-input\"` and `assistant-chat-send`/`assistant-chat-close` on the chat modal Input/Send/Close to make future automation reliable — current chat modal exposes no *input/send/close testIDs on data-testid list."
+  ],
+  "critical_code_review_comments": [
+    "axon_tts_generate() correctly enforces single engine when KOKORO_DISABLE=1: skips kokoro_tts entirely and only calls openai_tts (verified in code + backend tests).",
+    "_openai_tts_sync passes explicit italian language instructions to gpt-4o-mini-tts (with fallback to tts-1) — good.",
+    "AssistantFAB.tsx renders assistant-fab-unread-green overlay only when axonUnread && !open && criticalUnread<=0 (V50.z383) — correct precedence.",
+    "axon_navigator APP_MAP explicitly maps 'lingua/tono/voce/nome assistente' keywords to axon_settings id (route /impostazioni?section=axon) and prompt includes hard rule mandating this route (never /axon-hub) — verified."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v50z383_axon_bugs.py (created)",
+    "/app/test_reports/iteration_118.json (created)",
+    "/app/test_reports/pytest/v50z383_results.xml (created)"
+  ],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "partial — testIDs confirmed present, headless E2E inconclusive"},
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "For UI E2E of Axon chat: (1) clear any info-requests unread on test@dalpastro.it before starting (otherwise the FAB tap opens /info-requests instead of the chat modal — see handlePress in AssistantFAB.tsx which prioritizes unreadInfoReq>0 over opening chat), (2) always dismiss 'Salta intro' tour AND help-center 'Ho capito' popups before interacting, (3) the chat modal Input/Send/Close have no discoverable data-testid* attributes with 'chat'/'assistant' in their name — fallback to textarea selector for input and Enter key for send. The green overlay uses testID='assistant-fab-unread-green' and is only mounted when axonUnread && !open — it will render as a semi-transparent green view inside the fab Pressable while blinking.",
+  "rca_of_issue": "N/A — this iteration verifies fixes rather than diagnosing bugs. All three fixes appear correctly implemented at the backend and code-review level; backend tests confirm behavior 1 and 2 objectively."
+}

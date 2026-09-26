@@ -234,13 +234,18 @@ export class SentenceSpeaker {
 
   private async play(audio: { b64: string; mime: string }, text: string, onEnded: () => void): Promise<() => void> {
     let ended = false;
+    // V50.z383 — quando il timer di sicurezza scatta PRIMA della fine reale dell'audio, la frase corrente va fermata:
+    // altrimenti la successiva parte sopra → «due voci in contemporanea».
+    let stopCurrent: () => void = () => {};
     const fire = () => { if (ended) return; ended = true; onEnded(); };
     const uri = `data:${audio.mime};base64,${audio.b64}`;
-    // Fallback: se l'evento di fine non arriva (stima ~65ms/carattere + margine)
-    const fallback = setTimeout(fire, Math.max(1500, Math.min(60000, text.length * 65 + 1500)));
+    // Fallback: se l'evento di fine non arriva (stima generosa ~110 ms/carattere + margine: solo rete di sicurezza)
+    const estimateMs = Math.max(2500, Math.min(90000, text.length * 110 + 3000));
+    const fallback = setTimeout(() => { stopCurrent(); fire(); }, estimateMs);
 
     if (Platform.OS === "web") {
       const el = new (globalThis as any).Audio(uri);
+      stopCurrent = () => { try { el.pause(); } catch {} };
       this.handlers.onAudioElement?.(el);
       el.addEventListener("ended", () => { clearTimeout(fallback); fire(); }, { once: true });
       el.addEventListener("error", () => { clearTimeout(fallback); fire(); }, { once: true });
@@ -254,6 +259,7 @@ export class SentenceSpeaker {
       const player = AudioMod.createAudioPlayer({ uri });
       let sub: any = null;
       let fb: any = fallback;
+      stopCurrent = () => { try { sub?.remove?.(); } catch {} try { player.pause?.(); } catch {} try { player.release?.(); } catch {} };
       try {
         sub = player.addListener?.("playbackStatusUpdate", (st: any) => {
           if (st?.didJustFinish) { clearTimeout(fb); try { sub?.remove?.(); } catch {} try { player.release?.(); } catch {} fire(); }
@@ -261,7 +267,7 @@ export class SentenceSpeaker {
       } catch {}
       this.currentPause = () => { clearTimeout(fb); try { player.pause?.(); } catch {} };
       this.currentResume = () => {
-        fb = setTimeout(fire, Math.max(1500, Math.min(60000, text.length * 65 + 1500)));
+        fb = setTimeout(() => { stopCurrent(); fire(); }, estimateMs);
         try { player.play?.(); } catch { clearTimeout(fb); fire(); }
       };
       try { player.play(); } catch { clearTimeout(fallback); fire(); }

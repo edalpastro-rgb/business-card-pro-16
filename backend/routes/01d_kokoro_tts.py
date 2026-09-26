@@ -145,17 +145,45 @@ async def kokoro_tts(text: str, voice_key: Optional[str], lang: str, speed: floa
     return {"audio_base64": base64.b64encode(mp3).decode("ascii"), "mime": "audio/mpeg", "voice": voice, "engine": "kokoro", "gen_ms": int(ms)}
 
 
-async def openai_tts(text: str, voice_key: Optional[str], speed: float) -> Dict[str, Any]:
-    """Cloud (OpenAI via Emergent). Voci «locali» mappate per genere."""
+# V50.z383 — Lingua della VOCE = lingua delle risposte (user_settings.assistant_language, default italiano).
+# tts-1 non accetta la lingua e sulle frasi brevi «indovina» (accento/lingua sbagliati): usiamo gpt-4o-mini-tts con
+# istruzioni esplicite sulla lingua; se non disponibile → tts-1 (stessa voce). Un solo motore per richiesta.
+TTS_LANG_NAMES = {"it": "italiano", "en": "inglese", "es": "spagnolo", "fr": "francese", "de": "tedesco", "pt": "portoghese", "ro": "rumeno", "uk": "ucraino", "ar": "arabo", "zh": "cinese", "hi": "hindi", "ja": "giapponese"}
+
+
+def _openai_tts_sync(key: str, text: str, voice: str, speed: float, lang: str) -> bytes:
+    from litellm import speech
+    from emergentintegrations.llm.openai.text_to_speech import OpenAITextToSpeech
+    client = OpenAITextToSpeech(api_key=key)  # stessa configurazione proxy Emergent della libreria
+    base = {"input": text, "voice": voice, "api_key": key}
+    if client._is_emergent_key(key):
+        base.update({"api_base": client.emergent_proxy_url, "custom_llm_provider": "openai"})
+        if client.custom_headers:
+            base["extra_headers"] = client.custom_headers
+    lang_name = TTS_LANG_NAMES.get(lang, "italiano")
+    pace = "leggermente più veloce del normale" if speed > 1.1 else ("leggermente più lento del normale" if speed < 0.9 else "naturale")
+    instructions = (f"Leggi il testo esattamente così com'è, in {lang_name}, con pronuncia e intonazione da madrelingua {lang_name}. "
+                    f"Non tradurre, non aggiungere nulla. Ritmo {pace}, tono professionale e cordiale.")
+    try:
+        r = speech(model="openai/gpt-4o-mini-tts", instructions=instructions, **base)
+    except Exception as exc:  # noqa: BLE001 — modello non disponibile sul proxy → tts-1 classico
+        _kk_log.warning("[tts] gpt-4o-mini-tts non disponibile (%s): fallback tts-1", str(exc)[:120])
+        if speed != 1.0:
+            base["speed"] = speed
+        r = speech(model="openai/tts-1", **base)
+    return r.content if hasattr(r, "content") else (r.read() if hasattr(r, "read") else bytes(r))
+
+
+async def openai_tts(text: str, voice_key: Optional[str], speed: float, lang: str = "it") -> Dict[str, Any]:
+    """Cloud (OpenAI via Emergent). Voci «locali» mappate per genere. La lingua segue le impostazioni dell'assistente."""
     key = os.environ.get("EMERGENT_LLM_KEY")
     if not key:
         raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY non configurato")
     vk = (voice_key or "").lower()
     if vk not in OPENAI_VOICES:
         vk = "onyx" if KOKORO_APP_VOICES.get(vk) == "M" else "nova"
-    from emergentintegrations.llm.openai.text_to_speech import OpenAITextToSpeech
-    b64 = await OpenAITextToSpeech(api_key=key).generate_speech_base64(text=text[:4000], model="tts-1", voice=vk, speed=min(2.0, max(0.5, speed or 1.0)), response_format="mp3")
-    return {"audio_base64": b64, "mime": "audio/mpeg", "voice": vk, "engine": "openai"}
+    audio = await asyncio.to_thread(_openai_tts_sync, key, text[:4000], vk, min(2.0, max(0.5, speed or 1.0)), (lang or "it").lower())
+    return {"audio_base64": base64.b64encode(audio).decode("ascii"), "mime": "audio/mpeg", "voice": vk, "engine": "openai", "lang": lang}
 
 
 async def axon_tts_generate(user: dict, text: str, voice: Optional[str] = None, speed: Optional[float] = None) -> Dict[str, Any]:
@@ -173,13 +201,14 @@ async def axon_tts_generate(user: dict, text: str, voice: Optional[str] = None, 
         spd = 1.0
     lang = (s.get("assistant_language") or "it").lower()
     engine = (s.get("assistant_tts_engine") or "local").lower()
-    if engine != "cloud":
+    # V50.z383 — KOKORO_DISABLE=1 → UN SOLO motore (cloud OpenAI), qualunque sia la preferenza utente: mai due sintetizzatori.
+    if engine != "cloud" and not KOKORO_DISABLED:
         out = await kokoro_tts(text[:4000], vk, lang, spd)
         if out:
             out["speed"] = spd
             return out
     try:
-        out = await openai_tts(text, vk, spd)
+        out = await openai_tts(text, vk, spd, lang)
     except HTTPException:
         raise
     except Exception as exc:  # noqa: BLE001
@@ -193,7 +222,7 @@ async def tts_engine_status(user=Depends(get_current_user)):
     """Stato del motore vocale locale (per la schermata Voce di Axon)."""
     s = await db.user_settings.find_one({"user_id": user["user_id"]}, {"assistant_tts_engine": 1}) or {}
     n = _kk_state["gen_count"]
-    return {"engine": (s.get("assistant_tts_engine") or "local"), "local_ready": bool(_kk_state["ready"]), "local_loading": bool(_kk_state["loading"]), "local_error": _kk_state["error"], "local_disabled": KOKORO_DISABLED,
+    return {"engine": "cloud" if KOKORO_DISABLED else (s.get("assistant_tts_engine") or "local"), "local_ready": bool(_kk_state["ready"]), "local_loading": bool(_kk_state["loading"]), "local_error": _kk_state["error"], "local_disabled": KOKORO_DISABLED,
             "loaded_at": _kk_state["loaded_at"], "generations": n, "avg_ms": int(_kk_state["gen_ms_total"] / n) if n else None,
             "files": {k: (KOKORO_DIR / k).exists() for k in KOKORO_FILES}, "languages": sorted(KOKORO_LANGS), "cloud_available": bool(os.environ.get("EMERGENT_LLM_KEY"))}
 
