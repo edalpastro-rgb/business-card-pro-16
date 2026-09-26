@@ -6995,6 +6995,10 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 - Causa 2 (installata non rilevata): la versione installata veniva letta solo dal doc heartbeat (`axon_client_versions`), aggiornato max ogni 30 min → subito dopo l'installazione il controllo usava il doc vecchio; inoltre una reinstallazione con `device_key` nuovo lasciava un doc stale. Ora: `GET /axon/app-info?device_key&installed_version&build_number` — `AppInfoCard.tsx` dichiara `Application.nativeApplicationVersion` e il server aggiorna subito il dispositivo; `_api_current_device` usa il dispositivo visto più di recente sulla stessa piattaforma; il purge orario confronta con la versione corrente dell'utente.
 - Test `backend/tests/test_app_update_alerts.py`: 4 versioni intermedie → 1 avviso/1 notifica; installazione 1.0.90 → 0 avvisi; doc stale → 0 avvisi.
 
+## V50.z380 (Giugno 2026) — Wake word: APK 1.0.90 costruita PRIMA delle modifiche z377/z378
+- Lo screenshot dell'utente (pagina «Wake Word Axon» con alert «Wake-word in modalità TEST», modello Hey Jarvis) è la VECCHIA pagina placeholder `app/wake-word.tsx` + mock, rimossi in z378: la build 1.0.90 non contiene il modulo nativo. Serve Publish (redeploy) → nuova build Android. Come verificare nella nuova build: `/viola-wake` → box «Motore: modello Axon (TemporalCNN, 100% offline…)» = modulo nativo presente.
+- Hardening `axonWakeModel.ts` → `loadSession`: se l'asset incorporato non è `file://` (release Android `asset:///`), copia in `cacheDirectory` con expo-file-system e passa il percorso a ORT (ORT RN gestisce `file:/` nativamente, verificato in cpp/InferenceSessionHostObject.cpp).
+
 ## PROSSIMI PASSI
 - Verifica sul campo (telefono reale) di Blocchi 1-4: multi-dispositivo, impronta vocale in ambienti rumorosi (eventuale «Tollerante» o ri-registrazione), PIN.
 - Call Logging Android (`READ_CALL_LOG`, richiede APK sideload) — backlog.

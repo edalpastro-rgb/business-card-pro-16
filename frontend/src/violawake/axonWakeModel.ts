@@ -4,6 +4,7 @@
 //   → finestra di 76 frame → embedding_model.onnx → 96-d → ultimi 9 embedding → axon.onnx (TemporalCNN, Job #253, Sigmoid) → score 0..1.
 // Modello Axon custom = default. Un rilevamento richiede `consecutive` score consecutivi ≥ threshold (anti falsi positivi) + refrattario 1.5 s.
 import { Asset } from "expo-asset";
+import * as FileSystem from "expo-file-system/legacy";
 import { InferenceSession, Tensor } from "onnxruntime-react-native";
 
 /* eslint-disable @typescript-eslint/no-require-imports */
@@ -19,7 +20,14 @@ const CTX = 480, CHUNK = 1280, MEL_BINS = 32, MEL_WIN = 76, EMB_DIM = 96, N_EMB 
 async function loadSession(mod: number): Promise<InferenceSession> {
   const asset = Asset.fromModule(mod);
   await asset.downloadAsync();
-  const uri = asset.localUri || asset.uri;
+  let uri = asset.localUri || asset.uri;
+  if (!uri.startsWith("file://") && !uri.startsWith("/")) {
+    // build release Android: asset incorporato (asset:/// …) → copia nella cache per avere un percorso file leggibile da ORT
+    const dest = `${FileSystem.cacheDirectory}wake_${asset.hash || asset.name}.onnx`;
+    const info = await FileSystem.getInfoAsync(dest);
+    if (!info.exists) await FileSystem.copyAsync({ from: uri, to: dest });
+    uri = dest;
+  }
   return InferenceSession.create(uri.startsWith("file://") ? uri.replace("file://", "") : uri);
 }
 
