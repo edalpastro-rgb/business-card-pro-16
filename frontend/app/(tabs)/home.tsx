@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, Pressable, RefreshControl, ActivityIndicator, ScrollView, Image, ImageBackground, Platform, Animated, Easing, Alert, AppState, useWindowDimensions } from "react-native";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { View, Text, StyleSheet, Pressable, RefreshControl, ActivityIndicator, ScrollView, Image, ImageBackground, Platform, Animated, Easing, Alert, AppState } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect, useRootNavigationState, usePathname, useLocalSearchParams } from "expo-router";
@@ -147,8 +147,11 @@ export default function HomeScreen() {
   //   layout ad ogni frame di scroll → "effetto scatto" visibile su Android.
   //   Preferiamo scroll fluido (native driver possibile perché non serve
   //   più agganciare scrollY a nulla) rispetto a un mini-collapse del brand.
-  const { width: winW } = useWindowDimensions();
-  const compactBar = winW < 430; // V50.z334 — su telefoni stretti la barra mostra solo l'ora
+  // V50.z363 — «Sabato 26 settembre 2026»: ricalcolata a ogni tick (minuto/focus/foreground) → cambia da sola a mezzanotte
+  const todayLabel = useMemo(() => {
+    const s = new Date(nowTick).toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }, [nowTick]);
   const orgBranding = useOrgBranding();
   const [deadlinesLoading, setDeadlinesLoading] = useState<boolean>(true);
   // V49 — "Comunica con l'azienda" panel (nome, email, numeri di servizio)
@@ -412,16 +415,19 @@ export default function HomeScreen() {
         >
           <Ionicons name="menu" size={22} color={C.text} />
         </Pressable>
-        {orgBranding?.logo_data_uri ? (
-          <Image source={{ uri: orgBranding.logo_data_uri }} resizeMode="contain" style={styles.topBarOrgLogo} accessibilityLabel={orgBranding.company_name || "Logo aziendale"} testID="brand-header-org" />
-        ) : (
-          <Text style={styles.topBarBrand} numberOfLines={1} testID="brand-header-advisoros">
-            Advisor<Text style={styles.topBarBrandOS}>OS</Text>
-          </Text>
-        )}
+        <View style={styles.topBarBrandCol}>
+          {orgBranding?.logo_data_uri ? (
+            <Image source={{ uri: orgBranding.logo_data_uri }} resizeMode="contain" style={styles.topBarOrgLogo} accessibilityLabel={orgBranding.company_name || "Logo aziendale"} testID="brand-header-org" />
+          ) : (
+            <Text style={styles.topBarBrand} numberOfLines={1} testID="brand-header-advisoros">
+              Advisor<Text style={styles.topBarBrandOS}>OS</Text>
+            </Text>
+          )}
+          {/* V50.z363 — data odierna completa sotto il titolo («Sabato 26 settembre 2026»), aggiornata dal tick al minuto */}
+          <Text style={styles.topBarDate} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} testID="home-today-date">{todayLabel}</Text>
+        </View>
         <View style={{ flex: 1 }} />
         <Text style={styles.topBarClock} numberOfLines={1} testID="home-clock">
-          {!compactBar ? `${new Date(nowTick).toLocaleDateString("it-IT", { weekday: "short", day: "2-digit", month: "short" })} · ` : ""}
           {new Date(nowTick).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
         </Text>
         <HeaderWeatherBadge inline />
@@ -1184,10 +1190,13 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
     backgroundColor: HT.glass,
   },
-  topBarBrand: { fontSize: 17, fontWeight: "900", color: C.text, letterSpacing: -0.4, marginLeft: 4 },
+  topBarBrandCol: { marginLeft: 4, justifyContent: "center", flexShrink: 1, minWidth: 0 },
+  topBarBrand: { fontSize: 17, fontWeight: "900", color: C.text, letterSpacing: -0.4 },
   topBarBrandOS: { color: C.primary },
-  topBarOrgLogo: { width: 92, height: 30, marginLeft: 4 },
+  topBarDate: { fontSize: 10.5, fontWeight: "700", color: C.text2, marginTop: 1 }, // V50.z363
+  topBarOrgLogo: { width: 92, height: 30 },
   topBarClock: {
+    flexShrink: 0,
     color: C.text2,
     fontSize: 12,
     fontWeight: "700",
