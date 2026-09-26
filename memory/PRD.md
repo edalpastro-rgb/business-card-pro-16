@@ -6972,6 +6972,9 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 - **Esempi multipli per modulo (Fase 2)**: `form_templates.lab_examples[] {id,name,fields(rilevati),uploaded_at,…storage}`; `POST /lab/modules/{id}/examples {name?, pdf_base64, replace_id?}` (max 12, 422 se nessun valore compilato), `DELETE …/examples/{ex_id}`, `POST …/examples/repropose` → `_lab_combined_example_fields` unisce i campi di TUTTI gli esempi (valori diversi «A | B») → `_lab_propose_mapping` → `lab_mapping_source "examples:N"`. `POST /lab/modules` con esempio iniziale lo salva come «Esempio 1». `_lab_module_pub` avvolto: `examples[]`, `examples_count`. UI `src/axonlab/LabExamplesCard.tsx` in `module/[id].tsx` (aggiungi / sostituisci / elimina → mapping aggiornato in pagina).
 - Test: `/app/test_reports/iteration_117.json` (21/22 backend + frontend OK), `backend/tests/test_v50z375_axon_lab.py`.
 
+## V50.z376 (Giugno 2026) — TOGGLE ASCOLTO AXON IN HOME
+- `src/violawake/ViolaHeaderDot.tsx` riscritto come toggle (44×44, header Home, `viola-header-dot`, stato `viola-header-dot-on|off`): tap → `updateSettings({enabled})` (persistito sul server in viola_wake_settings → tra sessioni e dispositivi); per il Master, se il modulo azienda è spento, il tap lo accende anche (`setModule(true)`); non-Master con modulo spento → avviso. Attivo = icona viola piena + anello pulsante (verde mentre cattura/pensa, rosso se problema microfono) + pallino verde; disattivo = mic-off grigio. Pressione lunga → schermata `/viola-wake`. Verificato su web: on → reload → resta on → off.
+
 ## PROSSIMI PASSI
 - Verifica sul campo (telefono reale) di Blocchi 1-4: multi-dispositivo, impronta vocale in ambienti rumorosi (eventuale «Tollerante» o ri-registrazione), PIN.
 - Call Logging Android (`READ_CALL_LOG`, richiede APK sideload) — backlog.
