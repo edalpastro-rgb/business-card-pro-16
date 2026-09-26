@@ -1,0 +1,26 @@
+{
+  "summary": "V50.z365 — Corporate Gym dynamic areas + Master 'Comprimi tutto' — ALL PASSED. Backend: 16/16 pytest passing (cgym/areas seed 3 tenants including 6-block Trattativa Completa, PATCH master OK / sub 403, create+delete custom, delete builtin 400, materials CRUD with PDF base64 + content endpoint, references multipart WAV upload + signed link + public streaming with Content-Disposition inline + delete, live flow: opening client turn + hesitation detection (Ehm...) → action=repeat + fluent long consultant turn → action in next_block/continue with tone green|blue|red and tone_segments + finish scores 0-100 with rating OSCENO/MEDIOCRE/DOVERE/ECCELLENTE + feedback.good/redo + manager_report + /cgym/ratings items, compress-all Master status shows ffmpeg=true and db_bytes, POST job runs to done with before/after/saved bytes (~60s), sub-user 403 on both endpoints, contact file compression hook: >300KB noisy JPEG stored 60%+ smaller). Frontend: /corporate-gym renders all 3 area cards (cgym-area-obiezioni/winwin/trattativa) + cgym-area-add + edit pencils; tapping trattativa opens /corporate-gym/area/{id} with 6 blocks listed, cgym-live-start, cgym-material-add, cgym-reference-add, cgym-area-ratings all present; /corporate-gym/ratings renders OSCENO/MEDIOCRE/DOVERE/ECCELLENTE scale chips and Test Owner card with rating badge; Impostazioni → Profilo shows compress-all-card + compress-all-btn (Master) with prior run result 'Prima: 54 MB → Dopo: 54 MB · Liberati 27 KB'. Live page code contains cgym-live-mic/back/finish/repeat testIDs (verified via grep). Cleanup: TEST_ contact + custom area deleted.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v50z365_cgym_compress.py",
+    "/app/test_reports/pytest/v50z365_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "cgym_areas.py line 413 uses replace(tzinfo=None) subtraction which works only if both are same-kind datetimes — non-blocking but consider utcnow() consistency.",
+    "media_compress.py _mc_walk uses len(v) >= _MC_MIN_BLOB * 4 // 3 = 133KB threshold — small blobs skipped correctly; behavior verified."
+  ],
+  "updated_files": ["/app/backend/tests/test_v50z365_cgym_compress.py"],
+  "success_rate": {"backend": "100% (16/16)", "frontend": "100% (all requested testIDs present + navigation OK)"},
+  "seed_data_creation": "None persistent — TEST_ contact, TEST_mat.pdf material, TEST_ref audio, TEST Area Custom all deleted after tests.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Master runs compress-all takes ~60s in this environment (small DB). Live LLM turns take 5-30s each — use generous timeouts (120s). Public stream URL is /api/public/cgym-ref/{token} with 2h JWT.",
+  "rca_of_issue": "N/A"
+}

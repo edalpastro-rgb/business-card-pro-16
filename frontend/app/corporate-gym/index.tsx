@@ -11,7 +11,7 @@ import { useAuth } from "@/src/auth";
 import { notify } from "@/src/utils/notify";
 import { usePageBottomPadding, useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 import { CgymHeaderBanner } from "@/src/corporate-gym/CgymHeaderBanner";
-import { CgymTileIcon } from "@/src/corporate-gym/CgymTileIcon";
+import { CgymAreasGrid } from "@/src/corporate-gym/CgymAreasGrid"; // V50.z365
 import { CgymMyFeedbackCard } from "@/src/corporate-gym/CgymMyFeedbackCard";
 import { cgymApi, CgymSession, CgymType, CgymTeamRow, CGYM_TYPE_META, CGYM_ORANGE, fmtCgymDate, isPast } from "@/src/corporate-gym/api";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
@@ -151,20 +151,13 @@ export default function CorporateGymHome() {
       >
         <CgymHeaderBanner subtitle={mandatoryPending > 0 ? `${mandatoryPending} obbligatorie da completare` : todoCount > 0 ? `${todoCount} sessioni da fare` : "Allenati sulle obiezioni e sulla negoziazione"} />
 
-        {/* Sottosezioni */}
-        <View style={styles.grid}>
-          {(Object.keys(CGYM_TYPE_META) as CgymType[]).map((t) => {
-            const m = CGYM_TYPE_META[t];
-            const n = sessions.filter((s) => s.type === t && s.status !== "completata").length;
-            return (
-              <Pressable key={t} style={styles.tile} onPress={() => router.push(m.route as any)} testID={`cgym-tile-${t}`}>
-                <CgymTileIcon type={t} size={84} fill />
-                <Text style={styles.tileTitle}>{m.label}</Text>
-                <Text style={styles.tileSub}>{n > 0 ? `${n} da fare` : "Nessuna in sospeso"}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        {/* Sottosezioni — V50.z365: aree dinamiche (rinomina/logo Master, nuova area) */}
+        <CgymAreasGrid pendingByKey={{ obiezioni: sessions.filter((s) => s.type === "obiezioni" && s.status !== "completata").length, winwin: sessions.filter((s) => s.type === "winwin" && s.status !== "completata").length }} />
+        <Pressable onPress={() => router.push("/corporate-gym/ratings" as any)} style={styles.ratingsLink} testID="cgym-ratings-link">
+          <Ionicons name="trending-up" size={16} color={CGYM_ORANGE} />
+          <Text style={styles.ratingsLinkTxt}>Valutazioni nel tempo · OSCENO → ECCELLENTE</Text>
+          <Ionicons name="chevron-forward" size={16} color={HT.muted} />
+        </Pressable>
 
         {/* Le mie sessioni */}
         <View style={styles.sectionHead}>
@@ -362,6 +355,8 @@ export default function CorporateGymHome() {
 }
 
 const styles = StyleSheet.create({
+  ratingsLink: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16, marginTop: 12, backgroundColor: HT.card, borderRadius: 14, borderWidth: 1, borderColor: HT.border, paddingHorizontal: 14, minHeight: 46 },
+  ratingsLinkTxt: { flex: 1, fontSize: 13, fontWeight: "800", color: HT.text },
   root: { flex: 1, backgroundColor: HT.card2 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: HT.border, backgroundColor: HT.card2 },
   title: { fontSize: 18, fontWeight: "800", color: HT.text },

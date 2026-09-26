@@ -108,5 +108,7 @@ MODULES = [
     "axon_core.py",  # V50.z323 — Axon Core: users.product (advisor|lite), identità/sezione prompt per prodotto, manifest, admin prodotti (DOPO 36)
     "axon_paywall.py",  # V50.z330 — Paywall fine prova: middleware 402 subscription_expired, Stripe Checkout (/billing/*), webhook, richiesta attivazione (DOPO 10, 36, axon_personal_lock; PRIMA di 37)
     "axon_email.py",  # V50.z336 — Email Resend advisoros.it (info@/help@/emanuele@), fallback Emergent→SMTP, hook lead/ticket/register, ridefinisce _pl_send_resend (DOPO axon_personal_lock, 30, 35, 03)
+    "media_compress.py",  # V50.z364 — COMPRESSIONE GLOBALE: PDF+immagini+audio+video prima del salvataggio (ridefinisce pdf_auto_compress*), job retroattivo «Comprimi tutto» (/admin/compress-all)
+    "cgym_areas.py",  # V50.z365 — Corporate Gym: aree dinamiche (rinomina/logo), materiali, registrazione trattativa reale, sessione live con Axon (tono, blocchi), valutazioni OSCENO→ECCELLENTE + report
     "37_app_startup_scheduler.py",
 ]
