@@ -11,9 +11,11 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useAudioRecorder, RecordingPresets } from "expo-audio";
 import { notify } from "@/src/utils/notify";
-import { getMicPermission, requestMicPermission, openAppSettings, startRecording, stopRecording, playBase64, stopPlayback, MicPermissionState } from "@/src/corporate-gym/voice";
+import { getMicPermission, requestMicPermission, openAppSettings, startRecording, stopRecording, playBase64, stopPlayback, getLiveLevelDb, MicPermissionState } from "@/src/corporate-gym/voice";
+import { classifyLiveTone, pushLiveSegment } from "@/src/corporate-gym/liveTone"; // V50.z366 — tono in tempo reale
 import { api } from "@/src/api";
 import { cgaApi, CgaSession, CgaTurnOut, Tone, TONE_COLOR, TONE_LABEL, RATING_COLOR } from "@/src/corporate-gym/areasApi";
+import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { HT } from "@/src/homeTheme";
 
 type Phase = "idle" | "listening" | "thinking" | "speaking";
@@ -30,12 +32,19 @@ export default function CgymLiveScreen() {
   const router = useRouter();
   const { area, session } = useLocalSearchParams<{ area?: string; session?: string }>();
   const [camPerm, requestCam] = useCameraPermissions();
+  const bottomPad = usePageBottomPadding(8) - 60; // controlli sopra la tab bar
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const [mic, setMic] = useState<MicPermissionState>("undetermined");
   const [s, setS] = useState<CgaSession | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
   const [last, setLast] = useState<CgaTurnOut | null>(null);
   const [timeline, setTimeline] = useState<{ tone: Tone; pct: number }[]>([]);
+  // V50.z366 — tono LIVE mentre parla: livelli dB campionati ogni 150 ms → volume+ritmo → verde/blu/rosso
+  const [liveTone, setLiveTone] = useState<Tone | null>(null);
+  const [liveSegs, setLiveSegs] = useState<{ tone: Tone; pct: number }[]>([]);
+  const [level, setLevel] = useState(-60);
+  const levelsRef = useRef<number[]>([]);
+  const liveSegsRef = useRef<{ tone: Tone; pct: number }[]>([]);
   const [busy, setBusy] = useState(false);
   const pulse = useRef(new Animated.Value(1)).current;
 
@@ -45,6 +54,19 @@ export default function CgymLiveScreen() {
     if (phase === "speaking" || phase === "listening") loop.start(); else pulse.setValue(1);
     return () => loop.stop();
   }, [phase, pulse]);
+
+  useEffect(() => {
+    if (phase !== "listening") return;
+    levelsRef.current = []; liveSegsRef.current = []; setLiveSegs([]); setLiveTone(null);
+    const t = setInterval(() => {
+      const db = getLiveLevelDb(Platform.OS === "web" ? null : recorder);
+      if (db == null) return;
+      levelsRef.current = [...levelsRef.current.slice(-40), db]; setLevel(db);
+      const tone = classifyLiveTone(levelsRef.current);
+      if (tone) { setLiveTone(tone); liveSegsRef.current = pushLiveSegment(liveSegsRef.current, tone); setLiveSegs(liveSegsRef.current); }
+    }, 150);
+    return () => clearInterval(t);
+  }, [phase, recorder]);
 
   const speak = useCallback(async (b64?: string | null) => { if (!b64) return; setPhase("speaking"); try { await playBase64(b64, "audio/mpeg"); } catch { /* muto */ } setPhase("idle"); }, []);
 
@@ -70,7 +92,7 @@ export default function CgymLiveScreen() {
         const r = await cgaApi.liveTurn(s.session_id, { audio_base64: rec.b64, mime: rec.mime, tts: true });
         if (!r.ok) { notify(r.message || "Non ho sentito nulla"); setPhase("idle"); return; }
         setLast(r);
-        setTimeline((t) => [...t, ...(r.tone_segments || [])]);
+        setTimeline((t) => [...t, ...(liveSegsRef.current.length ? liveSegsRef.current : (r.tone_segments || []))]);
         setS((prev) => prev && { ...prev, block_idx: r.block_idx ?? prev.block_idx, turns: [...prev.turns, { role: "consultant", text: r.transcript || "", tone: r.tone, tone_segments: r.tone_segments, hesitation: r.hesitation, block_idx: prev.block_idx }, { role: "client", text: r.reply || "", block_idx: r.block_idx ?? prev.block_idx }] });
         await speak(r.audio_base64);
       } catch (e: any) { notify(e?.message || "Errore turno"); setPhase("idle"); } finally { setBusy(false); }
@@ -92,7 +114,6 @@ export default function CgymLiveScreen() {
 
   const done = s?.status === "done";
   const blockName = s ? s.blocks[s.block_idx] : "";
-  const liveTone: Tone | null = last?.tone || null;
 
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
@@ -114,7 +135,18 @@ export default function CgymLiveScreen() {
               <Text style={styles.avatarLbl}>{phase === "speaking" ? "Axon (cliente) parla…" : phase === "listening" ? "Ti ascolto…" : phase === "thinking" ? "Analizzo…" : "Axon · cliente"}</Text>
             </View>
             <View style={styles.toneOverlay}>
-              <ToneBar segments={timeline.length ? timeline.slice(-24) : [{ tone: "blue", pct: 100 }]} />
+              {phase === "listening" ? (
+                <View style={{ gap: 4 }} testID="cgym-live-tone-now">
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <View style={[styles.toneNowDot, { backgroundColor: liveTone ? TONE_COLOR[liveTone] : "rgba(255,255,255,0.35)" }]} />
+                    <Text style={styles.toneNowTxt}>{liveTone ? `Ora: ${TONE_LABEL[liveTone]}` : "In ascolto del tono…"}</Text>
+                    <View style={styles.vu}><View style={[styles.vuFill, { width: `${Math.round(Math.min(100, Math.max(0, (level + 60) / 60 * 100)))}%`, backgroundColor: liveTone ? TONE_COLOR[liveTone] : "#FFF" }]} /></View>
+                  </View>
+                  <ToneBar segments={liveSegs.length ? liveSegs : [{ tone: "blue", pct: 1 }]} height={10} />
+                </View>
+              ) : (
+                <ToneBar segments={timeline.length ? timeline.slice(-40) : [{ tone: "blue", pct: 100 }]} />
+              )}
               <View style={styles.legend}>{(Object.keys(TONE_LABEL) as Tone[]).map((t) => <View key={t} style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: TONE_COLOR[t] }]} /><Text style={styles.legendTxt}>{TONE_LABEL[t]}</Text></View>)}</View>
             </View>
           </View>
@@ -132,7 +164,7 @@ export default function CgymLiveScreen() {
             ))}
           </ScrollView>
 
-          <View style={styles.controls}>
+          <View style={[styles.controls, { paddingBottom: bottomPad }]}>
             <Pressable onPress={toggleRecord} disabled={busy && phase !== "listening"} style={[styles.micBtn, phase === "listening" && { backgroundColor: "#DC2626" }, busy && phase !== "listening" && { opacity: 0.5 }]} testID="cgym-live-mic">
               {phase === "thinking" ? <ActivityIndicator color="#FFF" /> : <Ionicons name={phase === "listening" ? "stop" : "mic"} size={30} color="#FFF" />}
             </Pressable>
@@ -141,7 +173,7 @@ export default function CgymLiveScreen() {
           </View>
         </>
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 40 }} testID="cgym-live-result">
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: bottomPad + 40 }} testID="cgym-live-result">
           <View style={[styles.scoreCard, { borderColor: RATING_COLOR[s!.rating || ""] || HT.border }]}>
             <Text style={[styles.rating, { color: RATING_COLOR[s!.rating || ""] || HT.text }]}>{s!.rating}</Text>
             <Text style={styles.score}>{s!.score}/100</Text>
@@ -164,13 +196,15 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: HT.border, backgroundColor: HT.card },
   title: { fontSize: 16, fontWeight: "900", color: HT.text }, sub: { fontSize: 12, color: HT.muted },
   finishBtn: { backgroundColor: HT.violet, borderRadius: 10, paddingHorizontal: 12, minHeight: 36, justifyContent: "center" }, finishTxt: { color: "#FFF", fontWeight: "800", fontSize: 12 },
-  stage: { height: 300, backgroundColor: "#0F2438", position: "relative" },
+  stage: { height: 260, backgroundColor: "#0F2438", position: "relative" },
   camHint: { position: "absolute", top: 10, left: 10, right: 10, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(0,0,0,0.55)", borderRadius: 10, padding: 8 }, camHintTxt: { color: "#FFF", fontSize: 12, fontWeight: "700", flex: 1 },
   avatarWrap: { position: "absolute", right: 12, top: 44, alignItems: "center", gap: 4 },
   avatar: { width: 72, height: 72, borderRadius: 36, backgroundColor: "rgba(124,58,237,0.85)", borderWidth: 3, alignItems: "center", justifyContent: "center" },
   avatarLbl: { color: "#FFF", fontSize: 11, fontWeight: "800", backgroundColor: "rgba(0,0,0,0.45)", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
   toneOverlay: { position: "absolute", left: 12, right: 12, bottom: 10, gap: 6, backgroundColor: "rgba(0,0,0,0.45)", borderRadius: 12, padding: 8 },
-  legend: { flexDirection: "row", justifyContent: "space-between" }, legendItem: { flexDirection: "row", alignItems: "center", gap: 4 }, legendDot: { width: 8, height: 8, borderRadius: 4 }, legendTxt: { color: "#FFF", fontSize: 10, fontWeight: "700" },
+  legend: { flexDirection: "row", justifyContent: "space-between" },
+  toneNowDot: { width: 10, height: 10, borderRadius: 5 }, toneNowTxt: { color: "#FFF", fontSize: 11, fontWeight: "800", flex: 1 },
+  vu: { width: 70, height: 6, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.25)", overflow: "hidden" }, vuFill: { height: 6, borderRadius: 3 }, legendItem: { flexDirection: "row", alignItems: "center", gap: 4 }, legendDot: { width: 8, height: 8, borderRadius: 4 }, legendTxt: { color: "#FFF", fontSize: 10, fontWeight: "700" },
   banner: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderRadius: 12, padding: 10 }, bannerTxt: { flex: 1, fontSize: 13, color: HT.text, fontWeight: "700" },
   hint: { fontSize: 12, color: HT.text2, fontStyle: "italic" },
   bubble: { maxWidth: "88%", borderRadius: 14, padding: 10, gap: 6 }, me: { alignSelf: "flex-end", backgroundColor: HT.brandTint }, them: { alignSelf: "flex-start", backgroundColor: HT.card2 },

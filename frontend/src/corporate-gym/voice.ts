@@ -62,6 +62,29 @@ export function openAppSettings() {
 let webRecorder: any = null;
 let webChunks: Blob[] = [];
 let webStream: MediaStream | null = null;
+let webAnalyser: any = null; let webCtx: any = null; let webBuf: Uint8Array | null = null;
+
+/** V50.z366 — livello voce istantaneo in dB (≈ -60 silenzio … 0 massimo) durante la registrazione; null se non disponibile. */
+export function getLiveLevelDb(native: AudioRecorder | null): number | null {
+  if (Platform.OS === "web") {
+    if (!webStream) return null;
+    try {
+      if (!webAnalyser) {
+        const AC: any = (globalThis as any).AudioContext || (globalThis as any).webkitAudioContext;
+        if (!AC) return null;
+        webCtx = new AC(); const src = webCtx.createMediaStreamSource(webStream);
+        webAnalyser = webCtx.createAnalyser(); webAnalyser.fftSize = 512; src.connect(webAnalyser);
+        webBuf = new Uint8Array(webAnalyser.fftSize);
+      }
+      webAnalyser.getByteTimeDomainData(webBuf!);
+      let sum = 0; for (let i = 0; i < webBuf!.length; i++) { const v = (webBuf![i] - 128) / 128; sum += v * v; }
+      const rms = Math.sqrt(sum / webBuf!.length);
+      return rms > 0 ? Math.max(-60, 20 * Math.log10(rms)) : -60;
+    } catch { return null; }
+  }
+  if (!native) return null;
+  try { const st: any = native.getStatus(); return typeof st?.metering === "number" ? Math.max(-60, st.metering) : null; } catch { return null; }
+}
 
 export async function startRecording(native: AudioRecorder | null): Promise<void> {
   if (Platform.OS === "web") {
@@ -80,7 +103,7 @@ export async function startRecording(native: AudioRecorder | null): Promise<void
   }
   if (!native) throw new Error("Recorder non disponibile");
   await AudioModule.setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true });
-  await native.prepareToRecordAsync();
+  await native.prepareToRecordAsync({ isMeteringEnabled: true }); // V50.z366 — metering per il tono in tempo reale
   native.record();
 }
 
@@ -95,6 +118,8 @@ export async function stopRecording(native: AudioRecorder | null): Promise<Recor
     });
     try { webStream?.getTracks().forEach((t) => t.stop()); } catch {}
     webStream = null;
+    try { webCtx?.close?.(); } catch {}
+    webAnalyser = null; webCtx = null; webBuf = null;
     if (blob.size < 1024) return null;
     const b64: string = await new Promise((resolve, reject) => {
       const fr = new FileReader();

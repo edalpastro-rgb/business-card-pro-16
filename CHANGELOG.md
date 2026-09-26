@@ -929,6 +929,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 | V50.z362 | Giu 2026 | Home Master: «Autocompilazione CRT» in CRM Core, «Axon Lab» in AI & Axon, intestazione Utility ripristinata, pulsanti nuovi nella propria sezione |
 | V50.z363 | Giu 2026 | Home: data odierna completa («Sabato 26 settembre 2026») sotto il titolo, aggiornata a mezzanotte |
 | V50.z364 | Giu 2026 | **Compressione globale**: PDF+immagini+audio+video compressi prima del salvataggio in ogni sezione (regola permanente) · «Comprimi tutto» in Impostazioni (Master) con memoria prima/dopo/liberata |
+| V50.z366 | Giu 2026 | Gym live: barra del tono colorata IN TEMPO REALE mentre il consulente parla (volume + ritmo della voce), VU-meter e «Ora: …» |
 | V50.z365 | Giu 2026 | **Corporate Gym**: aree dinamiche (rinomina/logo/nuova) + «Trattativa Completa» a blocchi · materiali · registrazione trattativa reale (solo riproduzione) · sessione live con Axon (grafico tono, ripeti blocco) · feedback + report Manager · valutazioni OSCENO→ECCELLENTE nel tempo |
 | V50.z358 | Giu 2026 | Axon: check «funzione o conversazione?» prima di ogni [[NAV]] (domande personali/riflessive, saluti → zero deep link; Navigatore L1 bypassato + strip marker) |
 | V50.z357 | Giu 2026 | Compilazione CRT step 7/8/9: PDF a tutta pagina modificabile (già presente), archivio nel profilo cliente **cartella CRT**, bottone **Stampa** (expo-print: WiFi/AirPrint/Bluetooth) accanto a Condividi · **Regole apprese** (`GET /lab/rules`, `/axon-lab/rules`) |
