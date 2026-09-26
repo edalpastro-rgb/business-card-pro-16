@@ -110,5 +110,8 @@ MODULES = [
     "axon_email.py",  # V50.z336 — Email Resend advisoros.it (info@/help@/emanuele@), fallback Emergent→SMTP, hook lead/ticket/register, ridefinisce _pl_send_resend (DOPO axon_personal_lock, 30, 35, 03)
     "media_compress.py",  # V50.z364 — COMPRESSIONE GLOBALE: PDF+immagini+audio+video prima del salvataggio (ridefinisce pdf_auto_compress*), job retroattivo «Comprimi tutto» (/admin/compress-all)
     "cgym_areas.py",  # V50.z365 — Corporate Gym: aree dinamiche (rinomina/logo), materiali, registrazione trattativa reale, sessione live con Axon (tono, blocchi), valutazioni OSCENO→ECCELLENTE + report
+    "axon_voice_guard.py",  # V50.z371 — Sistema vocale Blocco 4: comandi critici → PIN/biometria (deve precedere viola_wake? no: usato a runtime)
+    "axon_voice_devices.py",  # V50.z370 — Sistema vocale Blocco 1: selezione dispositivo (Desktop/Telefono/Tablet)
+    "axon_voiceprint.py",  # V50.z372 — Sistema vocale Blocchi 2-3: impronta vocale SpeechBrain ECAPA (proprietario + voci secondarie con permessi); usato a runtime da viola_wake e 12 (vp_verify_for_user, vp_permission_denied)
     "37_app_startup_scheduler.py",
 ]

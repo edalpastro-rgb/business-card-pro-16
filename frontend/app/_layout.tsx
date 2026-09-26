@@ -16,6 +16,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AssistantFAB } from "@/src/AssistantFAB";
 import { ViolaWakeProvider } from "@/src/violawake/ViolaWakeProvider"; // V50.z315 — ViolaWake (wake-word «Viola»)
 import { ViolaStatusPill } from "@/src/violawake/ViolaStatusPill";
+import { VoiceGuardSheet } from "@/src/violawake/VoiceGuardSheet"; // V50.z371
 import { ActivationOverlay } from "@/src/activation/ActivationOverlay"; // V50.z318 — onda di energia + trova il telefono
 import { startScannerResumeWatcher } from "@/src/scannerOffline"; // V50.z337 — scanner: ripresa automatica del PDF al ritorno della rete
 
@@ -241,6 +242,7 @@ function StackWithCallBar() {
       {inTour ? null : <AssistantFAB />}
       {/* V50.z315 — ViolaWake: pill di stato («Viola in ascolto» / trascrizione / risposta) */}
       {user && !inTour ? <ViolaStatusPill /> : null}
+      <VoiceGuardSheet />{/* V50.z371 — PIN comandi critici vocali */}
       {user ? <ActivationOverlay /> : null}
       {/* V50.z147 — Rimosso il bottone Help/Support Center dalle top header di tutte le pagine
           (`<SupportFab />`, V49.j/k): ridondante con il tab "Help" della bottom bar (V50.z141).

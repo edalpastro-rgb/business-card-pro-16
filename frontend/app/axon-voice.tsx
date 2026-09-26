@@ -10,7 +10,9 @@ import { notify } from "@/src/utils/notify";
 import { playAudioBase64 } from "@/src/utils/audioPlayback";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
-import { MicCalibrationCard } from "@/src/violawake/MicCalibrationCard"; // V50.z367 — Calibrazione microfono ViolaWake
+import { MicCalibrationCard } from "@/src/violawake/MicCalibrationCard"; // V50.z367 — Calibrazione microfono
+import { VoiceGuardPinCard } from "@/src/violawake/VoiceGuardSheet"; // V50.z371 — PIN comandi critici
+import { VoiceprintCard } from "@/src/violawake/VoiceprintCard"; // V50.z372 — Impronta vocale (voci autorizzate)
 
 export const AXON_VOICES: { key: string; label: string; desc: string; gender: "F" | "M" | "N"; local?: boolean }[] = [
   // V50.z347 — voci locali Kokoro (sul server, gratis, nessun limite)
@@ -159,6 +161,8 @@ export default function AxonVoiceScreen() {
             })}
           </View>
           <View style={s.note}><Ionicons name="checkmark-circle" size={16} color="#059669" /><Text style={s.noteTxt}>Salvataggio automatico. Voce attuale: <Text style={{ fontWeight: "900" }}>{AXON_VOICES.find((v) => v.key === voice)?.label || voice}</Text> · Lingua: <Text style={{ fontWeight: "900" }}>{AXON_LANGUAGES.find((l) => l.key === lang)?.label || lang}</Text></Text></View>
+          <VoiceGuardPinCard />
+          <VoiceprintCard />
           <View style={{ marginTop: 14 }}><MicCalibrationCard /></View>
         </ScrollView>
       )}

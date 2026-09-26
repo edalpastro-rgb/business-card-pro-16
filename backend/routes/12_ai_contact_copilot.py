@@ -15,6 +15,7 @@ class AITextIn(BaseModel):
 class AIVoiceIn(BaseModel):
     audio_base64: str  # data URL or plain b64
     mime: Optional[str] = "audio/webm"
+    verify_speaker: bool = False  # V50.z372 — Axon Drive: verifica impronta vocale (voce sconosciuta → transcript vuoto, reason unknown_voice)
 
 
 class AIImageIn(BaseModel):
@@ -282,6 +283,7 @@ async def ai_transcribe(body: AIVoiceIn, user=Depends(get_current_user)):
     with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
         tmp.write(audio_bytes)
         path = tmp.name
+    vp_task = asyncio.create_task(vp_verify_for_user(user, audio_bytes, mime)) if body.verify_speaker else None  # noqa: F821  # V50.z372
     try:
         from emergentintegrations.llm.openai.speech_to_text import OpenAISpeechToText
         stt = OpenAISpeechToText(api_key=key)
@@ -308,6 +310,13 @@ async def ai_transcribe(body: AIVoiceIn, user=Depends(get_current_user)):
             _os.unlink(path)
         except Exception:
             pass
+    if vp_task is not None:
+        vp = await vp_task
+        if vp is not None and not vp.get("match"):
+            await db.viola_wake_events.insert_one({"kind": "unknown_voice", "detail": f"Axon Drive · score {vp.get('score')} < soglia {vp.get('threshold')}", "engine": "ecapa",
+                                                   "event_id": f"vw_{uuid.uuid4().hex[:10]}", "user_id": user["user_id"], "tenant_id": tenant_id(user), "created_at": utcnow()})
+            return {"transcript": "", "reason": "unknown_voice", "silent": True, "speaker": None, "score": vp.get("score"), "language": "it", "model": "whisper-1"}
+        return {"transcript": transcript, "language": "it", "model": "whisper-1", "speaker": (vp or {}).get("profile"), "speaker_score": (vp or {}).get("score")}
     return {"transcript": transcript, "language": "it", "model": "whisper-1"}
 
 
@@ -393,7 +402,9 @@ class VoiceCopilotIn(BaseModel):
     session_id: Optional[str] = None
     pending_contact_id: Optional[str] = None   # V50.z368 — conferma «Intendi il tuo cliente X?» in corso
     pending_question: Optional[str] = None
+    guard_token: Optional[str] = None          # V50.z371 — conferma PIN/biometria per comandi critici
     want_audio: bool = True                    # V50.z368 — TTS nella stessa risposta (voce del profilo Axon), niente 2° round-trip
+    speaker_profile_id: Optional[str] = None   # V50.z372 — voce riconosciuta (permessi voci secondarie)
 
 
 # V50.z368 — PRIORITÀ CRM: prima di qualsiasi ragionamento si cercano i NOMI presenti nella frase tra contatti/clienti del tenant
@@ -480,6 +491,26 @@ async def voice_copilot_execute(body: VoiceCopilotIn, user=Depends(get_current_u
     transcript = (body.transcript or "").strip()
     if not transcript:
         raise HTTPException(status_code=400, detail="Trascrizione vuota")
+    # V50.z371 — comandi critici mai eseguiti solo su voce: serve conferma PIN/impronta (token monouso 90 s)
+    g_cat = vg_is_critical(transcript)  # noqa: F821
+    # V50.z372 — voce secondaria: permessi (Drive = dati CRM; critici solo se abilitati, e comunque con PIN)
+    speaker = await vp_profile_for(user, body.speaker_profile_id)  # noqa: F821
+    denied = vp_permission_denied(speaker, "critical" if g_cat else "crm") if speaker else None  # noqa: F821
+    if denied:
+        audio_b64 = None
+        try:
+            audio_b64 = (await axon_tts_generate(user, denied, None)).get("audio_base64")  # noqa: F821
+        except Exception:  # noqa: BLE001
+            pass
+        return {"intent": "denied", "spoken": denied, "confirmation": denied, "audio_base64": audio_b64, "params": {}, "extra": {}, "transcript": transcript}
+    if g_cat and not await vg_check_token(user, body.guard_token):  # noqa: F821
+        spoken = "Comando critico: confermalo con impronta o PIN."
+        audio_b64 = None
+        try:
+            audio_b64 = (await axon_tts_generate(user, spoken, None)).get("audio_base64")  # noqa: F821
+        except Exception:  # noqa: BLE001
+            pass
+        return {"intent": "guard_required", "category": g_cat, "spoken": spoken, "confirmation": spoken, "audio_base64": audio_b64, "params": {}, "extra": {}, "transcript": transcript}
     key = os.environ.get("EMERGENT_LLM_KEY")
     if not key:
         raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY non configurato")
@@ -640,6 +671,10 @@ async def voice_copilot_execute(body: VoiceCopilotIn, user=Depends(get_current_u
         elif intent == "query":
             # V50.z368 — risposta diretta (CRM-first) già nel JSON; nessun 2° giro LLM
             result_extra = {"answer": (params.get("answer") or "").strip() or None, "crm_candidates": candidates[:3]}
+
+        elif intent == "confirm_contact" and candidates and candidates[0]["score"] >= 0.9 and not body.pending_contact_id and params.get("answer"):
+            # V50.z371 — match forte nel CRM: niente conferma, risposta diretta (deterministico)
+            intent = "query"; result_extra = {"answer": params["answer"].strip(), "crm_candidates": candidates[:3]}
 
         elif intent == "confirm_contact":
             cid = params.get("contact_id") or (candidates[0]["contact_id"] if candidates else None)

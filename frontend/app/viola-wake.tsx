@@ -11,6 +11,7 @@ import { notify } from "@/src/utils/notify";
 import { useViolaWake } from "@/src/violawake/ViolaWakeProvider";
 import { violaApi } from "@/src/violawake/api";
 import type { ViolaEvent, ViolaState } from "@/src/violawake/types";
+import { VoiceprintCard } from "@/src/violawake/VoiceprintCard"; // V50.z372
 
 const C = theme.color;
 const VIOLA = "#8B5CF6"; // identità Viola/Axon (uguale in chiaro e scuro)
@@ -21,7 +22,7 @@ const STATE_LABEL: Record<ViolaState, string> = {
 };
 const STATE_COLOR: Partial<Record<ViolaState, string>> = { listening: C.success, capturing: C.error, speaking: VIOLA, thinking: C.warning, error: C.error, no_permission: C.warning, needs_key: C.warning };
 
-const KIND_LABEL: Record<string, string> = { wake: "Wake-word", capture: "Anti-rumore", command: "Comando", trigger: "Trigger", chat: "Chat Axon", cancelled: "Annullato", error: "Errore", permission: "Permessi" };
+const KIND_LABEL: Record<string, string> = { wake: "Wake-word", capture: "Anti-rumore", command: "Comando", trigger: "Trigger", chat: "Chat Axon", cancelled: "Annullato", error: "Errore", permission: "Permessi", unknown_voice: "Voce sconosciuta (ignorata)", denied: "Non autorizzato", voiceprint: "Impronta vocale", guard: "Conferma PIN" };
 
 export default function ViolaWakeScreen() {
   const router = useRouter();
@@ -167,6 +168,9 @@ export default function ViolaWakeScreen() {
             </View>
           ) : null}
         </View>
+
+        {/* V50.z372 — Impronta vocale: stato + accesso a «Voci autorizzate» (registrazione consigliata al primo utilizzo) */}
+        <VoiceprintCard compact />
 
         {/* Test */}
         <View style={s.card} testID="viola-test-card">

@@ -55,6 +55,8 @@ class ViolaModuleIn(BaseModel):
 
 class ViolaRouteIn(BaseModel):
     transcript: str = Field(min_length=1, max_length=600)
+    guard_token: Optional[str] = None  # V50.z371 — conferma PIN/biometria per comandi critici
+    speaker_profile_id: Optional[str] = None  # V50.z372 — voce riconosciuta da /viola-wake/transcribe (permessi voci secondarie)
 
 
 class ViolaEventIn(BaseModel):
@@ -85,7 +87,8 @@ def _vw_route(transcript: str) -> dict:
     """Classificazione deterministica del comando vocale."""
     cmd = _vw_strip_wake(transcript)
     low = cmd.lower().strip()
-    if not low or low in VW_STOP_WORDS or any(low.startswith(s) for s in VW_STOP_WORDS):
+    # V50.z371 — «cancella/annulla» da soli (≤ 3 parole) = STOP; con un oggetto («cancella tutti i contatti») è un comando critico
+    if not low or low in VW_STOP_WORDS or (any(low.startswith(s) for s in VW_STOP_WORDS) and len(low.split()) <= 3):
         return {"mode": "cancel", "prompt": "", "reply": "OK!"}
     # V50.z318 — effetti locali del telefono (gestiti dall'app, nessun LLM)
     if re.search(r"\bfai (l'|lo |l )?effetto\b|\beffetto di attivazione\b|\battivati\b", low):
@@ -142,7 +145,22 @@ async def viola_module_put(body: ViolaModuleIn, user=Depends(get_current_user)):
 
 @api_router.post("/viola-wake/route")
 async def viola_route(body: ViolaRouteIn, user=Depends(get_current_user)):
-    return _vw_route(body.transcript)
+    r = _vw_route(body.transcript)
+    # V50.z372 — voce secondaria (Blocco 3): sezioni non permesse → «Non sei autorizzato a questa sezione»
+    speaker = await vp_profile_for(user, body.speaker_profile_id)  # noqa: F821
+    cat = vg_is_critical(body.transcript)  # noqa: F821
+    if speaker and r.get("mode") != "cancel":
+        need = "critical" if cat else vp_category_for(r.get("mode"), r.get("prompt") or body.transcript)  # noqa: F821
+        denied = vp_permission_denied(speaker, need)  # noqa: F821
+        if denied:
+            await db.viola_wake_events.insert_one({"kind": "denied", "transcript": body.transcript[:200], "detail": f"{speaker['name']} → {need}", "event_id": f"vw_{uuid.uuid4().hex[:10]}",
+                                                   "user_id": user["user_id"], "tenant_id": tenant_id(user), "created_at": utcnow()})
+            return {"mode": "denied", "category": need, "prompt": r.get("prompt") or body.transcript, "reply": denied, "speaker": speaker["name"]}
+    # V50.z371 — comando critico (cancella/impostazioni/dati sensibili) → serve conferma PIN o impronta, anche per il proprietario
+    if cat and r.get("mode") != "cancel" and not await vg_check_token(user, body.guard_token):  # noqa: F821
+        return {"mode": "guard", "category": cat, "prompt": r.get("prompt") or body.transcript,
+                "message": "Comando critico: confermalo con impronta o PIN."}
+    return r
 
 
 # ─── V50.z348 — Trascrizione comando ROBUSTA AL RUMORE (traffico, metro, esterni): Whisper con vocabolario Axon,
@@ -197,11 +215,16 @@ async def viola_transcribe(body: ViolaTranscribeIn, user=Depends(get_current_use
         tmp.write(raw)
         path = tmp.name
     t0 = utcnow()
-    try:
+    # V50.z372 — impronta vocale (Blocchi 2-3): verifica ECAPA in parallelo a Whisper. Nessun profilo → None (comportamento attuale).
+    vp_task = asyncio.create_task(vp_verify_for_user(user, raw, mime))  # noqa: F821
+
+    async def _whisper():
         from emergentintegrations.llm.openai.speech_to_text import OpenAISpeechToText
         stt = OpenAISpeechToText(api_key=key)
         with open(path, "rb") as fh:
-            res = await stt.transcribe(file=fh, model="whisper-1", language="it", response_format="verbose_json", prompt=VW_WHISPER_PROMPT, temperature=0.0)
+            return await stt.transcribe(file=fh, model="whisper-1", language="it", response_format="verbose_json", prompt=VW_WHISPER_PROMPT, temperature=0.0)
+    try:
+        res, vp = await asyncio.gather(_whisper(), vp_task)
         if isinstance(res, str):
             segs, text = [], res
         else:
@@ -216,7 +239,14 @@ async def viola_transcribe(body: ViolaTranscribeIn, user=Depends(get_current_use
         except Exception:
             pass
     transcript = _vw_clean_transcript(segs, text)
-    return {"transcript": transcript, "raw": (text or "").strip(), "segments": len(segs), "engine": "whisper", "latency_ms": int((utcnow() - t0).total_seconds() * 1000), "noise_db": body.noise_db, "ambient_db": body.ambient_db, "band": body.band}
+    latency = int((utcnow() - t0).total_seconds() * 1000)
+    if vp is not None and not vp.get("match"):
+        # voce NON riconosciuta → SILENZIO TOTALE: nessuna trascrizione, nessuna risposta (solo log)
+        await db.viola_wake_events.insert_one({"kind": "unknown_voice", "detail": f"score {vp.get('score')} < soglia {vp.get('threshold')} · «{transcript[:80]}»" if not vp.get("error") else f"verifica fallita: {vp['error']}",
+                                               "engine": "ecapa", "latency_ms": latency, "event_id": f"vw_{uuid.uuid4().hex[:10]}", "user_id": user["user_id"], "tenant_id": tenant_id(user), "created_at": utcnow()})
+        return {"transcript": "", "reason": "unknown_voice", "silent": True, "speaker": None, "score": vp.get("score"), "engine": "whisper", "latency_ms": latency}
+    return {"transcript": transcript, "raw": (text or "").strip(), "segments": len(segs), "engine": "whisper", "latency_ms": latency, "noise_db": body.noise_db, "ambient_db": body.ambient_db, "band": body.band,
+            "speaker": (vp or {}).get("profile"), "speaker_score": (vp or {}).get("score")}
 
 
 @api_router.post("/viola-wake/event")

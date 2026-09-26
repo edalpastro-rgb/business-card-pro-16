@@ -17,6 +17,9 @@ import { captureCommand, abortCapture, getMicPermission, requestMicPermission, r
 import { captureCommandWhisper, abortWhisperCapture, WHISPER_CAPTURE_SUPPORTED } from "./whisperCapture"; // V50.z348 — cattura robusta al rumore
 import type { ViolaState, ViolaSettings, ViolaModule, WakeEngine, PermissionStatus } from "./types";
 import { VIOLA_KEYWORD_LABEL } from "./types";
+import { vdApi, isSwitchCommand } from "./devices";
+import { confirmCritical } from "./guard"; // V50.z371 — Blocco 4: comandi critici → PIN/impronta // V50.z370 — Blocco 1: selezione dispositivo
+import { vpApi, takeLastSpeaker, setLastSpeaker, type SpeakerInfo } from "./voiceprintApi"; // V50.z372 — Blocchi 2-3: impronta vocale
 
 const ACCESS_KEY = (process.env.EXPO_PUBLIC_PICOVOICE_ACCESS_KEY || "").trim();
 
@@ -34,6 +37,10 @@ type Ctx = {
   backgroundService: boolean; // Android: servizio in primo piano disponibile nella build
   onDeviceStt: boolean;
   permission: PermissionStatus | null;
+  /** V50.z372 — impronta vocale attiva: Axon risponde solo alle voci registrate (voce sconosciuta → silenzio). */
+  voiceprintEnforced: boolean;
+  /** Ultima voce riconosciuta (nome) — per la UI. */
+  lastSpeaker: string | null;
   refresh: () => Promise<void>;
   updateSettings: (patch: Partial<ViolaSettings>) => Promise<void>;
   setModule: (enabled: boolean, note?: string) => Promise<void>;
@@ -42,7 +49,7 @@ type Ctx = {
   /** Simula la wake-word (test dalla schermata «Viola», anche senza dire la parola). */
   simulateWake: () => void;
   /** Invia un comando testuale nello stesso flusso della voce (test su web). */
-  runCommand: (transcript: string) => Promise<void>;
+  runCommand: (transcript: string, speaker?: SpeakerInfo | null) => Promise<void>;
 };
 
 const ViolaCtx = createContext<Ctx | null>(null);
@@ -69,6 +76,10 @@ export function ViolaWakeProvider({ children }: { children: React.ReactNode }) {
   const [isMaster, setIsMaster] = useState(false);
   const [permission, setPermission] = useState<PermissionStatus | null>(null);
   const [keywordLabel, setKeywordLabel] = useState(VIOLA_KEYWORD_LABEL);
+  const [voiceprintEnforced, setVoiceprintEnforced] = useState(false); // V50.z372
+  const [lastSpeaker, setLastSpeakerName] = useState<string | null>(null);
+  const vpRef = useRef(false);
+  vpRef.current = voiceprintEnforced;
   const engineRef = useRef<WakeEngine | null>(null);
   const busyRef = useRef(false);
   const settingsRef = useRef<ViolaSettings | null>(null);
@@ -88,6 +99,7 @@ export function ViolaWakeProvider({ children }: { children: React.ReactNode }) {
       setModuleState(r.module);
       setIsMaster(r.is_master);
     } catch { /* offline: manteniamo lo stato precedente */ }
+    try { setVoiceprintEnforced(!!(await vpApi.status()).enforced); } catch { /* noop */ } // V50.z372
     if (supported) {
       try { setPermission(await getMicPermission()); } catch { /* noop */ }
     }
@@ -121,10 +133,11 @@ export function ViolaWakeProvider({ children }: { children: React.ReactNode }) {
   }, [supported]);
 
   /** Esegue il comando (già trascritto). Condiviso da voce e test. */
-  const runCommand = useCallback(async (transcript: string) => {
+  const runCommand = useCallback(async (transcript: string, speaker: SpeakerInfo | null = null) => {
     const st = settingsRef.current;
     const t0 = Date.now();
     setLastTranscript(transcript);
+    setLastSpeakerName(speaker?.name || null);
     if (!transcript.trim()) {
       void violaApi.logEvent("command", { detail: "vuoto", engine: "device" });
       await speak("Non ho capito, ripeti dopo la parola.");
@@ -132,12 +145,26 @@ export function ViolaWakeProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     setState("thinking");
-    void violaApi.logEvent("command", { transcript, engine: st?.stt_engine || "device", latency_ms: Date.now() - t0 });
+    void violaApi.logEvent("command", { transcript, engine: st?.stt_engine || "device", latency_ms: Date.now() - t0, detail: speaker ? `voce: ${speaker.name}` : undefined });
+    const spk = speaker?.profile_id || null;
     let route: Awaited<ReturnType<typeof violaApi.route>>;
     try {
-      route = await violaApi.route(transcript);
+      route = await violaApi.route(transcript, undefined, spk);
     } catch {
       route = { mode: "chat", prompt: transcript };
+    }
+    if (route.mode === "denied") { // V50.z372 — voce secondaria senza permesso per questa sezione
+      await speak(route.reply || "Non sei autorizzato a questa sezione.");
+      settle();
+      return;
+    }
+    if (route.mode === "guard") { // V50.z371 — mai eseguire comandi critici solo a voce
+      void violaApi.logEvent("guard", { transcript, detail: route.category });
+      await speak(route.message || "Comando critico: confermalo con impronta o PIN.");
+      const tok = await confirmCritical(route.category);
+      if (!tok) { await speak("Comando annullato."); settle(); return; }
+      try { route = await violaApi.route(transcript, tok, spk); } catch { route = { mode: "chat", prompt: transcript }; }
+      if (route.mode === "guard" || route.mode === "denied") { await speak("Conferma non valida, comando annullato."); settle(); return; }
     }
     if (route.mode === "cancel") {
       void violaApi.logEvent("cancelled", { transcript });
@@ -190,21 +217,48 @@ export function ViolaWakeProvider({ children }: { children: React.ReactNode }) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       }
       await stopEngine(); // libera il microfono per il riconoscimento
+      // V50.z370 — più dispositivi in ascolto? chiedi al server chi deve rispondere (Desktop / Telefono / Tablet)
+      let gate: Awaited<ReturnType<typeof vdApi.wake>> | null = null;
+      try { gate = await vdApi.wake(); } catch { gate = null; }
+      if (gate?.mode === "silent") { setState("listening"); return; }
       setState("capturing");
       setLastTranscript("");
       setLastReply("");
+      const useWhisper = (st?.stt_engine === "whisper" || vpRef.current) && WHISPER_CAPTURE_SUPPORTED; // V50.z372 — impronta attiva → serve l'audio (Whisper), non il riconoscitore del telefono
+      if (gate?.mode === "ask") {
+        await speak(gate.prompt || "Da dove vuoi che risponda? Desktop, Telefono o Tablet?");
+        setState("capturing");
+        setLastSpeaker(null, false);
+        const choice = useWhisper
+          ? (await captureCommandWhisper({ maxSeconds: 5, onPartial: setLastTranscript })).text
+          : await captureCommand({ maxSeconds: 5, onPartial: setLastTranscript });
+        if (takeLastSpeaker().unknown) { setState("listening"); return; } // voce sconosciuta → silenzio
+        if (choice) {
+          try { const sel = await vdApi.select(choice); setLastReply(sel.message); if (sel.ok && sel.is_me) await speak(sel.message); else if (sel.ok) setState("listening"); else await speak(sel.message); }
+          catch { /* un altro dispositivo ha già risposto */ }
+        }
+        return;
+      }
       // V50.z348 — motore comandi: «whisper» = registrazione con soglia adattiva al rumore + Whisper server (traffico/metro);
       // «device» = riconoscitore del telefono (gratis, on-device). Se Whisper non ottiene nulla si riprova con il telefono.
       let text = "";
-      if (st?.stt_engine === "whisper" && WHISPER_CAPTURE_SUPPORTED) {
+      setLastSpeaker(null, false);
+      if (useWhisper) {
         const r = await captureCommandWhisper({ maxSeconds: st?.listen_seconds || 6, onPartial: setLastTranscript });
         text = r.text;
         void violaApi.logEvent("capture", { engine: "whisper", detail: `ambiente ${r.ambientDb == null ? "n.d." : r.ambientDb} dB (${r.band || "auto"}) · noise ${r.noiseDb == null ? "n.d." : Math.round(r.noiseDb)} dBFS · ${r.durationMs} ms`, latency_ms: r.durationMs });
-        if (!text && r.durationMs > 0 && r.durationMs < 1500) text = await captureCommand({ maxSeconds: st?.listen_seconds || 6, onPartial: setLastTranscript });
+        if (!text && !vpRef.current && r.durationMs > 0 && r.durationMs < 1500) text = await captureCommand({ maxSeconds: st?.listen_seconds || 6, onPartial: setLastTranscript });
       } else {
         text = await captureCommand({ maxSeconds: st?.listen_seconds || 6, onPartial: setLastTranscript });
       }
-      await runCommand(text);
+      // V50.z372 — impronta vocale: voce NON riconosciuta → SILENZIO TOTALE (nessuna risposta), torna in ascolto
+      const who = takeLastSpeaker();
+      if (who.unknown) { setLastTranscript(""); setLastSpeakerName(null); setState("listening"); return; }
+      if (text && isSwitchCommand(text)) { // V50.z370 — «passa al telefono»
+        try { const sel = await vdApi.select(text); setLastReply(sel.message); await speak(sel.message); } catch { await speak("Non sono riuscita a cambiare dispositivo."); }
+        return;
+      }
+      await runCommand(text, who.speaker);
     } catch (e: any) {
       setError(String(e?.message || e));
       void violaApi.logEvent("error", { detail: String(e?.message || e).slice(0, 200) });
@@ -258,6 +312,18 @@ export function ViolaWakeProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shouldRun, settings?.sensitivity, settings?.keyword_mode]);
 
+  // V50.z370 — presenza dispositivo: heartbeat ogni 30 s mentre ascolta; release quando l'ascolto si spegne / l'app si chiude
+  useEffect(() => {
+    if (state !== "listening" && state !== "capturing" && state !== "thinking" && state !== "speaking") return;
+    void vdApi.heartbeat(true).catch(() => {});
+    const t = setInterval(() => { void vdApi.heartbeat(true).catch(() => {}); }, 30000);
+    return () => clearInterval(t);
+  }, [state]);
+  useEffect(() => {
+    if (!shouldRun) { void vdApi.release().catch(() => {}); return; }
+    return () => { void vdApi.release().catch(() => {}); };
+  }, [shouldRun]);
+
   // iOS: con «audio» in background il motore continua; Android senza servizio in primo piano
   // il sistema può sospendere il microfono → al ritorno in primo piano riavviamo l'ascolto.
   useEffect(() => {
@@ -298,9 +364,9 @@ export function ViolaWakeProvider({ children }: { children: React.ReactNode }) {
   }, [supported, handleWake]);
 
   const value = useMemo<Ctx>(() => ({
-    state, error, lastTranscript, lastReply, keywordLabel, settings, module, isMaster, supported, hasKey, backgroundService: FOREGROUND_SERVICE_AVAILABLE, onDeviceStt, permission,
+    state, error, lastTranscript, lastReply, keywordLabel, settings, module, isMaster, supported, hasKey, backgroundService: FOREGROUND_SERVICE_AVAILABLE, onDeviceStt, permission, voiceprintEnforced, lastSpeaker,
     refresh, updateSettings, setModule, askPermission, openSettings, simulateWake, runCommand,
-  }), [state, error, lastTranscript, lastReply, keywordLabel, settings, module, isMaster, supported, hasKey, onDeviceStt, permission, refresh, updateSettings, setModule, askPermission, openSettings, simulateWake, runCommand]);
+  }), [state, error, lastTranscript, lastReply, keywordLabel, settings, module, isMaster, supported, hasKey, onDeviceStt, permission, voiceprintEnforced, lastSpeaker, refresh, updateSettings, setModule, askPermission, openSettings, simulateWake, runCommand]);
 
   return <ViolaCtx.Provider value={value}>{children}</ViolaCtx.Provider>;
 }

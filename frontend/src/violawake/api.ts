@@ -7,7 +7,7 @@ export const violaApi = {
   getSettings: () => api<ViolaSettingsResponse>("/viola-wake/settings"),
   updateSettings: (patch: Partial<ViolaSettings>) => api<ViolaSettingsResponse>("/viola-wake/settings", { method: "PUT", body: patch }),
   setModule: (enabled: boolean, note?: string) => api<{ ok: boolean; module: ViolaSettingsResponse["module"] }>("/viola-wake/module", { method: "PUT", body: { enabled, note } }),
-  route: (transcript: string) => api<ViolaRoute>("/viola-wake/route", { method: "POST", body: { transcript } }),
+  route: (transcript: string, guard_token?: string, speaker_profile_id?: string | null) => api<ViolaRoute>("/viola-wake/route", { method: "POST", body: { transcript, ...(guard_token ? { guard_token } : {}), ...(speaker_profile_id ? { speaker_profile_id } : {}) } }),
   trigger: (action: string) => api<{ ok: boolean; reply?: string | null; deeplink?: string | null }>("/axon/proactive/trigger", { method: "POST", body: { action, source: "wake_word" } }),
   events: (limit = 30) => api<{ items: ViolaEvent[]; total: number }>(`/viola-wake/events?limit=${limit}`),
   logEvent: (kind: string, extra?: { transcript?: string; detail?: string; engine?: string; latency_ms?: number }) =>

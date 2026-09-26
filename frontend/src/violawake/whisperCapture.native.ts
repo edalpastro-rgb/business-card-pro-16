@@ -8,6 +8,7 @@ import { AudioModule, RecordingPresets } from "expo-audio";
 import * as FileSystem from "expo-file-system/legacy";
 import { api } from "@/src/api";
 import { loadCalibration, profileForDbfs, toAmbientDb, type NoiseProfile } from "@/src/violawake/noiseProfile";
+import { setLastSpeaker } from "@/src/violawake/voiceprintApi";
 import type { CaptureOptions } from "./types";
 
 export const WHISPER_CAPTURE_SUPPORTED = true;
@@ -49,8 +50,9 @@ export function captureCommandWhisper(opts: CaptureOptions): Promise<WhisperCapt
         if (transcribe && uri && spoke) {
           opts.onPartial?.("…");
           const b64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
-          const r = await api<{ transcript: string }>("/viola-wake/transcribe", { method: "POST", body: { audio_base64: b64, mime: "audio/m4a", noise_db: noiseDb, ambient_db: noiseDb == null ? null : toAmbientDb(noiseDb), band: profile?.band || null } });
+          const r = await api<{ transcript: string; speaker?: any; reason?: string }>("/viola-wake/transcribe", { method: "POST", body: { audio_base64: b64, mime: "audio/m4a", noise_db: noiseDb, ambient_db: noiseDb == null ? null : toAmbientDb(noiseDb), band: profile?.band || null } });
           text = (r?.transcript || "").trim();
+          setLastSpeaker(r?.speaker, r?.reason === "unknown_voice"); // V50.z372 — impronta vocale
         }
         if (uri) FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
       } catch { /* niente testo → il provider dice «non ho capito» */ }

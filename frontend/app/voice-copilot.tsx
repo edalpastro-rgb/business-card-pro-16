@@ -20,6 +20,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useAudioRecorder, AudioModule, RecordingPresets } from "expo-audio";
+import { confirmCritical } from "@/src/violawake/guard"; // V50.z371
 import * as FileSystem from "expo-file-system/legacy";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
@@ -155,7 +156,8 @@ export default function VoiceCopilotScreen() {
       if (!uri) throw new Error("Nessun audio registrato");
       // Read as base64 and send to /api/ai/transcribe
       const b64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
-      const tRes: any = await api("/ai/transcribe", { method: "POST", body: { audio_base64: b64, mime: "audio/m4a" } });
+      const tRes: any = await api("/ai/transcribe", { method: "POST", body: { audio_base64: b64, mime: "audio/m4a", verify_speaker: true } }); // V50.z372 — impronta vocale
+      if (tRes?.reason === "unknown_voice") { setPhase("idle"); return; } // voce NON riconosciuta → silenzio totale
       const transcript = (tRes?.data?.transcript || tRes?.transcript || "").trim();
       if (!transcript) throw new Error("Trascrizione vuota");
       setCurrentTranscript(transcript);
@@ -163,8 +165,16 @@ export default function VoiceCopilotScreen() {
       // Execute intent
       setPhase("executing");
       const pend = pendingRef.current;
-      const eRes: any = await api("/voice/copilot/execute", { method: "POST", body: { transcript, want_audio: true, ...(pend ? { pending_contact_id: pend.contact_id, pending_question: pend.question } : {}) } });
-      const j = eRes?.data || eRes;
+      const execBody = { transcript, want_audio: true, ...(tRes?.speaker?.profile_id ? { speaker_profile_id: tRes.speaker.profile_id } : {}), ...(pend ? { pending_contact_id: pend.contact_id, pending_question: pend.question } : {}) };
+      let eRes: any = await api("/voice/copilot/execute", { method: "POST", body: execBody });
+      let j = eRes?.data || eRes;
+      if (j?.intent === "guard_required") { // V50.z371 — comando critico: impronta/Face ID o PIN, poi riesecuzione
+        await speak(j.spoken || "Comando critico: confermalo con impronta o PIN.", j.audio_base64);
+        const tok = await confirmCritical(j.category);
+        if (!tok) throw new Error("Comando critico annullato");
+        eRes = await api("/voice/copilot/execute", { method: "POST", body: { ...execBody, guard_token: tok } });
+        j = eRes?.data || eRes;
+      }
       const confirmation = j?.spoken || j?.extra?.answer || j?.confirmation || "Fatto.";
       const intent = j?.intent || "";
       pendingRef.current = intent === "confirm_contact" && j?.extra?.pending_contact_id ? { contact_id: j.extra.pending_contact_id, question: j.extra.pending_question || transcript } : null;

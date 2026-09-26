@@ -1,0 +1,28 @@
+{
+  "summary": "V50.z372 — Axon Voice System (Blocchi 2-3 impronta vocale SpeechBrain ECAPA). Backend 17/17 pytest OK: /voiceprint/status con engine_ready dopo warmup + owner 'Test Owner' + permission_keys; /voiceprint/enroll/text con 15 paragrafi e min_speech_sec=20; ri-registrazione owner con 6 chunk TTS 'sara' (speech_sec≥20, consistency 0.947, ready=true), 422 se finish prima del minimo con messaggio 'Serve più parlato'; verify 'sara'→Test Owner score>0.4; verify 'nicola'→profilo secondario; /viola-wake/transcribe 'sara' con speaker Test Owner; pausa 'Nicola' → transcript vuoto + reason=unknown_voice + silent=true + evento unknown_voice; permessi crm=false/critical=false → route 'denied' + category critical; permessi tutti true → 'chat' e 'guard' per critici; PATCH permissions su owner → 400; /ai/transcribe verify_speaker:true → speaker Test Owner; /voice/copilot/execute con crm=false → intent 'denied'; /voiceprint/settings level tolerant→0.30, normal→0.40, enabled:false disattiva enforcement; enroll/start role:secondary senza name → 400; DELETE profilo secondario ok + 404 su id inesistente; profiles list non espone campi embedding; regression /viola-wake/route senza speaker (chat/trigger/guard) e /viola-wake/settings GET. Frontend UI (mobile viewport 390x844) tutti gli elementi rendono con i testID richiesti: voice-profiles-owner-card, voice-profiles-status ('23 s di parlato · coerenza 95%'), voice-profiles-enabled, chip level strict/normal/tolerant tap-abili, voice-profile-<id> card, voice-profile-perm-<key>-<id> toggle funzionanti (PATCH ok), voice-profile-full-<id>, voice-profiles-add-secondary → /voice-enroll?role=secondary con voice-enroll-name e voice-enroll-start, /voice-enroll?role=owner mostra 'Come funziona' + voice-enroll-start (tap non crasha in headless), /axon-voice mostra voiceprint-card + status ('Attiva: Axon risponde solo a 2 voci registrate...') + action → /voice-profiles, /viola-wake VoiceprintCard compatta presente. Nessun red screen, nessun errore React Native critico.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_voiceprint_v50z372.py",
+    "/app/test_reports/pytest/voiceprint_v50z372.xml",
+    "/app/backend/tests/test_voiceprint_sanity.py",
+    "/app/backend/tests/test_voiceprint_secondary.py"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "/api/voiceprint/status torna engine_ready=false alla prima chiamata dopo cold-start del backend perché il modello SpeechBrain viene caricato pigramente. Non è un bug (i test lo gestiscono con /engine/warmup) ma il FE su /axon-voice mostra 'Motore in preparazione' finché non parte il warmup — considera un warmup implicito al primo GET /voiceprint/status o un polling di ~2 s nel provider.",
+    "voice-profiles.tsx: dopo un tap su voice-profile-full-<id>, l'UI aggiorna correttamente le permission ma la conferma visiva (checkbox filled) dipende dal ri-fetch del profilo — su rete lenta può sembrare che il tap sia stato ignorato. Nessun crash osservato."
+  ],
+  "updated_files": ["/app/backend/tests/test_voiceprint_v50z372.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "Il test 15 crea e cancella un profilo secondario 'Prova' con voce Kokoro 'nicola' (round-trip enroll→delete). Profili 'Test Owner' (owner) e 'Nicola (collaboratore)' (secondary) pre-esistenti sono stati preservati: durante i test transitano in status='paused' e vengono ripristinati a 'active' in ogni finally. Settings /voiceprint level ripristinato a 'normal' + enabled=true a fine test 13.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend URL: EXPO_PUBLIC_BACKEND_URL dal frontend/.env. Login test@dalpastro.it/Test1234! → token JWT (chiave 'token' nella response). Per FE web, iniettare in localStorage['auth_token_v1'] il token come JSON stringify (expo-secure-store web-fallback usa questa chiave). VP_MIN_SPEECH_SEC=20 nel backend/.env (test rapido). TTS Kokoro voci 'sara' (owner) e 'nicola' (secondary) via /api/assistant/tts. Attendere ~3-5s dopo POST /voiceprint/engine/warmup e ~1-3s per TTS/paragrafo. Non cancellare i profili 'Test Owner' e 'Nicola (collaboratore)' se non li ricrei — servono ai test successivi.",
+  "rca_of_issue": null
+}

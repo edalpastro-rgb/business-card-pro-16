@@ -929,6 +929,8 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 | V50.z362 | Giu 2026 | Home Master: «Autocompilazione CRT» in CRM Core, «Axon Lab» in AI & Axon, intestazione Utility ripristinata, pulsanti nuovi nella propria sezione |
 | V50.z363 | Giu 2026 | Home: data odierna completa («Sabato 26 settembre 2026») sotto il titolo, aggiornata a mezzanotte |
 | V50.z364 | Giu 2026 | **Compressione globale**: PDF+immagini+audio+video compressi prima del salvataggio in ogni sezione (regola permanente) · «Comprimi tutto» in Impostazioni (Master) con memoria prima/dopo/liberata |
+| V50.z371 | Giu 2026 | Sistema vocale · Blocco 4: comandi critici (cancella/impostazioni/dati sensibili) sempre confermati con impronta/Face ID o PIN 6 cifre, token monouso 90 s; PIN in Impostazioni → Voce |
+| V50.z370 | Giu 2026 | Sistema vocale · Blocco 1: più dispositivi sentono «Axon» → «Da dove vuoi che risponda? Desktop/Telefono/Tablet», dispositivo attivo per sessione, «passa a …», Desktop = web app su PC in ascolto |
 | V50.z369 | Giu 2026 | Wake-word «Axon» (non più «Viola») ovunque: schermata, istruzioni, notifica Android, messaggi; ViolaWake resta solo nome interno |
 | V50.z368 | Giu 2026 | Axon Drive: voce del profilo Axon (non più «nova»), risposta vocale in 1 giro (LLM+TTS insieme), PRIORITÀ CRM sui nomi con conferma «Intendi il tuo cliente…?», mai fonti esterne · fix ricerca contatti (user_id/contact_id) |
 | V50.z367 | Giu 2026 | ViolaWake: soglie rumore adattive (silenzioso/normale/rumoroso) · Calibrazione microfono in Impostazioni → Voce (dB live + «Calibra ora» 10 s) · indicatore «Axon in ascolto» nell’header Home · fix riconoscitore Android (no on-device obbligatorio) |

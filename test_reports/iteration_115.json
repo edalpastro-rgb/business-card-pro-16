@@ -1,0 +1,18 @@
+{
+  "summary": "V50.z370/z371 voice system tested end-to-end. BACKEND (22/22 pytest passed): (a) voice-devices Block 1 — single-device wake→respond, second-device wake→ask with prompt, select 'dal telefono'→is_me=True, wake desktop=silent while phone=respond, 'passa al desktop' switches active device with message mentioning desktop, release desktop returns session_released=True and re-enables phone wake→respond, GET /voice-devices returns active_devices; cleaned up. (b) voice-guard Block 4 — GET /voice-guard has_pin=true, wrong PIN→403, correct PIN→guard_token, /viola-wake/route with 'Axon cancella tutti i contatti' → mode=guard/category=delete without token, mode=chat with valid token, single-use enforced (reuse returns guard again), 'Axon annulla' → mode=cancel, 'Axon che ore sono' → mode=chat (non-critical), biometric-ok returns guard_token. (c) /voice/copilot/execute — 'Elimina il cliente Rossi' returns intent=guard_required without token; with valid guard_token bypasses guard. Regression CRM-first (V50.z368) — created Carlo Colferai contact: 'Che numero ha Colferai?' returns intent=query with phone 3331112233 spoken (or confirm_contact→sì follow-up leading to query with phone); 'Qual è il telefono di col ferraio?' returns intent=confirm_contact with confirmation 'Intendi il tuo cliente Carlo Colferai?'; contact cleaned up. FRONTEND — /axon-voice shows voice-guard-pin-card and mic-calibration-card with 'PIN comandi critici' text; /viola-wake page title 'Axon · comandi vocali' visible and ZERO occurrences of 'Viola'/'ViolaWake' in visible body text; /impostazioni Integrazioni list shows entry with testID int-viola labeled 'Comandi vocali a mani libere «Axon»'.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": []},
+  "test_report_links": ["/app/backend/tests/test_voice_devices_guard.py", "/app/test_reports/pytest/voice_devices_guard.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "axon_voice_guard.py: vg_verify does not reset the fail counter after a successful login — cumulative fails from wrong attempts within 10 min stay counted (minor, defense-in-depth OK).",
+    "voice_copilot_execute: intent for 'Che numero ha Colferai?' is non-deterministic (LLM sometimes returns query, sometimes confirm_contact). Requirement asks for direct 'query'; consider forcing 'query' when top CRM candidate score>=0.9 server-side rather than trusting LLM."
+  ],
+  "updated_files": ["/app/backend/tests/test_voice_devices_guard.py"],
+  "success_rate": {"backend": "100% (22/22)", "frontend": "100% (3/3)"},
+  "seed_data_creation": "Tests create ephemeral device_key rows in axon_voice_devices/sessions and a Carlo Colferai contact — all cleaned up at end of run.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend tests live in /app/backend/tests/test_voice_devices_guard.py. Login via /auth/login (returns .token). Voice guard PIN for test@dalpastro.it is 123456 (from /app/memory/test_credentials.md). Frontend login form: testIDs auth-email-input, auth-password-input, auth-submit-button; after login redirects to /tour. /impostazioni is under (tabs) and Integrazioni tab is the default landing view for that screen when accessed directly.",
+  "rca_of_issue": "N/A — all target flows behave as specified in the review request."
+}
