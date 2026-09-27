@@ -114,5 +114,6 @@ MODULES = [
     "axon_voice_guard.py",  # V50.z371 — Sistema vocale Blocco 4: comandi critici → PIN/biometria (deve precedere viola_wake? no: usato a runtime)
     "axon_voice_devices.py",  # V50.z370 — Sistema vocale Blocco 1: selezione dispositivo (Desktop/Telefono/Tablet)
     "axon_voiceprint.py",  # V50.z372 — Sistema vocale Blocchi 2-3: impronta vocale SpeechBrain ECAPA (proprietario + voci secondarie con permessi); usato a runtime da viola_wake e 12 (vp_verify_for_user, vp_permission_denied)
+    "axon_honesty_rule.py",  # V50.z386 — REGOLA PERMANENTE: «Non lo so, verifica con Emmy o con Neo.» — ULTIMO wrapper di _prepare_assistant_prompt (testa+coda del prompt, non sovrascrivibile)
     "37_app_startup_scheduler.py",
 ]

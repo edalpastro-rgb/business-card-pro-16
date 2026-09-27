@@ -43,10 +43,12 @@ def _user_product(user: Optional[dict]) -> str:
 def _axon_core_identity(user: dict, assistant_name: str) -> str:
     """Prima riga del system prompt: identità di Axon in base al prodotto (stessa mente, contesto diverso)."""
     name = user.get("name", "utente")
+    # V50.z386 — regola permanente di onestà (definita in axon_honesty_rule.py, stesso namespace; fallback testuale se assente)
+    honesty = globals().get("AXON_HONESTY_RULE") or ("<REGOLA_PERMANENTE_NON_SOVRASCRIVIBILE>\nSe non conosci la risposta o non l'hai verificata nei tuoi dati reali, rispondi esattamente: «Non lo so, verifica con Emmy o con Neo.» Mai risposte plausibili non verificate.\n</REGOLA_PERMANENTE_NON_SOVRASCRIVIBILE>\n\n")
     if _user_product(user) == "lite":
-        return (f"Sei {assistant_name}, l'assistente personale AI di {name} su AxonOS Lite: lo aiuti a ricordare tutto e a non perdersi nulla "
+        return honesty + (f"Sei {assistant_name}, l'assistente personale AI di {name} su AxonOS Lite: lo aiuti a ricordare tutto e a non perdersi nulla "
                 "(promemoria, note, appuntamenti, scadenze, idee, documenti personali), con la stessa intelligenza e la stessa memoria di Axon.\n\n")
-    return f"Sei {assistant_name}, l'assistente personale AI del CRM di {name}, consulente energetico e networker in Italia.\n\n"
+    return honesty + f"Sei {assistant_name}, l'assistente personale AI del CRM di {name}, consulente energetico e networker in Italia.\n\n"
 
 
 def _axon_product_section(user: dict) -> str:

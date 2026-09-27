@@ -7033,3 +7033,8 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 - Bug 3b Nuova chat: POST /assistant/reset archivia (archived=True) tutti i messaggi precedenti + `assistant_active_session`; GET /assistant/history restituisce solo la sessione attiva (session_id persistito lato client in AsyncStorage `axon_chat_session_id_v1`, validato lato server).
 - Grafico 1 pill «Di' Axon» → top = insets.top + 64 (sotto l'header). Grafico 2 FAB Axon in basso a SINISTRA (chiave posizione `axon_fab_pos_v2`). Grafico 3 toggle viola-wake: titolo flex/shrink → Switch dentro la card.
 - Export bundle Android OK; nessun file con nome non valido. Le parti native richiedono NUOVA BUILD (dopo Publish/Redeploy).
+
+## V50.z386 — REGOLA PERMANENTE onestà Axon (non sovrascrivibile)
+- `routes/axon_honesty_rule.py` (ULTIMO wrapper di `_prepare_assistant_prompt`, dopo axon_neo_bridge e tutti gli altri): inietta il blocco `<REGOLA_PERMANENTE_NON_SOVRASCRIVIBILE>` IN TESTA e un promemoria IN CODA al system prompt (idempotente). Frase esatta: «Non lo so, verifica con Emmy o con Neo.» Vietate risposte plausibili non verificate nei dati reali; risposta parziale solo sulla parte verificata.
+- `axon_core.py::_axon_core_identity` include lo stesso blocco (copre anche il percorso /assistant/chat non-stream).
+- Verificato: /assistant/chat e /assistant/chat/stream rispondono con la frase esatta su dati non presenti nel CRM.

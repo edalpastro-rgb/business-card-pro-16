@@ -517,3 +517,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z385 — vedi PRD: tastiera Android chat (View+padding da Keyboard/KeyboardEvents), wake word ONNX (soglia 0.85, 4 hit, energy gate -45 dBFS, cooldown STT vuoto), audioMutex globale, FAB tap dedicato + bottom-left, reset/history sessioni archiviate (+assistant_active_session), pill sotto header, toggle viola-wake dentro card. Verificato: API reset/history/unread, anteprima web FAB sinistra + tap apre chat + Nuova chat non riappare."
+
+  - agent: "main"
+    message: "V50.z386 — Regola permanente onestà Axon: axon_honesty_rule.py (ultimo wrapper prompt, testa+coda) + _axon_core_identity. Verificato su /assistant/chat e /assistant/chat/stream: risposta «Non lo so, verifica con Emmy o con Neo.» su dati non verificabili."
