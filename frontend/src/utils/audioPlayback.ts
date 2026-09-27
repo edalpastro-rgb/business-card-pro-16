@@ -1,5 +1,6 @@
 // V50.z311 — estratto da AssistantChat.tsx (nessuna modifica logica)
 import { Platform } from "react-native";
+import { acquireAudio } from "@/src/utils/audioMutex"; // V50.z385 — una sola voce alla volta
 
 /**
  * Cross-platform audio player. Uses <audio> on web, expo-audio on native.
@@ -12,16 +13,18 @@ export async function playAudioBase64(
   mime: string = "audio/mpeg",
   onEnded?: () => void
 ): Promise<AudioStopper> {
+  // V50.z385 — mutex globale: ferma SEMPRE l'audio precedente prima di partire (qualunque percorso lo abbia avviato)
+  let hardStop: () => void = () => {};
+  const release = acquireAudio(() => hardStop());
   if (Platform.OS === "web") {
     const dataUri = `data:${mime};base64,${b64}`;
     const audio = new Audio(dataUri);
-    if (onEnded) {
-      audio.addEventListener("ended", () => { try { onEnded(); } catch {} }, { once: true });
-    }
-    try { await audio.play(); } catch {}
-    const stopper: AudioStopper = () => {
-      try { audio.pause(); } catch {}
-    };
+    let webEnded = false;
+    audio.addEventListener("ended", () => { if (webEnded) return; webEnded = true; release(); try { onEnded?.(); } catch {} }, { once: true });
+    audio.addEventListener("error", () => { if (webEnded) return; webEnded = true; release(); try { onEnded?.(); } catch {} }, { once: true });
+    hardStop = () => { webEnded = true; release(); try { audio.pause(); } catch {} };
+    try { await audio.play(); } catch { hardStop(); try { onEnded?.(); } catch {} }
+    const stopper: AudioStopper = () => { hardStop(); };
     stopper.pause = () => { try { audio.pause(); } catch {} };
     stopper.resume = () => { try { void audio.play(); } catch {} };
     return stopper;
@@ -40,24 +43,27 @@ export async function playAudioBase64(
       ended = true;
       try { sub?.remove?.(); } catch {}
       if (safety) clearTimeout(safety);
+      release();
       try { onEnded?.(); } catch {}
     };
-    if (onEnded) {
-      // V50.z270 — fine REALE dell'audio (didJustFinish); il timer stimato dalla dimensione è solo una rete di sicurezza
-      try { sub = player.addListener?.("playbackStatusUpdate", (s: any) => { if (s?.didJustFinish) finish(); }); } catch {}
-      const bytes = (b64.length * 3) / 4;
-      const estMs = Math.max(4000, (bytes * 8 / 24000) * 1000 * 1.3 + 3000); // ~24 kbps mp3 TTS, margine 30% + 3 s
-      safetyDeadline = Date.now() + estMs;
-      safety = setTimeout(finish, estMs);
-    }
-    try { player.play(); } catch {}
-    const stopper: AudioStopper = () => {
+    // V50.z385 — fine REALE dell'audio (didJustFinish) su ogni riproduzione; il timer stimato è SOLO l'ultima risorsa
+    // (2× la durata stimata + 5 s) e quando scatta ferma davvero il player, così non può sovrapporsi al successivo.
+    try { sub = player.addListener?.("playbackStatusUpdate", (s: any) => { if (s?.didJustFinish) finish(); }); } catch {}
+    const bytes = (b64.length * 3) / 4;
+    const estMs = Math.max(6000, (bytes * 8 / 24000) * 1000 * 2 + 5000); // ~24 kbps mp3 TTS, margine 100% + 5 s
+    safetyDeadline = Date.now() + estMs;
+    const safetyFire = () => { try { player.pause?.(); } catch {} try { player.release?.(); } catch {} finish(); };
+    safety = setTimeout(safetyFire, estMs);
+    hardStop = () => {
       ended = true;
       try { sub?.remove?.(); } catch {}
       if (safety) clearTimeout(safety);
+      release();
       try { player.pause?.(); } catch {}
       try { player.release?.(); } catch {}
     };
+    try { player.play(); } catch { finish(); }
+    const stopper: AudioStopper = () => { hardStop(); };
     // pausa/riprendi: il timer di sicurezza viene sospeso in pausa e ripristinato alla ripresa
     let pausedAt: number | null = null;
     let safetyLeft = 0;
@@ -70,11 +76,12 @@ export async function playAudioBase64(
     stopper.resume = () => {
       if (ended || pausedAt === null) return;
       pausedAt = null;
-      if (onEnded && safetyLeft > 0) { safetyDeadline = Date.now() + safetyLeft; safety = setTimeout(finish, safetyLeft); }
+      if (safetyLeft > 0) { safetyDeadline = Date.now() + safetyLeft; safety = setTimeout(safetyFire, safetyLeft); }
       try { player.play?.(); } catch {}
     };
     return stopper;
   } catch {
+    release();
     return () => {};
   }
 }

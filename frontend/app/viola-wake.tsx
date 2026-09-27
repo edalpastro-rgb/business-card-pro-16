@@ -107,7 +107,6 @@ export default function ViolaWakeScreen() {
           <View style={s.row}>
             <Ionicons name="business" size={18} color={VIOLA} />
             <Text style={s.cardTitle}>Comandi vocali «Axon» per l'azienda</Text>
-            <View style={{ flex: 1 }} />
             {v.isMaster ? (
               busy === "module" ? <ActivityIndicator color={VIOLA} /> : <Switch value={moduleOn} onValueChange={toggleModule} trackColor={{ true: VIOLA }} testID="viola-module-switch" />
             ) : (
@@ -126,7 +125,6 @@ export default function ViolaWakeScreen() {
           <View style={s.row}>
             <Ionicons name="mic" size={18} color={VIOLA} />
             <Text style={s.cardTitle}>Ascolto sul mio telefono</Text>
-            <View style={{ flex: 1 }} />
             {busy === "user" ? <ActivityIndicator color={VIOLA} /> : <Switch value={userOn} disabled={!moduleOn} onValueChange={toggleUser} trackColor={{ true: VIOLA }} testID="viola-user-switch" />}
           </View>
           <Text style={s.hint}>Il microfono resta sul telefono: «Axon» viene riconosciuta in locale (modello Axon offline sul telefono; riconoscimento vocale di sistema dove il modulo nativo non c’è), niente audio al cloud finché non senti il segnale. Poi il comando viene trascritto dal telefono {v.onDeviceStt ? "(on-device)" : ""} e passato ad Axon.</Text>
@@ -231,7 +229,7 @@ const s = StyleSheet.create({
   body: { padding: 16, gap: 12, paddingBottom: 120 },
   card: { backgroundColor: C.surfaceSecondary, borderRadius: 16, borderWidth: 1, borderColor: C.border, padding: 14, gap: 10 },
   row: { flexDirection: "row", alignItems: "center", gap: 10 },
-  cardTitle: { color: C.onSurface, fontSize: 15, fontWeight: "800" },
+  cardTitle: { color: C.onSurface, fontSize: 15, fontWeight: "800", flex: 1, flexShrink: 1 }, // V50.z385 — il titolo si comprime: il toggle resta dentro la card
   hint: { color: C.onSurfaceTertiary, fontSize: 12, lineHeight: 17 },
   small: { color: C.muted, fontSize: 11 },
   stateDot: { width: 12, height: 12, borderRadius: 6 },

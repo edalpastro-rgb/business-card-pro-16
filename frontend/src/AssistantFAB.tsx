@@ -6,7 +6,6 @@ import { useRouter } from "expo-router";
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
-import { useFabStack } from "@/src/FabStack";
 import { AXON_OPEN_CHAT_EVENT } from "@/src/axonProactive";
 import { CHAT_OPEN_KEY } from "@/src/utils/appStatePersist";
 import { axnApi, AXN_UNREAD_CHANGED_EVENT } from "@/src/axonNotifications";
@@ -24,7 +23,6 @@ const AXONOS_LOGO_WHITE = require("@/assets/images/axonos-logo-white.png");
 export function AssistantFAB() {
   const { user } = useAuth();
   const router = useRouter();
-  const { present } = useFabStack();
   const [open, setOpen] = useState(false);
   const [unreadInfoReq, setUnreadInfoReq] = useState(0);
   const pulse = useRef(new Animated.Value(1)).current;
@@ -43,14 +41,15 @@ export function AssistantFAB() {
   // Base bottom (senza offset drag) — ricalcolato per render.
   const tabBarHeight = 60 + Math.max(insets.bottom || 0, 20);
   const baseBottom = tabBarHeight + 12;
-  const bottom = present.calculator ? baseBottom + 76 : baseBottom;
+  // V50.z385 — il FAB Axon sta in basso a SINISTRA: la calcolatrice (in basso a destra) non lo copre più → nessun rialzo
+  const bottom = baseBottom;
 
   // Carica posizione salvata (solo una volta).
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const raw = await AsyncStorage.getItem("axon_fab_pos_v1");
+        const raw = await AsyncStorage.getItem("axon_fab_pos_v2"); // V50.z385 — nuova chiave: ancoraggio a sinistra
         if (raw && !cancelled) {
           const p = JSON.parse(raw);
           if (typeof p?.x === "number" && typeof p?.y === "number") {
@@ -74,8 +73,11 @@ export function AssistantFAB() {
 
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 3 || Math.abs(g.dy) > 3,
+      // V50.z385 — il TAP è gestito SOLO dalla Pressable interna (onPress nativo, indipendente dal gesto):
+      // il PanResponder non «ruba» più il tocco all'inizio e si attiva solo con un movimento reale (> 8 px).
+      onStartShouldSetPanResponder: () => false,
+      onStartShouldSetPanResponderCapture: () => false,
+      onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 8 || Math.abs(g.dy) > 8,
       onPanResponderGrant: () => {
         didDrag.current = false;
         dragStartTs.current = Date.now();
@@ -89,26 +91,20 @@ export function AssistantFAB() {
       onPanResponderRelease: async (_e, g) => {
         pan.flattenOffset();
         const win = winRef.current;
-        // Coordinate correnti (offset dal punto di ancoraggio bottom-right).
-        // Ancoraggio: right = EDGE_MARGIN, bottom = `bottom`
+        // V50.z385 — Ancoraggio BOTTOM-LEFT (left = EDGE_MARGIN, bottom = `bottom`): non si sovrappone più al FAB calcolatrice.
         // dx > 0 sposta a destra; dy > 0 sposta in giù.
-        const anchorRight = EDGE_MARGIN;
         const anchorBottom = bottom;
 
         // Ricava x/y attuali (dai valori .__getValue()).
         const curX = (pan.x as any).__getValue();
         const curY = (pan.y as any).__getValue();
 
-        // Snap orizzontale al bordo più vicino.
-        // fabLeftPos in coordinate schermo:
-        const fabLeftPos = win.width - anchorRight - FAB_SIZE + curX;
+        // Snap orizzontale al bordo più vicino (fabLeftPos in coordinate schermo).
+        const fabLeftPos = EDGE_MARGIN + curX;
         const centerX = fabLeftPos + FAB_SIZE / 2;
         const snapLeft = centerX < win.width / 2;
-        // offsetX target per stare a: sinistra → win.width - anchorRight - FAB_SIZE - EDGE_MARGIN
-        //                             destra    → 0
-        const targetOffsetX = snapLeft
-          ? -(win.width - anchorRight - FAB_SIZE - EDGE_MARGIN * 2)
-          : 0;
+        // offsetX target: sinistra → 0 ; destra → win.width - FAB_SIZE - EDGE_MARGIN*2
+        const targetOffsetX = snapLeft ? 0 : (win.width - FAB_SIZE - EDGE_MARGIN * 2);
 
         // Clamp verticale: non uscire sopra la status bar né sotto il tab bar.
         const maxUpOffset = -(win.height - anchorBottom - FAB_SIZE - Math.max(insets.top || 0, 20));
@@ -124,7 +120,7 @@ export function AssistantFAB() {
         panOffset.current = { x: targetOffsetX, y: clampedY };
         try {
           await AsyncStorage.setItem(
-            "axon_fab_pos_v1",
+            "axon_fab_pos_v2",
             JSON.stringify({ x: targetOffsetX, y: clampedY })
           );
         } catch { /* ignore */ }
@@ -331,7 +327,8 @@ export function AssistantFAB() {
         <Pressable
           style={[styles.fab, criticalUnread > 0 && styles.fabCritical, showGreen && styles.fabUnreadGreen]}
           onPress={fireTap}
-          hitSlop={6}
+          hitSlop={14}
+          pressRetentionOffset={24}
           accessibilityRole="button"
           accessibilityLabel={criticalUnread > 0 ? `Avviso critico: ${criticalUnread} notifiche urgenti non lette — tocca per aprire` : unreadInfoReq > 0 ? `Apri richieste info (${unreadInfoReq} nuove) — trascina per spostare` : showGreen ? "Nuovo messaggio di Axon non letto — tocca per aprire la chat" : "Apri assistente AI — trascina per spostare"}
           testID="assistant-fab"

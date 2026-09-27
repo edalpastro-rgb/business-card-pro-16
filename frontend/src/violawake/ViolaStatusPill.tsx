@@ -32,7 +32,7 @@ export function ViolaStatusPill() {
   const icon = state === "capturing" ? "mic" : state === "speaking" ? "volume-high" : state === "thinking" ? "hourglass" : "ear";
 
   return (
-    <Animated.View entering={FadeInDown.duration(250)} exiting={FadeOutUp.duration(200)} pointerEvents="box-none" style={[s.wrap, { top: insets.top + 6 }]}>
+    <Animated.View entering={FadeInDown.duration(250)} exiting={FadeOutUp.duration(200)} pointerEvents="box-none" style={[s.wrap, { top: insets.top + 64 }]}>
       <Pressable onPress={() => router.push("/viola-wake" as any)} style={[s.pill, state === "capturing" && s.pillActive]} testID="viola-status-pill" accessibilityRole="button" accessibilityLabel="Stato ViolaWake">
         <Animated.View style={[s.dot, dot, state === "capturing" && { backgroundColor: HT.danger }]} />
         <Ionicons name={icon as any} size={14} color={theme.color.onSurfaceInverse} />

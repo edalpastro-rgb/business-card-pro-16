@@ -143,7 +143,6 @@
           ]
         }
       ],
-      "./plugins/withViolaWake.js",
       "./plugins/withViolaWakeService.js",
       "./plugins/withAxonWakeAudio.js"
     ],

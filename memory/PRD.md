@@ -7024,3 +7024,12 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 ## V50.z384 — Build Android fallita (upload tarball EAS): rimosso file spurio
 - Causa: file vuoto (0 byte) con nome binario non-UTF8 in `/app/frontend/` (creato accidentalmente alle 18:33 durante il check `expo export` in sandbox). EAS non riusciva a fare lstat → "Failed to upload the project tarball". Nessun problema di codice.
 - Fix: file eliminato; verificato che non esistano altri nomi non stampabili in /app. deployment_agent: PASS.
+
+## V50.z385 — 5 bug + 3 grafici (chat Axon / wake word / FAB) — fatti, verificati (backend via API, web via anteprima)
+- Bug 0 tastiera Android nel Modal chat: Android → `View` + paddingBottom = altezza tastiera misurata da RN `Keyboard` E `KeyboardEvents` (keyboard-controller); iOS → KeyboardAvoidingView "padding". Mai i due insieme. Scroll in fondo all'apertura tastiera. (AssistantChat.tsx)
+- Bug 1 wake word: `withAxonWakeAudio.js` soglia 0.85 (min 0.75), 4 frame consecutivi (min 3), energy gate RMS/dBFS (-45 dBFS) su ogni blocco, reset colpi dopo 0,5 s di silenzio, refrattario 3 s. Plugin Porcupine `withViolaWake.js` rimosso da app.json. `ViolaWakeProvider.tsx`: STT vuoto → nessun annuncio, riarmo ritardato 8 s, dopo 3 vuoti pausa 60 s, wake ignorate in cooldown.
+- Bug 2 due voci: `src/utils/audioMutex.ts` (acquireAudio/stopAllAudio) usato da audioPlayback (playAudioBase64 → Viola.speak, ActivationOverlay, speakReply nativo), SentenceSpeaker e speakReply web. onEnded solo su didJustFinish/ended; timer di sicurezza = ultima risorsa (2× stima + 5 s) e ferma il player.
+- Bug 3a FAB: PanResponder non prende più il tocco allo start (solo movimento > 8 px); tap = Pressable onPress, hitSlop 14.
+- Bug 3b Nuova chat: POST /assistant/reset archivia (archived=True) tutti i messaggi precedenti + `assistant_active_session`; GET /assistant/history restituisce solo la sessione attiva (session_id persistito lato client in AsyncStorage `axon_chat_session_id_v1`, validato lato server).
+- Grafico 1 pill «Di' Axon» → top = insets.top + 64 (sotto l'header). Grafico 2 FAB Axon in basso a SINISTRA (chiave posizione `axon_fab_pos_v2`). Grafico 3 toggle viola-wake: titolo flex/shrink → Switch dentro la card.
+- Export bundle Android OK; nessun file con nome non valido. Le parti native richiedono NUOVA BUILD (dopo Publish/Redeploy).

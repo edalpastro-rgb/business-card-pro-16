@@ -132,20 +132,27 @@ async def axon_quick_action(body: AxonQuickActionIn, user=Depends(get_current_us
 
 @api_router.get("/assistant/history")
 async def assistant_history(session_id: Optional[str] = None, user=Depends(get_current_user)):
-    """Load conversation history. If session_id not given, returns latest session."""
+    """Load conversation history. V50.z385 — senza session_id restituisce SOLO la sessione ATTIVA
+    (db.assistant_active_session); le sessioni chiuse con «Nuova chat» sono archiviate e non riappaiono mai."""
+    uid = user["user_id"]
+    # Sessione richiesta dal client (persistita in AsyncStorage): valida solo se ha ancora messaggi NON archiviati
+    if session_id:
+        ok = await db.assistant_messages.find_one({"user_id": uid, "session_id": session_id, "archived": {"$ne": True}}, {"_id": 1})
+        if not ok:
+            session_id = None
     if not session_id:
-        # Find latest session
+        # Conversazione corrente = ultimo messaggio non archiviato (il reset archivia tutto il precedente)
         latest = await db.assistant_messages.find_one(
-            {"user_id": user["user_id"]},
-            {"session_id": 1},
-            sort=[("created_at", -1)],
+            {"user_id": uid, "archived": {"$ne": True}}, {"session_id": 1}, sort=[("created_at", -1)]
         )
-        if not latest:
-            return {"session_id": None, "messages": [], "assistant_name": await _get_assistant_name(user)}
-        session_id = latest["session_id"]
+        if latest:
+            session_id = latest["session_id"]
+        else:
+            active = await db.assistant_active_session.find_one({"user_id": uid}, {"session_id": 1})
+            return {"session_id": (active or {}).get("session_id"), "messages": [], "assistant_name": await _get_assistant_name(user)}
 
     cursor = db.assistant_messages.find(
-        {"user_id": user["user_id"], "session_id": session_id},
+        {"user_id": uid, "session_id": session_id, "archived": {"$ne": True}},
         {"_id": 0, "role": 1, "content": 1, "created_at": 1},
     ).sort("created_at", 1).limit(100)
     msgs = [m async for m in cursor]
@@ -161,7 +168,7 @@ async def assistant_unread(user=Depends(get_current_user)):
     """V50.z383 — Ultimo messaggio scritto da Axon (chat, proattività, push bridge): il FAB lo confronta con l'ultima
     apertura della chat per lampeggiare in verde quando c'è un messaggio non letto."""
     last = await db.assistant_messages.find_one(
-        {"user_id": user["user_id"], "role": "assistant"}, {"created_at": 1, "message_id": 1}, sort=[("created_at", -1)]
+        {"user_id": user["user_id"], "role": "assistant", "archived": {"$ne": True}}, {"created_at": 1, "message_id": 1}, sort=[("created_at", -1)]
     )
     at = (last or {}).get("created_at")
     if isinstance(at, datetime):
@@ -171,8 +178,18 @@ async def assistant_unread(user=Depends(get_current_user)):
 
 @api_router.post("/assistant/reset")
 async def assistant_reset(user=Depends(get_current_user)):
-    """Start a new conversation. Old sessions remain in DB but a new session_id is issued."""
-    session_id = f"asst_{user['user_id']}_{uuid.uuid4().hex[:10]}"
+    """Start a new conversation. V50.z385 — le sessioni precedenti vengono ARCHIVIATE (archived=True) e la nuova
+    sessione diventa quella attiva (db.assistant_active_session): «Nuova chat» non fa più riapparire la vecchia."""
+    uid = user["user_id"]
+    session_id = f"asst_{uid}_{uuid.uuid4().hex[:10]}"
+    await db.assistant_messages.update_many(
+        {"user_id": uid, "archived": {"$ne": True}}, {"$set": {"archived": True, "archived_at": datetime.now(timezone.utc)}}
+    )
+    await db.assistant_active_session.update_one(
+        {"user_id": uid},
+        {"$set": {"session_id": session_id, "created_at": datetime.now(timezone.utc)}},
+        upsert=True,
+    )
     return {"session_id": session_id, "assistant_name": await _get_assistant_name(user)}
 
 

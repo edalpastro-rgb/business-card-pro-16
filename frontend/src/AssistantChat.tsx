@@ -16,6 +16,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter, usePathname, useGlobalSearchParams } from "expo-router";
 import { api } from "@/src/api";
 import { SentenceSpeaker } from "@/src/utils/sentenceSpeaker";
+import { acquireAudio } from "@/src/utils/audioMutex"; // V50.z385 — una sola voce alla volta
 import { useAuth } from "@/src/auth";
 import { SaveConfirmModal, suggestFileName } from "@/src/SaveConfirmModal";
 import { pickCommonFile } from "@/src/utils/filePicker";
@@ -107,14 +108,40 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   // KeyboardAvoidingView non funziona correttamente dentro Modal transparent
   // su Android: aggiungiamo un listener manuale che spinge il footer sopra
   // la tastiera con paddingBottom dinamico.
+  // V50.z385 — REGRESSIONE tastiera Android nel Modal: con KeyboardProvider (keyboard-controller) attivo il
+  // KeyboardAvoidingView dentro un Modal non riceve gli eventi (finestra separata) e la finestra non si ridimensiona.
+  // Soluzione robusta: altezza tastiera da DUE sorgenti (eventi RN `Keyboard` + eventi nativi `KeyboardEvents` di
+  // keyboard-controller) → paddingBottom manuale del contenuto su Android; su iOS resta il KeyboardAvoidingView.
   const [kbHeight, setKbHeight] = useState(0);
   useEffect(() => {
+    if (Platform.OS === "web") return;
+    const subs: { remove: () => void }[] = [];
+    const onShow = (h: number) => { if (h > 0) setKbHeight(h); };
+    const onHide = () => setKbHeight(0);
     const showEv = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
     const hideEv = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-    const s = Keyboard.addListener(showEv, (e) => setKbHeight(e.endCoordinates?.height || 0));
-    const h = Keyboard.addListener(hideEv, () => setKbHeight(0));
-    return () => { s.remove(); h.remove(); };
+    subs.push(Keyboard.addListener(showEv, (e) => onShow(e.endCoordinates?.height || 0)));
+    subs.push(Keyboard.addListener(hideEv, onHide));
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const KC = require("react-native-keyboard-controller");
+      if (KC?.KeyboardEvents?.addListener) {
+        subs.push(KC.KeyboardEvents.addListener("keyboardDidShow", (e: any) => onShow(Number(e?.height) || 0)));
+        subs.push(KC.KeyboardEvents.addListener("keyboardWillShow", (e: any) => onShow(Number(e?.height) || 0)));
+        subs.push(KC.KeyboardEvents.addListener("keyboardDidHide", onHide));
+      }
+    } catch { /* keyboard-controller non disponibile: bastano gli eventi RN */ }
+    return () => { subs.forEach((x) => { try { x.remove(); } catch {} }); };
   }, []);
+  // La chat scorre in fondo quando la tastiera appare: l'ultimo messaggio e l'input restano visibili
+  useEffect(() => {
+    if (!visible || kbHeight <= 0) return;
+    const t = setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 120);
+    return () => clearTimeout(t);
+  }, [kbHeight, visible]);
+  // Android: contenitore semplice con padding manuale (niente doppio offset); iOS/web: KeyboardAvoidingView
+  const KbWrap: any = Platform.OS === "android" ? View : KeyboardAvoidingView;
+  const kbWrapProps = Platform.OS === "android" ? {} : { behavior: "padding" as const, keyboardVerticalOffset: 0 };
   // V50.z11 — bottomPad rimosso: il paddingBottom del sheet ora usa solo
   // insets.bottom (il KeyboardAvoidingView spinge autonomamente sopra la tastiera).
   const [assistantName, setAssistantName] = useState("Neo");
@@ -209,12 +236,16 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       }
       // Carica la conversazione precedente (se esiste)
       try {
-        const h = await api<{ session_id?: string | null; messages?: { role: string; content: string }[] }>("/assistant/history");
+        // V50.z385 — session_id persistito lato client: si riapre SOLO la sessione attiva (le vecchie sono archiviate)
+        let storedSid: string | null = null;
+        try { storedSid = await AsyncStorage.getItem("axon_chat_session_id_v1"); } catch {}
+        const h = await api<{ session_id?: string | null; messages?: { role: string; content: string }[] }>(`/assistant/history${storedSid ? `?session_id=${encodeURIComponent(storedSid)}` : ""}`);
         if (h?.session_id && Array.isArray(h.messages) && h.messages.length > 0) {
           setSessionId(h.session_id);
+          AsyncStorage.setItem("axon_chat_session_id_v1", h.session_id).catch(() => {});
           setMessages(h.messages.map((m) => ({ role: m.role as any, content: m.content })));
         } else {
-          setSessionId(null);
+          setSessionId(h?.session_id || null);
           setMessages([]);
         }
       } catch {
@@ -723,7 +754,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
         },
         onMeta: (meta) => {
           setProgressText(null);
-          if (meta.session_id) setSessionId(meta.session_id);
+          if (meta.session_id) { setSessionId(meta.session_id); AsyncStorage.setItem("axon_chat_session_id_v1", meta.session_id).catch(() => {}); }
           if (meta.assistant_name) setAssistantName(meta.assistant_name);
           // Insert an empty assistant bubble that will be filled by deltas
           setMessages((prev) => [
@@ -944,9 +975,12 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       if (Platform.OS === "web") {
         const audio = new Audio(`data:${r.mime || "audio/mpeg"};base64,${r.audio_base64}`);
         currentAudioRef.current = audio;
+        // V50.z385 — mutex audio globale: ferma qualunque altra voce (SentenceSpeaker, Viola) prima di partire
+        const releaseMutex = acquireAudio(() => { try { audio.pause(); } catch {} if (!ended) { ended = true; currentAudioRef.current = null; setPlayingIdx(null); setPaused(false); if (onEnded) onEnded(); } });
         audio.addEventListener("ended", () => {
           if (ended) return;
           ended = true;
+          releaseMutex();
           currentAudioRef.current = null;
           setPlayingIdx(null); setPaused(false);
           if (onEnded) onEnded();
@@ -954,6 +988,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
         try { await audio.play(); } catch {}
         cleanupAudioRef.current = () => {
           try { audio.pause(); } catch {}
+          releaseMutex();
           currentAudioRef.current = null;
           setPlayingIdx(null); setPaused(false);
           if (!ended) { ended = true; if (onEnded) onEnded(); }
@@ -971,9 +1006,9 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
           if (!ended) { ended = true; if (onEnded) onEnded(); }
         };
       }
-      // Fallback timer in case 'ended' event never fires (V50.z383 — stima generosa e stop dell'audio residuo: mai due voci)
+      // Timer di sicurezza = SOLO ultima risorsa (V50.z385: 2× la durata stimata + 5 s) e ferma l'audio residuo: mai due voci
       const myCleanup = cleanupAudioRef.current;
-      const dur = Math.max(2500, Math.min(90000, text.length * 110 + 3000));
+      const dur = Math.max(6000, Math.min(180000, text.length * 200 + 5000));
       setTimeout(() => {
         if (ended) return;
         ended = true;
@@ -1116,6 +1151,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     try {
       const r = await api<{ session_id: string; assistant_name: string }>("/assistant/reset", { method: "POST" });
       setSessionId(r.session_id);
+      AsyncStorage.setItem("axon_chat_session_id_v1", r.session_id).catch(() => {}); // V50.z385
       setMessages([]);
       if (cleanupAudioRef.current) { cleanupAudioRef.current(); cleanupAudioRef.current = null; }
       setPlayingIdx(null);
@@ -1551,14 +1587,10 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
               </View>
             </View>
           )}
-          <KeyboardAvoidingView
-            // V50.z11 — Fix input Axon nascosto dalla tastiera Android.
-            // V50.z39 — In aggiunta a KeyboardAvoidingView (fallback iOS),
-            // applichiamo paddingBottom = kbHeight direttamente al container
-            // così su Android nel Modal transparent (dove behavior:padding
-            // non funziona) il TextInput sale comunque sopra la tastiera.
-            behavior="padding"
-            keyboardVerticalOffset={0}
+          <KbWrap
+            // V50.z385 — Android: View + paddingBottom = altezza tastiera (misurata da RN Keyboard e KeyboardEvents);
+            // iOS: KeyboardAvoidingView behavior "padding". Mai i due meccanismi insieme (doppio offset).
+            {...kbWrapProps}
             style={{ flex: 1, paddingBottom: Platform.OS === "android" ? kbHeight : 0 }}
           >
             {/* Header — V29.n: barra minimale. Rimossi logo e testo "AxonOS".
@@ -1967,7 +1999,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
               </View>
             </View>
             )}
-          </KeyboardAvoidingView>
+          </KbWrap>
         </View>
       </View>
       {/* V38T — Save-to-Master modal (rename confirm) */}

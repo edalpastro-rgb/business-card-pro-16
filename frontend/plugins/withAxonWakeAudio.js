@@ -58,8 +58,11 @@ class AxonWakeAudioModule(private val ctx: ReactApplicationContext) : ReactConte
 
     private var thread: Thread? = null
     private val running = AtomicBoolean(false)
-    @Volatile private var threshold = 0.6f
-    @Volatile private var consecutive = 2
+    // V50.z385 — anti-loop nel silenzio: soglia più alta, più frame consecutivi, energy gate RMS (dBFS) e refrattario 3 s
+    @Volatile private var threshold = 0.85f
+    @Volatile private var consecutive = 4
+    private val MIN_DBFS = -45.0          // sotto questo livello il blocco è «silenzio»: nessuna detection possibile
+    private val SILENCE_RESET_BLOCKS = 6  // ~0,5 s di silenzio → azzera i colpi consecutivi
 
     private var env: OrtEnvironment? = null
     private var melSess: OrtSession? = null
@@ -102,12 +105,12 @@ class AxonWakeAudioModule(private val ctx: ReactApplicationContext) : ReactConte
     @ReactMethod fun isRunning(promise: Promise) { promise.resolve(running.get()) }
 
     @ReactMethod fun setThreshold(t: Double, consecutiveHits: Int) {
-        threshold = t.toFloat(); consecutive = if (consecutiveHits > 0) consecutiveHits else 2
+        threshold = maxOf(0.75f, t.toFloat()); consecutive = if (consecutiveHits > 0) maxOf(3, consecutiveHits) else 4
     }
 
     @ReactMethod
     fun start(t: Double, consecutiveHits: Int, promise: Promise) {
-        threshold = t.toFloat(); consecutive = if (consecutiveHits > 0) consecutiveHits else 2
+        threshold = maxOf(0.75f, t.toFloat()); consecutive = if (consecutiveHits > 0) maxOf(3, consecutiveHits) else 4
         if (running.get()) { promise.resolve(true); return }
         if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             promise.reject("AXON_WAKE_NO_PERMISSION", "Permesso microfono non concesso"); return
@@ -124,7 +127,7 @@ class AxonWakeAudioModule(private val ctx: ReactApplicationContext) : ReactConte
             val input = FloatArray(CTX + CHUNK)
             val melBuf = FloatArray(MEL_WIN * MEL_BINS); var melFilled = 0
             val embBuf = FloatArray(N_EMB * EMB_DIM); var embFilled = 0
-            var hits = 0; var lastWake = 0L; var blocks = 0L
+            var hits = 0; var lastWake = 0L; var blocks = 0L; var silentBlocks = 0
             try {
                 rec.startRecording()
                 while (running.get()) {
@@ -136,11 +139,16 @@ class AxonWakeAudioModule(private val ctx: ReactApplicationContext) : ReactConte
                     }
                     if (filled < CHUNK) continue
                     blocks++
+                    // Energy gate: RMS → dBFS su OGNI blocco (80 ms). Nel silenzio il classificatore non viene interrogato
+                    // e i colpi consecutivi si azzerano: la wake word non può MAI scattare senza voce.
+                    var sum = 0.0; for (s in buf) sum += s.toDouble() * s.toDouble()
+                    val rms = sqrt(sum / CHUNK) / 32768.0
+                    val dbfs = if (rms > 0) 20.0 * log10(rms) else -96.0
+                    val voiced = dbfs >= MIN_DBFS
+                    if (voiced) silentBlocks = 0 else { silentBlocks++; if (silentBlocks >= SILENCE_RESET_BLOCKS) hits = 0 }
                     // livello (ogni 4 blocchi ≈ 3 volte/s)
                     if (blocks % 4 == 0L) {
-                        var sum = 0.0; for (s in buf) sum += s.toDouble() * s.toDouble()
-                        val rms = sqrt(sum / CHUNK) / 32768.0
-                        val m = Arguments.createMap(); m.putDouble("dbfs", if (rms > 0) 20.0 * log10(rms) else -96.0); emit("AxonWakeLevel", m)
+                        val m = Arguments.createMap(); m.putDouble("dbfs", dbfs); emit("AxonWakeLevel", m)
                     }
                     // 480 campioni di contesto + 1280 nuovi → 8 frame mel
                     System.arraycopy(input, CHUNK, input, 0, CTX)
@@ -159,10 +167,10 @@ class AxonWakeAudioModule(private val ctx: ReactApplicationContext) : ReactConte
                     if (embFilled < N_EMB) continue
                     val score = run(clfSess!!, embBuf, longArrayOf(1, N_EMB.toLong(), EMB_DIM.toLong()))[0]
                     val sm = Arguments.createMap(); sm.putDouble("score", score.toDouble()); emit("AxonWakeScore", sm)
-                    if (score >= threshold) hits++ else hits = 0
+                    if (voiced && score >= threshold) hits++ else hits = 0
                     val now = System.currentTimeMillis()
-                    if (hits >= consecutive && now - lastWake > 1500) {
-                        hits = 0; lastWake = now; embFilled = 0
+                    if (voiced && hits >= consecutive && now - lastWake > 3000) {
+                        hits = 0; lastWake = now; embFilled = 0; melFilled = 0
                         val wm = Arguments.createMap(); wm.putDouble("score", score.toDouble()); emit("AxonWakeDetected", wm)
                     }
                 }

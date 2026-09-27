@@ -87,6 +87,14 @@ export function ViolaWakeProvider({ children }: { children: React.ReactNode }) {
   settingsRef.current = settings;
   const moduleRef = useRef<ViolaModule | null>(null);
   moduleRef.current = module;
+  // V50.z385 — anti-loop: trascrizioni vuote consecutive → nessun annuncio, riarmo ritardato (cooldown) e tetto massimo
+  const emptyStreakRef = useRef(0);
+  const rearmDelayRef = useRef(0);
+  const cooldownUntilRef = useRef(0);
+  const rearmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const EMPTY_MAX_ATTEMPTS = 3;          // dopo 3 vuoti di fila → pausa lunga
+  const EMPTY_COOLDOWN_MS = 8000;        // pausa breve dopo un vuoto
+  const EMPTY_LONG_COOLDOWN_MS = 60000;  // pausa lunga dopo il tetto massimo
 
   const supported = WAKE_ENGINE_SUPPORTED && CAPTURE_SUPPORTED;
   const axonEngine = WakeWord.isAvailable();
@@ -140,11 +148,18 @@ export function ViolaWakeProvider({ children }: { children: React.ReactNode }) {
     setLastTranscript(transcript);
     setLastSpeakerName(speaker?.name || null);
     if (!transcript.trim()) {
-      void violaApi.logEvent("command", { detail: "vuoto", engine: "device" });
-      await speak("Non ho capito, ripeti dopo la parola.");
-      settle();
+      // V50.z385 — STT vuoto (silenzio/rumore): NIENTE voce, NIENTE riarmo immediato → niente loop «Non ho capito»
+      emptyStreakRef.current += 1;
+      const capped = emptyStreakRef.current >= EMPTY_MAX_ATTEMPTS;
+      rearmDelayRef.current = capped ? EMPTY_LONG_COOLDOWN_MS : EMPTY_COOLDOWN_MS;
+      cooldownUntilRef.current = Date.now() + rearmDelayRef.current;
+      if (capped) emptyStreakRef.current = 0;
+      void violaApi.logEvent("command", { detail: `vuoto (${capped ? "pausa lunga" : "pausa breve"})`, engine: "device" });
+      setState("listening");
       return;
     }
+    emptyStreakRef.current = 0;
+    rearmDelayRef.current = 0;
     setState("thinking");
     void violaApi.logEvent("command", { transcript, engine: st?.stt_engine || "device", latency_ms: Date.now() - t0, detail: speaker ? `voce: ${speaker.name}` : undefined });
     const spk = speaker?.profile_id || null;
@@ -210,10 +225,12 @@ export function ViolaWakeProvider({ children }: { children: React.ReactNode }) {
 
   const handleWake = useCallback(async () => {
     if (busyRef.current) return;
+    if (Date.now() < cooldownUntilRef.current) return; // V50.z385 — in cooldown dopo trascrizioni vuote: ignora
     busyRef.current = true;
+    rearmDelayRef.current = 0;
     const st = settingsRef.current;
     try {
-      void violaApi.logEvent("wake", { engine: "porcupine" });
+      void violaApi.logEvent("wake", { engine: "axon-onnx" });
       if (st?.confirm_sound !== false && Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       }
@@ -265,9 +282,14 @@ export function ViolaWakeProvider({ children }: { children: React.ReactNode }) {
       void violaApi.logEvent("error", { detail: String(e?.message || e).slice(0, 200) });
     } finally {
       busyRef.current = false;
-      // torna in ascolto della wake-word se ancora attivo
-      if (settingsRef.current?.enabled && moduleRef.current?.enabled) void startEngine();
-      else setState("off");
+      // torna in ascolto della wake-word se ancora attivo — V50.z385: dopo un STT vuoto il riarmo è RITARDATO (cooldown)
+      if (settingsRef.current?.enabled && moduleRef.current?.enabled) {
+        const delay = rearmDelayRef.current;
+        if (delay > 0) {
+          if (rearmTimerRef.current) clearTimeout(rearmTimerRef.current);
+          rearmTimerRef.current = setTimeout(() => { rearmTimerRef.current = null; if (settingsRef.current?.enabled && moduleRef.current?.enabled) void startEngine(); }, delay);
+        } else void startEngine();
+      } else setState("off");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stopEngine, runCommand]);
@@ -307,8 +329,8 @@ export function ViolaWakeProvider({ children }: { children: React.ReactNode }) {
   const shouldRun = !!user && !!settings?.enabled && !!module?.enabled;
   useEffect(() => {
     if (shouldRun) void startEngine();
-    else { void stopEngine(); void stopForegroundService(); abortCapture(); abortWhisperCapture(); setState(supported ? "off" : "unsupported"); }
-    return () => { void stopEngine(); void stopForegroundService(); };
+    else { if (rearmTimerRef.current) { clearTimeout(rearmTimerRef.current); rearmTimerRef.current = null; } void stopEngine(); void stopForegroundService(); abortCapture(); abortWhisperCapture(); setState(supported ? "off" : "unsupported"); }
+    return () => { if (rearmTimerRef.current) { clearTimeout(rearmTimerRef.current); rearmTimerRef.current = null; } void stopEngine(); void stopForegroundService(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shouldRun, settings?.sensitivity, settings?.keyword_mode]);
 

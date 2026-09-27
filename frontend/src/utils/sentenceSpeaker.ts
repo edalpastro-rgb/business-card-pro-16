@@ -13,6 +13,7 @@
  * playbackStatusUpdate.didJustFinish) su iOS/Android.
  */
 import { Platform } from "react-native";
+import { acquireAudio } from "@/src/utils/audioMutex"; // V50.z385
 import { api } from "@/src/api";
 
 type Audio = { b64: string; mime: string } | null;
@@ -50,6 +51,7 @@ export function cleanForSpeech(raw: string): string {
 }
 
 export class SentenceSpeaker {
+  private releaseMutex: (() => void) | null = null; // V50.z385 — mutex audio globale
   private buffer = "";
   private queue: QueueItem[] = [];
   private inflight = 0;
@@ -121,6 +123,12 @@ export class SentenceSpeaker {
     if (this.currentCleanup) { try { this.currentCleanup(); } catch {} this.currentCleanup = null; }
     this.handlers.onAudioElement?.(null);
     this.finish();
+  }
+
+  /** V50.z385 — registra questo speaker nel mutex globale (ferma qualunque altra voce in corso). */
+  private holdMutex() {
+    if (this.releaseMutex) return;
+    this.releaseMutex = acquireAudio(() => this.stop());
   }
 
   // ---- interni ----------------------------------------------------------
@@ -208,6 +216,8 @@ export class SentenceSpeaker {
       return;
     }
     if (!this.started) { this.started = true; try { this.handlers.onStart?.(); } catch {} }
+    this.holdMutex();
+    if (this.stopped) return;
     const done = () => {
       if (this.stopped) return;
       this.currentCleanup = null;
@@ -229,6 +239,7 @@ export class SentenceSpeaker {
   private finish() {
     if (this.ended) return;
     this.ended = true;
+    if (this.releaseMutex) { try { this.releaseMutex(); } catch {} this.releaseMutex = null; }
     try { this.handlers.onEnd?.(); } catch {}
   }
 
