@@ -6,6 +6,8 @@ ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 PKG="$(mktemp -d)/axon-core-pkg"
 mkdir -p "$PKG"
 rsync -a --exclude '__pycache__' --exclude '*.pyc' --exclude 'assets/kokoro' --exclude '.env' --exclude 'tests' "$ROOT/backend/" "$PKG/backend/"
+# FIX build VPS: tolgo la riga `litellm @ …#sha256=…` (stesso wheel richiesto da emergentintegrations senza hash → ResolutionImpossible)
+grep -v '^litellm @ ' "$PKG/backend/requirements.txt" > "$PKG/backend/requirements.tmp" && mv "$PKG/backend/requirements.tmp" "$PKG/backend/requirements.txt"
 cp "$ROOT/deploy/axon-core/Dockerfile" "$PKG/backend/Dockerfile"
 cp "$ROOT/deploy/axon-core/.dockerignore" "$PKG/backend/.dockerignore"
 cp "$ROOT/deploy/axon-core/docker-compose.yml" "$PKG/"
