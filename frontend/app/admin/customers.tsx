@@ -20,6 +20,7 @@ import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { KModalBody } from "@/src/ui/keyboard"; // V50.z397 — tastiera: campo attivo sempre visibile nelle Modal
 
 type Tier = "paying_business" | "paying_private" | "test" | "axonos_business" | "axonos_private";
 
@@ -373,7 +374,7 @@ export default function AdminCustomersPage() {
       </Modal>
 
       {/* Broadcast modal */}
-      <Modal visible={showBroadcast} animationType="slide" transparent onRequestClose={() => setShowBroadcast(false)}>
+      <Modal visible={showBroadcast} animationType="slide" transparent onRequestClose={() => setShowBroadcast(false)}><KModalBody>
         <View style={styles.backdrop}>
           <View style={styles.sheet}>
             <View style={styles.sheetHead}>
@@ -483,7 +484,7 @@ export default function AdminCustomersPage() {
             </KScrollView>
           </View>
         </View>
-      </Modal>
+      </KModalBody></Modal>
     </SafeAreaView>
   );
 }

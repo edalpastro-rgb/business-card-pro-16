@@ -1003,7 +1003,7 @@ function AppointmentDetail() {
       </Modal>
 
       {/* V38W — Link Contact modal */}
-      <Modal transparent visible={linkModal} animationType="fade" onRequestClose={() => setLinkModal(false)}>
+      <Modal transparent visible={linkModal} animationType="fade" onRequestClose={() => setLinkModal(false)}><KModalBody>
         <View style={omstyles.back}>
           <View style={[omstyles.card, { maxHeight: "85%" }]}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
@@ -1063,7 +1063,7 @@ function AppointmentDetail() {
             </KScrollView>
           </View>
         </View>
-      </Modal>
+      </KModalBody></Modal>
     </SafeAreaView>
   );
 }

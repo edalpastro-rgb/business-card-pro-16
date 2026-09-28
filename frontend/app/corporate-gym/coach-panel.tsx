@@ -21,7 +21,7 @@ type Scenario = {
   key: string; area: "obiezioni" | "winwin"; label: string; description: string; image_url: string | null; duration_min: number; max_turns: number;
   tips: string[]; customer: { name?: string; role?: string; company?: string }; manual_ref: CgymManualRef | null; phases: Phase[];
   is_customized: boolean; customized_fields: string[]; defaults?: Scenario;
-  is_custom?: boolean; objection?: string; persona?: string; opening_hint?: string; eval_criteria?: string; voice?: string;
+  is_custom?: boolean; objection?: string; persona?: string; opening_hint?: string; eval_criteria?: string; model_answer?: string; voice?: string;
 };
 const VOICES = ["onyx", "nova", "alloy", "echo", "fable", "shimmer"];
 
@@ -35,23 +35,26 @@ export default function CgymCoachPanel() {
   const [saving, setSaving] = useState(false);
   const [picker, setPicker] = useState<{ target: "scenario" | number } | null>(null);
   const [creating, setCreating] = useState(false);
-  const [draft, setDraft] = useState<{ area: "obiezioni" | "winwin"; label: string; objection: string; persona: string; customer: { name: string; role: string; company: string } }>({ area: "obiezioni", label: "", objection: "", persona: "", customer: { name: "", role: "", company: "" } });
+  const [draft, setDraft] = useState<{ area: "obiezioni" | "winwin"; label: string; objection: string; persona: string; model_answer: string; duration_min: string; customer: { name: string; role: string; company: string } }>({ area: "obiezioni", label: "", objection: "", persona: "", model_answer: "", duration_min: "5", customer: { name: "", role: "", company: "" } });
 
   const createScenario = async () => {
     if (draft.label.trim().length < 3) { notify("Titolo", "Inserisci un titolo di almeno 3 caratteri."); return; }
     setSaving(true);
     try {
-      const r = await api<Scenario>("/cgym/config/custom", { method: "POST", body: { area: draft.area, label: draft.label, objection: draft.objection, persona: draft.persona, customer: draft.customer } });
-      setCreating(false); setDraft({ area: "obiezioni", label: "", objection: "", persona: "", customer: { name: "", role: "", company: "" } });
+      const r = await api<Scenario>("/cgym/config/custom", { method: "POST", body: { area: draft.area, label: draft.label, objection: draft.objection, persona: draft.persona, model_answer: draft.model_answer, duration_min: Number(draft.duration_min.replace(",", ".")) || undefined, customer: draft.customer } });
+      setCreating(false); setDraft({ area: "obiezioni", label: "", objection: "", persona: "", model_answer: "", duration_min: "5", customer: { name: "", role: "", company: "" } });
       await load();
       setSel(r); setForm({ ...r, tips: [...r.tips], phases: r.phases.map((p) => ({ ...p })) });
       notify("Creato", "Il nuovo role-play è già visibile ai consulenti nella sua sezione. Completa i dettagli qui sotto.");
     } catch (e: any) { notify("Creazione", e?.message || "Errore"); } finally { setSaving(false); }
   };
 
+  const [loadError, setLoadError] = useState<string | null>(null); // V50.z396 — mai spinner infinito
   const load = useCallback(async () => {
-    try { const r = await api<{ items: Scenario[]; can_edit: boolean }>("/cgym/config/scenarios"); setItems(r.items); setCanEdit(r.can_edit); }
-    catch (e: any) { notify("Pannello Coach", e?.message || "Errore"); }
+    setLoadError(null);
+    const timeout = new Promise<never>((_, rej) => setTimeout(() => rej(new Error("Il server non risponde (timeout 15 s). Riprova.")), 15000));
+    try { const r = await Promise.race([api<{ items: Scenario[]; can_edit: boolean }>("/cgym/config/scenarios"), timeout]); setItems(r.items); setCanEdit(r.can_edit); }
+    catch (e: any) { setLoadError(String(e?.message || "Errore di caricamento")); }
   }, []);
   useEffect(() => { void load(); }, [load]);
 
@@ -68,7 +71,7 @@ export default function CgymCoachPanel() {
         label: form.label, description: form.description, image_url: form.image_url || "", duration_min: Number(form.duration_min) || sel.defaults?.duration_min,
         max_turns: Number(form.max_turns) || sel.defaults?.max_turns, tips: form.tips, customer: form.customer,
         manual_ref: form.manual_ref || undefined, clear_manual_ref: !form.manual_ref,
-        ...(form.is_custom ? { objection: form.objection, persona: form.persona, opening_hint: form.opening_hint, eval_criteria: form.eval_criteria, voice: form.voice, area: form.area } : {}),
+        ...(form.is_custom ? { objection: form.objection, persona: form.persona, opening_hint: form.opening_hint, eval_criteria: form.eval_criteria, model_answer: form.model_answer, voice: form.voice, area: form.area } : {}),
         phases: form.phases.map((p) => ({ id: p.id, name: p.name, minutes_to: p.minutes_to ?? null, manual_ref: p.manual_ref || null })),
       } });
       setSel(r); setForm({ ...r, tips: [...r.tips], phases: r.phases.map((p) => ({ ...p })) });
@@ -115,7 +118,9 @@ export default function CgymCoachPanel() {
       </View>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: pagePad + 40, gap: 12 }} keyboardShouldPersistTaps="handled">
-        {!items ? <ActivityIndicator color={CGYM_ORANGE} style={{ marginTop: 30 }} /> : !form ? (
+        {!items ? (loadError ? (
+          <View style={[styles.card, { alignItems: "center", gap: 10 }]} testID="cgym-coach-error"><Text style={styles.hint}>{loadError}</Text><Pressable onPress={() => { void load(); }} style={styles.primaryBtn} testID="cgym-coach-retry"><Text style={styles.primaryTxt}>Riprova</Text></Pressable></View>
+        ) : <ActivityIndicator color={CGYM_ORANGE} style={{ marginTop: 30 }} />) : !form ? (
           <>
             <Text style={styles.hint}>{canEdit ? "Tocca un role-play per personalizzare testo, immagine, durata, interventi, checklist obiettivi, cliente simulato, manuale Drive e fasi di sessione." : "Solo il Master Coach può modificare i role-play. Qui vedi la configurazione attiva."}</Text>
             {canEdit && !creating && (
@@ -135,6 +140,8 @@ export default function CgymCoachPanel() {
                 </View>
                 {field("Titolo *", draft.label, (v) => setDraft({ ...draft, label: v }), { placeholder: "es. Obiezione FIDUCIA", testID: "cgym-coach-new-label" })}
                 {field("Obiezione / tema (una riga)", draft.objection, (v) => setDraft({ ...draft, objection: v }), { placeholder: "es. Non vi conosco, perché dovrei fidarmi?", testID: "cgym-coach-new-objection" })}
+                {field("Risposta modello (solo Master · Axon la usa per valutare il consulente)", draft.model_answer, (v) => setDraft({ ...draft, model_answer: v }), { multiline: true, placeholder: "La risposta ideale che il consulente dovrebbe dare a questa obiezione…", testID: "cgym-coach-new-model-answer" })}
+                {field("Durata stimata (minuti)", draft.duration_min, (v) => setDraft({ ...draft, duration_min: v }), { keyboard: "numeric", testID: "cgym-coach-new-duration" })}
                 {field("Come si comporta il cliente (istruzioni all'AI)", draft.persona, (v) => setDraft({ ...draft, persona: v }), { multiline: true, placeholder: "Chi è, cosa vuole davvero, come reagisce, cosa lo convince…", testID: "cgym-coach-new-persona" })}
                 <View style={{ flexDirection: "row", gap: 8 }}>
                   <View style={{ flex: 1 }}>{field("Nome cliente", draft.customer.name, (v) => setDraft({ ...draft, customer: { ...draft.customer, name: v } }), { testID: "cgym-coach-new-cust" })}</View>
@@ -184,6 +191,7 @@ export default function CgymCoachPanel() {
                 {field("Istruzioni al cliente simulato", form.persona || "", (v) => up({ persona: v }), { multiline: true })}
                 {field("Come apre la conversazione", form.opening_hint || "", (v) => up({ opening_hint: v }), { multiline: true, placeholder: "vuoto = apertura automatica sul tema" })}
                 {field("Criteri di valutazione finale", form.eval_criteria || "", (v) => up({ eval_criteria: v }), { multiline: true, placeholder: "vuoto = criteri standard" })}
+                {field("Risposta modello (riservata al Master)", form.model_answer || "", (v) => up({ model_answer: v }), { multiline: true, placeholder: "Axon confronta la risposta del consulente con questa", testID: "cgym-coach-model-answer" })}
                 <Text style={styles.fieldLabel}>Voce</Text>
                 <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>
                   {VOICES.map((v) => <Pressable key={v} onPress={() => up({ voice: v })} style={[styles.smallBtn, form.voice !== v && styles.ghost]}><Text style={[styles.smallBtnTxt, form.voice !== v && { color: HT.muted }]}>{v}</Text></Pressable>)}

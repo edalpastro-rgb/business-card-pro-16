@@ -9,6 +9,7 @@ import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { KModalBody } from "@/src/ui/keyboard"; // V50.z397 — tastiera: campo attivo sempre visibile nelle Modal
 type Contact = { contact_id: string; first_name: string; last_name: string; contact_code?: string; phone?: string };
 type Group = { group_id: string; name: string; color: string; member_count?: number };
 
@@ -364,7 +365,7 @@ export function MasterVoiceRecorder({
       {/* When trigger is hidden the parent controls the UI — no inline indicator needed. */}
 
       {/* Review + destinations modal (single modal, file always visible) */}
-      <Modal transparent visible={phase === "review"} onRequestClose={() => setConfirmClose(true)} animationType="slide">
+      <Modal transparent visible={phase === "review"} onRequestClose={() => setConfirmClose(true)} animationType="slide"><KModalBody>
         <View style={styles.modalRoot}>
           <View style={[styles.reviewSheet, { paddingBottom: bottomPad }]}>
             <View style={styles.reviewHeader}>
@@ -509,7 +510,7 @@ export function MasterVoiceRecorder({
             </View>
           </View>
         </View>
-      </Modal>
+      </KModalBody></Modal>
 
       {/* Confirm close/discard modal */}
       <Modal transparent visible={confirmClose} animationType="fade" onRequestClose={() => setConfirmClose(false)}>

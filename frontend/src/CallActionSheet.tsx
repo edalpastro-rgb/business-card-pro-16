@@ -8,6 +8,7 @@ import { cancelByTag } from "@/src/notifs";
 
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { KModalBody } from "@/src/ui/keyboard"; // V50.z397 — tastiera: campo attivo sempre visibile nelle Modal
 export type CallOutcome = {
   id: string;
   name: string;
@@ -146,7 +147,7 @@ export function CallActionSheet({ visible, target, onClose, onCompleted }: Props
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}><KModalBody>
       <View style={styles.wrap}>
         <View style={[styles.card, { paddingBottom: bottomPad }]}>
           <View style={styles.head}>
@@ -294,7 +295,7 @@ export function CallActionSheet({ visible, target, onClose, onCompleted }: Props
           )}
         </View>
       </View>
-    </Modal>
+    </KModalBody></Modal>
   );
 }
 

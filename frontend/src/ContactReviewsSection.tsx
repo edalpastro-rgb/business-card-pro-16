@@ -10,6 +10,7 @@ import * as Clipboard from "expo-clipboard";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { KModalBody } from "@/src/ui/keyboard"; // V50.z397 — tastiera: campo attivo sempre visibile nelle Modal
 
 type Channel = "whatsapp" | "email" | "sms" | "telegram";
 
@@ -458,7 +459,7 @@ export function ContactReviewsSection({
       </KScrollView>
 
       {/* Modal nuova richiesta */}
-      <Modal visible={showNew} transparent animationType="slide" onRequestClose={() => setShowNew(false)}>
+      <Modal visible={showNew} transparent animationType="slide" onRequestClose={() => setShowNew(false)}><KModalBody>
         <View style={styles.backdrop}>
           <View style={styles.sheet}>
             <View style={styles.sheetHead}>
@@ -547,7 +548,7 @@ export function ContactReviewsSection({
             </KScrollView>
           </View>
         </View>
-      </Modal>
+      </KModalBody></Modal>
     </View>
   );
 }

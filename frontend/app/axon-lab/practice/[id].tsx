@@ -19,6 +19,7 @@ import { LabDocSheet } from "@/src/axonlab/LabDocSheet";
 import { useLabDossier } from "@/src/axonlab/useLabDossier";
 import { DatePickerSheet } from "@/src/axonlab/DatePickerSheet"; // V50.z354 — Step 6 calendario libero
 import { type LabDocSpec, type LabDocEntry, type LabPractice, type LabForm, type LabField, fetchFormPdf, sharePdfBase64, printPdfBase64 } from "@/src/axonlab/labApi";
+import { KModalBody } from "@/src/ui/keyboard"; // V50.z397 — tastiera: campo attivo sempre visibile nelle Modal
 
 type FormDetail = LabForm & { fields: LabField[] };
 
@@ -242,7 +243,7 @@ export default function AxonLabPractice() {
       ) : null}
 
       {/* Revisione modulo */}
-      <Modal visible={!!review} transparent animationType="slide" onRequestClose={() => setReview(null)}>
+      <Modal visible={!!review} transparent animationType="slide" onRequestClose={() => setReview(null)}><KModalBody>
         <View style={s.backdrop}>
           <View style={[s.sheet, { paddingBottom: insets.bottom + 12 }]} testID="lab-review">
             <View style={s.handle} />
@@ -271,7 +272,7 @@ export default function AxonLabPractice() {
             </Pressable>
           </View>
         </View>
-      </Modal>
+      </KModalBody></Modal>
 
       <FileViewer visible={!!viewer} fileName={viewer?.name || "modulo.pdf"} mime="application/pdf" dataBase64={viewer?.b64 || ""} onClose={() => setViewer(null)} onShare={viewer ? () => sharePdfBase64(viewer.name, viewer.b64) : undefined} />
     </SafeAreaView>

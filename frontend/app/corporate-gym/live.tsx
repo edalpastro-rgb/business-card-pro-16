@@ -37,6 +37,8 @@ export default function CgymLiveScreen() {
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const [mic, setMic] = useState<MicPermissionState>("undetermined");
   const [s, setS] = useState<CgaSession | null>(null);
+  // V50.z396 — MOD 6: nelle aree ANT Axon è ESAMINATORE TECNICO (non cliente)
+  const examiner = /(^|[\s\-·(])ant([\s\-·)]|$)/i.test(String((s as any)?.area_name || ""));
   const [phase, setPhase] = useState<Phase>("idle");
   const [last, setLast] = useState<CgaTurnOut | null>(null);
   const [timeline, setTimeline] = useState<{ tone: Tone; pct: number }[]>([]);
@@ -89,6 +91,12 @@ export default function CgymLiveScreen() {
       } catch (e: any) { notify(e?.message || "Impossibile avviare la sessione"); } finally { setBusy(false); }
     })();
   }, [area, session, speak]);
+  // V50.z397 — analisi registrazione in background: finché lo stato è `processing` ricarico ogni 5 s
+  useEffect(() => {
+    if (s?.status !== "processing") return;
+    const iv = setInterval(() => { api<CgaSession>(`/cgym/live/${s.session_id}`).then(setS).catch(() => {}); }, 5000);
+    return () => clearInterval(iv);
+  }, [s?.status, s?.session_id]);
 
   const toggleRecord = async () => {
     if (!s || busy) return;
@@ -122,18 +130,26 @@ export default function CgymLiveScreen() {
   };
 
   const done = s?.status === "done";
+  const processing = s?.status === "processing" || s?.status === "error"; // V50.z397 — analisi registrazione in background
   const blockName = s ? s.blocks[s.block_idx] : "";
 
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable onPress={() => { stopPlayback(); router.back(); }} hitSlop={10} testID="cgym-live-back"><Ionicons name="chevron-back" size={24} color={HT.text} /></Pressable>
-        <View style={{ flex: 1 }}><Text style={styles.title} numberOfLines={1}>{s?.area_name || "Sessione live"}</Text><Text style={styles.sub} numberOfLines={1}>{done ? "Sessione valutata" : s ? `Blocco ${s.block_idx + 1}/${s.blocks.length} · ${blockName}` : "Avvio…"}</Text></View>
-        {!done && s ? <View style={styles.levelBadge} testID={`cgym-live-level-${s.training_level || trainingLevel}`}><Text style={styles.levelTxt}>{CGA_LEVEL_LABEL[s.training_level || trainingLevel]}</Text></View> : null}
-        {!done && s ? <Pressable onPress={finish} disabled={busy} style={styles.finishBtn} testID="cgym-live-finish"><Text style={styles.finishTxt}>Chiudi e valuta</Text></Pressable> : null}
+        <View style={{ flex: 1 }}><Text style={styles.title} numberOfLines={1}>{s?.area_name || "Sessione live"}</Text><Text style={styles.sub} numberOfLines={1}>{done ? "Sessione valutata" : processing ? (s?.title || "Registrazione") : s ? `Blocco ${s.block_idx + 1}/${s.blocks.length} · ${blockName}` : "Avvio…"}</Text></View>
+        {!done && !processing && s ? <View style={styles.levelBadge} testID={`cgym-live-level-${s.training_level || trainingLevel}`}><Text style={styles.levelTxt}>{CGA_LEVEL_LABEL[s.training_level || trainingLevel]}</Text></View> : null}
+        {!done && !processing && s ? <Pressable onPress={finish} disabled={busy} style={styles.finishBtn} testID="cgym-live-finish"><Text style={styles.finishTxt}>Chiudi e valuta</Text></Pressable> : null}
       </View>
 
-      {!done ? (
+      {processing ? (
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 14 }} testID={`cgym-live-${s!.status}`}>
+          {s!.status === "error" ? <Ionicons name="alert-circle-outline" size={44} color="#DC2626" /> : <ActivityIndicator size="large" color={HT.violet} />}
+          <Text style={[styles.title, { textAlign: "center" }]}>{s!.status === "error" ? "Analisi non riuscita" : "Trascrizione e valutazione in corso…"}</Text>
+          <Text style={[styles.meta, { textAlign: "center" }]}>{s!.status === "error" ? (s!.error || "Riprova con un'altra registrazione.") : "Axon sta ascoltando la tua registrazione. Per file lunghi possono servire alcuni minuti: puoi restare qui o tornare più tardi dalle valutazioni."}</Text>
+          <Pressable onPress={() => router.back()} style={[styles.again, { backgroundColor: s!.status === "error" ? "#DC2626" : HT.violet }]} testID="cgym-live-processing-back"><Ionicons name="arrow-back" size={18} color="#FFF" /><Text style={styles.finishTxt}>Torna all'area</Text></Pressable>
+        </View>
+      ) : !done ? (
         <>
           <View style={styles.stage}>
             {camPerm?.granted ? <CameraView style={StyleSheet.absoluteFill} facing="front" /> : <View style={[StyleSheet.absoluteFill, { backgroundColor: "#0F2438" }]} />}
@@ -142,7 +158,7 @@ export default function CgymLiveScreen() {
               <Animated.View style={[styles.avatar, { transform: [{ scale: pulse }], borderColor: phase === "listening" ? (liveTone ? TONE_COLOR[liveTone] : "#16A34A") : phase === "speaking" ? HT.violet : "rgba(255,255,255,0.5)" }]}>
                 <Ionicons name={phase === "listening" ? "mic" : phase === "thinking" ? "hourglass" : "sparkles"} size={30} color="#FFF" />
               </Animated.View>
-              <Text style={styles.avatarLbl}>{phase === "speaking" ? "Axon (cliente) parla…" : phase === "listening" ? "Ti ascolto…" : phase === "thinking" ? "Analizzo…" : "Axon · cliente"}</Text>
+              <Text style={styles.avatarLbl}>{phase === "speaking" ? `Axon (${examiner ? "esaminatore" : "cliente"}) parla…` : phase === "listening" ? (examiner ? "Ti ascolto: spiega il blocco…" : "Ti ascolto…") : phase === "thinking" ? (examiner ? "Verifico sul materiale ANT…" : "Analizzo…") : examiner ? "Axon · esaminatore tecnico" : "Axon · cliente"}</Text>
             </View>
             {/* V50.z388 — semaforo DISTACCO in tempo reale (verde · blu · rosso) */}
             <View style={styles.distaccoWrap} testID={`cgym-live-distacco-${distacco?.color || "nd"}`}>

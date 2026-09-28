@@ -6,6 +6,7 @@ import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo
 import { Ionicons } from "@expo/vector-icons";
 import { cgymManualsApi, CgymManualFile, CgymManualRef } from "@/src/corporate-gym/manualsApi";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { KModalBody } from "@/src/ui/keyboard"; // V50.z397 — tastiera: campo attivo sempre visibile nelle Modal
 
 type Crumb = { id: string; name: string };
 
@@ -51,7 +52,7 @@ export function CgymDrivePicker({ visible, title, onClose, onPick, allowFiles = 
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}><KModalBody>
       <View style={styles.root}>
         <Pressable style={{ flex: 1 }} onPress={onClose} />
         <View style={styles.sheet} testID="cgym-drive-picker">
@@ -103,7 +104,7 @@ export function CgymDrivePicker({ visible, title, onClose, onPick, allowFiles = 
           </KScrollView>
         </View>
       </View>
-    </Modal>
+    </KModalBody></Modal>
   );
 }
 

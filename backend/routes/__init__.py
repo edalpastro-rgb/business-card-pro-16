@@ -117,5 +117,6 @@ MODULES = [
     "axon_honesty_rule.py",  # V50.z386 — REGOLA PERMANENTE: «Non lo so, verifica con Emmy o con Neo.» — ULTIMO wrapper di _prepare_assistant_prompt (testa+coda del prompt, non sovrascrivibile)
     "audio_transcripts.py",  # V50.z389 — FUNZIONALITÀ 4: trascrizione (Whisper, segmenti) + pulizia LLM di OGNI audio caricato, bozza→conferma→pubblicazione sola lettura (usa _cgym_llm, _upl_whisper_path, MC_FFMPEG)
     "wake_samples.py",  # V50.z390 — Raccolta pubblica campioni audio wake-word «Axon» (/public/wake-samples, pronuncia TTS) + pannello Super Master (stats, export.zip)
+    "corporate_gym_rules_v2.py",  # V50.z396 — MOD 4-8 Gym: cliente V2, 8 blocchi WIN-WIN, esaminatore ANT, risposta modello, KB Obiezioni da pag. 13 (wrap di _cgym_customer_turn/_cgym_ww_phase/_cgym_scenario_for/_cga_area/_cga_client_system)
     "37_app_startup_scheduler.py",
 ]

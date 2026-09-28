@@ -615,7 +615,7 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
       animationType="slide"
       onRequestClose={onClose}
       statusBarTranslucent
-    >
+    ><KModalBody>
       {/* V50.z59-fix2 — Rimosso il backdrop <Pressable onPress={onClose}>: il
           re-render causato dagli input di editing (phone label, ecc.) scatenava
           un tap event sintetico sul backdrop, chiudendo il sheet appena
@@ -1394,7 +1394,7 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
           />
         </Modal>
       )}
-    </Modal>
+    </KModalBody></Modal>
   );
 }
 

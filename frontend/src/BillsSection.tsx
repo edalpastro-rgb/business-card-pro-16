@@ -21,6 +21,7 @@ import { BillAnalysisConfigModal, BillAnalysisConfigButton, PresetQuickRow } fro
 import { BillAnalysisBundle, loadBillAnalysisConfig, configuredDefaults, configSummary } from "@/src/billAnalysisConfig";
 import { MicroTutorial, TUTORIAL_ANALIZZA_BOLLETTA } from "@/src/MicroTutorial";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { KModalBody } from "@/src/ui/keyboard"; // V50.z397 — tastiera: campo attivo sempre visibile nelle Modal
 
 type BillType = "luce" | "gas" | "telco";
 export type QuickBillType = BillType;
@@ -1404,7 +1405,7 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
       </KScrollView>
 
       {/* V38 — Analysis parameters config modal */}
-      <Modal visible={!!pendingUpload} animationType="slide" transparent onRequestClose={cancelPendingUpload}>
+      <Modal visible={!!pendingUpload} animationType="slide" transparent onRequestClose={cancelPendingUpload}><KModalBody>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }}>
           <View style={{ backgroundColor: HT.card2, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "90%" }}>
             {pendingUpload && (() => {
@@ -1540,7 +1541,7 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
             })()}
           </View>
         </View>
-      </Modal>
+      </KModalBody></Modal>
 
       {/* V38E — Source picker: device vs contact files */}
       <Modal

@@ -15,6 +15,7 @@ import { notify } from "@/src/utils/notify";
 
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { KModalBody } from "@/src/ui/keyboard"; // V50.z397 — tastiera: campo attivo sempre visibile nelle Modal
 type QuickAction = { id: string; label: string; prompt: string };
 
 const C = { primary: "#8B5CF6", primarySoft: "#F1EEFF", navy: HT.text, muted: HT.muted };
@@ -204,7 +205,7 @@ export default function QuickActionsScreen() {
       )}
 
       {/* Edit modal */}
-      <Modal transparent visible={!!edit} animationType="slide" onRequestClose={() => setEdit(null)}>
+      <Modal transparent visible={!!edit} animationType="slide" onRequestClose={() => setEdit(null)}><KModalBody>
         <View style={styles.backdrop}>
           <View style={[styles.sheet, { paddingBottom: bottomPad }]}>
             <View style={styles.sheetHdr}>
@@ -243,7 +244,7 @@ export default function QuickActionsScreen() {
             </KScrollView>
           </View>
         </View>
-      </Modal>
+      </KModalBody></Modal>
     </SafeAreaView>
   );
 }

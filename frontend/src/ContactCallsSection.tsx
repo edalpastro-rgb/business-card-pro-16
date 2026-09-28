@@ -8,6 +8,7 @@ import { theme } from "@/src/theme";
 
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { KModalBody } from "@/src/ui/keyboard"; // V50.z397 — tastiera: campo attivo sempre visibile nelle Modal
 /**
  * V28.c — Renamed: "Cronologia comunicazioni" (was: telefonate).
  * Renders a unified timeline of ALL communication events with the contact:
@@ -237,7 +238,7 @@ export function ContactCallsSection({ contactId, contactName, contactPhone, refr
       )}
 
       {/* V28.f — Edit modal: outcome + duration + note */}
-      <Modal visible={!!editing} transparent animationType="slide" onRequestClose={() => setEditing(null)}>
+      <Modal visible={!!editing} transparent animationType="slide" onRequestClose={() => setEditing(null)}><KModalBody>
         <View style={styles.editBackdrop}>
           <View style={[styles.editCard, { paddingBottom: 16 + safeBottom }, { paddingBottom: bottomPad }]} testID="call-log-edit-modal">
             <View style={styles.editHead}>
@@ -315,7 +316,7 @@ export function ContactCallsSection({ contactId, contactName, contactPhone, refr
             </KScrollView>
           </View>
         </View>
-      </Modal>
+      </KModalBody></Modal>
     </View>
   );
 }

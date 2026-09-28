@@ -9,6 +9,7 @@ import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { KModalBody } from "@/src/ui/keyboard"; // V50.z397 — tastiera: campo attivo sempre visibile nelle Modal
 /**
  * V29.o — Master-only flow "Promuovi contatto ad agente".
  * 1. Search field per trovare il contatto (nome/email/codice)
@@ -131,7 +132,7 @@ export function MasterPromoteModal({ visible, onClose }: { visible: boolean; onC
   const fullName = (c?: ContactLite | null) => c ? `${c.first_name || ""} ${c.last_name || ""}`.trim() : "";
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose} testID="master-promote-modal">
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose} testID="master-promote-modal"><KModalBody>
       <Pressable style={styles.backdrop} onPress={handleClose}>
         <Pressable style={[styles.sheet, { paddingBottom: safeBottom + 12 }, { paddingBottom: bottomPad }]} onPress={(e) => e.stopPropagation()}>
           <View style={styles.grip} />
@@ -314,7 +315,7 @@ export function MasterPromoteModal({ visible, onClose }: { visible: boolean; onC
           </KScrollView>
         </Pressable>
       </Pressable>
-    </Modal>
+    </KModalBody></Modal>
   );
 }
 

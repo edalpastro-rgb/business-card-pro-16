@@ -408,12 +408,12 @@ async def cga_live_start(body: CgaLiveStartIn, user=Depends(get_current_user)):
     tid = tenant_id(user); area = await _cga_area(tid, body.area_id)
     blocks = area.get("blocks") or ["Trattativa"]
     bi = max(0, min(body.block_idx, len(blocks) - 1))
-    opening = "Buongiorno, prego, mi dica. Ho pochi minuti però."
-    try:
-        raw = await _cgym_llm(_cga_client_system(area, blocks[bi], _cga_level(body.training_level)), "Inizia tu la scena con la prima battuta del cliente (il consulente deve ancora parlare): hesitation=false, block_done=false, distacco=70, issues=[].")  # noqa: F821
-        opening = (_cgym_llm_json(raw).get("reply") or opening).strip()  # noqa: F821
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("[cga] opening failed: %s", exc)
+    # V50.z397 — Apertura DETERMINISTICA (niente LLM: risposta immediata, regola dei 2 s): il cliente è nel suo ufficio e accoglie
+    # (MOD 4 «Prego, si accomodi»); nell'area ANT Axon è ESAMINATORE tecnico e invita a iniziare la spiegazione del blocco (MOD 6).
+    if _r2_is_ant(area):  # noqa: F821 — corporate_gym_rules_v2
+        opening = f"Buongiorno. Sono pronto ad ascoltarla: mi spieghi «{blocks[bi]}» come farebbe con un cliente. Prego, cominci."
+    else:
+        opening = "Prego, si accomodi. Mi dica."
     s = {"session_id": f"cgl_{uuid.uuid4().hex[:10]}", "tenant_id": tid, "user_id": user["user_id"], "user_name": user.get("name"), "area_id": area["area_id"], "area_name": area["name"],
          "blocks": blocks, "block_idx": bi, "repeats": 0, "status": "live", "source": "live", "training_level": _cga_level(body.training_level), "turns": [{"role": "client", "text": opening, "block_idx": bi, "ts": utcnow()}],
          "started_at": utcnow(), "finished_at": None, "score": None, "rating": None, "feedback": None, "manager_report": None}
@@ -570,6 +570,41 @@ async def cga_from_recording(body: CgaRecordingIn, user=Depends(get_current_user
     s.update({**ev, "status": "done", "finished_at": utcnow(), "duration_sec": 0})
     await db.cgym_live_sessions.insert_one(dict(s))
     return _cga_out(s)
+
+
+@api_router.post("/cgym/live/from-recording/upload")
+async def cga_from_recording_upload(file: UploadFile = File(...), area_id: str = Form(...), title: Optional[str] = Form(None), training_level: Optional[str] = Form(None), user=Depends(get_current_user)):
+    """V50.z397 — BUG Drive «Network request failed»: la registrazione del consulente arriva in MULTIPART (niente base64 in JSON,
+    nessun limite 25 MB) e la trascrizione Whisper (segmenti ffmpeg, qualsiasi durata) + valutazione avvengono in BACKGROUND:
+    rispondo subito con la sessione in stato `processing`, l'app fa polling su GET /cgym/live/{id} finché è `done` (o `error`)."""
+    tid = tenant_id(user); area = await _cga_area(tid, area_id)
+    raw = await file.read()
+    if len(raw) < 1000:
+        raise HTTPException(status_code=400, detail="File vuoto o non leggibile: se viene da Google Drive verifica che sia disponibile offline")
+    mime = file.content_type or "audio/m4a"; name = file.filename or "registrazione"
+    if mc_kind(mime, name, raw) not in ("audio", "video"):  # noqa: F821
+        raise HTTPException(status_code=400, detail="Serve una registrazione audio o video")
+    s = {"session_id": f"cgl_{uuid.uuid4().hex[:10]}", "tenant_id": tid, "user_id": user["user_id"], "user_name": user.get("name"), "area_id": area["area_id"], "area_name": area["name"],
+         "blocks": area.get("blocks") or ["Trattativa"], "block_idx": 0, "repeats": 0, "status": "processing", "source": "recording", "title": (title or name)[:120],
+         "training_level": _cga_level(training_level), "turns": [], "started_at": utcnow(), "finished_at": None, "score": None, "rating": None, "error": None}
+    await db.cgym_live_sessions.insert_one(dict(s))
+    asyncio.create_task(_cga_from_recording_bg(s, raw, mime, name))
+    return _cga_out(s)
+
+
+async def _cga_from_recording_bg(s: dict, raw: bytes, mime: str, name: str) -> None:
+    sid = s["session_id"]
+    try:
+        text = (await audio_transcribe_long(raw, mime, name)).strip()  # noqa: F821 — audio_transcripts
+        if len(text) < 20:
+            raise ValueError("Registrazione troppo breve o senza voce")
+        s["turns"] = [{"role": "consultant", "text": text, "tone": _cga_tone_fallback(text), "block_idx": 0, "ts": utcnow()}]
+        ev = await _cga_evaluate(s)
+        s.update({**ev, "status": "done", "finished_at": utcnow(), "duration_sec": 0})
+        await db.cgym_live_sessions.update_one({"session_id": sid}, {"$set": {k: v for k, v in s.items() if k != "_id"}})
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[cgym-recording] analisi fallita %s: %s", sid, exc)
+        await db.cgym_live_sessions.update_one({"session_id": sid}, {"$set": {"status": "error", "error": f"Analisi non riuscita: {str(exc)[:200]}", "finished_at": utcnow()}})
 
 
 @api_router.get("/cgym/live/{session_id}")

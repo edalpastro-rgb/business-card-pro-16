@@ -13,6 +13,7 @@ import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { LabHeader, labStyles as L } from "@/src/axonlab/LabHeader";
 import { type LabModule, type LabSource, type LabField, specialLabel } from "@/src/axonlab/labApi";
 import { LabExamplesCard } from "@/src/axonlab/LabExamplesCard"; // V50.z375 — esempi compilati multipli
+import { KModalBody } from "@/src/ui/keyboard"; // V50.z397 — tastiera: campo attivo sempre visibile nelle Modal
 
 export default function AxonLabModule() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -120,7 +121,7 @@ export default function AxonLabModule() {
       ) : null}
 
       {/* Picker fonte */}
-      <Modal visible={!!pick} transparent animationType="slide" onRequestClose={() => setPick(null)}>
+      <Modal visible={!!pick} transparent animationType="slide" onRequestClose={() => setPick(null)}><KModalBody>
         <View style={s.backdrop}>
           <View style={[s.sheet, { paddingBottom: insets.bottom + 12 }]} testID="lab-source-picker">
             <View style={s.handle} />
@@ -148,7 +149,7 @@ export default function AxonLabModule() {
             <Pressable onPress={() => setPick(null)} style={[L.btn, L.btnGhost, { marginTop: 8 }]} testID="lab-source-close"><Text style={[L.btnTxt, { color: HT.text }]}>Chiudi</Text></Pressable>
           </View>
         </View>
-      </Modal>
+      </KModalBody></Modal>
     </SafeAreaView>
   );
 }

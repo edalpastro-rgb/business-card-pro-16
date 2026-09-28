@@ -16,6 +16,7 @@ import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { KModalBody } from "@/src/ui/keyboard"; // V50.z397 — tastiera: campo attivo sempre visibile nelle Modal
 
 type Preset = { id: string; label: string; host?: string; port?: number; ssl?: boolean; note?: string };
 type MailAccount = {
@@ -705,7 +706,7 @@ function AddAccountModal({ onClose, onAdded }: { onClose: () => void; onAdded: (
   const currentPreset = presets.find((p) => p.id === providerId);
 
   return (
-    <Modal transparent visible animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+    <Modal transparent visible animationType="slide" onRequestClose={onClose} statusBarTranslucent><KModalBody>
       <View style={styles.mBackdrop}>
         <View style={styles.mBox}>
           <View style={styles.mHeader}>
@@ -837,7 +838,7 @@ function AddAccountModal({ onClose, onAdded }: { onClose: () => void; onAdded: (
           </KScrollView>
         </View>
       </View>
-    </Modal>
+    </KModalBody></Modal>
   );
 }
 

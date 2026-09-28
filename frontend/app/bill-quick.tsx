@@ -22,6 +22,7 @@ import { InAppWebViewer } from "@/src/InAppWebViewer";
 
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { KModalBody } from "@/src/ui/keyboard"; // V50.z397 — tastiera: campo attivo sempre visibile nelle Modal
 // ---------- Types ----------
 
 type BillType = QuickBillType;
@@ -934,7 +935,7 @@ function BillQuickScreen() {
       </Modal>
 
       {/* Params modal — mirrors BillsSection */}
-      <Modal visible={!!pendingUpload} animationType="slide" transparent onRequestClose={cancelPendingUpload}>
+      <Modal visible={!!pendingUpload} animationType="slide" transparent onRequestClose={cancelPendingUpload}><KModalBody>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }}>
           <View style={{ backgroundColor: HT.card2, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "90%" }}>
             {pendingUpload && (() => {
@@ -1128,7 +1129,7 @@ function BillQuickScreen() {
             })()}
           </View>
         </View>
-      </Modal>
+      </KModalBody></Modal>
 
       {/* Source picker: Device vs Master files */}
       <Modal visible={!!sourcePickerFor} animationType="fade" transparent onRequestClose={() => setSourcePickerFor(null)}>
@@ -1223,7 +1224,7 @@ function BillQuickScreen() {
       />
 
       {/* Associate contact modal */}
-      <Modal visible={!!associateTarget} animationType="slide" transparent onRequestClose={() => setAssociateTarget(null)}>
+      <Modal visible={!!associateTarget} animationType="slide" transparent onRequestClose={() => setAssociateTarget(null)}><KModalBody>
         <View style={styles.modalBack}>
           <View style={[styles.modalCard, { paddingBottom: bottomPad }]}>
             <Text style={styles.modalTitle}>Associa a un cliente</Text>
@@ -1270,7 +1271,7 @@ function BillQuickScreen() {
             </Pressable>
           </View>
         </View>
-      </Modal>
+      </KModalBody></Modal>
 
       <CalculatorFAB />
       {/* v2.17 — Report header (branding) config modal */}

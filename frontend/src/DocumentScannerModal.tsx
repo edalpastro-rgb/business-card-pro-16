@@ -14,6 +14,7 @@ import { savePendingScan, isNetworkError, type PendingScanJob } from "@/src/scan
 
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { KModalBody } from "@/src/ui/keyboard"; // V50.z397 — tastiera: campo attivo sempre visibile nelle Modal
 /**
  * V27 — Document Scanner (multi-page + auto-crop + PDF merge).
  *
@@ -391,7 +392,7 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
   };
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose} transparent>
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose} transparent><KModalBody>
       <View style={styles.back}>
         <View style={[styles.card, { paddingBottom: keyboardOpen ? 8 : bottomPad, marginBottom: lift }]}>
           {/* Header */}
@@ -573,7 +574,7 @@ export function DocumentScannerModal({ visible, onClose, defaultName, hintTitle,
           onDelete={deleteFromPreview}
         />
       )}
-    </Modal>
+    </KModalBody></Modal>
   );
 }
 

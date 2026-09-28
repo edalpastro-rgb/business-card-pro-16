@@ -1,0 +1,26 @@
+{
+  "summary": "V50.z397 backend+frontend validation. Backend: 5/5 pytest cases pass — POST /api/cgym/live/from-recording/upload returns 200 + status='processing' + session_id, session transitions to done/error via background task (whisper); 400 with Italian detail on tiny text file; 401 without auth; POST /api/cgym/live/start returns deterministic client opening 'Prego, si accomodi. Mi dica.' for all 3 tenant areas (no ANT area in tenant); legacy JSON POST /api/cgym/live/from-recording still functions (no 500). Frontend: /corporate-gym/live?session=<id> correctly shows testID cgym-live-processing with 'Trascrizione e valutazione in corso…' spinner + 'Torna all'area' button (testID cgym-live-processing-back), then transitions to cgym-live-result (status done, OSCENO 15/100 evaluation rendered as expected for synthetic tone). KModalBody regression confirmed on /quick-actions, /leads (Configura esigenze), /bill-quick (Configura Analisi Fatture), and /contact/new — all modals render content and TextInputs accept typing.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v50z397_cgym_recording_upload.py",
+    "/app/test_reports/pytest/v50z397_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "cgym_areas.py: _cga_from_recording_bg replaces the entire session doc on success via {k:v for k,v in s.items()}; this pattern silently overwrites concurrent fields but is safe because status='processing' sessions have no other writers.",
+    "live.tsx line 133: 'processing' variable is true for both status='processing' and status='error' which is intentional (same visual container with different icon/text) — testIDs cgym-live-processing vs cgym-live-error correctly discriminate via `cgym-live-${s.status}` template literal."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "Created 2 test cgym_live_sessions (cgl_*) with title=TEST_recording_upload/FE_test — orphan test data, not affecting production; also inserted TEST_label quick action label preview (never saved) and TEST_need in leads needs config preview (never saved) — nothing was persisted since no save button was pressed in modal regression.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "V50.z397 iteration 123 fully green. from-recording/upload multipart endpoint works with WAV; background task typically completes within ~15-30s on synthetic tone (evaluated as OSCENO 15/100 which is the expected outcome for a sine wave — Whisper transcribes garbage sub-titles and the LLM evaluates it as invalid). Frontend polling every 5s picks up status change and swaps container to cgym-live-result. If a future test needs a truly 'done' status with real content, generate speech via espeak/ffmpeg (available in previous v25c tests).",
+  "rca_of_issue": "N/A — no bug reproduced. This was an implementation validation for V50.z397 (multipart upload for CGYM recording analysis + deterministic client opening + KModalBody codemod)."
+}

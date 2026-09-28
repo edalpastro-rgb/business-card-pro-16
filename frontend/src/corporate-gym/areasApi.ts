@@ -18,7 +18,7 @@ export const CGA_LEVEL_HINT: Record<CgaLevel, string> = {
 };
 export const DISTACCO_COLOR: Record<string, string> = { verde: "#22C55E", blu: "#3B82F6", rosso: "#EF4444" };
 export type CgaSession = {
-  session_id: string; area_id: string; area_name: string; blocks: string[]; block_idx: number; repeats: number; status: "live" | "done"; source: "live" | "recording";
+  session_id: string; area_id: string; area_name: string; blocks: string[]; block_idx: number; repeats: number; status: "live" | "done" | "processing" | "error"; source: "live" | "recording"; title?: string; error?: string | null;
   turns: CgaTurn[]; score: number | null; rating: string | null; tone_mix?: Record<Tone, number>;
   // V50.z387 — addestramento a tre livelli + parametri Manuale Unico
   training_level?: CgaLevel; params?: Record<"tono" | "obiezioni" | "invito_azione" | "distacco" | "dati" | "filo_logico", number>; distacco_color?: "verde" | "blu" | "rosso";
@@ -53,5 +53,6 @@ export const cgaApi = {
   liveTurn: (sid: string, body: { audio_base64?: string; mime?: string; text?: string; tts?: boolean }) => api<CgaTurnOut>(`/cgym/live/${sid}/turn`, { method: "POST", body }),
   liveFinish: (sid: string) => api<CgaSession>(`/cgym/live/${sid}/finish`, { method: "POST" }),
   fromRecording: (body: { area_id: string; audio_base64: string; mime: string; title?: string; training_level?: CgaLevel }) => api<CgaSession>("/cgym/live/from-recording", { method: "POST", body }),
+  fromRecordingUpload: (form: FormData) => apiUpload<CgaSession>("/cgym/live/from-recording/upload", form), // V50.z397 — multipart + analisi in background
   ratings: (q: { user_id?: string; area_id?: string } = {}) => api<{ items: CgaRatingRow[]; is_master: boolean }>("/cgym/ratings", { query: q as any }),
 };

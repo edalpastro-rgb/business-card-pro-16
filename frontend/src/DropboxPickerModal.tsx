@@ -12,6 +12,7 @@ import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { KModalBody } from "@/src/ui/keyboard"; // V50.z397 — tastiera: campo attivo sempre visibile nelle Modal
 
 type DbxEntry = {
   ".tag"?: string;
@@ -105,7 +106,7 @@ export function DropboxPickerModal({
   };
 
   return (
-    <Modal transparent visible={visible} animationType="slide" onRequestClose={onClose}>
+    <Modal transparent visible={visible} animationType="slide" onRequestClose={onClose}><KModalBody>
       <View style={styles.backdrop}>
         <View style={[styles.sheet, { paddingBottom: safeBottom + 12 }, { paddingBottom: bottomPad }]}>
           <View style={styles.hdr}>
@@ -197,7 +198,7 @@ export function DropboxPickerModal({
           )}
         </View>
       </View>
-    </Modal>
+    </KModalBody></Modal>
   );
 }
 

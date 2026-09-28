@@ -16,6 +16,7 @@ import {
   BAType, BillAnalysisBundle, BillAnalysisConfig, BACatalogItem, BAPreset,
   loadBillAnalysisConfig, saveBillAnalysisConfig, resetBillAnalysisConfig, savePreset, deletePreset, labelsFor,
 } from "@/src/billAnalysisConfig";
+import { KModalBody } from "@/src/ui/keyboard"; // V50.z397 — tastiera: campo attivo sempre visibile nelle Modal
 
 const ACCENT = "#7C3AED";
 const TYPES: { id: BAType; label: string; emoji: string; color: string }[] = [
@@ -185,7 +186,7 @@ export function BillAnalysisConfigModal({ visible, onClose, onSaved, previewBuil
     (items || []).filter((f) => flags?.[f.id] ?? f.default_on ?? true).length;
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}><KModalBody>
       <View style={[styles.root, { paddingTop: Platform.OS === "web" ? 12 : insets.top }]}>
         {/* Header */}
         <View style={styles.header}>
@@ -411,7 +412,7 @@ export function BillAnalysisConfigModal({ visible, onClose, onSaved, previewBuil
           </Pressable>
         </View>
       </View>
-    </Modal>
+    </KModalBody></Modal>
   );
 }
 

@@ -48,6 +48,7 @@ class CgcCustomerIn(BaseModel):
 
 
 class CgcScenarioPatch(BaseModel):
+    model_answer: Optional[str] = None      # V50.z396 — solo custom: risposta modello (riservata al Master)
     label: Optional[str] = None
     description: Optional[str] = None
     image_url: Optional[str] = None
@@ -81,6 +82,7 @@ class CgcCustomScenarioIn(BaseModel):
     persona: Optional[str] = None           # chi è il cliente simulato e come si comporta (istruzioni all'AI)
     opening_hint: Optional[str] = None      # come apre il cliente
     eval_criteria: Optional[str] = None     # criteri di valutazione finale
+    model_answer: Optional[str] = None      # V50.z396 — RISPOSTA MODELLO (solo Master): Axon la usa come riferimento per valutare il consulente
     voice: Optional[str] = None
     duration_min: Optional[float] = None
     max_turns: Optional[int] = None
@@ -114,7 +116,7 @@ def _cgc_custom_scenario(doc: dict) -> dict:
           "duration_min": float(doc.get("duration_min") or (45 if area == "winwin" else 5)), "voice": doc.get("voice") or "onyx", "persona": _cgc_custom_persona(doc),
           "opening_hint": doc.get("opening_hint") or f"Apri tu la conversazione come farebbe il cliente: presenta subito il tema «{doc.get('objection') or doc['label']}».",
           "eval_criteria": doc.get("eval_criteria") or "Valuta: ascolto e rispetto del ruolo, capacità di riformulare l'obiezione, valore e numeri concreti, chiusura con prossimo passo preciso.",
-          "custom": True}
+          "custom": True, "model_answer": (doc.get("model_answer") or "").strip() or None}
     if doc.get("phases"):
         sc["phases"] = [(float(p.get("minutes_to") or 0), p["name"]) for p in doc["phases"] if p.get("name")]
     return sc
@@ -124,7 +126,7 @@ def _cgc_custom_out(doc: dict) -> dict:
     sc = _cgc_custom_scenario(doc)
     return {"key": doc["key"], "area": sc["area"], "label": sc["label"], "objection": sc["objection"], "description": doc.get("description") or "", "image_url": doc.get("image_url"),
             "duration_min": sc["duration_min"], "max_turns": sc["max_turns"], "tips": list(doc.get("tips") or []), "customer": dict(doc.get("customer") or {}), "manual_ref": doc.get("manual_ref"),
-            "phases": list(doc.get("phases") or []), "voice": sc["voice"], "persona": doc.get("persona") or "", "opening_hint": doc.get("opening_hint") or "", "eval_criteria": doc.get("eval_criteria") or "",
+            "phases": list(doc.get("phases") or []), "voice": sc["voice"], "persona": doc.get("persona") or "", "opening_hint": doc.get("opening_hint") or "", "eval_criteria": doc.get("eval_criteria") or "", "model_answer": doc.get("model_answer") or "",
             "is_customized": True, "is_custom": True, "customized_fields": [], "updated_at": doc.get("updated_at").isoformat() if isinstance(doc.get("updated_at"), datetime) else None}
 
 
@@ -195,8 +197,15 @@ async def _cgym_scenario_for(tid: str, key: str) -> dict:  # noqa: F811 — hook
 async def cgc_scenarios(user=Depends(get_current_user)):
     tid = tenant_id(user)
     cfgs = {c["scenario_key"]: c async for c in db.cgym_scenario_configs.find({"tenant_id": tid}, {"_id": 0})}
-    customs = [_cgc_custom_out(d) async for d in db.cgym_custom_scenarios.find({"tenant_id": tid}, {"_id": 0}).sort("created_at", 1)]
+    customs = [_cgc_hide(_cgc_custom_out(d), user) async for d in db.cgym_custom_scenarios.find({"tenant_id": tid}, {"_id": 0}).sort("created_at", 1)]
     return {"items": [_cgc_merge(k, cfgs.get(k)) for k in CGYM_SCENARIOS] + customs, "can_edit": is_owner(user)}
+
+
+def _cgc_hide(out: dict, user: dict) -> dict:
+    """V50.z396 — consulenti/utenti normali NON vedono risposta modello, istruzioni al cliente simulato e criteri (solo Master)."""
+    if is_owner(user):
+        return out
+    return {**out, "model_answer": "", "persona": "", "eval_criteria": "", "opening_hint": ""}
 
 
 @api_router.get("/cgym/config/scenarios/{key}")
@@ -205,7 +214,7 @@ async def cgc_scenario_get(key: str, user=Depends(get_current_user)):
         doc = await _cgc_custom(tenant_id(user), key)
         if not doc:
             raise HTTPException(status_code=404, detail="Scenario personalizzato non trovato")
-        out = _cgc_custom_out(doc)
+        out = _cgc_hide(_cgc_custom_out(doc), user)
         return {**out, "defaults": out, "can_edit": is_owner(user)}
     if key not in CGYM_SCENARIOS:
         raise HTTPException(status_code=404, detail="Scenario non valido")
@@ -240,8 +249,8 @@ async def cgc_scenario_put(key: str, body: CgcScenarioPatch, user=Depends(get_cu
         if not doc:
             raise HTTPException(status_code=404, detail="Scenario personalizzato non trovato")
         upd: Dict[str, Any] = {"updated_at": utcnow()}
-        for f in ("label", "description", "image_url", "duration_min", "max_turns", "objection", "persona", "opening_hint", "eval_criteria", "voice", "area"):
-            v = getattr(body, f)
+        for f in ("label", "description", "image_url", "duration_min", "max_turns", "objection", "persona", "opening_hint", "eval_criteria", "voice", "area", "model_answer"):
+            v = getattr(body, f, None)
             if v is not None: upd[f] = v
         if body.tips is not None: upd["tips"] = [t.strip()[:200] for t in body.tips if t.strip()][:12]
         if body.customer is not None: upd["customer"] = {k: (v or "").strip()[:120] or None for k, v in body.customer.model_dump().items()}
@@ -307,7 +316,7 @@ async def cgc_custom_create(body: CgcCustomScenarioIn, user=Depends(get_current_
     key = f"{_CGC_CUSTOM_PREFIX}{uuid.uuid4().hex[:8]}"
     area = body.area if body.area in ("obiezioni", "winwin") else "obiezioni"
     doc = {"tenant_id": tid, "key": key, "area": area, "label": label, "objection": (body.objection or "").strip()[:200] or None, "persona": (body.persona or "").strip()[:3000] or None,
-           "opening_hint": (body.opening_hint or "").strip()[:600] or None, "eval_criteria": (body.eval_criteria or "").strip()[:1500] or None, "voice": body.voice or ("nova" if area == "winwin" else "onyx"),
+           "opening_hint": (body.opening_hint or "").strip()[:600] or None, "eval_criteria": (body.eval_criteria or "").strip()[:1500] or None, "model_answer": (body.model_answer or "").strip()[:3000] or None, "voice": body.voice or ("nova" if area == "winwin" else "onyx"),
            "duration_min": max(1.0, min(180.0, float(body.duration_min or (45 if area == "winwin" else 5)))), "max_turns": max(1, min(100, int(body.max_turns or (30 if area == "winwin" else CGYM_RP_MAX_TURNS)))),
            "description": (body.description or "").strip()[:1500] or None, "image_url": (body.image_url or "").strip()[:500] or None,
            "tips": [t.strip()[:200] for t in (body.tips or []) if t.strip()][:12], "customer": {k: (v or "").strip()[:120] or None for k, v in (body.customer.model_dump() if body.customer else {}).items()},

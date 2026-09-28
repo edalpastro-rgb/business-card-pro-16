@@ -1987,7 +1987,7 @@ function NewContactScreen() {
       </KModalBody></Modal>
 
       {/* Phone contacts multi-select picker */}
-      <Modal visible={!!phoneContactsModal} animationType="slide" transparent onRequestClose={() => setPhoneContactsModal(null)}>
+      <Modal visible={!!phoneContactsModal} animationType="slide" transparent onRequestClose={() => setPhoneContactsModal(null)}><KModalBody>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }}>
           <View style={{ backgroundColor: HT.card2, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "90%" }}>
             <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: HT.border, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
@@ -2112,7 +2112,7 @@ function NewContactScreen() {
             </View>
           </View>
         </View>
-      </Modal>
+      </KModalBody></Modal>
 
       {/* Post-creation success modal: offer to create an appointment for the new contact */}
       <Modal
@@ -2239,7 +2239,7 @@ function NewContactScreen() {
       </Modal>
 
       {/* AI helper modal */}
-      <Modal visible={!!aiMode} animationType="slide" transparent onRequestClose={closeAI}>
+      <Modal visible={!!aiMode} animationType="slide" transparent onRequestClose={closeAI}><KModalBody>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }}>
           <View style={{ backgroundColor: HT.card2, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "88%" }}>
             <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: HT.border, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
@@ -2311,7 +2311,7 @@ function NewContactScreen() {
             </ScrollView>
           </View>
         </View>
-      </Modal>
+      </KModalBody></Modal>
 
       {/* QR Scanner modal (V38I) */}
       <QRScannerModal

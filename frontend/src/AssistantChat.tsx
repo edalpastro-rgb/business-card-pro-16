@@ -48,6 +48,7 @@ import { CT } from "@/src/assistant/chatTheme"; // V50.z337 — chat dark/premiu
 import { ConversationPanel, MessageBubble, TypingDots } from "@/src/assistant/ChatBubbles";
 import type { ChatMsg } from "@/src/assistant/chatTypes";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { KModalBody } from "@/src/ui/keyboard"; // V50.z397 — tastiera: campo attivo sempre visibile nelle Modal
 
 // V29.l — Logo AxonOS orizzontale trasparente per l'empty state chat (senza card scura, compatto).
 const AXONOS_LOGO_HORIZONTAL = require("@/assets/images/axonos-logo-light.png"); // V50.z228 — nuovo logo (sfondo chiaro)
@@ -2062,7 +2063,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
         animationType="fade"
         onRequestClose={() => (feedbackSaving ? undefined : setFeedbackDown(null))}
         statusBarTranslucent
-      >
+      ><KModalBody>
         <View style={styles.fbBackdrop}>
           <View style={styles.fbCard} testID="feedback-down-modal">
             <View style={styles.fbHeader}>
@@ -2140,7 +2141,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
             </View>
           </View>
         </View>
-      </Modal>
+      </KModalBody></Modal>
       {/* V50.z318 — onda di attivazione / trova il telefono visibili anche sopra la chat (RN Modal = finestra nativa sopra tutto) */}
       <ActivationOverlay mirror />
     </Modal>

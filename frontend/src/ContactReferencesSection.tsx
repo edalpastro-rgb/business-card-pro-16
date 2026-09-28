@@ -16,6 +16,7 @@ import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { KModalBody } from "@/src/ui/keyboard"; // V50.z397 — tastiera: campo attivo sempre visibile nelle Modal
 type ContactRef = {
   contact_id: string;
   first_name: string;
@@ -220,7 +221,7 @@ export function ContactReferencesSection({ contactId, contactName }: { contactId
       )}
 
       {/* Picker modal */}
-      <Modal transparent visible={pickerOpen} animationType="slide" onRequestClose={closePicker}>
+      <Modal transparent visible={pickerOpen} animationType="slide" onRequestClose={closePicker}><KModalBody>
         <View style={styles.backdrop}>
           <View style={[styles.sheet, { paddingBottom: safeBottom + 12 }, { paddingBottom: bottomPad }]}>
             <View style={styles.sheetHdr}>
@@ -360,7 +361,7 @@ export function ContactReferencesSection({ contactId, contactName }: { contactId
             )}
           </View>
         </View>
-      </Modal>
+      </KModalBody></Modal>
     </View>
   );
 }

@@ -12,7 +12,7 @@ import * as Sharing from "expo-sharing";
 import { notify } from "@/src/utils/notify";
 import { pickCommonFile } from "@/src/utils/filePicker";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
-import { cgaApi, CgaArea, CgaMaterial, CgaReference, RATING_COLOR, type CgaLevel, CGA_LEVEL_LABEL, CGA_LEVEL_HINT } from "@/src/corporate-gym/areasApi";
+import { cgaApi, CgaArea, CgaMaterial, CgaReference, CgaSession, RATING_COLOR, type CgaLevel, CGA_LEVEL_LABEL, CGA_LEVEL_HINT } from "@/src/corporate-gym/areasApi";
 import { CgymAreaLogo } from "@/src/corporate-gym/CgymAreasGrid";
 import { ReferencePlayer } from "@/src/corporate-gym/ReferencePlayer";
 import { saveToAndroidDownloads } from "@/src/corporate-gym/manualsApi"; // V50.z395 — download in cartella Download (Android)
@@ -86,9 +86,12 @@ export default function CgymAreaScreen() {
   };
 
   const addReference = async () => {
-    const DocumentPicker = await import("expo-document-picker");
-    const res = await DocumentPicker.getDocumentAsync({ type: ["audio/*", "video/*"], multiple: false, copyToCacheDirectory: true });
-    const a = res.assets?.[0];
+    let a: { uri: string; name?: string; mimeType?: string | null; size?: number | null } | undefined;
+    try {
+      const DocumentPicker = await import("expo-document-picker");
+      const res = await DocumentPicker.getDocumentAsync({ type: ["audio/*", "video/*"], multiple: false, copyToCacheDirectory: true });
+      a = res.assets?.[0];
+    } catch { notify("File non raggiungibile: se viene da Google Drive aprilo prima nell'app Drive (o rendilo disponibile offline) e riprova."); return; } // V50.z397
     if (!a) return;
     setBusy("ref");
     try {
@@ -137,17 +140,47 @@ export default function CgymAreaScreen() {
     } catch (e: any) { notify(e?.message || "Riproduzione non disponibile"); } finally { setBusy(null); }
   };
 
+  // V50.z397 — BUG Drive «Network request failed» in «Analizza una mia registrazione»: niente più base64 in JSON (limite 25 MB,
+  // fetch che cade con file grandi) → MULTIPART nativo (FileSystem.uploadAsync gestisce content:// di Drive) e analisi in
+  // background sul server: apro subito la sessione, che mostra «Trascrizione in corso…» finché la valutazione è pronta.
   const analyzeMine = async () => {
-    const DocumentPicker = await import("expo-document-picker");
-    const res = await DocumentPicker.getDocumentAsync({ type: ["audio/*"], multiple: false, copyToCacheDirectory: true });
-    const a = res.assets?.[0];
+    let a: { uri: string; name?: string; mimeType?: string | null; size?: number | null } | undefined;
+    try {
+      const DocumentPicker = await import("expo-document-picker");
+      const res = await DocumentPicker.getDocumentAsync({ type: ["audio/*"], multiple: false, copyToCacheDirectory: true });
+      a = res.assets?.[0];
+    } catch { notify("File non raggiungibile: se viene da Google Drive aprilo prima nell'app Drive (o rendilo disponibile offline) e riprova."); return; }
     if (!a) return;
     setBusy("analyze");
     try {
-      const b64 = a.uri.startsWith("data:") ? a.uri.split(",")[1] : await FileSystem.readAsStringAsync(a.uri, { encoding: FileSystem.EncodingType.Base64 });
-      const s = await cgaApi.fromRecording({ area_id: String(id), audio_base64: b64, mime: a.mimeType || "audio/m4a", title: a.name, training_level: level });
+      let s: CgaSession;
+      if (Platform.OS === "web") {
+        const form = new FormData();
+        const blob = await (await fetch(a.uri)).blob(); form.append("file", blob, a.name || "registrazione");
+        form.append("area_id", String(id)); form.append("title", a.name || "Registrazione"); form.append("training_level", level);
+        s = await cgaApi.fromRecordingUpload(form);
+      } else {
+        const token = await getToken();
+        const up = await FileSystem.uploadAsync(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/cgym/live/from-recording/upload`, a.uri, {
+          httpMethod: "POST", uploadType: FileSystem.FileSystemUploadType.MULTIPART, fieldName: "file",
+          mimeType: a.mimeType || "audio/m4a", parameters: { area_id: String(id), title: a.name || "Registrazione", training_level: level },
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (up.status >= 400) {
+          let msg = `Errore server (HTTP ${up.status})`;
+          try { const j = JSON.parse(up.body || "{}"); msg = typeof j.detail === "string" ? j.detail : msg; } catch {}
+          throw new Error(msg);
+        }
+        s = JSON.parse(up.body || "{}");
+      }
+      if (!s?.session_id) throw new Error("Risposta server non valida");
       router.push(`/corporate-gym/live?session=${s.session_id}` as any);
-    } catch (e: any) { notify(e?.message || "Analisi non riuscita"); } finally { setBusy(null); }
+    } catch (e: any) {
+      const m = String(e?.message || "");
+      notify(/Network request failed|network|ECONN|timed? ?out/i.test(m)
+        ? "File non raggiungibile: se viene da Google Drive verifica che sia scaricato/disponibile offline e che la connessione sia stabile, poi riprova."
+        : (m || "Analisi non riuscita"));
+    } finally { setBusy(null); }
   };
 
   if (!area) return (

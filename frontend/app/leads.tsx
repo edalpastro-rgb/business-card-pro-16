@@ -21,6 +21,7 @@ import * as Clipboard from "expo-clipboard";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { KModalBody } from "@/src/ui/keyboard"; // V50.z397 — tastiera: campo attivo sempre visibile nelle Modal
 
 type Lead = {
   lead_id: string;
@@ -422,7 +423,7 @@ export default function LeadsPage() {
       )}
 
       {/* Detail Modal */}
-      <Modal visible={!!detail} animationType="slide" transparent onRequestClose={() => setDetail(null)}>
+      <Modal visible={!!detail} animationType="slide" transparent onRequestClose={() => setDetail(null)}><KModalBody>
         <View style={styles.backdrop}>
           <View style={styles.sheet}>
             <View style={styles.sheetHead}>
@@ -549,10 +550,10 @@ export default function LeadsPage() {
             </KScrollView>
           </View>
         </View>
-      </Modal>
+      </KModalBody></Modal>
 
       {/* V50.z103.b — Modal Configura Esigenze */}
-      <Modal visible={showNeedsCfg} animationType="slide" transparent onRequestClose={() => setShowNeedsCfg(false)}>
+      <Modal visible={showNeedsCfg} animationType="slide" transparent onRequestClose={() => setShowNeedsCfg(false)}><KModalBody>
         <View style={styles.backdrop}>
           <View style={styles.sheet}>
             <View style={styles.sheetHead}>
@@ -637,7 +638,7 @@ export default function LeadsPage() {
             </KScrollView>
           </View>
         </View>
-      </Modal>
+      </KModalBody></Modal>
     </SafeAreaView>
   );
 }

@@ -12,6 +12,7 @@ import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 import { ContractFormsSection } from "@/src/ContractFormsSection"; // V50.z268
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 import { DateField } from "@/src/ui/DateField"; // V50.z388 — calendario nativo su ogni campo data
+import { KModalBody } from "@/src/ui/keyboard"; // V50.z397 — tastiera: campo attivo sempre visibile nelle Modal
 type Contact = { contact_id: string; first_name: string; last_name: string; contact_code?: string; phone?: string };
 
 const TYPES = [
@@ -143,7 +144,7 @@ export default function NewContractScreen() {
         </Pressable>
       </KScrollView>
 
-      <Modal transparent visible={pickerOpen} onRequestClose={() => setPickerOpen(false)} animationType="slide">
+      <Modal transparent visible={pickerOpen} onRequestClose={() => setPickerOpen(false)} animationType="slide"><KModalBody>
         <Pressable style={styles.backdrop} onPress={() => setPickerOpen(false)}>
           <View style={[styles.sheet, { paddingBottom: bottomPad }]} onStartShouldSetResponder={() => true}>
             <View style={styles.sheetHandle} />
@@ -163,7 +164,7 @@ export default function NewContractScreen() {
             </KScrollView>
           </View>
         </Pressable>
-      </Modal>
+      </KModalBody></Modal>
     </SafeAreaView>
   );
 }
