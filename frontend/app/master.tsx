@@ -13,6 +13,7 @@ import { openInAppLink } from "@/src/utils/openInAppLink";
 import { pickAvatarBase64 } from "@/src/image-picker";
 import { MasterVoiceRecorder } from "@/src/MasterVoiceRecorder";
 import { MasterPromoteModal } from "@/src/MasterPromoteModal";
+import { WakeTrainingCard } from "@/src/wake/WakeTrainingCard"; // V50.z398
 import { MetricBoxClickable, MetricDrillModal, MetricKey } from "@/src/StatMetrics";
 import { useBottomSheetPadding, usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { ModuleErrorBoundary } from "@/src/shared";
@@ -560,6 +561,9 @@ function MasterScreen() {
           </View>
           <Ionicons name="chevron-forward" size={20} color="#EA580C" />
         </Pressable>
+
+        {/* V50.z398 — Link pubblico /wake-training da copiare/condividere + pannello campioni (solo Super Master) */}
+        <WakeTrainingCard />
 
         {/* V50.z50 — Pannello "Impostazioni & Configurazioni" categorizzato.
             Include TUTTI i link del tab Profilo (spalmati per categoria) così

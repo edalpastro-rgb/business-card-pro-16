@@ -1,0 +1,26 @@
+{
+  "summary": "V50.z398 wake-samples panel — 8/8 backend tests PASS, all frontend flows PASS. Backend: public /config (no auth), public /visit (open→consent→done) tracked into ws_sessions with status=completato, /wake-samples/access returns is_super_master:true for owner + false for sub-user (no 403 leak) + 401 unauthenticated, PUT /config adds 'ehi_axon' + all-inactive-positive → 400 + min_per_env=12 persists + restore ok, /public/b64 upload with generated WAV (>800B) succeeds while 'ehi axon' active → session becomes 'parziale' total=1, ZIP export per session_id via ?token= returns application/zip, DELETE cleans up, /stats returns expected_words. Frontend (390x844): login owner → /master shows wake-training-card with public link + Copia link + Pannello campioni (visible only for super master, gated correctly by GET /wake-samples/access) → /admin/wake-samples renders totals + positive words list with axon row + input+add creates ehi_axon row and shows Save button; save persists across reload; delete+save restores; 5 session rows + 4 filter chips render. Public /wake-training (no login): hero → Inizia ora → consent → pron → intro → env casa → wt-word shows 'Di' + 'Axon (AK-son)'; backend confirmed 2 new solo_visualizzato web sessions created just after visit. Config restored to default at end (positive=[axon], min_per_env=10).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v50z398_wake_samples.py",
+    "/app/test_reports/pytest/v50z398_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "wake_samples.py: `_ws_slug` lowercases + strips punctuation → session_ids passed by frontend/test that contain uppercase are silently normalized (no round-trip surprise, but callers must know). Documented in review only.",
+    "wake_samples.py: negative words in visits list appear as `solo_visualizzato` if no consent event received; status logic looks correct but consider clamping `opened_at` fallback when neither visits nor samples set it."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "Anonymous wake_visits sessions were created (wtestvisit*, wtestb64*, and web-app sessions from playwright). Non-destructive; config restored to default after each test.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Wake config uses collection wake_config with config_id='words'. Public config always returns default merged with any DB override. Visit endpoint slugs session_id → lowercase (max 60 chars) so use lowercase in assertions. b64 upload requires an active positive word in config AND a valid audio blob >800 bytes; WAV via struct works. ZIP export requires ?token=<jwt> in query or Authorization header. Owner test@dalpastro.it is Super Master via root-owner rule.",
+  "rca_of_issue": "None — feature working as specified."
+}

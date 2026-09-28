@@ -25,13 +25,23 @@ const ENVS: Env[] = [
   { id: "autostrada", name: "Autostrada o treno", desc: "Rumore continuo e costante: il test più duro per un microfono.", icon: "train" },
   { id: "discoteca", name: "Discoteca o locale", desc: "Musica alta e bassi profondi: se Axon ti sente qui, ti sente ovunque.", icon: "musical-notes" },
 ];
-const NEG_WORDS: [string, string][] = [["action", "Action (EK-shon)"], ["axel", "Axel (AK-sel)"], ["accent", "Accent (AK-sent)"], ["axia", "Axia (AK-sia)"], ["auction", "Auction (OK-shon)"], ["acton", "Acton (AK-ton)"], ["saxon", "Saxon (SAK-son)"], ["faction", "Faction (FAK-shon)"], ["oxygen", "Oxygen (OK-si-gen)"], ["flaxen", "Flaxen (FLAK-sen)"]];
-const MIN_PER_ENV = 10; const MAX_PER_ENV = 50;
+// V50.z398 — parole/frasi da raccogliere CONFIGURABILI dal Super Master (/admin/wake-samples): più wake-word attive insieme,
+// il visitatore le registra tutte. Default = «Axon» + 10 parole simili finché il server non risponde.
+type WtWord = { word: string; label: string };
+type WtConfig = { positive: WtWord[]; negative: WtWord[]; min_per_env: number; max_per_env: number };
+const DEFAULT_CFG: WtConfig = {
+  positive: [{ word: "axon", label: "Axon" }],
+  negative: [["action", "Action (EK-shon)"], ["axel", "Axel (AK-sel)"], ["accent", "Accent (AK-sent)"], ["axia", "Axia (AK-sia)"], ["auction", "Auction (OK-shon)"], ["acton", "Acton (AK-ton)"], ["saxon", "Saxon (SAK-son)"], ["faction", "Faction (FAK-shon)"], ["oxygen", "Oxygen (OK-si-gen)"], ["flaxen", "Flaxen (FLAK-sen)"]].map(([word, label]) => ({ word, label })),
+  min_per_env: 10, max_per_env: 50,
+};
 type Step = "hero" | "consent" | "pron" | "intro" | "pos" | "negIntro" | "neg" | "done";
 const PRIVACY_HERO = "Nessun dato personale viene raccolto. Registriamo esclusivamente la pronuncia della parola “Axon” e delle parole simili indicate. Non sappiamo chi sei, dove sei, né da dove stai registrando. I file audio vengono usati solo per addestrare il riconoscimento vocale di Axon. Nient'altro.";
 const PRIVACY_FOOTER = "Audio raccolto: solo la pronuncia di “Axon” e parole simili. Nessun dato personale. Nessuna registrazione ambientale.";
 
 const sessionId = `w${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+// V50.z398 — tracciamento ANONIMO dell'apertura/consenso/fine (solo id sessione casuale + piattaforma): serve al pannello Super Master
+// per lo stato «Solo visualizzato / Parziale / Completato». Nessun dato personale.
+const trackVisit = (event: "open" | "consent" | "done") => { api("/public/wake-samples/visit", { method: "POST", body: { session_id: sessionId, event, platform: Platform.OS } }).catch(() => {}); };
 
 /** Onda sonora animata: 14 barre che seguono il livello del microfono (o un respiro sintetico se il livello non è disponibile). */
 function Wave({ active, level }: { active: boolean; level: number }) {
@@ -55,6 +65,9 @@ export default function WakeTrainingScreen() {
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const [step, setStep] = useState<Step>("hero");
   const [mic, setMic] = useState<MicPermissionState>("undetermined");
+  const [cfg, setCfg] = useState<WtConfig>(DEFAULT_CFG);
+  useEffect(() => { trackVisit("open"); api<WtConfig>("/public/wake-samples/config").then((c) => { if (c?.positive?.length) setCfg({ ...DEFAULT_CFG, ...c }); }).catch(() => {}); }, []);
+  const POS_WORDS = cfg.positive; const NEG_WORDS = cfg.negative; const MIN_PER_ENV = cfg.min_per_env; const MAX_PER_ENV = cfg.max_per_env;
   const [envIdx, setEnvIdx] = useState(0);
   const [wordIdx, setWordIdx] = useState(0);
   const [counts, setCounts] = useState<Record<string, number>>({}); // key `${kind}:${word}:${env}`
@@ -80,8 +93,11 @@ export default function WakeTrainingScreen() {
 
   const kind = step === "neg" ? "negative" : "positive";
   const env = ENVS[envIdx];
-  const word = step === "neg" ? NEG_WORDS[wordIdx][0] : "axon";
-  const wordLabel = step === "neg" ? NEG_WORDS[wordIdx][1] : "Axon";
+  const WORDS = step === "neg" ? NEG_WORDS : POS_WORDS;
+  const cur = WORDS[Math.min(wordIdx, WORDS.length - 1)] || POS_WORDS[0];
+  const word = cur.word;
+  const wordLabel = cur.label;
+  const mainLabel = (POS_WORDS[0]?.label || "Axon").split(" (")[0];
   const key = `${kind}:${word}:${env?.id}`;
   const n = counts[key] || 0;
   const envTotal = useMemo(() => Object.entries(counts).filter(([k]) => k.startsWith(`${kind}:`) && k.endsWith(`:${env?.id}`)).reduce((a, [, v]) => a + v, 0), [counts, kind, env]);
@@ -120,8 +136,8 @@ export default function WakeTrainingScreen() {
     } catch (e: any) { notify(e?.message || "Salvataggio non riuscito: controlla la connessione e riprova"); }
     finally { setSaving(false); }
   };
-  const nextEnv = () => { if (envIdx + 1 < ENVS.length) { setEnvIdx(envIdx + 1); setWordIdx(0); } else if (step === "pos") { setStep("negIntro"); setEnvIdx(0); setWordIdx(0); } else setStep("done"); };
-  const nextWord = () => { if (wordIdx + 1 < NEG_WORDS.length) setWordIdx(wordIdx + 1); else nextEnv(); };
+  const nextEnv = () => { if (envIdx + 1 < ENVS.length) { setEnvIdx(envIdx + 1); setWordIdx(0); } else if (step === "pos" && NEG_WORDS.length) { setStep("negIntro"); setEnvIdx(0); setWordIdx(0); } else { setStep("done"); trackVisit("done"); } };
+  const nextWord = () => { if (wordIdx + 1 < WORDS.length) setWordIdx(wordIdx + 1); else nextEnv(); };
   const playPron = async () => {
     setPlayingPron(true);
     try { const r = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/public/wake-samples/pronunciation`); const buf = await r.arrayBuffer(); let bin = ""; const bytes = new Uint8Array(buf); for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]); await playBase64(btoa(bin), "audio/mpeg"); }
@@ -137,7 +153,7 @@ export default function WakeTrainingScreen() {
   const Progress = (step === "pos" || step === "neg") ? (
     <View style={s.progressRow} testID="wt-progress">
       {ENVS.map((e, i) => <View key={e.id} style={[s.progressSeg, i < envIdx && { backgroundColor: WT.green }, i === envIdx && { backgroundColor: WT.warm }]} />)}
-      <Text style={s.progressTxt}>{step === "pos" ? "Sezione 1 · Axon" : "Sezione 2 · Parole simili"} · ambiente {envIdx + 1}/{ENVS.length} · {totalSaved} campioni salvati</Text>
+      <Text style={s.progressTxt}>{step === "pos" ? `Sezione 1 · ${mainLabel}` : "Sezione 2 · Parole simili"} · ambiente {envIdx + 1}/{ENVS.length} · {totalSaved} campioni salvati</Text>
     </View>
   ) : null;
 
@@ -157,7 +173,7 @@ export default function WakeTrainingScreen() {
       <View style={s.card} testID="wt-consent">
         <View style={s.envHead}><View style={[s.envIcon, { backgroundColor: WT.green }]}><Ionicons name="shield-checkmark" size={30} color={WT.white} /></View><Text style={s.h2}>Prima di iniziare</Text></View>
         <Text style={s.p}>Cliccando <Text style={s.strong}>“Accetto e continuo”</Text> confermi di aver letto e accettato quanto segue: i campioni audio che registrerai contengono esclusivamente la tua pronuncia delle parole indicate. Non vengono registrati suoni ambientali, conversazioni o dati personali. I campioni vengono salvati in forma anonima e usati esclusivamente per migliorare il riconoscimento vocale di Axon. Puoi interrompere in qualsiasi momento.</Text>
-        <Pressable onPress={() => setStep("pron")} style={[s.cta, { backgroundColor: WT.green }]} testID="wt-consent-ok"><Ionicons name="checkmark-circle" size={20} color={WT.white} /><Text style={s.ctaTxt}>Accetto e continuo</Text></Pressable>
+        <Pressable onPress={() => { trackVisit("consent"); setStep("pron"); }} style={[s.cta, { backgroundColor: WT.green }]} testID="wt-consent-ok"><Ionicons name="checkmark-circle" size={20} color={WT.white} /><Text style={s.ctaTxt}>Accetto e continuo</Text></Pressable>
         <Pressable onPress={() => setStep("hero")} style={s.ghost} testID="wt-consent-back"><Text style={s.ghostTxt}>Torna indietro</Text></Pressable>
       </View>
     );
@@ -178,7 +194,7 @@ export default function WakeTrainingScreen() {
       <View style={s.card} testID={step === "intro" ? "wt-intro" : "wt-neg-intro"}>
         <Text style={s.h2}>{step === "intro" ? "Cosa farai adesso" : "Ora le parole simili. Axon deve imparare a non confondersi."}</Text>
         {step === "intro" ? (<>
-          <Text style={s.p}>Registrerai la parola <Text style={s.strong}>“Axon”</Text> in ambienti diversi — casa, macchina, strada, bar… — poi una serie di <Text style={s.strong}>parole simili</Text>. Il sistema di intelligenza artificiale userà questi campioni per distinguere la tua voce dal rumore del mondo reale.</Text>
+          <Text style={s.p}>Registrerai {POS_WORDS.length > 1 ? "le parole" : "la parola"} <Text style={s.strong}>{POS_WORDS.map((w) => `“${w.label.split(" (")[0]}”`).join(", ")}</Text> in ambienti diversi — casa, macchina, strada, bar… — poi una serie di <Text style={s.strong}>parole simili</Text>. Il sistema di intelligenza artificiale userà questi campioni per distinguere la tua voce dal rumore del mondo reale.</Text>
           <View style={s.tipBox}><Ionicons name="information-circle" size={20} color={WT.violetSoft} /><Text style={s.tip}>Per ogni ambiente servono almeno {MIN_PER_ENV} registrazioni (massimo {MAX_PER_ENV}). Se un ambiente non è disponibile in questo momento, puoi saltarlo.</Text></View>
         </>) : (
           <Text style={s.p}>Stessa struttura di prima, stessi ambienti: questa volta pronuncerai parole che <Text style={s.strong}>assomigliano</Text> ad Axon. Così Axon imparerà che “Action” o “Axel” non sono lui. Tra parentesi trovi la pronuncia suggerita.</Text>
@@ -192,7 +208,7 @@ export default function WakeTrainingScreen() {
           <View style={s.envIcon}><Ionicons name={env.icon} size={30} color={WT.white} /></View>
           <View style={{ flex: 1 }}><Text style={s.h2}>{env.name}</Text><Text style={s.envDesc}>{env.desc}</Text></View>
         </View>
-        <View style={s.wordBox} testID="wt-word"><Text style={s.wordLbl}>{step === "neg" ? `Parola ${wordIdx + 1}/${NEG_WORDS.length} · di'` : "Di'"}</Text><Text style={s.word}>{wordLabel}</Text></View>
+        <View style={s.wordBox} testID="wt-word"><Text style={s.wordLbl}>{WORDS.length > 1 ? `Parola ${wordIdx + 1}/${WORDS.length} · di'` : "Di'"}</Text><Text style={s.word}>{wordLabel}</Text></View>
         <Wave active={recording} level={level} />
         <Animated.View style={{ transform: [{ scale: holdScale }], alignSelf: "center" }}>
           <Pressable onPressIn={onHoldStart} onPressOut={onHoldEnd} disabled={saving} style={[s.hold, recording && s.holdOn]} testID="wt-hold" accessibilityLabel="Tieni premuto per registrare">
@@ -201,7 +217,7 @@ export default function WakeTrainingScreen() {
           </Pressable>
         </Animated.View>
         {mic === "blocked" ? <Pressable onPress={openAppSettings} style={s.link}><Text style={s.linkTxt}>Microfono bloccato · apri le impostazioni</Text></Pressable> : null}
-        <Text style={s.counter} testID="wt-counter">{n} {n === 1 ? "registrazione" : "registrazioni"} {step === "neg" ? "per questa parola" : "in questo ambiente"}{step === "neg" ? ` · ${envTotal} nell'ambiente` : ""}{n < MIN_PER_ENV && step === "pos" ? ` · ancora ${MIN_PER_ENV - n} per il minimo` : ""}</Text>
+        <Text style={s.counter} testID="wt-counter">{n} {n === 1 ? "registrazione" : "registrazioni"} {WORDS.length > 1 ? "per questa parola" : "in questo ambiente"}{WORDS.length > 1 ? ` · ${envTotal} nell'ambiente` : ""}{n < MIN_PER_ENV && step === "pos" ? ` · ancora ${MIN_PER_ENV - n} per il minimo` : ""}</Text>
         {pending ? (
           <View style={s.pendingRow} testID="wt-pending">
             <Pressable onPress={replay} style={s.secondary} testID="wt-replay"><Ionicons name="play" size={18} color={WT.violetSoft} /><Text style={s.secondaryTxt}>Riascolta</Text></Pressable>
@@ -209,8 +225,8 @@ export default function WakeTrainingScreen() {
           </View>
         ) : null}
         <View style={s.navRow}>
-          <Pressable onPress={step === "neg" ? nextWord : nextEnv} style={s.ghost} testID="wt-skip"><Text style={s.ghostTxt}>{step === "neg" ? "Salta parola" : "Salta ambiente"}</Text></Pressable>
-          {step === "neg" ? <Pressable onPress={nextWord} style={[s.cta, { flex: 1, minHeight: 50, backgroundColor: WT.navy2, borderWidth: 1, borderColor: WT.violetSoft }]} testID="wt-next-word"><Text style={s.ctaTxt}>Prossima parola</Text><Ionicons name="arrow-forward" size={18} color={WT.white} /></Pressable> : null}
+          <Pressable onPress={WORDS.length > 1 ? nextWord : nextEnv} style={s.ghost} testID="wt-skip"><Text style={s.ghostTxt}>{WORDS.length > 1 ? "Salta parola" : "Salta ambiente"}</Text></Pressable>
+          {WORDS.length > 1 ? <Pressable onPress={nextWord} style={[s.cta, { flex: 1, minHeight: 50, backgroundColor: WT.navy2, borderWidth: 1, borderColor: WT.violetSoft }]} testID="wt-next-word"><Text style={s.ctaTxt}>Prossima parola</Text><Ionicons name="arrow-forward" size={18} color={WT.white} /></Pressable> : null}
           <Pressable onPress={nextEnv} disabled={step === "pos" && n < MIN_PER_ENV} style={[s.cta, { flex: 1, minHeight: 50 }, step === "pos" && n < MIN_PER_ENV && { opacity: 0.45 }]} testID="wt-next-env"><Text style={s.ctaTxt}>Prossimo ambiente</Text><Ionicons name="arrow-forward" size={18} color={WT.white} /></Pressable>
         </View>
       </View>
