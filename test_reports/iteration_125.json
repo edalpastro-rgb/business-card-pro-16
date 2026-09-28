@@ -1,0 +1,28 @@
+{
+  "summary": "V50.z400 Corporate Gym unified structure — Backend 7/7 pytest PASS. GET /api/cgym/areas returns obiezioni, winwin, trattativa keys. WinWin has exactly 8 blocks starting with '1 · Telefonata di presa appuntamento'. POST /cgym/live/start on winwin → opening 'Pronto?', on obiezioni → 'Prego, si accomodi. Mi dica.' (obiezioni has 3 blocks). Turn + finish work end-to-end with LLM. Materials POST + GET raw=1 returns bytes with Content-Disposition inline; raw=1&download=1 returns attachment; no raw returns JSON {name,mime,data_base64}; unauthenticated raw returns 401. Frontend PDF viewer route verified on web (title, close button, placeholder text 'Anteprima disponibile nell app'). Frontend area tiles / legacy redirects / manual sheet / live-8-blocks UI tests could NOT be executed by the agent because the web preview auth flow doesn't persist the token via localStorage injection — the /corporate-gym page rendered the sessions view but the CgymAreasGrid did not mount (401 loop on subsequent /api calls). Main agent should self-test these UI flows in-app or provide a UI-level login path.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v50z400_cgym_unified.py",
+    "/app/test_reports/pytest/v50z400_results.xml"
+  ],
+  "action_items": [
+    "Main agent to self-verify (or via a UI-authenticated Playwright script) the following frontend flows, since agent couldn't inject auth into Expo web storage: (1) /corporate-gym shows tiles cgym-area-obiezioni/winwin/trattativa; (2) tap obiezioni → /corporate-gym/area/<id> shows cgym-live-start, cgym-manual-btn-obiezioni, cgym-analyze-recording, cgym-area-ratings, blocks list, materials section; (3) same for winwin tile with cgym-manual-btn-winwin + 8 blocks listed; (4) trattativa tile has NO manual button; (5) /corporate-gym/obiezioni and /corporate-gym/win-win redirect to /corporate-gym/area/<id>; (6) tap cgym-manual-btn-obiezioni opens cgym-manual-sheet-obiezioni without crash; (7) /corporate-gym/live?area=<winwin>&level=base shows 'Blocco 1/8 · 1 · Telefonata…' header."
+  ],
+  "critical_code_review_comments": [
+    "cgym_areas.py 236-248 material_content uses raw parameter with the same name shadowed later (local var 'raw' for bytes overrides query string) — works but is confusing; consider renaming.",
+    "pdf-viewer.tsx correctly shows web placeholder text as required; downloadToDevice invoked only when p.dl/url present — good."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "partial (PDF viewer route verified only; area grid / redirect / manual sheet not testable via agent auth)"},
+  "seed_data_creation": "None (test materials are created and DELETEd in fixture).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend for V50.z400 is fully validated by /app/backend/tests/test_v50z400_cgym_unified.py (7 tests). For UI: Expo web at business-card-pro-16.preview.emergentagent.com — localStorage-injected token is NOT sufficient to authenticate the app (uses SecureStore/AsyncStorage-web with different key). Prior iterations noted the same issue; a full UI login (form fill) may work but on iteration 125 the login form didn't authenticate the SPA in a testable way. Recommend using the login page's testIDs (or main agent to add them) to reliably drive auth in future UI tests.",
+  "rca_of_issue": "N/A — no bugs found in backend for V50.z400. The frontend UI tests were incomplete due to auth-injection limitations of the browser automation agent, not due to product bugs."
+}

@@ -1,5 +1,5 @@
 // Corporate Gym — Manuali su Google Drive (AxonOS gestore manuali). Client API isolato.
-import { Platform, Linking } from "react-native";
+import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { Router } from "expo-router";
 import * as FileSystem from "expo-file-system/legacy";
@@ -78,50 +78,82 @@ export function fmtManualDate(iso: string | null): string {
   return d.toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-/** Apre il manuale nel BROWSER ESTERNO del dispositivo (V50.z395 — la WebView interna falliva con net::ERR_FAILED sui PDF). */
-export function openManual(_router: Router, link: CgymManualLink) {
+/** V50.z400 — Pagina iniziale per sezione: il manuale Obiezioni si apre direttamente a pagina 13 (le prime 12 sono introduzione). */
+export const CGYM_MANUAL_START_PAGE: Partial<Record<CgymType, number>> = { obiezioni: 13 };
+
+export type PdfOpenOpts = { page?: number; authToken?: string | null; downloadUrl?: string | null; mime?: string | null };
+
+/** V50.z400 — Apre un PDF nel VISUALIZZATORE INTERNO (/pdf-viewer, pdf.js in WebView): nessun PDF esce mai dall'app.
+ *  Immagini e altri formati → InAppWebViewer (/webviewer). Web: nuova scheda del browser (con #page=). */
+export function openPdfInApp(router: Router, url: string, name: string, opts: PdfOpenOpts = {}) {
+  const isPdf = !opts.mime || opts.mime.includes("pdf") || /\.pdf$/i.test(name);
+  const page = Math.max(1, opts.page || 1);
   if (Platform.OS === "web") {
-    if (typeof window !== "undefined") window.open(link.url, "_blank", "noopener");
+    if (typeof window !== "undefined") window.open(url + (isPdf && page > 1 ? `#page=${page}` : ""), "_blank", "noopener");
     return;
   }
-  void Linking.openURL(link.url);
+  if (!isPdf) { router.push(`/webviewer?url=${encodeURIComponent(url)}&title=${encodeURIComponent(name)}` as any); return; }
+  const q = new URLSearchParams({ url, name, page: String(page), ...(opts.authToken ? { auth: "1" } : {}), ...(opts.downloadUrl ? { dl: opts.downloadUrl } : {}), ...(opts.mime ? { mime: opts.mime } : {}) });
+  router.push(`/pdf-viewer?${q.toString()}` as any);
+}
+
+/** Apre il manuale DENTRO l'app (V50.z400; prima: browser esterno). `type` decide la pagina iniziale (Obiezioni → 13). */
+export function openManual(router: Router, link: CgymManualLink, type?: CgymType | "any" | null) {
+  const page = type && type !== "any" ? CGYM_MANUAL_START_PAGE[type] : undefined;
+  openPdfInApp(router, link.url, link.name, { page, downloadUrl: link.download_url, mime: link.mime });
 }
 
 const DOWNLOAD_DIR_KEY = "cgym_download_dir_uri";
 const ANDROID_DOWNLOADS_TREE = "content://com.android.externalstorage.documents/tree/primary%3ADownload";
 
-/** Android: salva `base64` nella cartella Download (Storage Access Framework). La cartella viene scelta UNA volta e ricordata. */
-export async function saveToAndroidDownloads(name: string, mime: string, base64: string): Promise<string> {
+/** Android: salva `base64` nella cartella Download (Storage Access Framework). La cartella viene scelta UNA volta e ricordata.
+ *  V50.z400 — permesso negato/annullato: NIENTE vicolo cieco → ritorna null e il chiamante ripiega sul pannello «Salva in…». */
+export async function saveToAndroidDownloads(name: string, mime: string, base64: string): Promise<string | null> {
   const SAF = FileSystem.StorageAccessFramework;
   let dir = await AsyncStorage.getItem(DOWNLOAD_DIR_KEY);
   const tryCreate = async (d: string) => { const uri = await SAF.createFileAsync(d, name, mime); await FileSystem.writeAsStringAsync(uri, base64, { encoding: FileSystem.EncodingType.Base64 }); return uri; };
   if (dir) {
     try { return await tryCreate(dir); } catch { dir = null; await AsyncStorage.removeItem(DOWNLOAD_DIR_KEY); }
   }
-  const perm = await SAF.requestDirectoryPermissionsAsync(ANDROID_DOWNLOADS_TREE);
-  if (!perm.granted) throw new Error("Permesso alla cartella Download negato");
+  let perm: { granted: boolean; directoryUri?: string } = { granted: false };
+  try { perm = await SAF.requestDirectoryPermissionsAsync(ANDROID_DOWNLOADS_TREE) as any; } catch { /* alcuni dispositivi rifiutano initialUri */ }
+  if (!perm.granted) {
+    try { perm = await SAF.requestDirectoryPermissionsAsync() as any; } catch { perm = { granted: false }; } // seconda chance senza cartella suggerita
+  }
+  if (!perm.granted || !perm.directoryUri) return null;
   await AsyncStorage.setItem(DOWNLOAD_DIR_KEY, perm.directoryUri);
-  return tryCreate(perm.directoryUri);
+  try { return await tryCreate(perm.directoryUri); } catch { await AsyncStorage.removeItem(DOWNLOAD_DIR_KEY); return null; }
 }
 
-/** Scarica il manuale: web → download del browser · Android → file salvato in Download (nessun pannello di condivisione) · iOS → «Salva su File». */
-export async function downloadManual(link: CgymManualLink): Promise<void> {
-  if (Platform.OS === "web") {
-    if (typeof window !== "undefined") window.open(link.download_url, "_blank", "noopener");
-    return;
-  }
-  const safe = (link.name || "manuale.pdf").replace(/[^\w.\-àèéìòù ]+/gi, "_");
-  const dest = `${FileSystem.cacheDirectory}cgym-${safe}`;
-  const res = await FileSystem.downloadAsync(link.download_url, dest);
-  if (res.status && res.status >= 400) throw new Error(`Download fallito (HTTP ${res.status})`);
+/** V50.z400 — Salva un file locale (cache) sul dispositivo: Android → cartella Download (SAF), se il permesso viene negato →
+ *  pannello «Salva in…» di sistema (mai un errore secco) · iOS → «Salva su File». Ritorna il messaggio da mostrare. */
+export async function saveLocalFileToDevice(localUri: string, name: string, mime: string): Promise<string> {
   if (Platform.OS === "android") {
-    const b64 = await FileSystem.readAsStringAsync(res.uri, { encoding: FileSystem.EncodingType.Base64 });
-    await saveToAndroidDownloads(safe, link.mime || "application/pdf", b64);
-    return;
+    const b64 = await FileSystem.readAsStringAsync(localUri, { encoding: FileSystem.EncodingType.Base64 });
+    const saved = await saveToAndroidDownloads(name, mime, b64);
+    if (saved) return "Salvato nella cartella Download";
   }
   if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(res.uri, { mimeType: link.mime || "application/pdf", dialogTitle: link.name, UTI: "com.adobe.pdf" });
-  } else {
-    throw new Error("Salvataggio non disponibile su questo dispositivo");
+    await Sharing.shareAsync(localUri, { mimeType: mime, dialogTitle: Platform.OS === "android" ? "Salva in…" : name, UTI: mime.includes("pdf") ? "com.adobe.pdf" : undefined });
+    return Platform.OS === "android" ? "Scegli dove salvare il file" : "File pronto";
   }
+  throw new Error("Salvataggio non disponibile su questo dispositivo");
+}
+
+/** V50.z400 — Scarica un URL (con eventuali header) e lo salva sul dispositivo. Web → download del browser. */
+export async function downloadToDevice(url: string, name: string, mime: string, headers?: Record<string, string>): Promise<string> {
+  if (Platform.OS === "web") {
+    if (typeof window !== "undefined") window.open(url, "_blank", "noopener");
+    return "Download avviato";
+  }
+  const safe = (name || "file.pdf").replace(/[^\w.\-àèéìòù ]+/gi, "_");
+  const dest = `${FileSystem.cacheDirectory}cgym-${Date.now()}-${safe}`;
+  const res = await FileSystem.downloadAsync(url, dest, headers ? { headers } : undefined);
+  if (res.status && res.status >= 400) throw new Error(`Download fallito (HTTP ${res.status})`);
+  return saveLocalFileToDevice(res.uri, safe, mime || "application/pdf");
+}
+
+/** Scarica il manuale: web → download del browser · Android → Download (o «Salva in…») · iOS → «Salva su File». */
+export async function downloadManual(link: CgymManualLink): Promise<string> {
+  return downloadToDevice(link.download_url, link.name || "manuale.pdf", link.mime || "application/pdf");
 }

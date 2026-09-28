@@ -56,8 +56,8 @@ export function CgymManualButton({ type, manualRef, label }: { type: CgymType; m
     setBusyId(f.id + mode);
     try {
       const link = await cgymManualsApi.link(manualRef ? "any" : type, f.id);
-      if (mode === "open") { openManual(router, link); }   // V50.z395 — apre nel browser esterno (la WebView interna dava net::ERR_FAILED sui PDF)
-      else await downloadManual(link);
+      if (mode === "open") { setOpen(false); openManual(router, link, manualRef ? "any" : type); }   // V50.z400 — visualizzatore PDF INTERNO (Obiezioni → pagina 13)
+      else notify("Manuale", await downloadManual(link));
     } catch (e: any) {
       notify("Manuale", e?.message || "Operazione non riuscita");
     } finally {

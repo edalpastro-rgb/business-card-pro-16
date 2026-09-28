@@ -34,7 +34,7 @@ export function CgymAreasGrid({ pendingByKey }: { pendingByKey?: Record<string, 
   useEffect(() => { void load(); }, [load]);
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
-  const open = (a: CgaArea) => router.push((a.route || `/corporate-gym/area/${a.area_id}`) as any);
+  const open = (a: CgaArea) => router.push(`/corporate-gym/area/${a.area_id}` as any); // V50.z400 — STRUTTURA UNICA: anche Obiezioni e WIN-WIN aprono la pagina area (come ANT)
   const startEdit = (a: CgaArea | null) => setEdit({ a, name: a?.name || "", logo: null, blocks: (a?.blocks || []).join("\n") });
   const pickLogo = async () => {
     const res = await pickImages({ multiple: false, quality: 0.7, allowsEditing: true, aspect: [1, 1] });

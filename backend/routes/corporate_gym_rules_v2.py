@@ -317,3 +317,89 @@ async def cga_materials_reindex(area_id: str, user=Depends(get_current_user)):  
         except Exception as exc:  # noqa: BLE001
             logger.warning("[cga-material] reindex %s: %s", m.get("name"), str(exc)[:120])  # noqa: F821
     return {"ok": True, "indexed": n}
+
+
+# ── V50.z400 — STRUTTURA UNICA: anche Gym Obiezioni e Gym WIN-WIN usano la sessione «viso a viso» dell'area (/cgym/live/*),
+# come ANT. Le regole MOD 4/5 (cliente V2 + 8 blocchi rigidi WIN-WIN) e MOD 8 (KB Obiezioni da pagina 13) vengono applicate
+# ANCHE al motore live: `_cga_area` precarica i testi nel contextvar, `_cga_client_system` li aggiunge al prompt del cliente,
+# `_cga_manual_excerpt` (usato da _cga_evaluate) li aggiunge al prompt di valutazione.
+_R2_AREA_KB: _r2_cv.ContextVar = _r2_cv.ContextVar("r2_area_kb", default=None)
+_R2_AREA_KEY: _r2_cv.ContextVar = _r2_cv.ContextVar("r2_area_key", default=None)
+CGYM_WW_BLOCK_NAMES = [b["name"] for b in CGYM_WW_BLOCKS]
+
+
+def _r2_area_kind(area: dict) -> Optional[str]:
+    k = (area.get("key") or "").lower(); n = (area.get("name") or "").lower()
+    if k == "obiezioni" or "obiezion" in n:
+        return "obiezioni"
+    if k == "winwin" or "win-win" in n or "win win" in n or "winwin" in n:
+        return "winwin"
+    return None
+
+
+_r2_prev_cga_area_v3 = _cga_area  # noqa: F821 (il wrap MOD 6 sopra)
+
+
+async def _cga_area(tid: str, area_id: str) -> dict:  # noqa: F811
+    area = await _r2_prev_cga_area_v3(tid, area_id)
+    kind = _r2_area_kind(area)
+    _R2_AREA_KEY.set(kind)
+    if kind == "winwin":
+        area = {**area, "blocks": list(CGYM_WW_BLOCK_NAMES)}   # MOD 5: 8 blocchi rigidi anche in sessione live
+        try:
+            _R2_AREA_KB.set(await _r2_ww_manual_text(tid))
+        except Exception:  # noqa: BLE001
+            _R2_AREA_KB.set("")
+    elif kind == "obiezioni":
+        try:
+            _R2_AREA_KB.set(await _r2_obi_kb_text(tid, 5000))
+        except Exception:  # noqa: BLE001
+            _R2_AREA_KB.set("")
+    else:
+        _R2_AREA_KB.set(None)
+    return area
+
+
+_r2_prev_client_system_v3 = _cga_client_system  # noqa: F821 (il wrap MOD 6 sopra)
+
+
+def _cga_client_system(area: dict, block: str, level: str = "base") -> str:  # noqa: F811
+    base = _r2_prev_client_system_v3(area, block, level)
+    kind = _r2_area_kind(area); kb = _R2_AREA_KB.get() or ""
+    if kind == "winwin":
+        idx = CGYM_WW_BLOCK_NAMES.index(block) if block in CGYM_WW_BLOCK_NAMES else 0
+        return base + "\n\n" + CGYM_CLIENT_RULES_V2 + _r2_block_prompt(idx) + kb
+    if kind == "obiezioni":
+        return (base + "\n\nSEI UN CLIENTE CHE OBIETTA: il consulente si è presentato e propone l'incontro/la soluzione. Nel blocco «" + block +
+                "» sollevi con naturalezza l'obiezione del blocco (tempo, costo, decisore o quella indicata) e la mantieni finché il consulente non la gestisce "
+                "con le tecniche del MANUALE OBIEZIONI qui sotto. block_done = true SOLO se l'obiezione è stata gestita come da manuale." + kb)
+    return base
+
+
+_r2_prev_manual_excerpt = _cga_manual_excerpt  # noqa: F821
+
+
+async def _cga_manual_excerpt(tid: str) -> str:  # noqa: F811
+    txt = await _r2_prev_manual_excerpt(tid)
+    kind = _R2_AREA_KEY.get()
+    try:
+        if kind == "obiezioni":
+            txt += await _r2_obi_kb_text(tid, 4000)
+        elif kind == "winwin":
+            txt += await _r2_ww_manual_text(tid, 4000)
+    except Exception:  # noqa: BLE001
+        pass
+    return txt
+
+
+_r2_prev_cga_evaluate = _cga_evaluate  # noqa: F821
+
+
+async def _cga_evaluate(s: dict) -> dict:  # noqa: F811
+    """Imposta l'area corrente (per _cga_manual_excerpt) anche quando la valutazione parte in background (registrazione caricata)."""
+    try:
+        area = await db.cgym_areas.find_one({"tenant_id": s.get("tenant_id"), "area_id": s.get("area_id")}, {"_id": 0, "key": 1, "name": 1})  # noqa: F821
+        _R2_AREA_KEY.set(_r2_area_kind(area or {"name": s.get("area_name")}))
+    except Exception:  # noqa: BLE001
+        _R2_AREA_KEY.set(None)
+    return await _r2_prev_cga_evaluate(s)

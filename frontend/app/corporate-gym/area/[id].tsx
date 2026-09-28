@@ -8,14 +8,15 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import * as FileSystem from "expo-file-system/legacy";
 import { getToken } from "@/src/api"; // V50.z387
-import * as Sharing from "expo-sharing";
 import { notify } from "@/src/utils/notify";
 import { pickCommonFile } from "@/src/utils/filePicker";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { cgaApi, CgaArea, CgaMaterial, CgaReference, CgaSession, RATING_COLOR, type CgaLevel, CGA_LEVEL_LABEL, CGA_LEVEL_HINT } from "@/src/corporate-gym/areasApi";
 import { CgymAreaLogo } from "@/src/corporate-gym/CgymAreasGrid";
 import { ReferencePlayer } from "@/src/corporate-gym/ReferencePlayer";
-import { saveToAndroidDownloads } from "@/src/corporate-gym/manualsApi"; // V50.z395 — download in cartella Download (Android)
+import { openPdfInApp, saveLocalFileToDevice } from "@/src/corporate-gym/manualsApi"; // V50.z400 — visualizzatore PDF interno + download unificato (Download / «Salva in…»)
+import { CgymManualButton } from "@/src/corporate-gym/CgymManualButton"; // V50.z400 — «Leggi Manuale» anche nella pagina area (Obiezioni / WIN-WIN)
+import type { CgymType } from "@/src/corporate-gym/api";
 import { TranscriptReviewSheet, transcriptApi, TRANSCRIPT_STATUS_LABEL, type AudioTranscript } from "@/src/audio/TranscriptReviewSheet"; // V50.z389
 import { HT } from "@/src/homeTheme";
 
@@ -68,7 +69,13 @@ export default function CgymAreaScreen() {
     } catch (e: any) { notify(e?.message || "Errore upload"); } finally { setBusy(null); }
   };
 
+  // V50.z400 — STESSO visualizzatore PDF interno dei manuali (nessun PDF esce dall'app) e stesso download (Download / «Salva in…»).
   const openMaterial = async (m: CgaMaterial, download: boolean) => {
+    const rawUrl = `${process.env.EXPO_PUBLIC_BACKEND_URL}/api/cgym/areas/${id}/materials/${m.material_id}/content?raw=1`;
+    if (!download) {
+      if (Platform.OS === "web") { setBusy(m.material_id); }
+      else { const token = await getToken(); openPdfInApp(router, rawUrl, m.name, { authToken: token, downloadUrl: `${rawUrl}&download=1`, mime: m.mime }); return; }
+    }
     setBusy(m.material_id);
     try {
       const c = await cgaApi.materialContent(String(id), m.material_id);
@@ -78,10 +85,10 @@ export default function CgymAreaScreen() {
         if (download) { const a = document.createElement("a"); a.href = url; a.download = c.name; a.click(); } else window.open(url, "_blank");
         return;
       }
-      if (download && Platform.OS === "android") { await saveToAndroidDownloads(c.name.replace(/[^\w.\-àèéìòù ]+/gi, "_"), c.mime, c.data_base64); notify("Salvato nella cartella Download"); return; } // V50.z395 — niente pannello condivisione
-      const path = `${FileSystem.cacheDirectory}cgym_${m.material_id}_${c.name.replace(/[^\w.\-]+/g, "_")}`;
+      const safe = c.name.replace(/[^\w.\-àèéìòù ]+/gi, "_");
+      const path = `${FileSystem.cacheDirectory}cgym_${m.material_id}_${safe}`;
       await FileSystem.writeAsStringAsync(path, c.data_base64, { encoding: FileSystem.EncodingType.Base64 });
-      await Sharing.shareAsync(path, { mimeType: c.mime, dialogTitle: download ? "Salva su File" : c.name });
+      notify(await saveLocalFileToDevice(path, safe, c.mime));
     } catch (e: any) { notify(e?.message || "Impossibile aprire il file"); } finally { setBusy(null); }
   };
 
@@ -224,6 +231,9 @@ export default function CgymAreaScreen() {
           </Pressable>
         </View>
         {area.my_last_rating ? <Text style={[styles.rating, { color: RATING_COLOR[area.my_last_rating] }]}>Ultima valutazione: {area.my_last_rating}</Text> : null}
+
+        {/* V50.z400 — STRUTTURA UNICA: «Leggi Manuale» (PDF Drive, visualizzatore interno; Obiezioni → pagina 13) per le sezioni con manuale collegato */}
+        {area.key === "obiezioni" || area.key === "winwin" ? <CgymManualButton type={area.key as CgymType} /> : null}
 
         <View style={styles.card}>
           <Text style={styles.cardHead}>Blocchi della trattativa</Text>

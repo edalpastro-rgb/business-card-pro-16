@@ -5,6 +5,7 @@ import { View, Text, StyleSheet, Modal, Pressable, Image, ScrollView, Platform, 
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { InAppWebViewer } from "@/src/InAppWebViewer";
+import { PdfViewer } from "@/src/pdf/PdfViewer"; // V50.z400 — PDF sempre nel visualizzatore interno
 import { CgymManualLink, downloadManual } from "@/src/corporate-gym/manualsApi";
 import { notify } from "@/src/utils/notify";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
@@ -20,7 +21,8 @@ export function CgymManualPreview({ link, onClose }: { link: CgymManualLink | nu
   const [busy, setBusy] = React.useState(false);
   const [imgLoading, setImgLoading] = React.useState(true);
   const isImage = !!link && (link.mime || "").startsWith("image/");
-  const dl = async () => { if (!link) return; setBusy(true); try { await downloadManual(link); } catch (e: any) { notify("Download", e?.message || "Non riuscito"); } finally { setBusy(false); } };
+  const dl = async () => { if (!link) return; setBusy(true); try { notify("Download", await downloadManual(link)); } catch (e: any) { notify("Download", e?.message || "Non riuscito"); } finally { setBusy(false); } };
+  const isPdf = !!link && !isImage && ((link.mime || "").includes("pdf") || link.exportable);
   return (
     <Modal visible={!!link} animationType="slide" onRequestClose={onClose} presentationStyle="fullScreen">
       <View style={[styles.root, { paddingTop: insets.top }]} testID="cgym-manual-preview">
@@ -37,6 +39,8 @@ export function CgymManualPreview({ link, onClose }: { link: CgymManualLink | nu
             </ScrollView>
             <Text style={[styles.hint, { paddingBottom: insets.bottom + 8 }]}>Pizzica per ingrandire · Scarica per condividere</Text>
           </>
+        ) : link && isPdf ? (
+          <PdfViewer url={link.url} name={link.name} onClose={onClose} onDownload={dl} downloading={busy} />
         ) : link ? (
           <InAppWebViewer title={link.name} url={manualViewerUrl(link)} onClose={onClose} />
         ) : null}

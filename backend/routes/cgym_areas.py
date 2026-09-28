@@ -21,7 +21,8 @@ CGA_DEFAULT_AREAS = [
      "description": "Role-play sulle obiezioni: tempo, costo, decisore.", "blocks": ["Obiezione TEMPO", "Obiezione COSTO", "Obiezione DECISORE"],
      "image": "https://customer-assets-rejwkqb3.emergentagent.net/wingman/96afd50f-e973-4b52-8752-8e66a92b8a17/attachments/3efe302090d947e78e18f1eda6137539_obbiezioni%20logo2_0.png"},
     {"key": "winwin", "name": "Gym WIN-WIN", "color": "#0F9D58", "route": "/corporate-gym/win-win", "builtin": True, "order": 2,
-     "description": "Negoziazione win-win a fasi.", "blocks": ["Apertura", "Esplorazione bisogni", "Proposta di valore", "Accordo"],
+     "description": "Trattativa WIN-WIN completa: 8 blocchi rigidi, dalla telefonata alla chiusura.",
+     "blocks": ["1 · Telefonata di presa appuntamento", "2 · Rapport", "3 · Chi sono", "4 · Analisi primo livello", "5 · Spiegazione mercato energia", "6 · K-meno", "7 · Patto di squadra", "8 · Chiusura e invito all'azione"],  # V50.z400 — = CGYM_WW_BLOCKS (MOD 5)
      "image": "https://customer-assets-rejwkqb3.emergentagent.net/wingman/96afd50f-e973-4b52-8752-8e66a92b8a17/attachments/7644430fa87e47c2a2b4b8a139f64318_logo%20winwin.png"},
     {"key": "trattativa", "name": "Trattativa Completa", "color": "#0EA5E9", "route": None, "builtin": True, "order": 3,
      "description": "Dalla telefonata alla chiusura, a blocchi come nel manuale.",
@@ -233,12 +234,17 @@ async def _cga_blob(row: dict) -> Tuple[bytes, str]:
 
 
 @api_router.get("/cgym/areas/{area_id}/materials/{material_id}/content")
-async def cga_material_content(area_id: str, material_id: str, user=Depends(get_current_user)):
+async def cga_material_content(area_id: str, material_id: str, raw: Optional[str] = None, download: Optional[str] = None, user=Depends(get_current_user)):
     tid = tenant_id(user)
     row = await db.cgym_area_materials.find_one({"tenant_id": tid, "area_id": area_id, "material_id": material_id})
     if not row:
         raise HTTPException(status_code=404, detail="Materiale non trovato")
+    want_raw = (raw or "").lower() in ("1", "true", "yes")
     raw, mime = await _cga_blob(row)
+    if want_raw:  # V50.z400 — bytes grezzi per il visualizzatore PDF interno / download
+        disp = "attachment" if (download or "").lower() in ("1", "true", "yes") else "inline"
+        safe = re.sub(r'[\r\n"]', "_", row["name"])
+        return Response(content=raw, media_type=mime, headers={"Content-Disposition": f"{disp}; filename=\"{safe.encode('ascii', 'ignore').decode() or 'file'}\"", "Cache-Control": "no-store"})
     return {"name": row["name"], "mime": mime, "data_base64": base64.b64encode(raw).decode("ascii")}
 
 
@@ -412,6 +418,8 @@ async def cga_live_start(body: CgaLiveStartIn, user=Depends(get_current_user)):
     # (MOD 4 «Prego, si accomodi»); nell'area ANT Axon è ESAMINATORE tecnico e invita a iniziare la spiegazione del blocco (MOD 6).
     if _r2_is_ant(area):  # noqa: F821 — corporate_gym_rules_v2
         opening = f"Buongiorno. Sono pronto ad ascoltarla: mi spieghi «{blocks[bi]}» come farebbe con un cliente. Prego, cominci."
+    elif _r2_area_kind(area) == "winwin":  # noqa: F821 — V50.z400 blocco 1 = telefonata
+        opening = "Pronto?"
     else:
         opening = "Prego, si accomodi. Mi dica."
     s = {"session_id": f"cgl_{uuid.uuid4().hex[:10]}", "tenant_id": tid, "user_id": user["user_id"], "user_name": user.get("name"), "area_id": area["area_id"], "area_name": area["name"],
