@@ -6,6 +6,7 @@ import { View, Text, StyleSheet, Pressable, Image, ActivityIndicator, Platform, 
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
+import { DateField } from "@/src/ui/DateField"; // V50.z388 — calendario nativo su ogni campo data
 import { launchCameraUniversal } from "@/src/utils/imagePickerCompat";
 import { uriToBase64DataUrl } from "@/src/utils/media";
 import { shareDataUri } from "@/src/share";
@@ -142,10 +143,14 @@ export function IdentityDocsSection({ subjectType, subjectId, onExtracted, onDoc
           {ocr ? (
             <View style={{ gap: 6 }} testID="iddoc-ocr-result">
               <Text style={[st.small, { color: c.muted }]}>Dati letti (modificabili prima di salvare):</Text>
-              {([["document_number", "N. documento"], ["expiry_date", "Scadenza (AAAA-MM-GG)"], ["issue_date", "Rilascio"], ["issuing_authority", "Rilasciato da"]] as [string, string][]).map(([k, l]) => (
+              {([["document_number", "N. documento"], ["expiry_date", "Scadenza"], ["issue_date", "Rilascio"], ["issuing_authority", "Rilasciato da"]] as [string, string][]).map(([k, l]) => (
                 <View key={k} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                   <Text style={[st.small, { width: 92, color: c.muted }]}>{l}</Text>
+                  {k === "expiry_date" || k === "issue_date" ? (
+                    <DateField value={ocr[k] || ""} onChange={(v) => setOcr((o) => ({ ...(o || {}), [k]: v }))} placeholder={l} style={{ flex: 1, backgroundColor: c.input, borderColor: c.border }} testID={`iddoc-field-${k}`} />
+                  ) : (
                   <TextInput value={ocr[k] || ""} onChangeText={(v) => setOcr((o) => ({ ...(o || {}), [k]: v }))} style={[st.input, { backgroundColor: c.input, color: c.text, borderColor: c.border }]} placeholder={l} placeholderTextColor={c.muted} testID={`iddoc-field-${k}`} />
+                  )}
                 </View>
               ))}
             </View>

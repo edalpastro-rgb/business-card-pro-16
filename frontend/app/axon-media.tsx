@@ -55,7 +55,7 @@ async function capture(kind: "photo" | "video"): Promise<Picked | null> {
 }
 
 async function attach(): Promise<Picked | null> {
-  const res = await DocumentPicker.getDocumentAsync({ type: ["image/*", "video/*", "audio/*"], copyToCacheDirectory: true });
+  const res = await DocumentPicker.getDocumentAsync({ type: ["image/*", "video/*", "audio/*", "application/vnd.openxmlformats-officedocument.presentationml.presentation"], copyToCacheDirectory: true });
   if (res.canceled || !res.assets?.[0]) return null;
   const a = res.assets[0];
   const mime = a.mimeType || "";

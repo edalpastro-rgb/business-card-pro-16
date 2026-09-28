@@ -149,6 +149,10 @@ async def upload_ireq_attachment(request_id: str, file: UploadFile = File(...), 
     if len(content) > 15 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="File troppo grande (max 15 MB)")
     ctype = (file.content_type or "").lower()
+    # V50.z388 — compressione globale silenziosa (foto/PDF) prima dello store
+    content, _ci = await media_auto_compress(content, ctype, file.filename or "", "ireq-attachment")  # noqa: F821 — media_compress.py
+    if _ci.get("compressed") and _ci.get("mime"):
+        ctype = _ci["mime"]
     ext = ""
     if ctype.startswith("image/"): ext = ctype.split("/", 1)[1].split(";")[0] or "jpg"
     elif ctype == "application/pdf": ext = "pdf"

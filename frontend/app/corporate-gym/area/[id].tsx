@@ -7,12 +7,15 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import * as FileSystem from "expo-file-system/legacy";
+import { getToken } from "@/src/api"; // V50.z387
 import * as Sharing from "expo-sharing";
 import { notify } from "@/src/utils/notify";
 import { pickCommonFile } from "@/src/utils/filePicker";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
-import { cgaApi, CgaArea, CgaMaterial, CgaReference, RATING_COLOR } from "@/src/corporate-gym/areasApi";
+import { cgaApi, CgaArea, CgaMaterial, CgaReference, RATING_COLOR, type CgaLevel, CGA_LEVEL_LABEL, CGA_LEVEL_HINT } from "@/src/corporate-gym/areasApi";
 import { CgymAreaLogo } from "@/src/corporate-gym/CgymAreasGrid";
+import { ReferencePlayer } from "@/src/corporate-gym/ReferencePlayer";
+import { TranscriptReviewSheet, transcriptApi, TRANSCRIPT_STATUS_LABEL, type AudioTranscript } from "@/src/audio/TranscriptReviewSheet"; // V50.z389
 import { HT } from "@/src/homeTheme";
 
 const fmtSize = (n: number) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
@@ -26,12 +29,23 @@ export default function CgymAreaScreen() {
   const [mats, setMats] = useState<CgaMaterial[]>([]);
   const [refs, setRefs] = useState<CgaReference[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
+  const [level, setLevel] = useState<CgaLevel>("base"); // V50.z387 — livello di addestramento scelto prima della sessione
+  const [playing, setPlaying] = useState<{ url: string; title: string } | null>(null); // V50.z388 — player audio in app
+  const [review, setReview] = useState<{ id: string; title: string } | null>(null); // V50.z389 — revisione/lettura trascrizione
+  const [transcripts, setTranscripts] = useState<Record<string, AudioTranscript>>({}); // per ref_id
 
+  const [loadError, setLoadError] = useState<string | null>(null); // V50.z389 — mai spinner infinito
   const load = useCallback(async () => {
+    setLoadError(null);
+    const timeout = new Promise<never>((_, rej) => setTimeout(() => rej(new Error("Il server non risponde (timeout 15 s). Controlla la connessione e riprova.")), 15000));
     try {
-      const [a, m, r] = await Promise.all([cgaApi.areas(), cgaApi.materials(String(id)), cgaApi.references(String(id))]);
-      setArea(a.items.find((x) => x.area_id === id) || null); setMaster(a.is_master); setMats(m.items); setRefs(r.items);
-    } catch (e: any) { notify(e?.message || "Errore caricamento"); }
+      const [a, m, r] = await Promise.race([Promise.all([cgaApi.areas(), cgaApi.materials(String(id)), cgaApi.references(String(id))]), timeout]);
+      const found = a.items.find((x) => x.area_id === id) || null;
+      setArea(found); setMaster(a.is_master); setMats(m.items); setRefs(r.items);
+      if (!found) setLoadError("Area non trovata o non più disponibile.");
+      // V50.z389 — stato trascrizioni (pubblicate per tutti · bozze solo per chi le ha caricate / Master)
+      try { const t = await transcriptApi.list({ source_kind: "cgym_reference" }); setTranscripts(Object.fromEntries(t.items.map((x) => [x.source_id, x]))); } catch { /* opzionale */ }
+    } catch (e: any) { setLoadError(String(e?.message || "Errore caricamento")); }
   }, [id]);
   useEffect(() => { void load(); }, [load]);
 
@@ -70,20 +84,49 @@ export default function CgymAreaScreen() {
     if (!a) return;
     setBusy("ref");
     try {
-      const form = new FormData();
-      if (Platform.OS === "web") { const blob = await (await fetch(a.uri)).blob(); form.append("file", blob, a.name || "trattativa"); }
-      else form.append("file", { uri: a.uri, name: a.name || "trattativa", type: a.mimeType || "audio/m4a" } as any);
-      form.append("title", a.name || "Trattativa reale");
-      await cgaApi.addReference(String(id), form);
-      notify("Registrazione caricata e compressa"); await load();
-    } catch (e: any) { notify(e?.message || "Errore upload registrazione"); } finally { setBusy(null); }
+      // V50.z387 — «Network request failed» con file audio/video da Google Drive: su nativo l'upload usa
+      // FileSystem.uploadAsync (multipart nativo, gestisce content:// e file grandi) invece del FormData JS.
+      const sizeMb = a.size ? a.size / (1024 * 1024) : 0;
+      if (sizeMb > 200) throw new Error(`File troppo grande (${sizeMb.toFixed(0)} MB): il limite è 200 MB. Riduci la durata o la qualità della registrazione.`);
+      let created: CgaReference | null = null;
+      if (Platform.OS === "web") {
+        const form = new FormData();
+        const blob = await (await fetch(a.uri)).blob(); form.append("file", blob, a.name || "trattativa");
+        form.append("title", a.name || "Trattativa reale");
+        created = await cgaApi.addReference(String(id), form);
+      } else {
+        const token = await getToken();
+        const up = await FileSystem.uploadAsync(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/cgym/areas/${id}/references`, a.uri, {
+          httpMethod: "POST", uploadType: FileSystem.FileSystemUploadType.MULTIPART, fieldName: "file",
+          mimeType: a.mimeType || "audio/m4a", parameters: { title: a.name || "Trattativa reale" },
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (up.status >= 400) {
+          let msg = `Errore server (HTTP ${up.status})`;
+          try { const j = JSON.parse(up.body || "{}"); msg = typeof j.detail === "string" ? j.detail : msg; } catch {}
+          throw new Error(msg);
+        }
+        try { created = JSON.parse(up.body || "null"); } catch { created = null; }
+      }
+      notify("Registrazione caricata · la compressione avviene in background"); await load();
+      setTimeout(() => { void load(); }, 25000); // aggiorna dimensione quando la compressione è finita
+      // V50.z389 — FUNZ. 4: audio → apro subito la revisione della trascrizione (polling finché la bozza è pronta)
+      if (created?.transcript_id) setReview({ id: created.transcript_id, title: created.title });
+    } catch (e: any) {
+      const m = String(e?.message || "");
+      notify(/Network request failed|network|ECONN|timed? ?out/i.test(m)
+        ? "File non raggiungibile: se viene da Google Drive verifica che sia scaricato/disponibile offline e che la connessione sia stabile, poi riprova."
+        : (m || "Errore upload registrazione"));
+    } finally { setBusy(null); }
   };
 
   const playReference = async (r: CgaReference) => {
+    setBusy(r.ref_id);
     try {
       const l = await cgaApi.referenceLink(r.ref_id);
-      router.push(`/webviewer?url=${encodeURIComponent(l.url)}&title=${encodeURIComponent(r.title)}` as any); // riproduzione inline, nessun download
-    } catch (e: any) { notify(e?.message || "Riproduzione non disponibile"); }
+      if (r.kind === "audio") { setPlaying({ url: l.url, title: r.title }); return; } // V50.z388 — player audio nativo in app
+      router.push(`/webviewer?url=${encodeURIComponent(l.url)}&title=${encodeURIComponent(r.title)}` as any); // video: riproduzione inline, nessun download
+    } catch (e: any) { notify(e?.message || "Riproduzione non disponibile"); } finally { setBusy(null); }
   };
 
   const analyzeMine = async () => {
@@ -94,12 +137,21 @@ export default function CgymAreaScreen() {
     setBusy("analyze");
     try {
       const b64 = a.uri.startsWith("data:") ? a.uri.split(",")[1] : await FileSystem.readAsStringAsync(a.uri, { encoding: FileSystem.EncodingType.Base64 });
-      const s = await cgaApi.fromRecording({ area_id: String(id), audio_base64: b64, mime: a.mimeType || "audio/m4a", title: a.name });
+      const s = await cgaApi.fromRecording({ area_id: String(id), audio_base64: b64, mime: a.mimeType || "audio/m4a", title: a.name, training_level: level });
       router.push(`/corporate-gym/live?session=${s.session_id}` as any);
     } catch (e: any) { notify(e?.message || "Analisi non riuscita"); } finally { setBusy(null); }
   };
 
-  if (!area) return <SafeAreaView style={styles.root}><ActivityIndicator color={HT.violet} style={{ marginTop: 40 }} /></SafeAreaView>;
+  if (!area) return (
+    <SafeAreaView style={[styles.root, { alignItems: "center", justifyContent: "center", padding: 24, gap: 12 }]} edges={["top"]}>
+      {loadError ? (<>
+        <Ionicons name="cloud-offline-outline" size={40} color={HT.muted} />
+        <Text style={{ color: HT.muted, textAlign: "center" }} testID="cgym-area-error">{loadError}</Text>
+        <Pressable onPress={() => { void load(); }} style={[styles.cta, { backgroundColor: HT.violet, paddingHorizontal: 18 }]} testID="cgym-area-retry"><Ionicons name="refresh" size={18} color="#FFF" /><Text style={styles.ctaTxt}>Riprova</Text></Pressable>
+        <Pressable onPress={() => router.back()} style={{ minHeight: 44, justifyContent: "center" }}><Text style={{ color: HT.muted, fontWeight: "700" }}>Indietro</Text></Pressable>
+      </>) : (<><ActivityIndicator color={HT.violet} /><Text style={{ color: HT.muted }}>Carico l'area…</Text></>)}
+    </SafeAreaView>
+  );
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
@@ -108,7 +160,18 @@ export default function CgymAreaScreen() {
         <View style={{ flex: 1 }}><Text style={styles.title} numberOfLines={1}>{area.name}</Text><Text style={styles.sub} numberOfLines={1}>{area.description || `${area.blocks.length} blocchi`}</Text></View>
       </View>
       <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: pad }}>
-        <Pressable onPress={() => router.push(`/corporate-gym/live?area=${area.area_id}` as any)} style={[styles.cta, { backgroundColor: area.color }]} testID="cgym-live-start">
+        {/* V50.z387 — Livello di addestramento (scelto PRIMA di iniziare): BASE · MEDIO · ESPERTO */}
+        <View style={{ gap: 6 }} testID="cgym-level-picker">
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            {(["base", "medio", "esperto"] as CgaLevel[]).map((lv) => (
+              <Pressable key={lv} onPress={() => setLevel(lv)} style={[styles.ghost, { flex: 1, alignItems: "center", borderColor: level === lv ? area.color : HT.border, borderWidth: 2 }]} testID={`cgym-level-${lv}`}>
+                <Text style={[styles.ghostTxt, level === lv && { color: area.color }]}>{CGA_LEVEL_LABEL[lv]}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={{ color: HT.muted, fontSize: 12 }}>{CGA_LEVEL_HINT[level]}</Text>
+        </View>
+        <Pressable onPress={() => router.push(`/corporate-gym/live?area=${area.area_id}&level=${level}` as any)} style={[styles.cta, { backgroundColor: area.color }]} testID="cgym-live-start">
           <Ionicons name="videocam" size={20} color="#FFF" /><Text style={styles.ctaTxt}>Sessione live viso a viso con Axon</Text>
         </Pressable>
         <View style={{ flexDirection: "row", gap: 10 }}>
@@ -143,17 +206,32 @@ export default function CgymAreaScreen() {
 
         <View style={styles.card}>
           <View style={styles.cardHeadRow}><Text style={styles.cardHead}>Trattativa reale (campione)</Text>{master ? <Pressable onPress={addReference} disabled={busy === "ref"} style={styles.miniBtn} testID="cgym-reference-add">{busy === "ref" ? <ActivityIndicator color="#FFF" size="small" /> : <Ionicons name="cloud-upload" size={16} color="#FFF" />}<Text style={styles.miniTxt}>Audio/Video</Text></Pressable> : null}</View>
-          <Text style={styles.meta}>Registrazioni sul campo caricate dal Master · solo riproduzione in app, non scaricabili.</Text>
-          {refs.map((r) => (
-            <View key={r.ref_id} style={styles.row} testID={`cgym-reference-${r.ref_id}`}>
-              <Ionicons name={r.kind === "video" ? "videocam" : "musical-notes"} size={20} color={HT.violet} />
-              <View style={{ flex: 1 }}><Text style={styles.rowTxt} numberOfLines={1}>{r.title}</Text><Text style={styles.meta}>{r.kind} · {fmtSize(r.size)}</Text></View>
-              <Pressable onPress={() => playReference(r)} style={[styles.miniBtn, { backgroundColor: area.color }]}><Ionicons name="play" size={14} color="#FFF" /><Text style={styles.miniTxt}>Riproduci</Text></Pressable>
-              {master ? <Pressable onPress={async () => { await cgaApi.delReference(r.ref_id); load(); }} hitSlop={8} style={styles.iconBtn}><Ionicons name="trash" size={18} color={HT.danger} /></Pressable> : null}
+          <Text style={styles.meta}>{master ? "Registrazioni sul campo caricate dal Master · audio riservato al Master, i consulenti leggono la trascrizione in app." : "Video: riproduzione in app · Audio: trascrizione in sola lettura, l'originale resta al Master."}</Text>
+          {refs.length === 0 ? <Text style={styles.empty}>Nessuna registrazione{master ? ": carica un audio o un video di una trattativa reale" : ""}.</Text> : null}
+          {refs.map((r) => {
+            const tr = transcripts[r.ref_id];
+            const canPlay = r.kind === "video" || master;
+            return (
+            <View key={r.ref_id} style={{ gap: 6 }} testID={`cgym-reference-${r.ref_id}`}>
+              <View style={styles.row}>
+                <Ionicons name={r.kind === "video" ? "videocam" : "musical-notes"} size={20} color={HT.violet} />
+                <View style={{ flex: 1 }}><Text style={styles.rowTxt} numberOfLines={1}>{r.title}</Text><Text style={styles.meta}>{r.kind} · {fmtSize(r.size)}{r.compressing ? " · compressione in corso…" : ""}{tr ? ` · ${TRANSCRIPT_STATUS_LABEL[tr.status]}` : ""}</Text></View>
+                {canPlay ? <Pressable onPress={() => playReference(r)} disabled={busy === r.ref_id} style={[styles.miniBtn, { backgroundColor: area.color }]} testID={`cgym-reference-play-${r.ref_id}`}>{busy === r.ref_id ? <ActivityIndicator color="#FFF" size="small" /> : <Ionicons name="play" size={14} color="#FFF" />}<Text style={styles.miniTxt}>Riproduci</Text></Pressable> : null}
+                {master ? <Pressable onPress={async () => { try { await cgaApi.delReference(r.ref_id); } catch (e: any) { notify(e?.message || "Eliminazione non riuscita"); } load(); }} hitSlop={8} style={styles.iconBtn}><Ionicons name="trash" size={18} color={HT.danger} /></Pressable> : null}
+              </View>
+              {r.kind === "audio" && (tr || r.transcript_id) ? (
+                <Pressable onPress={() => setReview({ id: tr?.transcript_id || String(r.transcript_id), title: r.title })} style={[styles.ghost, { alignSelf: "flex-start", minHeight: 36 }, tr?.status === "draft" && tr.can_edit && { borderColor: "#F59E0B", backgroundColor: HT.warningTint }]} testID={`cgym-reference-transcript-${r.ref_id}`}>
+                  <Ionicons name={tr?.status === "draft" && tr.can_edit ? "create-outline" : "document-text-outline"} size={16} color={tr?.status === "draft" && tr.can_edit ? "#D97706" : HT.violet} />
+                  <Text style={[styles.ghostTxt, tr?.status === "draft" && tr.can_edit && { color: "#D97706" }]}>{tr?.status === "draft" && tr.can_edit ? "Rivedi e conferma la trascrizione" : tr?.status === "published" ? "Leggi la trascrizione" : tr?.status === "failed" ? "Trascrizione non riuscita" : "Trascrizione in corso…"}</Text>
+                </Pressable>
+              ) : null}
             </View>
-          ))}
+            );
+          })}
         </View>
       </ScrollView>
+      <ReferencePlayer url={playing?.url || null} title={playing?.title || ""} color={area.color} onClose={() => setPlaying(null)} />
+      <TranscriptReviewSheet transcriptId={review?.id || null} title={review?.title} onClose={() => { setReview(null); void load(); }} />
     </SafeAreaView>
   );
 }

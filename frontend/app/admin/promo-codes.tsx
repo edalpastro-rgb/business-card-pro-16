@@ -9,6 +9,7 @@ import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { notify, confirmAsync } from "@/src/utils/notify";
+import { DateField } from "@/src/ui/DateField"; // V50.z388 — calendario nativo su ogni campo data
 
 const C = theme.color;
 const VIOLET = "#8B5CF6"; // identità Axon (uguale in chiaro e scuro)
@@ -36,12 +37,6 @@ const STATUS_META: Record<Promo["status"], { label: string; color: string }> = {
 
 const fmtDate = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString("it-IT") : "—");
 const fmtDateTime = (iso?: string | null) => (iso ? new Date(iso).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—");
-const maskDate = (t: string) => {
-  const d = t.replace(/\D/g, "").slice(0, 8);
-  if (d.length <= 2) return d;
-  if (d.length <= 4) return `${d.slice(0, 2)}/${d.slice(2)}`;
-  return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`;
-};
 
 export default function PromoCodesScreen() {
   const router = useRouter();
@@ -177,8 +172,8 @@ function CreatePromoModal({ visible, onClose, onCreated }: { visible: boolean; o
             <Text style={s.lbl}>{bm.valueLabel}</Text>
             <TextInput value={value} onChangeText={(t) => setValue(t.replace(/\D/g, ""))} keyboardType="number-pad" placeholder={benefit === "premium" ? "Senza scadenza" : "1"} placeholderTextColor={C.muted} style={s.input} testID="promo-value" />
 
-            <Text style={s.lbl}>Scadenza del codice (GG/MM/AAAA, vuoto = mai)</Text>
-            <TextInput value={expires} onChangeText={(t) => setExpires(maskDate(t))} keyboardType="number-pad" placeholder="31/12/2026" placeholderTextColor={C.muted} style={s.input} maxLength={10} testID="promo-expires" />
+            <Text style={s.lbl}>Scadenza del codice (vuoto = mai)</Text>
+            <DateField value={expires} onChange={setExpires} format="it" placeholder="Nessuna scadenza" testID="promo-expires" />
 
             <Text style={s.lbl}>Numero massimo di utilizzi</Text>
             <View style={s.chips}>

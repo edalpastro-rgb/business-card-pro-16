@@ -37,7 +37,7 @@ async function pickFile(camera: boolean): Promise<{ data_base64: string; mime: s
     if (res.canceled || !res.assets?.[0]?.base64) return null;
     return { data_base64: res.assets[0].base64, mime: res.assets[0].mimeType || "image/jpeg", name: res.assets[0].fileName || "scontrino.jpg" };
   }
-  const res = await DocumentPicker.getDocumentAsync({ type: ["image/*", "application/pdf"], copyToCacheDirectory: true });
+  const res = await DocumentPicker.getDocumentAsync({ type: ["image/*", "application/pdf", "application/vnd.openxmlformats-officedocument.presentationml.presentation"], copyToCacheDirectory: true });
   if (res.canceled || !res.assets?.[0]) return null;
   const a = res.assets[0];
   const blob = await (await fetch(a.uri)).blob();

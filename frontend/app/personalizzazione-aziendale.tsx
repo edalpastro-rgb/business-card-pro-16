@@ -34,7 +34,7 @@ export default function PersonalizzazioneAziendale() {
   };
   const pickLogo = async () => {
     try {
-      const res = await DocumentPicker.getDocumentAsync({ type: ["image/png", "image/jpeg", "image/webp"], multiple: false, copyToCacheDirectory: true });
+      const res = await DocumentPicker.getDocumentAsync({ type: ["image/png", "image/jpeg", "image/webp", "application/vnd.openxmlformats-officedocument.presentationml.presentation"], multiple: false, copyToCacheDirectory: true });
       if (res.canceled || !res.assets?.[0]) return;
       const a = res.assets[0];
       if ((a.size || 0) > 1_500_000) { notify("Logo troppo grande", "Max 1,5 MB (meglio un PNG trasparente)."); return; }

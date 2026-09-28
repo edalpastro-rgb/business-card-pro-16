@@ -52,9 +52,11 @@ class CourseIn(BaseModel):
     reminder_days: int = COURSE_REMINDER_DEFAULT_DAYS  # 0 = disattivato
     pre_reminders: List[int] = Field(default_factory=lambda: list(COURSE_PRE_REMINDER_DEFAULT))  # V50.z300 — giorni prima della lezione (0 = giorno stesso)
     files: List[CourseFileIn] = Field(default_factory=list)
+    is_private: bool = False  # V50.z387 — corso privato: visibile solo al Super Master (owner) e al Master che lo ha creato
 
 
 class CourseUpdate(BaseModel):
+    is_private: Optional[bool] = None  # V50.z387
     title: Optional[str] = None
     description: Optional[str] = None
     body_text: Optional[str] = None
@@ -86,12 +88,24 @@ async def _course_default_recipients(user: dict) -> List[str]:
     return await descendant_user_ids(user["user_id"])
 
 
-async def _course_store_file(tid: str, course_id: str, f: CourseFileIn) -> dict:
+async def _course_store_file(tid: str, course_id: str, f: CourseFileIn, user: Optional[dict] = None) -> dict:
     b64 = f.data_base64.split(",", 1)[1] if f.data_base64.startswith("data:") else f.data_base64
     if len(b64) > 24 * 1024 * 1024:
         raise HTTPException(status_code=413, detail=f"File troppo grande: {f.name}")
+    try:  # V50.z387 — COMPRESSIONE GLOBALE silenziosa anche per i materiali dei corsi (PDF/immagini/audio/video)
+        b64, _cstat = await media_auto_compress_b64(b64, f.mime or "", f.name or "", label="courses")  # noqa: F821 — media_compress.py (stesso namespace)
+    except Exception as _cexc:  # noqa: BLE001
+        logger.warning("[courses] compressione saltata per %s: %s", f.name, _cexc)
     fid = f"cf_{uuid.uuid4().hex[:10]}"
     meta = {"file_id": fid, "name": f.name[:160], "mime": f.mime or "application/octet-stream", "size": int(len(b64) * 0.75), "created_at": utcnow()}
+    # V50.z389 — FUNZ. 4: audio del corso → trascrizione + pulizia → bozza da confermare; l'audio resta solo al Master/creatore
+    try:
+        _raw_for_kind = base64.b64decode(b64[:64] + "=" * (-len(b64[:64]) % 4)) if b64 else b""
+        if user and mc_kind(meta["mime"], meta["name"], _raw_for_kind) == "audio":  # noqa: F821 — media_compress
+            meta["transcript_id"] = await audio_transcript_start(user, base64.b64decode(b64), meta["mime"], meta["name"], "course_file", f"{course_id}:{fid}", meta["name"])  # noqa: F821
+            meta["audio_master_only"] = True
+    except Exception as _texc:  # noqa: BLE001
+        logger.warning("[courses] avvio trascrizione audio fallito per %s: %s", f.name, _texc)
     try:
         ext = (f.name.rsplit(".", 1)[-1] if "." in f.name else "bin")[:6]
         path = f"{_STORAGE_APP_NAME}/courses/{tid}/{course_id}/{fid}.{ext}"
@@ -116,6 +130,7 @@ def _course_public(c: dict, user: dict, names: Dict[str, str]) -> dict:
     out["creator_name"] = names.get(c.get("created_by") or "", "")
     out["my_read_at"] = reads.get(uid)
     out["is_new"] = (not is_creator) and uid not in reads  # → badge lampeggiante
+    out["is_private"] = bool(c.get("is_private"))  # V50.z387
     mp = part.get(uid) or {}
     out["my_participation"] = mp.get("status") or "pending"
     out["my_notes"] = mp.get("notes") or ""
@@ -146,8 +161,11 @@ async def _course_names(ids: List[str]) -> Dict[str, str]:
     return names
 
 
-async def _course_get(course_id: str, user: dict) -> dict:
-    c = await db.courses_folders.find_one({"course_id": course_id, "tenant_id": tenant_id(user)}, {"_id": 0})
+async def _course_get(course_id: str, user: dict, light: bool = False) -> dict:
+    # V50.z388 — light=True: esclude i blob inline (files.data_b64, fino a 24 MB ciascuno) → Area Corsi veloce.
+    # NON usare light nelle rotte che riscrivono `files` (update/slides) o leggono il contenuto (download, test, export).
+    proj: Dict[str, Any] = {"_id": 0, "files.data_b64": 0} if light else {"_id": 0}
+    c = await db.courses_folders.find_one({"course_id": course_id, "tenant_id": tenant_id(user)}, proj)
     if not c:
         raise HTTPException(status_code=404, detail="Corso non trovato")
     if c.get("created_by") != user["user_id"] and user["user_id"] not in (c.get("recipients") or []) and not is_owner(user):
@@ -169,7 +187,7 @@ async def course_create(body: CourseIn, user=Depends(get_current_user)):
     tid = tenant_id(user)
     course_id = f"crs_{uuid.uuid4().hex[:12]}"
     recipients = body.recipients or await _course_default_recipients(user)
-    files = [await _course_store_file(tid, course_id, f) for f in body.files[:20]]
+    files = [await _course_store_file(tid, course_id, f, user) for f in body.files[:20]]
     doc = {
         "course_id": course_id, "tenant_id": tid, "created_by": user["user_id"], "title": body.title.strip()[:160] or "Corso",
         "description": (body.description or "").strip()[:2000], "body_text": (body.body_text or "")[:20000], "course_date": (body.course_date or "")[:10],
@@ -177,6 +195,7 @@ async def course_create(body: CourseIn, user=Depends(get_current_user)):
         "location": (body.location or "").strip()[:200], "maps_url": (body.maps_url or "").strip()[:500], "recipients": recipients,
         "reminder_days": max(0, min(30, int(body.reminder_days or 0))), "files": files, "status": "active", "reads": {}, "participation": {},
         "reminders_sent": {}, "created_at": utcnow(), "updated_at": utcnow(),
+        "is_private": bool(body.is_private),  # V50.z387
     }
     await db.courses_folders.insert_one(doc)
     for r in recipients:
@@ -191,7 +210,8 @@ async def course_create(body: CourseIn, user=Depends(get_current_user)):
 
 @api_router.get("/courses")
 async def courses_list(include_archived: bool = False, user=Depends(get_current_user)):
-    q: Dict[str, Any] = {"tenant_id": tenant_id(user), "$or": [{"created_by": user["user_id"]}, {"recipients": user["user_id"]}]}
+    # V50.z387 — corsi privati: i collaboratori NON li vedono (solo il creatore e il Super Master/owner)
+    q: Dict[str, Any] = {"tenant_id": tenant_id(user), "$or": [{"created_by": user["user_id"]}, {"recipients": user["user_id"], "is_private": {"$ne": True}}]}
     if is_owner(user):
         q.pop("$or")
     if not include_archived:
@@ -205,7 +225,7 @@ async def courses_list(include_archived: bool = False, user=Depends(get_current_
 
 @api_router.get("/courses/{course_id}")
 async def course_get(course_id: str, user=Depends(get_current_user)):
-    c = await _course_get(course_id, user)
+    c = await _course_get(course_id, user, light=True)
     names = await _course_names([c["created_by"], *(c.get("recipients") or [])])
     out = _course_public(c, user, names)
     # V50.z276 — idoneità attestato (mio + per partecipante se creatore)
@@ -221,7 +241,7 @@ async def course_get(course_id: str, user=Depends(get_current_user)):
 @api_router.post("/courses/{course_id}/read")
 async def course_mark_read(course_id: str, user=Depends(get_current_user)):
     """Primo click sulla cartella: ferma il lampeggio, registra timestamp, notifica il creatore."""
-    c = await _course_get(course_id, user)
+    c = await _course_get(course_id, user, light=True)
     uid = user["user_id"]
     if c.get("created_by") == uid or uid in (c.get("reads") or {}):
         return {"ok": True, "already": True}
@@ -237,7 +257,7 @@ async def course_mark_read(course_id: str, user=Depends(get_current_user)):
 
 @api_router.post("/courses/{course_id}/participation")
 async def course_participation(course_id: str, body: ParticipationIn, user=Depends(get_current_user)):
-    c = await _course_get(course_id, user)
+    c = await _course_get(course_id, user, light=True)
     if body.status not in ("yes", "no"):
         raise HTTPException(status_code=400, detail="status deve essere yes|no")
     uid = user["user_id"]
@@ -263,6 +283,8 @@ async def course_update(course_id: str, body: CourseUpdate, user=Depends(get_cur
     if c.get("created_by") != user["user_id"] and not is_owner(user):
         raise HTTPException(status_code=403, detail="Solo il creatore può modificare il corso")
     upd: Dict[str, Any] = {"updated_at": utcnow()}
+    if body.is_private is not None:  # V50.z387
+        upd["is_private"] = bool(body.is_private)
     for k in ("title", "description", "body_text", "course_date", "location", "maps_url", "recipients", "status"):
         v = getattr(body, k)
         if v is not None:
@@ -277,7 +299,7 @@ async def course_update(course_id: str, body: CourseUpdate, user=Depends(get_cur
     if body.remove_file_ids:
         files = [f for f in files if f.get("file_id") not in set(body.remove_file_ids)]
     for f in (body.add_files or [])[:20]:
-        files.append(await _course_store_file(c["tenant_id"], course_id, f))
+        files.append(await _course_store_file(c["tenant_id"], course_id, f, user))
     upd["files"] = files
     await db.courses_folders.update_one({"course_id": course_id}, {"$set": upd})
     new_recipients = [r for r in (body.recipients or []) if r not in (c.get("recipients") or [])]
@@ -308,6 +330,9 @@ async def course_file(course_id: str, file_id: str, user=Depends(get_current_use
     f = next((x for x in (c.get("files") or []) if x.get("file_id") == file_id), None)
     if not f:
         raise HTTPException(status_code=404, detail="File non trovato")
+    # V50.z389 — l'AUDIO originale è riservato a Master/creatore: i partecipanti leggono la trascrizione pubblicata in app
+    if f.get("audio_master_only") and c.get("created_by") != user["user_id"] and not is_owner(user) and not is_admin_or_owner(user):
+        raise HTTPException(status_code=403, detail="L'audio originale è riservato al Master: leggi la trascrizione")
     b64 = None
     if f.get("path"):
         got = await run_in_threadpool(_get_object_sync, f["path"])
@@ -596,7 +621,7 @@ async def course_test_upsert(course_id: str, body: QuizIn, user=Depends(get_curr
 
 @api_router.get("/courses/{course_id}/test")
 async def course_test_get(course_id: str, user=Depends(get_current_user)):
-    c = await _course_get(course_id, user)
+    c = await _course_get(course_id, user, light=True)
     t = await db.courses_tests.find_one({"course_id": course_id}, {"_id": 0})
     if not t:
         return {"course_id": course_id, "questions": [], "my_response": None}
@@ -681,7 +706,7 @@ async def course_report_update(course_id: str, body: CourseReportIn, user=Depend
 
 @api_router.get("/courses/{course_id}/report")
 async def course_report_get(course_id: str, user=Depends(get_current_user)):
-    c = await _course_get(course_id, user)
+    c = await _course_get(course_id, user, light=True)
     rep = c.get("report")
     creator = c.get("created_by") == user["user_id"] or is_owner(user)
     if not rep or (not creator and not rep.get("visible_to_recipients")):

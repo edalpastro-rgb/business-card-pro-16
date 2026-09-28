@@ -1332,11 +1332,12 @@ async def add_file(contact_id: str, body: ContactFile, user=Depends(get_current_
     if not c:
         raise HTTPException(status_code=404, detail="Contatto non trovato")
     f = body.model_dump()
-    # V50.z345 — compressione automatica PDF (testo/OCR intatti) → scheda cliente più leggera
+    # V50.z388 — compressione globale silenziosa (PDF/immagini/audio/video) → scheda cliente più leggera
     if f.get("data_base64"):
-        f["data_base64"], _ci = await pdf_auto_compress_b64(f["data_base64"], f.get("mime") or "", f.get("name") or "", "contact-file")
+        f["data_base64"], _ci = await media_auto_compress_b64(f["data_base64"], f.get("mime") or "", f.get("name") or "", "contact-file")  # noqa: F821
         if _ci.get("compressed"):
             f["size"] = _ci["after"]; f["compressed_from"] = _ci["before"]
+            if _ci.get("mime"): f["mime"] = _ci["mime"]
     await db.contacts.update_one({"contact_id": contact_id}, {"$push": {"files": f}})
     f_light = {k: v for k, v in f.items() if k != "data_base64"}
     return f_light

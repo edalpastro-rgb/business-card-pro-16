@@ -27,8 +27,16 @@ export default function CoursesScreen() {
   const [canManage, setCanManage] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null); // V50.z387 — mai spinner infinito: timeout + errore visibile + riprova
   const load = useCallback(async () => {
-    try { const r = await api<{ items: Course[]; can_manage: boolean }>("/courses"); setItems(r.items || []); setCanManage(!!r.can_manage); } catch {} finally { setLoading(false); setRefreshing(false); }
+    setLoadError(null);
+    const timeout = new Promise<never>((_, rej) => setTimeout(() => rej(new Error("Il server non risponde (timeout 15 s). Controlla la connessione e riprova.")), 15000));
+    try {
+      const r = await Promise.race([api<{ items: Course[]; can_manage: boolean }>("/courses"), timeout]);
+      setItems(r.items || []); setCanManage(!!r.can_manage);
+    } catch (e: any) {
+      setLoadError(String(e?.message || "Impossibile caricare l'Area Corsi."));
+    } finally { setLoading(false); setRefreshing(false); }
   }, []);
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
@@ -41,7 +49,15 @@ export default function CoursesScreen() {
         {canManage ? <Pressable onPress={() => router.push("/courses/new" as any)} style={s.addBtn} testID="courses-new"><Ionicons name="add" size={18} color="#FFF" /><Text style={s.addTxt}>Nuova</Text></Pressable> : null}
       </View>
       <ScrollView contentContainerStyle={{ padding: 14, gap: 10, paddingBottom: pagePad }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
-        {loading ? <ActivityIndicator color="#7C3AED" style={{ marginTop: 30 }} /> : items.length === 0 ? (
+        {loading ? (
+          <View style={{ alignItems: "center", marginTop: 30, gap: 8 }}><ActivityIndicator color="#7C3AED" /><Text style={s.emptyTxt}>Carico i corsi…</Text></View>
+        ) : loadError ? (
+          <View style={s.empty} testID="courses-error">
+            <Ionicons name="cloud-offline-outline" size={40} color={HT.muted} />
+            <Text style={s.emptyTxt}>{loadError}</Text>
+            <Pressable onPress={() => { setLoading(true); void load(); }} style={s.addBtn} testID="courses-retry"><Ionicons name="refresh" size={18} color="#FFF" /><Text style={s.addTxt}>Riprova</Text></Pressable>
+          </View>
+        ) : items.length === 0 ? (
           <View style={s.empty} testID="courses-empty"><Ionicons name="school-outline" size={40} color={HT.muted} /><Text style={s.emptyTxt}>{canManage ? "Nessuna cartella corso. Crea la prima con «Nuova»." : "Nessun corso assegnato al momento."}</Text></View>
         ) : items.map((c) => {
           const card = (

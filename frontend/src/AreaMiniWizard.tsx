@@ -14,6 +14,7 @@ import { launchCameraUniversal } from "@/src/utils/imagePickerCompat";
 import { notify } from "@/src/utils/notify";
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { DateField } from "@/src/ui/DateField"; // V50.z388 — calendario nativo su ogni campo data
 
 export type AreaField = { key: string; label: string; type?: "date" | "text"; deadline?: string };
 export type AreaStep = { id: string; kind: "upload" | "choice" | "link" | "custom"; title: string; hint?: string; extract?: string; fields?: AreaField[]; extra_fields?: AreaField[]; field?: string; options?: { value: string; label: string }[]; route?: string; cta?: string };
@@ -84,7 +85,7 @@ export function AreaMiniWizard({ area, visible, onClose, onDone }: { area: AreaC
   };
   const pickFile = async () => {
     try {
-      const res = await DocumentPicker.getDocumentAsync({ type: ["image/*", "application/pdf"], multiple: false, copyToCacheDirectory: true });
+      const res = await DocumentPicker.getDocumentAsync({ type: ["image/*", "application/pdf", "application/vnd.openxmlformats-officedocument.presentationml.presentation"], multiple: false, copyToCacheDirectory: true });
       if (res.canceled || !res.assets?.[0]) return;
       const a = res.assets[0];
       await runExtract({ uri: a.uri, name: a.name || `file-${Date.now()}`, mime: a.mimeType || "application/octet-stream" });
@@ -175,9 +176,13 @@ export function AreaMiniWizard({ area, visible, onClose, onDone }: { area: AreaC
                   const miss = !data[f.key];
                   return (
                     <View key={f.key} style={{ gap: 4 }}>
-                      <Text style={[styles.lbl, miss && { color: HT.warning }]}>{f.label}{f.type === "date" ? " (AAAA-MM-GG)" : ""}{miss ? " · da completare" : ""}</Text>
-                      <TextInput value={data[f.key] || ""} onChangeText={(t) => setData((d) => ({ ...d, [f.key]: t }))} placeholder={f.type === "date" ? "2026-12-31" : f.label} placeholderTextColor={HT.muted}
-                        keyboardType={f.type === "date" ? "numbers-and-punctuation" : "default"} style={[styles.input, miss && { borderColor: '#F59E0B' }]} testID={`area-field-${f.key}`} />
+                      <Text style={[styles.lbl, miss && { color: HT.warning }]}>{f.label}{miss ? " · da completare" : ""}</Text>
+                      {f.type === "date" ? (
+                        <DateField value={data[f.key] || ""} onChange={(t) => setData((d) => ({ ...d, [f.key]: t }))} placeholder="Scegli la data" style={miss ? { borderColor: "#F59E0B" } : undefined} testID={`area-field-${f.key}`} />
+                      ) : (
+                      <TextInput value={data[f.key] || ""} onChangeText={(t) => setData((d) => ({ ...d, [f.key]: t }))} placeholder={f.label} placeholderTextColor={HT.muted}
+                        style={[styles.input, miss && { borderColor: '#F59E0B' }]} testID={`area-field-${f.key}`} />
+                      )}
                       {!!f.deadline && (
                         <View style={styles.switchRow}>
                           <Text style={styles.recTxt}>↻ Ripeti ogni anno · al rinnovo AxonOS ricrea da solo gli avvisi (30, 15, 7 gg e il giorno stesso)</Text>
@@ -230,7 +235,7 @@ export function AreaMiniWizard({ area, visible, onClose, onDone }: { area: AreaC
                     {cDeadlines.map((d, i) => (
                       <View key={i} style={{ flexDirection: "row", gap: 6 }}>
                         <TextInput value={d.label} onChangeText={(t) => setCDeadlines((arr) => arr.map((x, j) => (j === i ? { ...x, label: t } : x)))} placeholder="Cosa scade" placeholderTextColor={HT.muted} style={[styles.input, { flex: 1 }]} testID={`area-custom-dl-label-${i}`} />
-                        <TextInput value={d.date} onChangeText={(t) => setCDeadlines((arr) => arr.map((x, j) => (j === i ? { ...x, date: t } : x)))} placeholder="AAAA-MM-GG" placeholderTextColor={HT.muted} style={[styles.input, { width: 118 }]} testID={`area-custom-dl-date-${i}`} />
+                        <DateField value={d.date} onChange={(t) => setCDeadlines((arr) => arr.map((x, j) => (j === i ? { ...x, date: t } : x)))} placeholder="Data" style={{ width: 138 }} testID={`area-custom-dl-date-${i}`} />
                         <Pressable onPress={() => setCDeadlines((arr) => arr.map((x, j) => (j === i ? { ...x, recurring: !x.recurring } : x)))} style={[styles.recPill, d.recurring && styles.chipOn]} testID={`area-custom-dl-rec-${i}`} accessibilityLabel="Ripeti ogni anno">
                           <Ionicons name="repeat" size={16} color={d.recurring ? "#FFF" : PURPLE} />
                         </Pressable>

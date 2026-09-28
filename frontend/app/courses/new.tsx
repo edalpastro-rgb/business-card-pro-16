@@ -1,7 +1,8 @@
 // courses/new.tsx — V50.z273 — Nuova cartella corso (Master/Manager): titolo, descrizione, data, luogo, link mappa,
 // destinatari (singoli o tutti), reminder (0/3/7/14 gg), allegati (PDF, foto, audio, testo) da dispositivo.
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Platform } from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Platform, Switch } from "react-native";
+import { DateField } from "@/src/ui/DateField"; // V50.z387 — campo data = calendario
 import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -22,7 +23,9 @@ export default function NewCourseScreen() {
   const pagePad = usePageBottomPadding();
   const [team, setTeam] = useState<Member[]>([]);
   const [title, setTitle] = useState(""); const [desc, setDesc] = useState(""); const [body, setBody] = useState("");
-  const [date, setDate] = useState(""); const [time, setTime] = useState(""); const [loc, setLoc] = useState(""); const [maps, setMaps] = useState("");
+  const [date, setDate] = useState(""); const [time, setTime] = useState("");
+  const [loc, setLoc] = useState(""); const [maps, setMaps] = useState("");
+  const [isPrivate, setIsPrivate] = useState(false); // V50.z387 — corso privato (solo Super Master + Master creatore)
   const [all, setAll] = useState(true); const [sel, setSel] = useState<string[]>([]);
   const [reminder, setReminder] = useState(3);
   const [preRem, setPreRem] = useState<number[]>([1]); // V50.z300 — promemoria prima della lezione
@@ -33,7 +36,7 @@ export default function NewCourseScreen() {
 
   const pick = async () => {
     try {
-      const res = await DocumentPicker.getDocumentAsync({ multiple: true, copyToCacheDirectory: true, type: ["application/pdf", "image/*", "audio/*", "text/*", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"] });
+      const res = await DocumentPicker.getDocumentAsync({ multiple: true, copyToCacheDirectory: true, type: ["application/pdf", "image/*", "audio/*", "text/*", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/vnd.openxmlformats-officedocument.presentationml.presentation"] });
       if (res.canceled) return;
       const out: F[] = [];
       for (const a of res.assets || []) out.push({ name: a.name || "file", mime: a.mimeType || "application/octet-stream", data_base64: await uriToBase64DataUrl(a.uri, a.mimeType || "application/octet-stream") });
@@ -45,8 +48,9 @@ export default function NewCourseScreen() {
     if (!all && sel.length === 0) { notify("Corso", "Scegli almeno un destinatario"); return; }
     setSaving(true);
     try {
-      const r = await api<{ course_id: string }>("/courses", { method: "POST", body: { title, description: desc, body_text: body, course_date: date, course_time: time, location: loc, maps_url: maps, recipients: all ? [] : sel, reminder_days: reminder, pre_reminders: preRem, files } });
-      router.replace(`/courses/${r.course_id}` as any);
+      const r = await api<{ course_id: string }>("/courses", { method: "POST", body: { title, description: desc, body_text: body, course_date: date, course_time: time, location: loc, maps_url: maps, recipients: all ? [] : sel, reminder_days: reminder, pre_reminders: preRem, files, is_private: isPrivate } });
+      const hasAudio = files.some((f: any) => String(f.mime || "").startsWith("audio/") || /\.(m4a|mp3|wav|aac|ogg|opus)$/i.test(String(f.name || "")));
+      router.replace(`/courses/${r.course_id}${hasAudio ? "?review=1" : ""}` as any); // V50.z389 — audio → apre subito la revisione trascrizione
     } catch (e: any) { notify("Corso", e?.message || "Creazione non riuscita"); } finally { setSaving(false); }
   };
 
@@ -61,8 +65,14 @@ export default function NewCourseScreen() {
         <TextInput value={title} onChangeText={setTitle} placeholder="Titolo del corso *" placeholderTextColor={HT.muted} style={s.input} testID="course-title" />
         <TextInput value={desc} onChangeText={setDesc} placeholder="Descrizione / indicazioni" placeholderTextColor={HT.muted} style={[s.input, { minHeight: 70 }]} multiline testID="course-desc" />
         <View style={{ flexDirection: "row", gap: 8 }}>
-          <TextInput value={date} onChangeText={setDate} placeholder="Data (AAAA-MM-GG)" placeholderTextColor={HT.muted} style={[s.input, { flex: 1.4 }]} testID="course-date" />
+          <DateField value={date} onChange={setDate} placeholder="Data del corso" style={{ flex: 1.4 }} testID="course-date" />
           <TextInput value={time} onChangeText={setTime} placeholder="Ora (HH:MM)" placeholderTextColor={HT.muted} style={[s.input, { flex: 1 }]} keyboardType="numbers-and-punctuation" testID="course-time" />
+        </View>
+        {/* V50.z387 — Corso privato: visibile solo al Super Master e al Master che lo ha creato; i collaboratori non lo vedono */}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 4 }} testID="course-private-row">
+          <Ionicons name={isPrivate ? "lock-closed" : "lock-open-outline"} size={18} color={isPrivate ? "#7C3AED" : HT.muted} />
+          <Text style={{ flex: 1, flexShrink: 1, color: HT.text, fontSize: 14, fontWeight: "700" }}>Corso privato: non condividere con i collaboratori</Text>
+          <Switch value={isPrivate} onValueChange={setIsPrivate} trackColor={{ true: "#7C3AED" }} testID="course-private-switch" />
         </View>
         <TextInput value={loc} onChangeText={setLoc} placeholder="Luogo" placeholderTextColor={HT.muted} style={s.input} testID="course-location" />
         <TextInput value={maps} onChangeText={setMaps} placeholder="Link Google Maps / Waze (opzionale)" placeholderTextColor={HT.muted} style={s.input} autoCapitalize="none" />

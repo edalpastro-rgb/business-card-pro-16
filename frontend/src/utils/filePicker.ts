@@ -22,6 +22,9 @@ export const COMMON_FILE_MIME_TYPES: string[] = [
   "text/csv",
   "application/vnd.ms-excel", // .xls
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // .xlsx
+  // Presentazioni — V50.z387: .pptx/.ppt accettati ovunque
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation", // .pptx
+  "application/vnd.ms-powerpoint", // .ppt
   "application/vnd.oasis.opendocument.spreadsheet", // .ods
   // Slides
   "application/vnd.ms-powerpoint",

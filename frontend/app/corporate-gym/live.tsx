@@ -14,7 +14,7 @@ import { notify } from "@/src/utils/notify";
 import { getMicPermission, requestMicPermission, openAppSettings, startRecording, stopRecording, playBase64, stopPlayback, getLiveLevelDb, MicPermissionState } from "@/src/corporate-gym/voice";
 import { classifyLiveTone, pushLiveSegment } from "@/src/corporate-gym/liveTone"; // V50.z366 — tono in tempo reale
 import { api } from "@/src/api";
-import { cgaApi, CgaSession, CgaTurnOut, Tone, TONE_COLOR, TONE_LABEL, RATING_COLOR } from "@/src/corporate-gym/areasApi";
+import { cgaApi, CgaSession, CgaTurnOut, Tone, TONE_COLOR, TONE_LABEL, RATING_COLOR, type CgaLevel, CGA_LEVEL_LABEL, DISTACCO_COLOR, DISTACCO_LABEL, type DistaccoColor } from "@/src/corporate-gym/areasApi";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { HT } from "@/src/homeTheme";
 
@@ -30,7 +30,8 @@ function ToneBar({ segments, height = 14 }: { segments: { tone: Tone; pct: numbe
 
 export default function CgymLiveScreen() {
   const router = useRouter();
-  const { area, session } = useLocalSearchParams<{ area?: string; session?: string }>();
+  const { area, session, level: levelParam } = useLocalSearchParams<{ area?: string; session?: string; level?: string }>();
+  const trainingLevel: CgaLevel = (["base", "medio", "esperto"].includes(String(levelParam)) ? String(levelParam) : "base") as CgaLevel;
   const [camPerm, requestCam] = useCameraPermissions();
   const bottomPad = usePageBottomPadding(8) - 60; // controlli sopra la tab bar
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -46,6 +47,13 @@ export default function CgymLiveScreen() {
   const levelsRef = useRef<number[]>([]);
   const liveSegsRef = useRef<{ tone: Tone; pct: number }[]>([]);
   const [busy, setBusy] = useState(false);
+  // V50.z388 — DISTACCO in tempo reale (verde = corretto · blu = troppo coinvolto · rosso = perso), aggiornato a ogni turno
+  const [distacco, setDistacco] = useState<{ score: number; color: DistaccoColor } | null>(null);
+  const distaccoPulse = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (!distacco) return;
+    Animated.sequence([Animated.timing(distaccoPulse, { toValue: 1.25, duration: 220, useNativeDriver: true }), Animated.timing(distaccoPulse, { toValue: 1, duration: 220, useNativeDriver: true })]).start();
+  }, [distacco, distaccoPulse]);
   const pulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => { getMicPermission().then(setMic); if (!camPerm?.granted) requestCam(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -76,7 +84,7 @@ export default function CgymLiveScreen() {
         if (session) { setS(await api<CgaSession>(`/cgym/live/${session}`)); return; }
         if (!area) return;
         setBusy(true);
-        const st = await cgaApi.liveStart(String(area));
+        const st = await cgaApi.liveStart(String(area), trainingLevel);
         setS(st); await speak(st.audio_base64);
       } catch (e: any) { notify(e?.message || "Impossibile avviare la sessione"); } finally { setBusy(false); }
     })();
@@ -92,8 +100,9 @@ export default function CgymLiveScreen() {
         const r = await cgaApi.liveTurn(s.session_id, { audio_base64: rec.b64, mime: rec.mime, tts: true });
         if (!r.ok) { notify(r.message || "Non ho sentito nulla"); setPhase("idle"); return; }
         setLast(r);
+        if (r.distacco_color) setDistacco({ score: r.distacco ?? 0, color: r.distacco_color });
         setTimeline((t) => [...t, ...(liveSegsRef.current.length ? liveSegsRef.current : (r.tone_segments || []))]);
-        setS((prev) => prev && { ...prev, block_idx: r.block_idx ?? prev.block_idx, turns: [...prev.turns, { role: "consultant", text: r.transcript || "", tone: r.tone, tone_segments: r.tone_segments, hesitation: r.hesitation, block_idx: prev.block_idx }, { role: "client", text: r.reply || "", block_idx: r.block_idx ?? prev.block_idx }] });
+        setS((prev) => prev && { ...prev, block_idx: r.block_idx ?? prev.block_idx, turns: [...prev.turns, { role: "consultant", text: r.transcript || "", tone: r.tone, tone_segments: r.tone_segments, hesitation: r.hesitation, distacco: r.distacco, distacco_color: r.distacco_color, interventions: r.interventions, block_idx: prev.block_idx }, { role: "client", text: r.reply || "", block_idx: r.block_idx ?? prev.block_idx }] });
         await speak(r.audio_base64);
       } catch (e: any) { notify(e?.message || "Errore turno"); setPhase("idle"); } finally { setBusy(false); }
       return;
@@ -120,6 +129,7 @@ export default function CgymLiveScreen() {
       <View style={styles.header}>
         <Pressable onPress={() => { stopPlayback(); router.back(); }} hitSlop={10} testID="cgym-live-back"><Ionicons name="chevron-back" size={24} color={HT.text} /></Pressable>
         <View style={{ flex: 1 }}><Text style={styles.title} numberOfLines={1}>{s?.area_name || "Sessione live"}</Text><Text style={styles.sub} numberOfLines={1}>{done ? "Sessione valutata" : s ? `Blocco ${s.block_idx + 1}/${s.blocks.length} · ${blockName}` : "Avvio…"}</Text></View>
+        {!done && s ? <View style={styles.levelBadge} testID={`cgym-live-level-${s.training_level || trainingLevel}`}><Text style={styles.levelTxt}>{CGA_LEVEL_LABEL[s.training_level || trainingLevel]}</Text></View> : null}
         {!done && s ? <Pressable onPress={finish} disabled={busy} style={styles.finishBtn} testID="cgym-live-finish"><Text style={styles.finishTxt}>Chiudi e valuta</Text></Pressable> : null}
       </View>
 
@@ -133,6 +143,14 @@ export default function CgymLiveScreen() {
                 <Ionicons name={phase === "listening" ? "mic" : phase === "thinking" ? "hourglass" : "sparkles"} size={30} color="#FFF" />
               </Animated.View>
               <Text style={styles.avatarLbl}>{phase === "speaking" ? "Axon (cliente) parla…" : phase === "listening" ? "Ti ascolto…" : phase === "thinking" ? "Analizzo…" : "Axon · cliente"}</Text>
+            </View>
+            {/* V50.z388 — semaforo DISTACCO in tempo reale (verde · blu · rosso) */}
+            <View style={styles.distaccoWrap} testID={`cgym-live-distacco-${distacco?.color || "nd"}`}>
+              <Animated.View style={[styles.distaccoDot, { transform: [{ scale: distaccoPulse }], backgroundColor: distacco ? DISTACCO_COLOR[distacco.color] : "rgba(255,255,255,0.3)" }]} />
+              <View>
+                <Text style={styles.distaccoLbl}>DISTACCO</Text>
+                <Text style={styles.distaccoTxt} numberOfLines={1}>{distacco ? DISTACCO_LABEL[distacco.color] : "in attesa del primo intervento"}</Text>
+              </View>
             </View>
             <View style={styles.toneOverlay}>
               {phase === "listening" ? (
@@ -153,6 +171,12 @@ export default function CgymLiveScreen() {
 
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 14, gap: 10 }}>
             {last?.action === "repeat" ? <View style={[styles.banner, { borderColor: "#DC2626", backgroundColor: HT.dangerTint }]} testID="cgym-live-repeat"><Ionicons name="repeat" size={18} color="#DC2626" /><Text style={styles.bannerTxt}>Esitazione su «{blockName}»: {last.hesitation_reason || "poco fluido"}. Ripeti il blocco.</Text></View> : null}
+            {last?.action === "correct" && last.interventions?.length ? (
+              <View style={[styles.banner, { borderColor: "#F59E0B", backgroundColor: HT.warningTint, flexDirection: "column", alignItems: "flex-start" }]} testID="cgym-live-correct">
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}><Ionicons name="hand-left" size={18} color="#F59E0B" /><Text style={[styles.bannerTxt, { fontWeight: "900" }]}>Axon interviene · livello {CGA_LEVEL_LABEL[s?.training_level || trainingLevel]}</Text></View>
+                {last.interventions.map((iv, i) => <Text key={i} style={styles.bannerTxt}>• {iv.tipo.replace("_", " ")}: {iv.correzione}</Text>)}
+              </View>
+            ) : null}
             {last?.action === "next_block" ? <View style={[styles.banner, { borderColor: "#16A34A", backgroundColor: HT.successTint }]}><Ionicons name="checkmark-circle" size={18} color="#16A34A" /><Text style={styles.bannerTxt}>Blocco fluido · si passa a «{blockName}»</Text></View> : null}
             {last?.action === "all_done" ? <View style={[styles.banner, { borderColor: HT.violet, backgroundColor: HT.violetTint }]}><Ionicons name="flag" size={18} color={HT.violet} /><Text style={styles.bannerTxt}>Tutti i blocchi completati: chiudi la sessione per il feedback.</Text></View> : null}
             {last?.hint ? <Text style={styles.hint}>💡 {last.hint}</Text> : null}
@@ -160,6 +184,7 @@ export default function CgymLiveScreen() {
               <View key={i} style={[styles.bubble, t.role === "consultant" ? styles.me : styles.them]}>
                 {t.role === "consultant" && t.tone_segments ? <ToneBar segments={t.tone_segments} height={6} /> : null}
                 <Text style={styles.bubbleTxt}>{t.text.replace("[AXON]", "🤖")}</Text>
+                {t.role === "consultant" && t.distacco_color ? <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}><View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: DISTACCO_COLOR[t.distacco_color] }} /><Text style={styles.meta}>Distacco: {DISTACCO_LABEL[t.distacco_color]}</Text></View> : null}
               </View>
             ))}
           </ScrollView>
@@ -178,6 +203,20 @@ export default function CgymLiveScreen() {
             <Text style={[styles.rating, { color: RATING_COLOR[s!.rating || ""] || HT.text }]}>{s!.rating}</Text>
             <Text style={styles.score}>{s!.score}/100</Text>
             {s!.feedback?.summary ? <Text style={styles.summary}>{s!.feedback.summary}</Text> : null}
+            {/* V50.z387 — Riepilogo voti per parametro (Manuale Unico) + indicatore DISTACCO colorato */}
+            {s!.params ? (
+              <View style={{ width: "100%", gap: 6 }} testID="cgym-params">
+                {s!.training_level ? <Text style={styles.meta}>Livello addestramento: {CGA_LEVEL_LABEL[s!.training_level]}</Text> : null}
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }} testID={`cgym-distacco-${s!.distacco_color || "nd"}`}>
+                  <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: DISTACCO_COLOR[s!.distacco_color || ""] || HT.muted }} />
+                  <Text style={styles.meta}>Distacco: {s!.distacco_color === "verde" ? "corretto" : s!.distacco_color === "blu" ? "troppo coinvolto emotivamente" : s!.distacco_color === "rosso" ? "completamente perso" : "n.d."}</Text>
+                </View>
+                {([["tono", "Tono" + (s!.tono_giudizio ? ` (${s!.tono_giudizio})` : "")], ["obiezioni", "Gestione obiezioni"], ["invito_azione", "Invito all'azione"], ["distacco", "Distacco"], ["dati", "Correttezza dati"], ["filo_logico", "Filo logico"]] as [keyof NonNullable<CgaSession["params"]>, string][]).map(([k, lbl]) => (
+                  <View key={k} style={{ flexDirection: "row", justifyContent: "space-between" }}><Text style={styles.meta}>{lbl}</Text><Text style={[styles.meta, { fontWeight: "800" }]}>{s!.params![k]}/100</Text></View>
+                ))}
+                {(s!.interventions || []).length ? <Text style={[styles.meta, { marginTop: 4 }]}>Interventi di Axon ({s!.interventions!.length}): {s!.interventions!.slice(0, 5).map((i) => `${i.tipo}: ${i.correzione}`).join(" · ")}</Text> : null}
+              </View>
+            ) : null}
             {s!.tone_mix ? <View style={{ gap: 6, width: "100%" }}><ToneBar segments={(Object.keys(s!.tone_mix) as Tone[]).map((t) => ({ tone: t, pct: s!.tone_mix![t] }))} /><Text style={styles.meta}>Mix toni: {(Object.keys(s!.tone_mix) as Tone[]).map((t) => `${TONE_LABEL[t]} ${s!.tone_mix![t]}%`).join(" · ")}</Text></View> : null}
           </View>
           <View style={styles.card}><Text style={[styles.cardHead, { color: "#16A34A" }]}>Cosa è andato bene</Text>{(s!.feedback?.good || []).map((x, i) => <Text key={i} style={styles.li}>✓ {x}</Text>)}</View>
@@ -196,6 +235,9 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: HT.border, backgroundColor: HT.card },
   title: { fontSize: 16, fontWeight: "900", color: HT.text }, sub: { fontSize: 12, color: HT.muted },
   finishBtn: { backgroundColor: HT.violet, borderRadius: 10, paddingHorizontal: 12, minHeight: 36, justifyContent: "center" }, finishTxt: { color: "#FFF", fontWeight: "800", fontSize: 12 },
+  levelBadge: { borderRadius: 8, paddingHorizontal: 8, minHeight: 28, justifyContent: "center", backgroundColor: HT.violetTint, borderWidth: 1, borderColor: HT.violet + "66" }, levelTxt: { color: HT.violet, fontWeight: "900", fontSize: 11 },
+  distaccoWrap: { position: "absolute", left: 12, top: 44, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "rgba(0,0,0,0.55)", borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6, maxWidth: 190 },
+  distaccoDot: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: "#FFF" }, distaccoLbl: { color: "rgba(255,255,255,0.7)", fontSize: 9, fontWeight: "900", letterSpacing: 1 }, distaccoTxt: { color: "#FFF", fontSize: 11, fontWeight: "800" },
   stage: { height: 260, backgroundColor: "#0F2438", position: "relative" },
   camHint: { position: "absolute", top: 10, left: 10, right: 10, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(0,0,0,0.55)", borderRadius: 10, padding: 8 }, camHintTxt: { color: "#FFF", fontSize: 12, fontWeight: "700", flex: 1 },
   avatarWrap: { position: "absolute", right: 12, top: 44, alignItems: "center", gap: 4 },

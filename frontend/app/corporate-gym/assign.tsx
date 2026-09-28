@@ -12,6 +12,7 @@ import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { CgymTileIcon } from "@/src/corporate-gym/CgymTileIcon";
 import { cgymAssignApi, CgymAssignment, CgymType, CGYM_TYPE_META, CGYM_ORANGE, toYMD } from "@/src/corporate-gym/api";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { DateField } from "@/src/ui/DateField"; // V50.z388 — calendario nativo su ogni campo data
 
 type Member = { user_id: string; name?: string; email?: string; role?: string };
 
@@ -158,7 +159,7 @@ export default function CgymAssignScreen() {
               </Pressable>
             ))}
           </View>
-          <TextInput value={dueCustom} onChangeText={setDueCustom} placeholder="oppure data GG/MM/AAAA" placeholderTextColor={HT.muted} style={styles.input} keyboardType="numbers-and-punctuation" testID="cgym-assign-due-custom" />
+          <DateField value={dueCustom} onChange={setDueCustom} format="it" placeholder="oppure scegli una data dal calendario" testID="cgym-assign-due-custom" />
 
           <Text style={styles.lbl}>Titolo (opzionale)</Text>
           <TextInput value={title} onChangeText={setTitle} placeholder={CGYM_TYPE_META[type].label} placeholderTextColor={HT.muted} style={styles.input} testID="cgym-assign-title" />

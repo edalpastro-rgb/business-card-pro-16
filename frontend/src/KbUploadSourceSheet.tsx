@@ -38,7 +38,7 @@ export function KbUploadSourceSheet({ visible, onClose, onUpload, uploading }: {
   const fromDevice = async () => {
     setReading(true);
     try {
-      const res = await DocumentPicker.getDocumentAsync({ type: ["application/pdf", "text/*"], multiple: true, copyToCacheDirectory: true });
+      const res = await DocumentPicker.getDocumentAsync({ type: ["application/pdf", "text/*", "application/vnd.openxmlformats-officedocument.presentationml.presentation"], multiple: true, copyToCacheDirectory: true });
       if (res.canceled || !res.assets?.length) return;
       const files: KbPicked[] = [];
       for (const a of res.assets) {

@@ -9,6 +9,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { DateField } from "@/src/ui/DateField"; // V50.z388 — calendario nativo su ogni campo data
 
 type Row = { course_id: string; title: string; course_date: string; manager: string; recipients: number; reads: number; yes: number; no: number; participation_pct: number; test_responses: number; avg_score_pct: number | null; areas: string[] };
 type Bucket = { key: string; label: string; courses: number; recipients: number; reads: number; yes: number; no: number; tests: number; participation_pct: number; read_pct: number; avg_score_pct: number | null };
@@ -52,8 +53,8 @@ export default function CoursesDashboard() {
           {(d?.filters.areas || []).map((a) => <Pressable key={a} onPress={() => setArea(a)} style={[s.chip, area === a && s.chipOn]} testID={`dash-area-${a}`}><Text style={[s.chipTxt, area === a && { color: "#FFF" }]}>{a}</Text></Pressable>)}
         </ScrollView>
         <View style={{ flexDirection: "row", gap: 8 }}>
-          <TextInput value={from} onChangeText={setFrom} placeholder="Dal (AAAA-MM-GG)" placeholderTextColor={HT.muted} style={s.input} testID="dash-from" />
-          <TextInput value={to} onChangeText={setTo} placeholder="Al (AAAA-MM-GG)" placeholderTextColor={HT.muted} style={s.input} testID="dash-to" />
+          <DateField value={from} onChange={setFrom} placeholder="Dal" style={{ flex: 1 }} testID="dash-from" />
+          <DateField value={to} onChange={setTo} placeholder="Al" style={{ flex: 1 }} testID="dash-to" />
         </View>
         {loading || !d ? <ActivityIndicator color="#7C3AED" style={{ marginTop: 20 }} /> : (<>
           <View style={{ flexDirection: "row", gap: 8 }} testID="dash-totals">

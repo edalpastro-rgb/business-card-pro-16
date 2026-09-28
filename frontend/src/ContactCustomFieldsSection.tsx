@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { DateField } from "@/src/ui/DateField"; // V50.z388 — calendario nativo su ogni campo data
 
 /**
  * V50.z67 — Sezione "Campi Personalizzati" nella scheda contatto.
@@ -153,16 +154,11 @@ export function ContactCustomFieldsSection({ contactId, initialValues, onSaved }
                 style={styles.input}
               />
             ) : d.type === "date" ? (
-              <TextInput
+              <DateField
                 testID={`cf-${d.key}`}
-                defaultValue={cur || ""}
-                onBlur={(e) => {
-                  const raw = (e.nativeEvent as any).text ?? "";
-                  saveValue(d.key, raw || null);
-                }}
-                placeholder="AAAA-MM-GG"
-                placeholderTextColor={HT.muted}
-                style={styles.input}
+                value={cur ? String(cur) : ""}
+                onChange={(v) => saveValue(d.key, v || null)}
+                placeholder="Scegli la data"
               />
             ) : (
               <TextInput

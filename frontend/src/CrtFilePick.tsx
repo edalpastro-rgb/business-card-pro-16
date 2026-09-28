@@ -51,7 +51,7 @@ export function CrtFilePick({ onPicked, label = "Carica", compact, testID, dropZ
   }, [webDrop]);
   const fromDevice = async () => {
     try {
-      const res = await DocumentPicker.getDocumentAsync({ type: ["application/pdf", "image/*"], multiple: false, copyToCacheDirectory: true });
+      const res = await DocumentPicker.getDocumentAsync({ type: ["application/pdf", "image/*", "application/vnd.openxmlformats-officedocument.presentationml.presentation"], multiple: false, copyToCacheDirectory: true });
       if (res.canceled || !res.assets?.[0]) return;
       const a = res.assets[0]; const mime = a.mimeType || (a.name?.toLowerCase().endsWith(".pdf") ? "application/pdf" : "image/jpeg");
       onPicked({ name: a.name || "documento", mime, data_base64: await uriToBase64DataUrl(a.uri, mime) });

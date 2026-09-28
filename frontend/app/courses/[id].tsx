@@ -2,7 +2,7 @@
 // materiali scaricabili, bottoni ✅ Partecipo / ❌ Non partecipo (+ motivo). Creatore: lista partecipanti (lettura, stato,
 // motivazioni espandibili), export Excel / PDF, archivia/elimina.
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Linking, Platform } from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Linking, Platform, Switch } from "react-native";
 import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -15,14 +15,15 @@ import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { CourseQuizSection, CourseReportSection } from "@/src/CourseExtras"; // V50.z274
 import { CourseSlidesSection } from "@/src/CourseSlides"; // V50.z275
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { TranscriptReviewSheet, transcriptApi, type AudioTranscript } from "@/src/audio/TranscriptReviewSheet"; // V50.z389 — FUNZ. 4
 
 type Participant = { user_id: string; name: string; read_at?: string | null; status: "yes" | "no" | "pending"; notes?: string; answered_at?: string | null; certificate_eligible?: boolean; certificate_issued?: boolean; certificate_id?: string | null; present?: boolean | null };
 type Course = {
   course_id: string; title: string; description?: string; body_text?: string; course_date?: string; course_time?: string; location?: string; maps_url?: string; status: string; creator_name?: string; reminder_days: number;
   pre_reminders?: number[]; certificates_issued?: number; // V50.z300
   attendance_taken_at?: string | null; present_count?: number; is_today_or_past?: boolean; // V50.z302
-  is_creator: boolean; is_new: boolean; my_participation: "yes" | "no" | "pending"; my_notes: string; recipient_count: number; read_count: number; yes_count: number; no_count: number;
-  files: { file_id: string; name: string; mime: string; size?: number }[]; participants?: Participant[];
+  is_private?: boolean; is_creator: boolean; is_new: boolean; my_participation: "yes" | "no" | "pending"; my_notes: string; recipient_count: number; read_count: number; yes_count: number; no_count: number;
+  files: { file_id: string; name: string; mime: string; size?: number; transcript_id?: string | null; audio_master_only?: boolean }[]; participants?: Participant[];
   has_test?: boolean; my_certificate?: { eligible: boolean; cert_id?: string; issued_at?: string }; // V50.z276
 };
 const fmt = (iso?: string | null) => (iso ? new Date(iso).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "");
@@ -30,7 +31,8 @@ const PRE_REMINDERS: [number, string][] = [[7, "7 gg prima"], [3, "3 gg prima"],
 const preLabel = (d: number) => (d === 0 ? "il giorno stesso" : d === 1 ? "1 giorno prima" : `${d} giorni prima`);
 
 export default function CourseDetail() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, review: reviewParam } = useLocalSearchParams<{ id: string; review?: string }>();
+  const autoReviewed = React.useRef(false);
   const router = useRouter();
   const pagePad = usePageBottomPadding();
   const [c, setC] = useState<Course | null>(null);
@@ -42,14 +44,24 @@ export default function CourseDetail() {
   const [att, setAtt] = useState<Record<string, boolean>>({});
   const [attDirty, setAttDirty] = useState(false);
 
+  const [loadError, setLoadError] = useState<string | null>(null); // V50.z388 — mai spinner infinito
+  const [review, setReview] = useState<{ id: string; title: string } | null>(null); // V50.z389 — trascrizione audio
+  const [transcripts, setTranscripts] = useState<Record<string, AudioTranscript>>({}); // per transcript_id
   const load = useCallback(async () => {
+    setLoadError(null);
+    const timeout = new Promise<never>((_, rej) => setTimeout(() => rej(new Error("Il server non risponde (timeout 15 s). Controlla la connessione e riprova.")), 15000));
     try {
-      const r = await api<Course>(`/courses/${id}`); setC(r); setNotes(r.my_notes || "");
+      const r = await Promise.race([api<Course>(`/courses/${id}`), timeout]); setC(r); setNotes(r.my_notes || "");
       setAtt(Object.fromEntries((r.participants || []).filter((p) => p.status !== "no").map((p) => [p.user_id, p.present ?? p.status === "yes"]))); setAttDirty(false);
       if (!r.is_creator && r.is_new) { await api(`/courses/${id}/read`, { method: "POST" }).catch(() => {}); }
+      if ((r.files || []).some((f) => f.transcript_id)) {
+        try { const t = await transcriptApi.list({ source_kind: "course_file" }); setTranscripts(Object.fromEntries(t.items.map((x) => [x.transcript_id, x]))); } catch { /* opzionale */ }
+        // V50.z389 — arrivo da «Nuova cartella» con audio: apro subito la revisione del primo audio (una sola volta)
+        if (reviewParam && r.is_creator && !autoReviewed.current) { const f0 = r.files.find((f) => f.transcript_id); if (f0?.transcript_id) { autoReviewed.current = true; setReview({ id: f0.transcript_id, title: f0.name }); } }
+      }
     }
-    catch (e: any) { notify("Corso", e?.message || ""); }
-  }, [id]);
+    catch (e: any) { setLoadError(String(e?.message || "Impossibile aprire il corso.")); }
+  }, [id, reviewParam]);
   useEffect(() => { void load(); }, [load]);
   const saveAttendance = async () => {
     setBusy("att");
@@ -100,7 +112,16 @@ export default function CourseDetail() {
     catch (e: any) { notify("Attestati", e?.message || ""); } finally { setBusy(null); }
   };
 
-  if (!c) return <SafeAreaView style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: HT.card2 }}><ActivityIndicator color="#7C3AED" /></SafeAreaView>;
+  if (!c) return (
+    <SafeAreaView style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: HT.card2, padding: 24, gap: 12 }}>
+      {loadError ? (<>
+        <Ionicons name="cloud-offline-outline" size={40} color={HT.muted} />
+        <Text style={{ color: HT.muted, textAlign: "center" }} testID="course-error">{loadError}</Text>
+        <Pressable onPress={() => { void load(); }} style={{ backgroundColor: "#7C3AED", borderRadius: 12, paddingHorizontal: 18, minHeight: 44, justifyContent: "center", flexDirection: "row", alignItems: "center", gap: 6 }} testID="course-retry"><Ionicons name="refresh" size={18} color="#FFF" /><Text style={{ color: "#FFF", fontWeight: "800" }}>Riprova</Text></Pressable>
+        <Pressable onPress={() => router.back()} style={{ minHeight: 44, justifyContent: "center" }}><Text style={{ color: HT.muted, fontWeight: "700" }}>Torna all'Area Corsi</Text></Pressable>
+      </>) : (<><ActivityIndicator color="#7C3AED" /><Text style={{ color: HT.muted }}>Apro il corso…</Text></>)}
+    </SafeAreaView>
+  );
   const pending = c.recipient_count - c.yes_count - c.no_count;
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: HT.card2 }}>
@@ -109,18 +130,38 @@ export default function CourseDetail() {
         <View style={{ flex: 1 }}><Text style={s.title} numberOfLines={1}>{c.title}</Text><Text style={s.sub}>{c.course_date ? `📅 ${c.course_date.split("-").reverse().join("/")}${c.course_time ? ` ${c.course_time}` : ""}  ` : ""}{c.location ? `📍 ${c.location}` : ""}{c.creator_name ? `  · di ${c.creator_name}` : ""}</Text></View>
       </View>
       <KScrollView contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: pagePad }}>
+        {/* V50.z387 — Corso privato (modifica): solo il creatore può cambiarlo; i collaboratori non vedono i corsi privati */}
+        {c.is_creator ? (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 4 }} testID="course-private-row">
+            <Ionicons name={c.is_private ? "lock-closed" : "lock-open-outline"} size={18} color={c.is_private ? "#7C3AED" : HT.muted} />
+            <Text style={{ flex: 1, flexShrink: 1, color: HT.text, fontSize: 14, fontWeight: "700" }}>Corso privato: non condividere con i collaboratori</Text>
+            <Switch value={!!c.is_private} onValueChange={async (v) => { try { await api(`/courses/${c.course_id}`, { method: "PUT", body: { is_private: v } }); setC({ ...c, is_private: v }); } catch (e: any) { notify(e?.message || "Errore salvataggio"); } }} trackColor={{ true: "#7C3AED" }} testID="course-private-switch" />
+          </View>
+        ) : null}
         {c.description ? <View style={s.card}><Text style={s.body}>{c.description}</Text></View> : null}
         {c.maps_url ? <Pressable onPress={() => Linking.openURL(c.maps_url!)} style={s.link}><Ionicons name="navigate" size={16} color="#2563EB" /><Text style={s.linkTxt}>Apri in Maps / Waze</Text></Pressable> : null}
         {c.body_text ? <View style={s.card}><Text style={s.section}>Appunti</Text><Text style={s.body}>{c.body_text}</Text></View> : null}
 
         <Text style={s.section}>Materiali ({c.files.length})</Text>
-        {c.files.length === 0 ? <Text style={s.hint}>Nessun allegato</Text> : c.files.map((f) => (
-          <Pressable key={f.file_id} onPress={() => openFile(f.file_id)} style={s.row} testID={`course-file-${f.file_id}`}>
-            <Ionicons name={f.mime.startsWith("image/") ? "image" : f.mime.startsWith("audio/") ? "musical-notes" : f.name.toLowerCase().endsWith(".pptx") ? "easel" : "document-text"} size={20} color="#7C3AED" />
-            <Text style={{ flex: 1, color: HT.text, fontWeight: "600" }} numberOfLines={1}>{f.name}</Text>
-            {busy === f.file_id ? <ActivityIndicator color="#7C3AED" size="small" /> : <Ionicons name="download-outline" size={18} color={HT.muted} />}
-          </Pressable>
-        ))}
+        {c.files.length === 0 ? <Text style={s.hint}>Nessun allegato</Text> : c.files.map((f) => {
+          const tr = f.transcript_id ? transcripts[f.transcript_id] : undefined;
+          const audioLocked = !!f.audio_master_only && !c.is_creator; // V50.z389 — audio originale solo Master/creatore
+          return (
+          <View key={f.file_id} style={{ gap: 4 }}>
+            <Pressable onPress={() => (audioLocked ? (f.transcript_id ? setReview({ id: f.transcript_id, title: f.name }) : notify("Audio", "L'audio originale è riservato al Master: la trascrizione sarà disponibile appena pubblicata.")) : openFile(f.file_id))} style={s.row} testID={`course-file-${f.file_id}`}>
+              <Ionicons name={f.mime.startsWith("image/") ? "image" : f.mime.startsWith("audio/") ? "musical-notes" : f.name.toLowerCase().endsWith(".pptx") ? "easel" : "document-text"} size={20} color="#7C3AED" />
+              <Text style={{ flex: 1, color: HT.text, fontWeight: "600" }} numberOfLines={1}>{f.name}</Text>
+              {busy === f.file_id ? <ActivityIndicator color="#7C3AED" size="small" /> : <Ionicons name={audioLocked ? "lock-closed-outline" : "download-outline"} size={18} color={HT.muted} />}
+            </Pressable>
+            {f.transcript_id ? (
+              <Pressable onPress={() => setReview({ id: f.transcript_id!, title: f.name })} style={[s.link, tr?.status === "draft" && tr.can_edit && { borderColor: "#F59E0B", backgroundColor: HT.warningTint }]} testID={`course-file-transcript-${f.file_id}`}>
+                <Ionicons name={tr?.status === "draft" && tr.can_edit ? "create-outline" : "document-text-outline"} size={16} color={tr?.status === "draft" && tr.can_edit ? "#D97706" : "#2563EB"} />
+                <Text style={[s.linkTxt, tr?.status === "draft" && tr.can_edit && { color: "#D97706" }]}>{tr?.status === "draft" && tr.can_edit ? "Rivedi e conferma la trascrizione" : tr?.status === "published" ? "Leggi la trascrizione" : tr?.status === "failed" ? "Trascrizione non riuscita" : tr?.status === "transcribing" ? "Trascrizione in corso…" : "Trascrizione"}</Text>
+              </Pressable>
+            ) : null}
+          </View>
+          );
+        })}
 
         {/* V50.z275 — Presentazione PowerPoint (AI / manuale) */}
         <CourseSlidesSection courseId={c.course_id} isCreator={c.is_creator} />
@@ -221,6 +262,7 @@ export default function CourseDetail() {
           </View>
         )}
       </KScrollView>
+      <TranscriptReviewSheet transcriptId={review?.id || null} title={review?.title} onClose={() => { setReview(null); void load(); }} />
     </SafeAreaView>
   );
 }

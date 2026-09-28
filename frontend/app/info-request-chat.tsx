@@ -131,7 +131,7 @@ export default function InfoRequestChatScreen() {
         name = `foto_${Date.now()}.jpg`;
         type = "image/jpeg";
       } else {
-        const r = await DocumentPicker.getDocumentAsync({ type: ["application/pdf", "image/*"], copyToCacheDirectory: true });
+        const r = await DocumentPicker.getDocumentAsync({ type: ["application/pdf", "image/*", "application/vnd.openxmlformats-officedocument.presentationml.presentation"], copyToCacheDirectory: true });
         if (r.canceled || !r.assets?.[0]) return;
         uri = r.assets[0].uri;
         name = r.assets[0].name || `file_${Date.now()}`;

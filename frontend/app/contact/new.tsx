@@ -24,6 +24,7 @@ import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 // V29.av — Date picker nativo Android/iOS per la data di nascita
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { DateField } from "@/src/ui/DateField"; // V50.z388 — calendario nativo su ogni campo data
 
 type PendingAttachment = {
   local_id: string;
@@ -1647,17 +1648,17 @@ function NewContactScreen() {
                       style={webDateInputStyle}
                     />
                   ) : (
-                    <TextInput
+                    <DateField
                       testID={`c-ann-date-${idx}`}
                       placeholder="gg/mm/aaaa"
-                      placeholderTextColor={HT.muted}
+                      format="it"
                       value={ann.date}
-                      onChangeText={(t) => {
+                      onChange={(t) => {
                         const list = [...form.anniversaries];
                         list[idx] = { ...list[idx], date: t };
                         setForm({ ...form, anniversaries: list });
                       }}
-                      style={[styles.input, { width: 130 }]}
+                      style={{ width: 150 }}
                     />
                   )}
                   <Pressable

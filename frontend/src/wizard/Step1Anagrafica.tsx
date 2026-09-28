@@ -7,6 +7,7 @@ import { View, Text, StyleSheet, TextInput, Pressable, Modal, ActivityIndicator,
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { DateField } from "@/src/ui/DateField"; // V50.z388 — calendario nativo su ogni campo data
 
 const PURPLE = "#7C3AED";
 export type Anag = {
@@ -124,7 +125,11 @@ export function Step1Anagrafica({ bind }: { bind: StepBinder }) {
       <Text style={styles.section}>Dati personali</Text>
       <Field label="Nome *" value={a.first_name} onChangeText={(v) => set("first_name", v)} error={errors.first_name} testID="anag-first-name" />
       <Field label="Cognome *" value={a.last_name} onChangeText={(v) => set("last_name", v)} error={errors.last_name} testID="anag-last-name" />
-      <Field label="Data di nascita *" value={fmtDate(a.birth_date)} onChangeText={(v) => set("birth_date", v)} placeholder="GG/MM/AAAA" keyboardType="numbers-and-punctuation" error={errors.birth_date} testID="anag-birth-date" />
+      <View style={{ gap: 4 }}>
+        <Text style={styles.label}>Data di nascita *</Text>
+        <DateField value={fmtDate(a.birth_date)} onChange={(v) => set("birth_date", v)} format="it" placeholder="Data di nascita" testID="anag-birth-date" />
+        {errors.birth_date ? <Text style={styles.err}>{errors.birth_date}</Text> : null}
+      </View>
       <Field label="Telefono *" value={a.phone} onChangeText={(v) => set("phone", v)} keyboardType="phone-pad" placeholder="+39 …" error={errors.phone} testID="anag-phone" />
 
       <Text style={styles.section}>Email</Text>

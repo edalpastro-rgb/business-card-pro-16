@@ -11,6 +11,7 @@ import { theme } from "@/src/theme";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { IdentityDocsSection } from "@/src/IdentityDocsSection"; // V50.z267
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { DateField } from "@/src/ui/DateField"; // V50.z388 — calendario nativo su ogni campo data
 
 type Cred = { cred_id: string; service: string; username?: string; url?: string; notes?: string; password_masked?: boolean };
 type Profile = {
@@ -114,13 +115,16 @@ export default function AnagraficaMasterScreen() {
           <Text style={styles.section}>Dati personali</Text>
           <Text style={{ fontSize: 11.5, color: HT.muted, marginBottom: 8 }}>🔄 Sincronizzati con il wizard «Set Up and Go» e con AxonOS: ogni modifica qui si riflette ovunque.</Text>
           {([
-            ["first_name", "Nome"], ["last_name", "Cognome"], ["birth_date", "Data di nascita (AAAA-MM-GG)"], ["tax_id", "Codice Fiscale"],
+            ["first_name", "Nome"], ["last_name", "Cognome"], ["birth_date", "Data di nascita"], ["tax_id", "Codice Fiscale"],
             ["phone", "Telefono"], ["primary_email", "Mail per risposte e file"],
             ["address", "Indirizzo principale"], ["address_second", "Seconda abitazione"], ["address_relative", "Indirizzo di un parente"],
             ["iban", "IBAN"], ["vat_id", "P.IVA"], ["notes", "Note"],
           ] as [keyof Profile, string][]).map(([k, label]) => (
             <View key={k} style={{ marginBottom: 8 }}>
               <Text style={styles.label}>{label}</Text>
+              {k === "birth_date" ? (
+                <DateField value={(p[k] as string) || ""} onChange={(t) => setP((prev) => ({ ...prev, [k]: t }))} placeholder="Data di nascita" testID="anag-master-birth-date" />
+              ) : (
               <TextInput
                 value={(p[k] as string) || ""}
                 onChangeText={(t) => setP((prev) => ({ ...prev, [k]: t }))}
@@ -130,6 +134,7 @@ export default function AnagraficaMasterScreen() {
                 multiline={k === "notes"}
                 autoCapitalize={k === "iban" || k === "tax_id" || k === "vat_id" ? "characters" : "sentences"}
               />
+              )}
             </View>
           ))}
           <Pressable onPress={save} disabled={saving} style={styles.saveBtn}>

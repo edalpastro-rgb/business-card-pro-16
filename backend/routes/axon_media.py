@@ -169,6 +169,14 @@ async def _axm_process(media_id: str, raw: bytes, ext: str) -> None:
         else:
             transcript = await _axm_transcribe(raw, ext)
             upd["transcript"] = transcript[:20000]
+            # V50.z389 — FUNZ. 4: anche gli audio di Axon Media passano dalla pulizia LLM globale → bozza da confermare
+            if it["kind"] == "audio" and len(transcript.strip()) >= 8 and not it.get("transcript_id"):
+                try:
+                    upd["transcript_id"] = await audio_transcript_start(  # noqa: F821 — audio_transcripts.py
+                        {"user_id": it["user_id"], "parent_user_id": None if it["tenant_id"] == it["user_id"] else it["tenant_id"]},
+                        raw, it.get("mime") or "audio/m4a", it.get("title") or "audio", "axon_media", media_id, it.get("title"))
+                except Exception as _texc:  # noqa: BLE001
+                    logger.warning("[axm] avvio trascrizione globale fallito: %s", _texc)
             if len(transcript.strip()) >= 8:
                 data = await _axm_llm_json(
                     "Sei l'archivio audio/video di AxonOS (assistente di un consulente energetico italiano). Data la trascrizione rispondi SOLO JSON: "
@@ -202,6 +210,10 @@ async def axm_upload(body: AxmUploadIn, user=Depends(get_current_user)):
     if len(raw) > _AXM_MAX_BYTES:
         raise HTTPException(status_code=413, detail="File troppo grande (max 25 MB): per i video tieni la durata sotto i 60 secondi")
     mime = (body.mime or "").lower() or {"photo": "image/jpeg", "audio": "audio/m4a", "video": "video/mp4"}[kind]
+    # V50.z388 — compressione globale silenziosa (foto/audio/video) prima dello store
+    raw, _ci = await media_auto_compress(raw, mime, body.name or "", "axon-media")  # noqa: F821 — media_compress.py
+    if _ci.get("compressed") and _ci.get("mime"):
+        mime = _ci["mime"]
     ext = _axm_ext(kind, mime, body.name)
     mid = f"axm_{uuid.uuid4().hex[:10]}"; tid = tenant_id(user); now = utcnow()
     path = None

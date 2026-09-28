@@ -11,6 +11,7 @@ import { notify } from "@/src/utils/notify";
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 import { ContractFormsSection } from "@/src/ContractFormsSection"; // V50.z268
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { DateField } from "@/src/ui/DateField"; // V50.z388 — calendario nativo su ogni campo data
 type Contact = { contact_id: string; first_name: string; last_name: string; contact_code?: string; phone?: string };
 
 const TYPES = [
@@ -120,11 +121,11 @@ export default function NewContractScreen() {
         <View style={styles.rowGap}>
           <View style={{ flex: 1 }}>
             <Text style={styles.label}>Data firma</Text>
-            <TextInput value={signedDate} onChangeText={setSignedDate} style={styles.input} placeholder="AAAA-MM-GG" testID="contract-signed" />
+            <DateField value={signedDate} onChange={setSignedDate} placeholder="Data firma" testID="contract-signed" />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.label}>Data scadenza</Text>
-            <TextInput value={expiryDate} onChangeText={setExpiryDate} style={styles.input} placeholder="AAAA-MM-GG" testID="contract-expiry" />
+            <DateField value={expiryDate} onChange={setExpiryDate} placeholder="Data scadenza" testID="contract-expiry" />
           </View>
         </View>
 

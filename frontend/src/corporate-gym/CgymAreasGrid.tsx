@@ -3,7 +3,7 @@
 // oppure pagina area (/corporate-gym/area/[id]).
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, Image, Modal, TextInput, ActivityIndicator } from "react-native";
-import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
+import { KScrollView, KModalBody } from "@/src/ui/keyboard"; // V50.z374/z387 — tastiera: campo attivo sempre visibile (anche nella Modal Android)
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import { notify } from "@/src/utils/notify";
@@ -83,6 +83,7 @@ export function CgymAreasGrid({ pendingByKey }: { pendingByKey?: Record<string, 
       </View>
 
       <Modal visible={!!edit} transparent animationType="slide" onRequestClose={() => setEdit(null)}>
+        <KModalBody>
         <Pressable style={styles.back} onPress={() => setEdit(null)} />
         <View style={styles.sheet} testID="cgym-area-editor">
           <Text style={styles.sheetTitle}>{edit?.a ? "Modifica area" : "Nuova area"}</Text>
@@ -104,6 +105,7 @@ export function CgymAreasGrid({ pendingByKey }: { pendingByKey?: Record<string, 
             <Pressable onPress={save} disabled={busy} style={[styles.btn, { flex: 1 }]} testID="cgym-area-save">{busy ? <ActivityIndicator color="#FFF" /> : <Text style={styles.btnTxt}>Salva</Text>}</Pressable>
           </View>
         </View>
+        </KModalBody>
       </Modal>
     </View>
   );

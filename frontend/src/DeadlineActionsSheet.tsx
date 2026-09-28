@@ -6,6 +6,7 @@ import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { DateField } from "@/src/ui/DateField"; // V50.z388 — calendario nativo su ogni campo data
 
 // V50.z153 — Azioni su una singola scadenza (bolletta):
 //   1. Disattiva avviso → sparisce da Home / Scadenze / conteggi (salvato sul server)
@@ -181,19 +182,7 @@ export function DeadlineActionsSheet({ item, onClose, onChanged }: Props) {
           ) : (
             <View style={{ gap: 12 }}>
               <Text style={styles.label}>Nuova data di scadenza</Text>
-              <TextInput
-                testID="deadline-newdate-input"
-                value={date}
-                onChangeText={(t) => setDate(maskDate(t))}
-                placeholder="GG/MM/AAAA"
-                placeholderTextColor={HT.muted}
-                keyboardType="number-pad"
-                maxLength={10}
-                autoFocus
-                returnKeyType="done"
-                onSubmitEditing={saveExpiry}
-                style={styles.input}
-              />
+              <DateField testID="deadline-newdate-input" value={date} onChange={setDate} format="it" placeholder="Scegli la nuova data" />
               <Text style={styles.hint}>Data attuale: {isoToIt(item.expiry_date) || "—"}</Text>
               <View style={{ flexDirection: "row", gap: 10 }}>
                 <Pressable testID="deadline-newdate-back" onPress={() => setMode("menu")} style={[styles.btn, styles.btnGhost]} disabled={!!busy}>

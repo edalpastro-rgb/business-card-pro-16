@@ -520,3 +520,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z386 — Regola permanente onestà Axon: axon_honesty_rule.py (ultimo wrapper prompt, testa+coda) + _axon_core_identity. Verificato su /assistant/chat e /assistant/chat/stream: risposta «Non lo so, verifica con Emmy o con Neo.» su dati non verificabili."
+
+  - agent: "main"
+    message: "V50.z387-389 — vedi PRD: TS fix live.tsx; ANT 3 livelli + DISTACCO live (turn → distacco/distacco_color/interventions, action=correct); upload referenze ANT non bloccante (compressione background) + player audio nativo; DateField nativo globale (12 schermate); Area Corsi light projection + timeout/riprova; compressione globale su tutti gli upload; FUNZ. 4 trascrizione globale (routes/audio_transcripts.py, GET/PUT /audio-transcripts, bozza→publish; audio riservato al Master: /cgym/references/{id}/link e /courses/{id}/files/{fid} → 403 per non-Master su audio). Test dati: area cga_015003b2da, ref cgr_2e8ea56836 (transcript atr_f6d2ba0e44a4 published)."
