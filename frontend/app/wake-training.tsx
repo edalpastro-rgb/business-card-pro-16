@@ -1,7 +1,7 @@
 // wake-training.tsx — V50.z390 — PAGINA PUBBLICA (nessun login, nessun dato personale) per la raccolta di campioni audio
 // per il training della wake-word «Axon»: hero → pronuncia → istruzioni → Sezione 1 «Axon» per ambiente (min 10, max 50)
 // → Sezione 2 parole simili (campioni negativi) → pagina finale. Ogni campione: parola, ambiente, progressivo, timestamp.
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, Animated, Easing, Platform, Image, ActivityIndicator, Linking, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -27,7 +27,9 @@ const ENVS: Env[] = [
 ];
 const NEG_WORDS: [string, string][] = [["action", "Action (EK-shon)"], ["axel", "Axel (AK-sel)"], ["accent", "Accent (AK-sent)"], ["axia", "Axia (AK-sia)"], ["auction", "Auction (OK-shon)"], ["acton", "Acton (AK-ton)"], ["saxon", "Saxon (SAK-son)"], ["faction", "Faction (FAK-shon)"], ["oxygen", "Oxygen (OK-si-gen)"], ["flaxen", "Flaxen (FLAK-sen)"]];
 const MIN_PER_ENV = 10; const MAX_PER_ENV = 50;
-type Step = "hero" | "pron" | "intro" | "pos" | "negIntro" | "neg" | "done";
+type Step = "hero" | "consent" | "pron" | "intro" | "pos" | "negIntro" | "neg" | "done";
+const PRIVACY_HERO = "Nessun dato personale viene raccolto. Registriamo esclusivamente la pronuncia della parola “Axon” e delle parole simili indicate. Non sappiamo chi sei, dove sei, né da dove stai registrando. I file audio vengono usati solo per addestrare il riconoscimento vocale di Axon. Nient'altro.";
+const PRIVACY_FOOTER = "Audio raccolto: solo la pronuncia di “Axon” e parole simili. Nessun dato personale. Nessuna registrazione ambientale.";
 
 const sessionId = `w${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 
@@ -146,9 +148,17 @@ export default function WakeTrainingScreen() {
         <Text style={s.h1}>Stai addestrando Axon.</Text>
         <Text style={s.lead}>La tua voce è unica. Ogni registrazione aiuta Axon a riconoscerti meglio, ovunque tu sia. Bastano 5 minuti e il tuo contributo farà la differenza.</Text>
         <Animated.View style={{ transform: [{ scale: ctaPulse }], alignSelf: "stretch", maxWidth: 420, width: "100%" }}>
-          <Pressable onPress={() => setStep("pron")} style={s.cta} testID="wt-cta-start"><Text style={s.ctaTxt}>Inizia ora</Text><Ionicons name="arrow-forward" size={20} color={WT.white} /></Pressable>
+          <Pressable onPress={() => setStep("consent")} style={s.cta} testID="wt-cta-start"><Text style={s.ctaTxt}>Inizia ora</Text><Ionicons name="arrow-forward" size={20} color={WT.white} /></Pressable>
         </Animated.View>
-        <Text style={s.fine}>Nessun login · nessun dato personale · solo la tua voce</Text>
+        <View style={s.privacyBox} testID="wt-privacy-hero"><Ionicons name="shield-checkmark" size={20} color={WT.green} /><Text style={s.privacyTxt}>{PRIVACY_HERO}</Text></View>
+      </View>
+    );
+    if (step === "consent") return (
+      <View style={s.card} testID="wt-consent">
+        <View style={s.envHead}><View style={[s.envIcon, { backgroundColor: WT.green }]}><Ionicons name="shield-checkmark" size={30} color={WT.white} /></View><Text style={s.h2}>Prima di iniziare</Text></View>
+        <Text style={s.p}>Cliccando <Text style={s.strong}>“Accetto e continuo”</Text> confermi di aver letto e accettato quanto segue: i campioni audio che registrerai contengono esclusivamente la tua pronuncia delle parole indicate. Non vengono registrati suoni ambientali, conversazioni o dati personali. I campioni vengono salvati in forma anonima e usati esclusivamente per migliorare il riconoscimento vocale di Axon. Puoi interrompere in qualsiasi momento.</Text>
+        <Pressable onPress={() => setStep("pron")} style={[s.cta, { backgroundColor: WT.green }]} testID="wt-consent-ok"><Ionicons name="checkmark-circle" size={20} color={WT.white} /><Text style={s.ctaTxt}>Accetto e continuo</Text></Pressable>
+        <Pressable onPress={() => setStep("hero")} style={s.ghost} testID="wt-consent-back"><Text style={s.ghostTxt}>Torna indietro</Text></Pressable>
       </View>
     );
     if (step === "pron") return (
@@ -223,8 +233,8 @@ export default function WakeTrainingScreen() {
         {Header}
         {Progress}
         <Animated.View style={{ opacity: fade, flex: 1 }}>{body()}</Animated.View>
-        <Text style={s.footer}>AdvisorOS · Axon Wake-word Project · I campioni sono anonimi e usati solo per addestrare il riconoscimento vocale.</Text>
       </ScrollView>
+      <View style={s.footerBar} testID="wt-privacy-footer"><Ionicons name="lock-closed" size={14} color={WT.green} /><Text style={s.footer}>{PRIVACY_FOOTER}</Text></View>
     </SafeAreaView>
   );
 }
@@ -257,5 +267,8 @@ const s = StyleSheet.create({
   pendingRow: { flexDirection: "row", gap: 10, alignItems: "center" },
   navRow: { flexDirection: "row", gap: 10, alignItems: "center", flexWrap: "wrap" },
   link: { minHeight: 40, justifyContent: "center", alignItems: "center" }, linkTxt: { color: WT.warm, fontWeight: "800", fontSize: 13 },
-  footer: { color: WT.muted, fontSize: 11, textAlign: "center", marginTop: 8 },
+  footerBar: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1, borderTopColor: WT.faint, backgroundColor: WT.navy2 },
+  footer: { flex: 1, color: WT.muted, fontSize: 11.5, lineHeight: 16 },
+  privacyBox: { flexDirection: "row", alignItems: "flex-start", gap: 10, backgroundColor: "rgba(34,197,94,0.10)", borderRadius: 16, padding: 14, borderWidth: 1, borderColor: "rgba(34,197,94,0.35)", maxWidth: 560, alignSelf: "stretch" },
+  privacyTxt: { flex: 1, color: WT.text, fontSize: 13.5, lineHeight: 20 },
 });
