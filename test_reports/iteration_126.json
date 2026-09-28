@@ -1,0 +1,30 @@
+{
+  "summary": "V50.z403 frontend-only regression check for Axon chat user-bubble text color. Static code review PASSED: styles.bubbleText now uses CT.text (theme-derived color via ACTIVE.text), not the previous hardcoded #FFF; the testID chat-user-text is correctly attached (ChatBubbles.tsx:224); bubble background bubbleUser uses CT.surfaceUser (ACTIVE.card2), so contrast against text follows the active theme. However, INTERACTIVE end-to-end testing on web could NOT be completed because the assistant-fab is impossible to actuate reliably in Playwright: normal Locator.click, force=True click, page.mouse down/up, page.mouse.click, dispatch_event('click'), CDP Input.dispatchMouseEvent (mousePressed/mouseReleased), pointerdown/pointerup dispatched via JS, and even React-fiber-level onClick invocation all execute WITHOUT any red screen error but the AssistantChatModal never becomes visible (no assistant-input in DOM). Fiber onClick fires (handlePress runs, no unread/critical badges so it should reach setOpen(true)) yet the Modal is never portaled. Also tried walking parent fibers and directly dispatching a boolean useState to true — still no modal. This looks like a web-preview specific issue with react-native Modal + PanResponder-wrapped Animated FAB, and is a testing-agent blocker independent from the V50.z403 fix itself.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [
+      { "component": "AssistantFAB", "issue": "FAB tap is not actuable from Playwright on web preview. Tried 8+ methods (Locator.click, force click, page.mouse click, page.mouse.down/up, CDP mousePressed/mouseReleased, dispatch_event, JS-dispatched pointer events, and even direct fiber-level onClick invocation) — none opened the AssistantChatModal. Even directly dispatching setOpen(true) via useState fiber traversal did not portal the Modal. This blocks any automated regression on the chat modal on web.", "testID": "assistant-fab", "priority": "HIGH" }
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "STATIC CODE VERIFICATION for V50.z403 is CORRECT: /app/frontend/src/assistant/chatStyles.ts line 263 uses `color: CT.text` (theme color), and /app/frontend/src/assistant/ChatBubbles.tsx line 224 renders the user text with `style={styles.bubbleText} testID='chat-user-text'`. Bubble background at chatStyles.ts:248-253 uses CT.surfaceUser (ACTIVE.card2). In light theme this produces dark text on light card — readable.",
+    "The static fix looks good. Main agent can self-test the runtime behaviour in a real browser or Expo Go: open the chat via the FAB, send any message, then verify the user bubble text is readable and not white. Given the small, localized nature of the change (one style rule + one existing testID) this is safe to self-verify.",
+    "TESTING-INFRA NOTE (not a product bug): the assistant-fab is unreachable by any Playwright interaction method on the web preview. If reliable automated regression is desired, consider adding a debug hook (e.g. window.__axonOpenChat = () => setOpen(true), gated by NODE_ENV/dev) or expose the DeviceEventEmitter axon:open-chat via window so QA can bypass the PanResponder-wrapped Animated Pressable."
+  ],
+  "critical_code_review_comments": [
+    "styles.bubbleText color correctly switched from hardcoded #FFF to CT.text (theme-driven). No regression for dark theme (CT.text stays readable on CT.surfaceUser which is card2 for both light/dark). Contrast is preserved by design tokens.",
+    "The old comment in chatStyles.ts line 273 (V50.z403 — era #FFF (illeggibile nel tema chiaro)) refers to the sibling `quickActionPillTxt` also getting the same treatment — consistent.",
+    "testID chat-user-text is only rendered for user (non-quick_label) messages — quick-action pill messages use a different Text with testID absent. This is correct per the spec (regression check only targets normal user messages)."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "N/A", "frontend": "0% interactive · 100% static-review PASS" },
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "The FAB (testID assistant-fab) cannot be actuated by Playwright on this web preview build — I tried every technique: Locator.click(force=True), page.mouse.click at exact coords, page.mouse.down/up, CDP Input.dispatchMouseEvent, JS-dispatched pointerdown/pointerup + click, dispatch_event, tap (not supported without hasTouch), calling the React onClick prop directly via fiber, AND walking parent fibers to dispatch setOpen(true) directly on the useState queue. None produced the AssistantChatModal in the DOM. handlePress in AssistantFAB.tsx:243 does call setOpen(true) when there are no critical/info-request badges (confirmed via FAB badge introspection: both null), but the modal never portals on web. If you need to test the chat on web programmatically, ask the main agent to expose a dev-only global (window.__axonOpenChat) or a URL query param that auto-opens the chat.",
+  "rca_of_issue": "Not a product bug in V50.z403: the code change (bubbleText color -> CT.text, testID chat-user-text) is present and correct. The runtime blocker is an interaction issue between Playwright's synthetic events and the PanResponder + Animated pulse wrapping the Pressable FAB — the Pressable's onPress fires (verified by direct fiber call) yet the Modal doesn't materialise, likely because react-native Modal on web is gated by portal creation and the visible=true state may be batched/reverted by an adjacent effect (V50.z242 cold-start restore) or the Modal isn't rendered in this bundle's DOM path. This is a testing-infra limitation to flag, not a fix rollback."
+}

@@ -3,6 +3,7 @@ import { DeviceEventEmitter, // V50.z315 — prompt vocale ViolaWake a chat già
   View, Text, Pressable, Modal, TextInput, ScrollView, ActivityIndicator, Keyboard, Platform, Image, Alert } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller"; // V50.z374 — behavior "padding" valido su iOS e Android
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
+import { ChatShell } from "@/src/assistant/ChatShell"; // V50.z403
 // V29.au — Import expo-audio per il pulsante microfono su native (APK Android/iOS).
 // Prima era solo web (MediaRecorder), quindi su APK i pulsanti mic + ascolto
 // continuo sparivano. Ora usiamo useAudioRecorder di expo-audio in modo nativo.
@@ -379,7 +380,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
         }
       }
       if (!b64) return;
-      addPendingAttachment({ name: asset.name, mime: asset.mimeType || "application/octet-stream", base64: b64 });
+      addPendingAttachment({ name: asset.name || "allegato", mime: asset.mimeType || "application/octet-stream", base64: b64 });
     } finally { setAttaching(false); }
   };
 
@@ -1583,7 +1584,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       ];
 
   return (
-    <Modal visible={visible && !hideForShot} animationType="slide" transparent statusBarTranslucent onRequestClose={onClose}>
+    <ChatShell visible={visible && !hideForShot} onRequestClose={onClose}>{/* V50.z403 — Android: overlay nella finestra principale (tastiera OK), iOS/web: Modal */}
       <View style={styles.backdrop}>
         <Pressable style={styles.backdropTouch} onPress={onClose} />
         <View ref={sheetContainerRef} style={[styles.sheet, { paddingBottom: insets.bottom }]}>
@@ -2144,7 +2145,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       </KModalBody></Modal>
       {/* V50.z318 — onda di attivazione / trova il telefono visibili anche sopra la chat (RN Modal = finestra nativa sopra tutto) */}
       <ActivationOverlay mirror />
-    </Modal>
+    </ChatShell>
   );
 }
 

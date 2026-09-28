@@ -213,7 +213,7 @@ export function MessageBubble({
             if (msg.quick_label) {
               return (
                 <View style={styles.quickActionPill}>
-                  <Ionicons name="sparkles" size={12} color="#FFF" />
+                  <Ionicons name="sparkles" size={12} color={CT.accent} />
                   <Text style={styles.quickActionPillTxt} numberOfLines={2}>
                     {msg.quick_label}
                   </Text>
@@ -221,7 +221,7 @@ export function MessageBubble({
               );
             }
             // Utente normale: testo semplice
-            return <Text style={[styles.bubbleText, { color: "#FFF" }]}>{msg.content}</Text>;
+            return <Text style={styles.bubbleText} testID="chat-user-text">{msg.content}</Text>; // V50.z403 — colore dal tema (era #FFF fisso → bianco su bianco nel tema chiaro)
           }
           // V50.z121 — Il parser tabelle/grafici non deve mai far crashare la chat
           let segments: ReturnType<typeof parseMessageSegments>;

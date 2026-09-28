@@ -270,7 +270,7 @@ export const styles = StyleSheet.create({
     paddingVertical: 1,
   },
   quickActionPillTxt: {
-    color: "#FFF",
+    color: CT.text, // V50.z403 — era #FFF (illeggibile nel tema chiaro)
     fontSize: 12.5,
     fontWeight: "800",
     letterSpacing: 0.3,
