@@ -48,6 +48,12 @@ export default function CgymAreaScreen() {
     } catch (e: any) { setLoadError(String(e?.message || "Errore caricamento")); }
   }, [id]);
   useEffect(() => { void load(); }, [load]);
+  // V50.z394 — finché una trascrizione è in corso, aggiorno ogni 6 s così il testo compare da solo sotto l'audio
+  useEffect(() => {
+    if (!Object.values(transcripts).some((t) => t.status === "transcribing")) return;
+    const iv = setInterval(() => { transcriptApi.list({ source_kind: "cgym_reference" }).then((t) => setTranscripts(Object.fromEntries(t.items.map((x) => [x.source_id, x])))).catch(() => {}); }, 6000);
+    return () => clearInterval(iv);
+  }, [transcripts]);
 
   const addMaterial = async () => {
     const { asset, error, base64 } = await pickCommonFile();
@@ -222,8 +228,17 @@ export default function CgymAreaScreen() {
               {r.kind === "audio" && (tr || r.transcript_id) ? (
                 <Pressable onPress={() => setReview({ id: tr?.transcript_id || String(r.transcript_id), title: r.title })} style={[styles.ghost, { alignSelf: "flex-start", minHeight: 36 }, tr?.status === "draft" && tr.can_edit && { borderColor: "#F59E0B", backgroundColor: HT.warningTint }]} testID={`cgym-reference-transcript-${r.ref_id}`}>
                   <Ionicons name={tr?.status === "draft" && tr.can_edit ? "create-outline" : "document-text-outline"} size={16} color={tr?.status === "draft" && tr.can_edit ? "#D97706" : HT.violet} />
-                  <Text style={[styles.ghostTxt, tr?.status === "draft" && tr.can_edit && { color: "#D97706" }]}>{tr?.status === "draft" && tr.can_edit ? "Rivedi e conferma la trascrizione" : tr?.status === "published" ? "Leggi la trascrizione" : tr?.status === "failed" ? "Trascrizione non riuscita" : "Trascrizione in corso…"}</Text>
+                  <Text style={[styles.ghostTxt, tr?.status === "draft" && tr.can_edit && { color: "#D97706" }]}>{tr?.status === "draft" && tr.can_edit ? "Rivedi e conferma la trascrizione" : tr?.status === "published" ? "Apri la trascrizione" : tr?.status === "failed" ? "Trascrizione non riuscita" : "Trascrizione in corso…"}</Text>
                 </Pressable>
+              ) : null}
+              {/* V50.z394 — il testo trascritto è visibile DIRETTAMENTE sotto il file audio (pubblicato per tutti · bozza per chi l'ha caricato/Master) */}
+              {r.kind === "audio" && tr?.text ? (
+                <View style={styles.transcriptBox} testID={`cgym-reference-transcript-text-${r.ref_id}`}>
+                  <Text style={styles.transcriptLbl}>Trascrizione:{tr.status === "draft" ? " (bozza, visibile solo a te finché non la confermi)" : ""}</Text>
+                  <Text style={styles.transcriptTxt} selectable={false}>{tr.text}</Text>
+                </View>
+              ) : r.kind === "audio" && tr?.status === "transcribing" ? (
+                <View style={styles.transcriptBox}><Text style={styles.transcriptLbl}>Trascrizione:</Text><View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}><ActivityIndicator size="small" color={HT.violet} /><Text style={styles.meta}>in elaborazione, appare qui appena pronta…</Text></View></View>
               ) : null}
             </View>
             );
@@ -242,6 +257,9 @@ const styles = StyleSheet.create({
   title: { fontSize: 17, fontWeight: "900", color: HT.text }, sub: { fontSize: 12, color: HT.muted },
   cta: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, minHeight: 52, borderRadius: 14 }, ctaTxt: { color: "#FFF", fontWeight: "900", fontSize: 15 },
   ghost: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 46, borderRadius: 12, borderWidth: 1, borderColor: HT.violet + "66", backgroundColor: HT.violetTint, paddingHorizontal: 8 },
+  transcriptBox: { backgroundColor: HT.card2, borderRadius: 12, padding: 12, gap: 6, borderLeftWidth: 3, borderLeftColor: HT.violet },
+  transcriptLbl: { fontSize: 12, fontWeight: "900", color: HT.violet, textTransform: "uppercase", letterSpacing: 0.4 },
+  transcriptTxt: { fontSize: 14, lineHeight: 21, color: HT.text },
   ghostTxt: { color: HT.violet, fontWeight: "800", fontSize: 12, flexShrink: 1 },
   rating: { fontSize: 13, fontWeight: "900", textAlign: "center" },
   card: { backgroundColor: HT.card, borderRadius: 16, borderWidth: 1, borderColor: HT.border, padding: 14, gap: 10 },

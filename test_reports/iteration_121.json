@@ -1,0 +1,18 @@
+{
+  "summary": "V50.z394 — corporate-gym area transcript inline rendering verified end-to-end. Backend 3/3 pass: owner sees transcript for ref cgr_2e8ea56836 via GET /api/audio-transcripts?source_kind=cgym_reference (already published, non-empty text); sub-user sees same published text; cgym live start → turn → finish returns status=done with score (evaluate reads cgym_reference published transcripts as samples without breaking). Frontend 2/2 pass: /corporate-gym/area/cga_015003b2da displays the box with testID cgym-reference-transcript-text-cgr_2e8ea56836 containing label 'Trascrizione:' and the transcript text directly under the audio card for BOTH owner (with Riproduci play button, as Master) AND sub-user (no play button on audio, as intended). Trascrizione was already in 'published' state so no PUT/publish was required.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": []},
+  "test_report_links": ["/app/backend/tests/test_v50z394_cgym_transcript.py", "/app/test_reports/pytest/v50z394_results.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "cgym_areas.py _cga_evaluate correctly filters audio_transcripts by tenant_id/source_kind='cgym_reference'/status='published' and truncates each sample to 6000 chars + total prompt to 14000 chars, preventing token blow-up when the area has many samples.",
+    "audio_transcripts list endpoint already restricts non-uploader viewers to published items (line 180) so draft leakage to sub-users is prevented."
+  ],
+  "updated_files": ["/app/backend/tests/test_v50z394_cgym_transcript.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "None (reused existing seeded reference cgr_2e8ea56836 / transcript atr_f6d2ba0e44a4 already published).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Owner cred: test@dalpastro.it/Test1234!, Sub: sub1@dalpastro.it/Sub12345!. Sample audio ref cgr_2e8ea56836 in area cga_015003b2da; its transcript atr_f6d2ba0e44a4 is currently published. Frontend testIDs: cgym-reference-transcript-text-<ref_id> for the transcript box, cgym-reference-play-<ref_id> present only for owner/master or video refs. Login testIDs: auth-email-input, auth-password-input, auth-submit-button. After login owner is redirected to /tour, sub-user also to /tour — need to nav directly to area URL after auth completes.",
+  "rca_of_issue": "N/A — feature works as specified."
+}

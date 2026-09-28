@@ -490,6 +490,19 @@ async def _cga_evaluate(s: dict) -> dict:
     tone_mix = {k: round(100 * tones.count(k) / max(1, len(tones))) for k in CGA_TONES}
     level = _cga_level(s.get("training_level"))
     manual = await _cga_manual_excerpt(s.get("tenant_id") or "")
+    # V50.z394 — le TRASCRIZIONI delle «Trattative reali (campione)» dell'area (pubblicate dal Master) sono il benchmark
+    # concreto per Axon quando valuta la registrazione del consulente («Analizza una mia registrazione») o la sessione live.
+    samples = ""
+    try:
+        refs = await db.cgym_area_references.find({"tenant_id": s.get("tenant_id"), "area_id": s.get("area_id"), "kind": "audio"}, {"_id": 0, "ref_id": 1, "title": 1}).to_list(20)
+        if refs:
+            trs = await db.audio_transcripts.find({"tenant_id": s.get("tenant_id"), "source_kind": "cgym_reference", "source_id": {"$in": [r["ref_id"] for r in refs]}, "status": "published", "text": {"$ne": None}}, {"_id": 0, "source_id": 1, "text": 1}).to_list(20)
+            by_ref = {t["source_id"]: t["text"] for t in trs}
+            parts = [f"— «{r.get('title') or 'Campione'}»:\n{by_ref[r['ref_id']][:6000]}" for r in refs if by_ref.get(r["ref_id"])]
+            if parts:
+                samples = "\n\nTRATTATIVE REALI CAMPIONE (trascrizioni caricate dal Master — usale come modello di riferimento per confrontare tono, gestione obiezioni, invito all'azione e distacco):\n" + "\n\n".join(parts)[:14000]
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[cga] sample transcripts skip: %s", exc)
     system = ("Sei il coach vendite di AdvisorOS. Valuta la trattativa del CONSULENTE (non del cliente) sull'area «{a}» con blocchi: {b}. "
               + CGA_LEVELS[level] + " Il MANUALE UNICO è il riferimento assoluto per tono, gestione obiezioni, invito all'azione e distacco. "
               "Valuta anche: TONO (coerente col manuale? troppo aggressivo/passivo/corretto), OBIEZIONI (affrontate con tecniche e temi del manuale?), "
@@ -502,7 +515,7 @@ async def _cga_evaluate(s: dict) -> dict:
               "\"summary\": \"1 frase per il consulente\"}}. Scala: <40 OSCENO, 40-59 MEDIOCRE, 60-79 DOVERE (minimo richiesto), ≥80 ECCELLENTE. Sii concreto e onesto.").format(a=s["area_name"], b=" · ".join(s["blocks"]))
     data: dict = {}
     try:
-        data = _cgym_llm_json(await _cgym_llm(system, f"Ripetizioni richieste da Axon per esitazione: {s.get('repeats', 0)}. Mix toni consulente: {tone_mix}.{manual}\n\nTRASCRIZIONE:\n{convo}", model="claude-sonnet-4-5"))  # noqa: F821
+        data = _cgym_llm_json(await _cgym_llm(system, f"Ripetizioni richieste da Axon per esitazione: {s.get('repeats', 0)}. Mix toni consulente: {tone_mix}.{manual}{samples}\n\nTRASCRIZIONE:\n{convo}", model="claude-sonnet-4-5"))  # noqa: F821
     except Exception as exc:  # noqa: BLE001
         logger.warning("[cga] evaluate failed: %s", exc)
     try:
