@@ -1,10 +1,10 @@
 // Corporate Gym — Manuali su Google Drive (AxonOS gestore manuali). Client API isolato.
-import { Platform } from "react-native";
+import { Platform, Linking } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { Router } from "expo-router";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { api } from "@/src/api";
-import { openInAppLink } from "@/src/utils/openInAppLink";
 import type { CgymType } from "@/src/corporate-gym/api";
 
 export type CgymManualRef = { kind: "folder" | "file"; id: string; name?: string | null; mime?: string | null };
@@ -78,19 +78,33 @@ export function fmtManualDate(iso: string | null): string {
   return d.toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-/** Apre il manuale: web → nuova scheda; iOS → WebView interna (PDF nativo); Android → WebView con viewer Google Docs. */
-export function openManual(router: Router, link: CgymManualLink) {
+/** Apre il manuale nel BROWSER ESTERNO del dispositivo (V50.z395 — la WebView interna falliva con net::ERR_FAILED sui PDF). */
+export function openManual(_router: Router, link: CgymManualLink) {
   if (Platform.OS === "web") {
     if (typeof window !== "undefined") window.open(link.url, "_blank", "noopener");
     return;
   }
-  const url = Platform.OS === "android"
-    ? `https://docs.google.com/viewer?embedded=true&url=${encodeURIComponent(link.url)}`
-    : link.url;
-  openInAppLink(router, url, { title: link.name });
+  void Linking.openURL(link.url);
 }
 
-/** Scarica il manuale: web → download del browser; nativo → file in cache + share sheet (salva / apri con app PDF). */
+const DOWNLOAD_DIR_KEY = "cgym_download_dir_uri";
+const ANDROID_DOWNLOADS_TREE = "content://com.android.externalstorage.documents/tree/primary%3ADownload";
+
+/** Android: salva `base64` nella cartella Download (Storage Access Framework). La cartella viene scelta UNA volta e ricordata. */
+export async function saveToAndroidDownloads(name: string, mime: string, base64: string): Promise<string> {
+  const SAF = FileSystem.StorageAccessFramework;
+  let dir = await AsyncStorage.getItem(DOWNLOAD_DIR_KEY);
+  const tryCreate = async (d: string) => { const uri = await SAF.createFileAsync(d, name, mime); await FileSystem.writeAsStringAsync(uri, base64, { encoding: FileSystem.EncodingType.Base64 }); return uri; };
+  if (dir) {
+    try { return await tryCreate(dir); } catch { dir = null; await AsyncStorage.removeItem(DOWNLOAD_DIR_KEY); }
+  }
+  const perm = await SAF.requestDirectoryPermissionsAsync(ANDROID_DOWNLOADS_TREE);
+  if (!perm.granted) throw new Error("Permesso alla cartella Download negato");
+  await AsyncStorage.setItem(DOWNLOAD_DIR_KEY, perm.directoryUri);
+  return tryCreate(perm.directoryUri);
+}
+
+/** Scarica il manuale: web → download del browser · Android → file salvato in Download (nessun pannello di condivisione) · iOS → «Salva su File». */
 export async function downloadManual(link: CgymManualLink): Promise<void> {
   if (Platform.OS === "web") {
     if (typeof window !== "undefined") window.open(link.download_url, "_blank", "noopener");
@@ -100,9 +114,14 @@ export async function downloadManual(link: CgymManualLink): Promise<void> {
   const dest = `${FileSystem.cacheDirectory}cgym-${safe}`;
   const res = await FileSystem.downloadAsync(link.download_url, dest);
   if (res.status && res.status >= 400) throw new Error(`Download fallito (HTTP ${res.status})`);
+  if (Platform.OS === "android") {
+    const b64 = await FileSystem.readAsStringAsync(res.uri, { encoding: FileSystem.EncodingType.Base64 });
+    await saveToAndroidDownloads(safe, link.mime || "application/pdf", b64);
+    return;
+  }
   if (await Sharing.isAvailableAsync()) {
     await Sharing.shareAsync(res.uri, { mimeType: link.mime || "application/pdf", dialogTitle: link.name, UTI: "com.adobe.pdf" });
   } else {
-    throw new Error("Condivisione non disponibile su questo dispositivo");
+    throw new Error("Salvataggio non disponibile su questo dispositivo");
   }
 }

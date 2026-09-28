@@ -8,8 +8,7 @@ import { notify } from "@/src/utils/notify";
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 import { CgymType, CGYM_TYPE_META, CGYM_ORANGE } from "@/src/corporate-gym/api";
 import { fileIcon } from "@/src/corporate-gym/CgymDrivePicker";
-import { CgymManualPreview } from "@/src/corporate-gym/CgymManualPreview";
-import { cgymManualsApi, CgymManualRef, CgymManualFile, CgymManualLink, CgymManualsList, CgymManualsConfig, fmtManualDate, fmtManualSize, downloadManual } from "@/src/corporate-gym/manualsApi";
+import { cgymManualsApi, CgymManualRef, CgymManualFile, CgymManualLink, CgymManualsList, CgymManualsConfig, fmtManualDate, fmtManualSize, downloadManual, openManual } from "@/src/corporate-gym/manualsApi";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const AXON_PURPLE = HT.violet;
@@ -57,7 +56,7 @@ export function CgymManualButton({ type, manualRef, label }: { type: CgymType; m
     setBusyId(f.id + mode);
     try {
       const link = await cgymManualsApi.link(manualRef ? "any" : type, f.id);
-      if (mode === "open") { setPreview(link); }   // V50.z204 — anteprima in-app (immagini, PDF, Docs), niente browser esterno
+      if (mode === "open") { openManual(router, link); }   // V50.z395 — apre nel browser esterno (la WebView interna dava net::ERR_FAILED sui PDF)
       else await downloadManual(link);
     } catch (e: any) {
       notify("Manuale", e?.message || "Operazione non riuscita");
@@ -66,7 +65,6 @@ export function CgymManualButton({ type, manualRef, label }: { type: CgymType; m
     }
   };
 
-  const [preview, setPreview] = useState<CgymManualLink | null>(null);
   const goConfig = () => { setOpen(false); router.push("/corporate-gym/manuals-config" as any); };
 
   const items = (data?.items || []).filter((f) => !q.trim() || f.name.toLowerCase().includes(q.trim().toLowerCase()));
@@ -161,7 +159,6 @@ export function CgymManualButton({ type, manualRef, label }: { type: CgymType; m
           </View>
         </KeyboardAvoidingView>
       </Modal>
-      <CgymManualPreview link={preview} onClose={() => setPreview(null)} />
     </>
   );
 }

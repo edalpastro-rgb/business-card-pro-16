@@ -15,6 +15,7 @@ import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { cgaApi, CgaArea, CgaMaterial, CgaReference, RATING_COLOR, type CgaLevel, CGA_LEVEL_LABEL, CGA_LEVEL_HINT } from "@/src/corporate-gym/areasApi";
 import { CgymAreaLogo } from "@/src/corporate-gym/CgymAreasGrid";
 import { ReferencePlayer } from "@/src/corporate-gym/ReferencePlayer";
+import { saveToAndroidDownloads } from "@/src/corporate-gym/manualsApi"; // V50.z395 — download in cartella Download (Android)
 import { TranscriptReviewSheet, transcriptApi, TRANSCRIPT_STATUS_LABEL, type AudioTranscript } from "@/src/audio/TranscriptReviewSheet"; // V50.z389
 import { HT } from "@/src/homeTheme";
 
@@ -77,9 +78,10 @@ export default function CgymAreaScreen() {
         if (download) { const a = document.createElement("a"); a.href = url; a.download = c.name; a.click(); } else window.open(url, "_blank");
         return;
       }
+      if (download && Platform.OS === "android") { await saveToAndroidDownloads(c.name.replace(/[^\w.\-àèéìòù ]+/gi, "_"), c.mime, c.data_base64); notify("Salvato nella cartella Download"); return; } // V50.z395 — niente pannello condivisione
       const path = `${FileSystem.cacheDirectory}cgym_${m.material_id}_${c.name.replace(/[^\w.\-]+/g, "_")}`;
       await FileSystem.writeAsStringAsync(path, c.data_base64, { encoding: FileSystem.EncodingType.Base64 });
-      await Sharing.shareAsync(path, { mimeType: c.mime, dialogTitle: download ? "Salva / condividi" : c.name });
+      await Sharing.shareAsync(path, { mimeType: c.mime, dialogTitle: download ? "Salva su File" : c.name });
     } catch (e: any) { notify(e?.message || "Impossibile aprire il file"); } finally { setBusy(null); }
   };
 
