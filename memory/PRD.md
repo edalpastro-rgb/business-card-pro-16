@@ -7083,3 +7083,4 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 - `/admin/wake-samples` (rifatta): totale in evidenza + contatori stato, ZIP totale, liste wake-word/simili con spunta attiva/aggiungi/elimina + minimo per ambiente (Salva), lista visitatori con filtro stato, data/ora, campioni, ZIP per riga. Link copia/condividi + apri pagina.
 - `/wake-training`: carica config (più wake-word attive → il visitatore le registra tutte, «Parola x/y»), traccia open/consent/done.
 - Pannello Master: card `src/wake/WakeTrainingCard.tsx` (link pubblico `src/wake/wakeLink.ts` = EXPO_PUBLIC_BACKEND_URL/wake-training, Copia/Condividi; «Pannello campioni» solo Super Master).
+- V50.z399 — TEMPORANEO `routes/tmp_pkg_download.py`: `GET /api/download/axon-core-pkg?key=<TPD_KEY>` serve `/app/deploy/axon-core/axon-core-pkg.tgz` (40 MB, rigenerato con build_package.sh) per wget dal VPS. RIMUOVERE da MODULES dopo la migrazione.
