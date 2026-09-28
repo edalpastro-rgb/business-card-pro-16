@@ -1,0 +1,12 @@
+# .dockerignore — copiare accanto al Dockerfile nella cartella backend/ (vedi MIGRATION_GUIDE.md)
+__pycache__/
+**/__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+tests/
+# Modelli Kokoro (TTS locale, ~340 MB): vengono scaricati automaticamente al primo uso se KOKORO_DISABLE=0.
+# In produzione KOKORO_DISABLE=1 (voce OpenAI TTS) → non servono nell'immagine.
+assets/kokoro/
+*.log

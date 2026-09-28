@@ -1,0 +1,89 @@
+# docker-compose.yml — Axon Core su VPS (80.211.27.80)
+# Servizi: axon-core (FastAPI :8001, solo rete interna) · mongodb (volume persistente) · nginx (reverse proxy HTTPS :443, HTTP :80 → redirect + ACME)
+# Avvio: `docker compose up -d --build`   ·   Log: `docker compose logs -f axon-core`
+
+name: axon-core
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: axon-mongodb
+    restart: unless-stopped
+    command: ["mongod", "--bind_ip_all", "--wiredTigerCacheSizeGB", "0.75"]
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-axon}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?Imposta MONGO_ROOT_PASSWORD nel file .env}
+    volumes:
+      - mongo_data:/data/db
+      - mongo_config:/data/configdb
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+    networks: [axon]
+    # Nessuna porta esposta all'esterno: MongoDB è raggiungibile solo da axon-core.
+
+  axon-core:
+    build:
+      context: ./backend            # la cartella backend/ di Core copiata sul VPS (con Dockerfile e .dockerignore dentro)
+      dockerfile: Dockerfile
+    image: axon-core:latest
+    container_name: axon-core
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # MONGO_URL costruito dalle credenziali root del servizio mongodb (sovrascrive quello del .env se presente)
+      MONGO_URL: mongodb://${MONGO_ROOT_USER:-axon}:${MONGO_ROOT_PASSWORD}@mongodb:27017/${DB_NAME:-axon_core}?authSource=admin
+      DB_NAME: ${DB_NAME:-axon_core}
+      PORT: "8001"
+    volumes:
+      - core_uploads:/app/backend/uploads        # file locali (fallback quando Object Storage non è configurato)
+      - core_tmp:/tmp                            # temp ffmpeg / Whisper / ZIP export
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    expose:
+      - "8001"
+    # Sblocca SOLO per debug locale (raggiungibile su http://IP:8001 senza HTTPS):
+    # ports:
+    #   - "8001:8001"
+    deploy:
+      resources:
+        limits:
+          memory: 2560m            # VPS 4 GB: ~2.5 GB a Core, ~0.9 GB a Mongo, resto a nginx/OS
+    logging:
+      driver: json-file
+      options: { max-size: "20m", max-file: "5" }
+    networks: [axon]
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: axon-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/certs:/etc/nginx/certs:ro           # fullchain.pem + privkey.pem (Let's Encrypt o autofirmato — vedi guida)
+      - ./nginx/www:/var/www/certbot                # ACME http-01 challenge
+    depends_on:
+      - axon-core
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/nginx-health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    networks: [axon]
+
+volumes:
+  mongo_data:
+  mongo_config:
+  core_uploads:
+  core_tmp:
+
+networks:
+  axon:
+    driver: bridge
