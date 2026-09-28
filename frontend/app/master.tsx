@@ -13,7 +13,7 @@ import { openInAppLink } from "@/src/utils/openInAppLink";
 import { pickAvatarBase64 } from "@/src/image-picker";
 import { MasterVoiceRecorder } from "@/src/MasterVoiceRecorder";
 import { MasterPromoteModal } from "@/src/MasterPromoteModal";
-import { WakeTrainingCard } from "@/src/wake/WakeTrainingCard"; // V50.z398
+import { WakeTrainingSheet } from "@/src/wake/WakeTrainingSheet"; // V50.z401 — foglio link pubblico wake-word (AI & Axon)
 import { MetricBoxClickable, MetricDrillModal, MetricKey } from "@/src/StatMetrics";
 import { useBottomSheetPadding, usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { ModuleErrorBoundary } from "@/src/shared";
@@ -46,6 +46,7 @@ function MasterScreen() {
   const router = useRouter();
   const { user, logout, refresh } = useAuth();
   const [promoteOpen, setPromoteOpen] = useState(false);
+  const [wakeOpen, setWakeOpen] = useState(false); // V50.z401
   const [banner, setBanner] = useState<Banner>(null); // kept only for optional title/body from random-banner
   const [myThingImages, setMyThingImages] = useState<string[]>([]);
   const [myThingIdx, setMyThingIdx] = useState(0);
@@ -546,25 +547,8 @@ function MasterScreen() {
           })}
         </View>
 
-        {/* V29.o — Promuovi ad agente (solo Master) */}
-        <Pressable
-          testID="master-promote-btn"
-          onPress={() => setPromoteOpen(true)}
-          style={masterExtraStyles.promoteBtn}
-        >
-          <View style={masterExtraStyles.promoteIcon}>
-            <Ionicons name="rocket" size={20} color="#FFF" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={masterExtraStyles.promoteTitle}>Promuovi ad agente</Text>
-            <Text style={masterExtraStyles.promoteSub}>Trova un contatto e assegnagli le autorizzazioni operative</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color="#EA580C" />
-        </Pressable>
-
-        {/* V50.z398 — Link pubblico /wake-training da copiare/condividere + pannello campioni (solo Super Master) */}
-        <WakeTrainingCard />
-
+        {/* V50.z401 — «Promuovi ad agente» e «Addestramento wake-word» non stanno più da soli in Home: sono righe del pannello
+            Impostazioni & Configurazioni (CRM Core › sotto Gestione Team · AI & Axon). */}
         {/* V50.z50 — Pannello "Impostazioni & Configurazioni" categorizzato.
             Include TUTTI i link del tab Profilo (spalmati per categoria) così
             l'utente può accedervi direttamente dall'area Master. Il tab Profilo
@@ -573,6 +557,8 @@ function MasterScreen() {
           isOwner={!user?.parent_user_id}
           isSuperAdmin={isSuperAdmin}
           onGoto={goto}
+          onPromote={() => setPromoteOpen(true)}
+          onWakeTraining={() => setWakeOpen(true)}
           onLogout={async () => {
             await logout();
             router.replace("/login");
@@ -681,6 +667,7 @@ function MasterScreen() {
         title={drill?.title || "Dettaglio"}
       />
       <MasterPromoteModal visible={promoteOpen} onClose={() => setPromoteOpen(false)} />
+      <WakeTrainingSheet visible={wakeOpen} onClose={() => setWakeOpen(false)} />
     </SafeAreaView>
   );
 }
@@ -885,11 +872,15 @@ function SettingsHubSection({
   isSuperAdmin,
   onGoto,
   onLogout,
+  onPromote,
+  onWakeTraining,
 }: {
   isOwner: boolean;
   isSuperAdmin: boolean;
   onGoto: (path: string) => void;
   onLogout: () => Promise<void>;
+  onPromote: () => void;
+  onWakeTraining: () => void;
 }) {
   const { user } = useAuth();
   const groups: HubGroup[] = [
@@ -897,6 +888,7 @@ function SettingsHubSection({
       color: "#0EA5E9", label: "CRM Core", icon: "briefcase",
       items: [
         { icon: "people-circle", label: "Gestione Team", hint: "Invita collaboratori e assegna aree", onPress: () => onGoto("/team"), ownerOnly: true, testID: "hub-team" },
+        { icon: "rocket", label: "Promuovi ad agente", hint: "Trova un contatto e assegnagli le autorizzazioni operative", onPress: onPromote, ownerOnly: true, testID: "master-promote-btn" }, // V50.z401 — dentro Gestione Team (era da solo in Home)
         { icon: "document-text", label: "Script Telefonata", hint: "Testo mostrato agli agenti durante le chiamate", onPress: () => onGoto("/call-script-config"), ownerOnly: true, testID: "hub-call-script" },
         { icon: "person-add", label: "Invita Prospect / Collaboratore", hint: "Prospect esterno o Collaboratore del tuo team", onPress: () => onGoto("/invita"), ownerOnly: true, testID: "hub-invita" },
         { icon: "people-outline", label: "Gruppi Contatti", hint: "Crea gruppi personalizzati per invii bulk", onPress: () => onGoto("/groups"), testID: "hub-groups" },
@@ -912,6 +904,7 @@ function SettingsHubSection({
         { icon: "sparkles", label: "Axon Center", hint: "Regole, documenti, cervello, script, sveglie, domotica", onPress: () => onGoto("/axon-hub"), ownerOnly: true, testID: "hub-axon-hub" },
         { icon: "eye", label: "Memoria AxonOS", hint: "Cosa sa Axon di me · vedi, correggi, cancella", onPress: () => onGoto("/axon-memory"), testID: "hub-axon-memory" },
         { icon: "chatbox-ellipses", label: "Personalizza Assistente", hint: "Nome, modalità (testo/voce), voce", onPress: () => onGoto("/(tabs)/impostazioni"), testID: "hub-assistant" },
+        { icon: "mic-circle", label: "Addestramento wake-word «Axon»", hint: "Link pubblico da condividere · pannello campioni", onPress: onWakeTraining, testID: "hub-wake-training" }, // V50.z401
       ],
     },
     {
@@ -1096,24 +1089,6 @@ const masterExtraStyles = StyleSheet.create({
   catBadge: { width: 20, height: 20, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   catLabel: { fontSize: 11, fontWeight: "900", letterSpacing: 0.6, textTransform: "uppercase" },
   catLine: { flex: 1, height: 2, borderRadius: 1, marginLeft: 4 },
-  promoteBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: HT.brandLine,
-    backgroundColor: HT.brandTint,
-    marginTop: 12,
-    marginBottom: 4,
-  },
-  promoteIcon: {
-    width: 40, height: 40, borderRadius: 12, backgroundColor: '#EA580C',
-    alignItems: "center", justifyContent: "center",
-  },
-  promoteTitle: { fontSize: 14, fontWeight: "800", color: "#FDBA74" },
-  promoteSub: { fontSize: 12, color: "#FDBA74", opacity: 0.75, marginTop: 2, lineHeight: 16 },
   // V48 — Reorder mode + assistance-number modal styles
   reorderBar: {
     flexDirection: "row",
