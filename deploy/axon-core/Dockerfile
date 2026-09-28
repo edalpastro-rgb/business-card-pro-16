@@ -25,8 +25,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app/backend
 
 # Dipendenze Python (layer separato → rebuild veloci). emergentintegrations vive su un indice extra.
+# FIX build VPS: la riga `litellm @ …whl#sha256=…` di requirements.txt entra in conflitto con `litellm @ …whl` (stesso URL, senza
+# hash) richiesto da emergentintegrations → pip "ResolutionImpossible". Tolgo solo il frammento #sha256 (stesso wheel, stessa versione).
 COPY requirements.txt ./
-RUN pip install --upgrade pip \
+RUN sed -i 's|\(litellm @ [^#]*\)#sha256=[0-9a-f]*|\1|' requirements.txt \
+ && pip install --upgrade pip \
  && pip install -r requirements.txt --extra-index-url https://d33sy5i8bnduwe.cloudfront.net/simple/
 
 # Codice Core (server.py + routes/ + workers/ + models/ + tessdata/ + assets/). .dockerignore esclude cache e modelli scaricabili.
