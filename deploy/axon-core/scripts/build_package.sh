@@ -15,6 +15,7 @@ cp "$ROOT/deploy/axon-core/.env.example" "$PKG/"
 cp -r "$ROOT/deploy/axon-core/nginx" "$PKG/nginx"
 mkdir -p "$PKG/nginx/certs" "$PKG/nginx/www"
 cp "$ROOT/deploy/axon-core/MIGRATION_GUIDE.md" "$PKG/"
+echo "axon-core-pkg $(date -u +%Y-%m-%dT%H:%M:%SZ) litellm_lines=$(grep -c '^litellm' "$PKG/backend/requirements.txt" || true)" > "$PKG/PKG_VERSION"
 OUT="$PWD/axon-core-pkg.tgz"
 tar czf "$OUT" -C "$(dirname "$PKG")" axon-core-pkg
 echo "Pacchetto creato: $OUT ($(du -h "$OUT" | cut -f1))"
