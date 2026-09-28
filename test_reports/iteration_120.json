@@ -1,0 +1,28 @@
+{
+  "summary": "V50.z390 wake-word sample collection: full backend + frontend test pass. 13/13 pytest tests green covering public pronunciation/counts/b64/multipart/validation and admin stats/export.zip/delete with auth (owner OK, sub 403, no-token 401). Frontend public /wake-training flow validated end-to-end (390x844 mobile viewport, no login): hero -> pron (with wt-pron-play tap) -> intro -> pos env casa->macchina->...->discoteca via wt-skip -> neg-intro -> neg env casa (Action label) with wt-next-word x10 advancing to macchina -> skip through all envs -> wt-done 'Grazie…' with wt-discover. Admin /admin/wake-samples: owner login shows wake-admin-totals (2 total), wake-admin-matrix with all rows (axon, action, flaxen, oxygen, saxon), wake-admin-download-all button. Sub-user login shows wake-admin-error 'Sezione riservata al Super Master'. QA seed samples cleaned up via DELETE /api/wake-samples/{id}.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_wake_samples.py",
+    "/app/test_reports/pytest/v50z390_wake.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "wake_samples.py uses many `# noqa: F821` references (api_router, db, get_current_user, base64, uuid, utcnow, logger, openai_tts, _put_object_sync, _get_object_sync, _STORAGE_APP_NAME, _require_super_master, run_in_threadpool). This works because the module is exec'd inside server.py, but it's fragile — a future refactor that imports it as a normal module will break. Consider explicit imports.",
+    "MediaRecorder-based web recording fallback is fine but headless testing without --use-fake-ui-for-media-stream cannot exercise the actual hold-to-record flow; documented as expected and not a bug."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_wake_samples.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "During browser test seeded 2 samples (axon/casa, action/bar) via /api/public/wake-samples/b64 with session_id qa-admin-seed; deleted at the end of the run via admin DELETE. Pytest samples also cleaned up in test_delete_cleanup.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Wake-word training endpoints and screens are healthy. Public route /wake-training does NOT require login. Admin route /admin/wake-samples requires Super Master (owner) — sub-users get 403 with Italian error text. Backend URL from /app/frontend/.env EXPO_PUBLIC_BACKEND_URL. Login testIDs: auth-email-input, auth-password-input, auth-submit-button (post-login redirects to /tour). Real MediaRecorder capture cannot be tested in default headless browser; verify hold-recording only with fake-device browser flag.",
+  "rca_of_issue": "N/A — no bugs found."
+}
