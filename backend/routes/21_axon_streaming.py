@@ -405,7 +405,8 @@ async def _prepare_assistant_prompt(
     weather_section = ""
     if weather_ctx is not None:
         weather_section = (
-            "\n\nMETEO (dati aggiornati, timezone Europe/Rome):\n"
+            "\n\nMETEO (dati aggiornati, timezone Europe/Rome — DATO FORNITO DAL SISTEMA perché il messaggio dell'utente contiene una richiesta meteo esplicita; "
+            "se in realtà l'utente NON ha chiesto del meteo, IGNORA questa sezione e non parlarne):\n"
             f"{_json.dumps(weather_ctx, ensure_ascii=False, default=str)}\n"
             "Usa questi dati per rispondere in modo naturale alla domanda meteo. "
             "Se l'utente chiede un momento specifico (oggi pomeriggio, domani mattina, ecc.) "
@@ -413,8 +414,8 @@ async def _prepare_assistant_prompt(
         )
     elif weather_city == "?":
         weather_section = (
-            "\n\nAVVISO: L'utente sembra chiedere del meteo ma non ha specificato una città. "
-            "Chiedi cortesemente per quale città.\n"
+            "\n\nAVVISO (dal sistema): il messaggio contiene una richiesta meteo esplicita senza città. "
+            "SOLO se l'utente sta davvero chiedendo del meteo, chiedi per quale città; altrimenti ignora questo avviso.\n"
         )
 
     web_section = ""
@@ -781,7 +782,8 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     weather_section = ""
     if weather_ctx is not None:
         weather_section = (
-            "\n\nMETEO (dati aggiornati, timezone Europe/Rome):\n"
+            "\n\nMETEO (dati aggiornati, timezone Europe/Rome — DATO FORNITO DAL SISTEMA perché il messaggio dell'utente contiene una richiesta meteo esplicita; "
+            "se in realtà l'utente NON ha chiesto del meteo, IGNORA questa sezione e non parlarne):\n"
             f"{_json.dumps(weather_ctx, ensure_ascii=False, default=str)}\n"
             "Usa questi dati per rispondere in modo naturale alla domanda meteo. "
             "Se l'utente chiede un momento specifico (oggi pomeriggio, domani mattina, ecc.) "
@@ -789,8 +791,8 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         )
     elif weather_city == "?":
         weather_section = (
-            "\n\nAVVISO: L'utente sembra chiedere del meteo ma non ha specificato una città. "
-            "Chiedi cortesemente per quale città.\n"
+            "\n\nAVVISO (dal sistema): il messaggio contiene una richiesta meteo esplicita senza città. "
+            "SOLO se l'utente sta davvero chiedendo del meteo, chiedi per quale città; altrimenti ignora questo avviso.\n"
         )
 
     # V38T — Inject web-search results when energy topic detected

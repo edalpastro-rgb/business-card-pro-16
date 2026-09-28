@@ -3,12 +3,26 @@
 # namespace condiviso: le definizioni di TUTTI i moduli sono visibili qui (nessun import necessario).
 # AI Personal Assistant (Neo)
 # =========================
-_WEATHER_KEYWORDS = [
-    "tempo", "meteo", "previsioni", "previsione", "pioggia", "piove", "piover",
-    "sole", "soleggiato", "sereno", "temperatura", "gradi", "nevica", "neve",
-    "vento", "nuvoloso", "nuvole", "nebbia", "clima", "umidità", "afoso",
-    "caldo", "freddo", "temporale",
-]
+# V50.z402 — INTENTO METEO ESPLICITO (prima: sottostringhe come «tempo», «sole», «vento», «caldo» scattavano su «quanto tempo»,
+# «console», «evento», «riscaldo» → Axon riceveva dati meteo/«chiedi la città» non richiesti e poi si inventava una regola per
+# giustificarsi). Ora servono parole INTERE e un'intenzione meteo chiara: «meteo», «previsioni», «che tempo fa», «piove», «nevica»…
+import re as _wx_re
+_WEATHER_EXPLICIT_RE = _wx_re.compile(
+    r"\b(?:meteo|previsioni?\s+(?:del\s+)?(?:tempo|meteo)|previsioni|che\s+tempo\s+(?:fa|farà|fara|c'è|ce|sarà|sara|trovo)|"
+    r"com'?è\s+il\s+tempo|come\s+(?:è|e'|sarà|sara)\s+il\s+tempo|tempo\s+(?:atmosferico|previsto)|"
+    r"piove|pioverà|piovera|nevica|nevicherà|nevichera|grandina|"
+    r"quanti\s+gradi|che\s+temperatura|temperatura\s+(?:a|in|di|oggi|domani|fuori|esterna)|"
+    r"(?:c'è|ce|ci\s+sarà|ci\s+sara|fa|farà|fara)\s+(?:il\s+)?(?:sole|caldo|freddo|vento|nebbia|temporale|neve|pioggia|afa)|"
+    r"allerta\s+meteo|bollettino\s+meteo|clima\s+(?:a|in|di)\s+[A-ZÀ-Ú])\b",
+    _wx_re.IGNORECASE,
+)
+# Parole «sensibili» usate SOLO per la seconda fase (estrazione città) dopo che l'intento è esplicito
+_WEATHER_KEYWORDS = ["meteo", "previsioni", "previsione", "tempo", "clima", "piove", "nevica", "temperatura", "gradi", "sole", "caldo", "freddo", "vento", "pioggia", "neve", "temporale", "nebbia"]
+
+
+def _is_explicit_weather_query(text: str) -> bool:
+    return bool(text) and bool(_WEATHER_EXPLICIT_RE.search(text))
+
 
 _WEATHER_CODES_IT = {
     0: "sereno", 1: "prevalentemente sereno", 2: "parzialmente nuvoloso", 3: "coperto",
@@ -26,10 +40,7 @@ _WEATHER_CODES_IT = {
 
 def _detect_weather_query(text: str) -> Optional[str]:
     """Return the city name if the message looks like a weather query, else None."""
-    if not text:
-        return None
-    lower = text.lower()
-    if not any(kw in lower for kw in _WEATHER_KEYWORDS):
+    if not text or not _is_explicit_weather_query(text):  # V50.z402 — solo intento meteo esplicito
         return None
     import re
     stop_words = {
@@ -41,7 +52,7 @@ def _detect_weather_query(text: str) -> Optional[str]:
     stop = r"(?:oggi|domani|dopodomani|stamattina|stanotte|pomeriggio|sera|mattina|adesso|ora|questa|questo|nel|nella|dalle|alle|verso|tra|tra\s+\w+|entro|prossim\w+|\?|\.|,|!|$)"
     # V50.z32 — Match diretto: "meteo/tempo/previsioni <City>" (senza preposizione)
     m2 = re.search(
-        r"\b(?:meteo|previsioni|previsione|tempo|clima)\s+(?:di\s+|a\s+|in\s+|per\s+|su\s+)?([A-ZÀ-Ú][\wÀ-úà-ú'\-]*(?:\s+[A-ZÀ-Ú]?[\wÀ-úà-ú'\-]+){0,2})",
+        r"\b(?i:meteo|previsioni|previsione|tempo|clima)\s+(?i:di\s+|a\s+|in\s+|per\s+|su\s+)?([A-ZÀ-Ú][\wÀ-úà-ú'\-]*(?:\s+[A-ZÀ-Ú]?[\wÀ-úà-ú'\-]+){0,2})",  # V50.z402 — «Meteo Roma» anche con maiuscola
         text,
     )
     if m2:
