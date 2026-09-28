@@ -693,6 +693,8 @@ def _nav_flow_howto(user: dict, x: str) -> "dict | None":
 # ---------------------------------------------------------------------------
 _RX_NAV_INTENT = _nav_re.compile(r"\b(come|dove|voglio|vorrei|apri|aprire|mostra|mostrami|fammi vedere|vedere|vedo|trovo|trovare|imposta\w*|configur\w*|attiv\w*|disattiv\w*|cambi\w*|modific\w*|aggiung\w*|cre\w*|nuov\w*|colleg\w*|scansion\w*|analizz\w*|import\w*|fiss\w*|pianific\w*|programm\w*|segnal\w*|scaric\w*|gestisc\w*|personalizz\w*|invit\w*|registr\w*|ottimizz\w*|esport\w*|carica\w*|metto|mettere|inserire|inserisco|serve|servirebbe|posso|si fa|funziona|vai|portami|andare|c'[èe]|esiste)\b", _nav_re.I)
 _RX_DATA_Q = _nav_re.compile(r"\b(quanti|quante|quanto (ho|abbiamo|manca)|a che ora|chi [èe]|qual [èe] (il|la) (numero|telefono|indirizzo|mail|email|prossimo|prossima)|riassumi|riepilogo di|elenca|leggimi|dimmi (chi|quando|quanto|quanti|quante))\b", _nav_re.I)
+# V50.z392 — domande informative / di stato: risposta diretta dall'AI, mai template di navigazione
+_RX_INFO_Q = _nav_re.compile(r"(^|\b)(perch[eé]|come mai|come si chiama|come funziona|[èe] (attiv|vero|giusto|aggiornat|acces|spent|pront|corrett|funzionant)|funziona\b|esiste\b|c'[èe]\b|ci sono\b|cosa (succede|fa|significa|vuol dire)|qual [èe] (il nome|lo stato|il motivo)|quando (è|e|viene|verr|sar)|s[ìi] o no)", _nav_re.I)
 # V50.z302 — RICHIESTE CREATIVE / DI SCRITTURA (discorso al team, email al cliente, testo di N parole, traduzione, poesia, script…):
 # vanno all'AI che PRODUCE il contenuto, mai al template L1 «Apri …». Un link è utile solo se l'utente vuole aprire una schermata.
 _RX_CREATIVE = _nav_re.compile(
@@ -773,6 +775,14 @@ def _nav_template_reply(msg: str, user: dict) -> Optional[dict]:
         return None
     if _RX_DATA_Q.search(t):
         return None  # domanda sui dati (numeri/orari) → AI con contesto CRM
+    # V50.z392 — REGOLA «rispondi SOLO alla domanda»: le domande informative/di stato («Perché…?», «Come si chiama…?», «È attivo…?»,
+    # «Funziona…?») NON sono richieste di navigazione → all'AI, che risponde alla domanda (mai un template «Apri …»).
+    if _RX_INFO_Q.search(t) or (t.endswith("?") and not _RX_OPEN_SCREEN.search(t)):
+        return None
+    # comandi PUN (aggiorna cache / inserimento valori) → gestiti da axon_pun_quick, non dal template «Apri PUN»
+    _pr = globals().get("_PUNQ_REFRESH_RE"); _pi = globals().get("_PUNQ_INSERT_RE")
+    if (_pr and _pr.search(t)) or (_pi and _pi.search(t)):
+        return None
     has_intent = bool(_RX_NAV_INTENT.search(t)) or len(words) <= 4
     mt = _nav_tokens(t)
     master = _nav_is_master(user)

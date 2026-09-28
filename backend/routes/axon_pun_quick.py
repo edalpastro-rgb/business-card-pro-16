@@ -298,6 +298,9 @@ _PUNQ_TABLE_HINT_RE = re.compile(r"\b(tabella|mesi|mese|fasce|fascia|medi[oa]?|s
 _PUNQ_EXCLUDE_RE = re.compile(r"\b(bolletta|fattura|contratto|offerta|spiega\w*|cos'?[èe]|che cos|perch[éè]|significa|differenza|calcola\w* il costo|preventivo)\b", re.IGNORECASE)
 _PUNQ_N_RE = re.compile(r"\b(?:ultim[io]\s+)?(\d{1,2})\s+mesi\b", re.IGNORECASE)
 _PUNQ_REFRESH_RE = re.compile(r"\b(aggiorna|ricarica|rinfresca|refresh)\w*\b.*\b(cache|archivio|tabella|dati)?\b.*\bpun\b|\bpun\b.*\b(aggiorna|ricarica|refresh)\w*\b.*\b(cache|archivio)\b", re.IGNORECASE)
+# V50.z392 — una DOMANDA («Perché…?», «Come si chiama il job che aggiorna il PUN?», «È aggiornato?») NON è un comando:
+# va all'AI che risponde SOLO alla domanda. I comandi (refresh/inserimento/tabella) scattano solo su frasi imperative.
+_PUNQ_QUESTION_RE = re.compile(r"\?\s*$|^\s*(perch[eé]|come mai|come si chiama|come funziona|cosa|chi|quando|dove|quale|qual|[èe]\s|sono\s|esiste|c'[èe]|ci sono)\b", re.IGNORECASE)
 _PUNQ_INSERT_RE = re.compile(r"\b(inserisci|aggiungi|salva|registra)\s+(?:il\s+)?pun\s+(?:di\s+)?([a-zà-ù]+)\s+(20\d{2})\b.*?\bf1\s*[:=]?\s*([\d.,]+).*?\bf2\s*[:=]?\s*([\d.,]+).*?\bf3\s*[:=]?\s*([\d.,]+)", re.IGNORECASE | re.DOTALL)
 
 
@@ -338,7 +341,7 @@ _punq_prev_maybe_push_command = _maybe_push_command
 async def _maybe_push_command(msg: str, user: dict) -> Optional[dict]:  # noqa: F811
     txt = _punq_strip(msg)
     try:
-        if txt and len(txt) <= 1200 and _PUNQ_TRIGGER_RE.search(txt):
+        if txt and len(txt) <= 1200 and _PUNQ_TRIGGER_RE.search(txt) and not _PUNQ_QUESTION_RE.search(txt):
             if is_owner(user):
                 mi = _PUNQ_INSERT_RE.search(txt)
                 if mi:

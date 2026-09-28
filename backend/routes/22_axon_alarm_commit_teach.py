@@ -617,7 +617,7 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
         # V50.z142 — ACK immediato: primo evento emesso PRIMA di qualsiasi await
         # (intercept slash/quick-action/sveglie, preflight, LLM). L'utente vede
         # "Sto ragionando…" entro <1s indipendentemente dal modello usato.
-        yield sse("progress", {"stage": "ack", "text": "Sto ragionando…"})
+        yield sse("progress", {"stage": "ack", "text": "Ci sto pensando…"})
 
         # V50.z126 — Azione rapida in streaming: arricchisci il prompt come
         # faceva POST /axon/quick-action (che era bloccante e superava il
@@ -726,7 +726,7 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
         # inattività e l'utente vede che Axon sta lavorando.
         _prep_task = asyncio.create_task(_prepare_assistant_prompt(user, body))
         _prep_started = asyncio.get_event_loop().time()
-        _hb_msgs = ["Sto cercando nei documenti e nelle regole…", "Sto raccogliendo dati aggiornati…", "Ancora un momento, sto preparando il contesto…"]
+        _hb_msgs = ["Sto verificando…", "Sto raccogliendo dati aggiornati…", "Ancora un momento, sto preparando la risposta…"]
         _hb_i = 0
         while True:
             try:
