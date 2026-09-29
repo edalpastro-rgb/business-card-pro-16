@@ -1,7 +1,7 @@
 // areasApi.ts — V50.z365 — Corporate Gym: aree dinamiche, materiali, registrazioni trattativa, sessione live, valutazioni.
 import { api, apiUpload } from "@/src/api";
 
-export type CgaArea = {
+export type CgaArea = { icon?: string | null; // V50.z408 — icona Ionicons dalla libreria
   area_id: string; key: string; name: string; color: string; route: string | null; builtin: boolean; order: number; description: string;
   blocks: string[]; image: string | null; logo_b64: string | null; materials: number; references: number; my_sessions: number; my_last_rating: string | null;
 };
@@ -39,8 +39,9 @@ export const RATING_COLOR: Record<string, string> = { OSCENO: "#DC2626", MEDIOCR
 
 export const cgaApi = {
   areas: () => api<{ items: CgaArea[]; is_master: boolean }>("/cgym/areas"),
-  create: (body: { name: string; description?: string; blocks?: string[]; logo_b64?: string }) => api<CgaArea>("/cgym/areas", { method: "POST", body }),
-  update: (id: string, body: { name?: string; description?: string; blocks?: string[]; logo_b64?: string | null }) => api<CgaArea>(`/cgym/areas/${id}`, { method: "PATCH", body }),
+  create: (body: { name: string; description?: string; blocks?: string[]; logo_b64?: string; color?: string; icon?: string | null }) => api<CgaArea>("/cgym/areas", { method: "POST", body }),
+  update: (id: string, body: { name?: string; description?: string; blocks?: string[]; logo_b64?: string | null; color?: string; icon?: string | null }) => api<CgaArea>(`/cgym/areas/${id}`, { method: "PATCH", body }),
+  remove: (id: string) => api<{ ok: boolean }>(`/cgym/areas/${id}`, { method: "DELETE" }), // V50.z408
   materials: (id: string) => api<{ items: CgaMaterial[] }>(`/cgym/areas/${id}/materials`),
   addMaterial: (id: string, body: { name: string; mime: string; data_base64: string }) => api<CgaMaterial>(`/cgym/areas/${id}/materials`, { method: "POST", body }),
   materialContent: (id: string, mid: string) => api<{ name: string; mime: string; data_base64: string }>(`/cgym/areas/${id}/materials/${mid}/content`),

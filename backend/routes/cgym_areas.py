@@ -21,7 +21,7 @@ CGA_DEFAULT_AREAS = [
      "description": "Role-play sulle obiezioni: tempo, costo, decisore.", "blocks": ["Obiezione TEMPO", "Obiezione COSTO", "Obiezione DECISORE"],
      "image": "https://customer-assets-rejwkqb3.emergentagent.net/wingman/96afd50f-e973-4b52-8752-8e66a92b8a17/attachments/3efe302090d947e78e18f1eda6137539_obbiezioni%20logo2_0.png"},
     {"key": "winwin", "name": "Gym WIN-WIN", "color": "#0F9D58", "route": "/corporate-gym/win-win", "builtin": True, "order": 2,
-     "description": "Trattativa WIN-WIN completa: 8 blocchi rigidi, dalla telefonata alla chiusura.",
+     "description": "Trattativa completa in 8 blocchi, dalla telefonata alla chiusura.",
      "blocks": ["1 · Telefonata di presa appuntamento", "2 · Rapport", "3 · Chi sono", "4 · Analisi primo livello", "5 · Spiegazione mercato energia", "6 · K-meno", "7 · Patto di squadra", "8 · Chiusura e invito all'azione"],  # V50.z400 — = CGYM_WW_BLOCKS (MOD 5)
      "image": "https://customer-assets-rejwkqb3.emergentagent.net/wingman/96afd50f-e973-4b52-8752-8e66a92b8a17/attachments/7644430fa87e47c2a2b4b8a139f64318_logo%20winwin.png"},
     {"key": "trattativa", "name": "Trattativa Completa", "color": "#0EA5E9", "route": None, "builtin": True, "order": 3,
@@ -70,6 +70,7 @@ class CgaAreaIn(BaseModel):
     blocks: Optional[List[str]] = None
     logo_b64: Optional[str] = None   # data URI o base64 (PNG/JPG) — compressa
     color: Optional[str] = None
+    icon: Optional[str] = None       # V50.z408 — icona Ionicons scelta dalla libreria (alternativa al logo)
 
 
 class CgaMaterialIn(BaseModel):
@@ -156,7 +157,7 @@ async def cga_create(body: CgaAreaIn, user=Depends(get_current_user)):
     n = await db.cgym_areas.count_documents({"tenant_id": tid})
     a = {"area_id": f"cga_{uuid.uuid4().hex[:10]}", "tenant_id": tid, "key": re.sub(r"[^a-z0-9]+", "_", name.lower())[:30], "name": name, "color": body.color or "#7C3AED",
          "route": None, "builtin": False, "order": n + 1, "description": (body.description or "").strip()[:300], "blocks": [b.strip()[:120] for b in (body.blocks or []) if b.strip()][:20],
-         "image": None, "logo_b64": None, "created_at": utcnow(), "updated_at": utcnow()}
+         "image": None, "logo_b64": None, "icon": (re.sub(r"[^a-z0-9-]", "", body.icon.lower())[:40] or None) if body.icon else None, "created_at": utcnow(), "updated_at": utcnow()}
     if body.logo_b64:
         a["logo_b64"], _ = await media_auto_compress_b64(body.logo_b64, "image/png", "logo.png", "cgym-area-logo")  # noqa: F821
     await db.cgym_areas.insert_one(dict(a))
@@ -177,6 +178,10 @@ async def cga_update(area_id: str, body: CgaAreaIn, user=Depends(get_current_use
         upd["blocks"] = [b.strip()[:120] for b in body.blocks if b.strip()][:20]
     if body.color:
         upd["color"] = body.color
+    if body.icon is not None:  # V50.z408
+        upd["icon"] = re.sub(r"[^a-z0-9-]", "", body.icon.lower())[:40] or None
+        if upd["icon"]:
+            upd["logo_b64"] = None; upd["image"] = None
     if body.logo_b64 is not None:
         upd["logo_b64"] = (await media_auto_compress_b64(body.logo_b64, "image/png", "logo.png", "cgym-area-logo"))[0] if body.logo_b64 else None  # noqa: F821
         if body.logo_b64:

@@ -345,7 +345,7 @@ async def _cga_area(tid: str, area_id: str) -> dict:  # noqa: F811
     kind = _r2_area_kind(area)
     _R2_AREA_KEY.set(kind)
     if kind == "winwin":
-        area = {**area, "blocks": list(CGYM_WW_BLOCK_NAMES)}   # MOD 5: 8 blocchi rigidi anche in sessione live
+        # V50.z408 — i blocchi li decide il Master (DB, modificabili da «Modifica aree»); l'ordine è cronologico rispetto al manuale
         try:
             _R2_AREA_KB.set(await _r2_ww_manual_text(tid))
         except Exception:  # noqa: BLE001
@@ -367,8 +367,10 @@ def _cga_client_system(area: dict, block: str, level: str = "base") -> str:  # n
     base = _r2_prev_client_system_v3(area, block, level)
     kind = _r2_area_kind(area); kb = _R2_AREA_KB.get() or ""
     if kind == "winwin":
-        idx = CGYM_WW_BLOCK_NAMES.index(block) if block in CGYM_WW_BLOCK_NAMES else 0
-        return base + "\n\n" + CGYM_CLIENT_RULES_V2 + _r2_block_prompt(idx) + kb
+        blocks = area.get("blocks") or CGYM_WW_BLOCK_NAMES
+        idx = blocks.index(block) if block in blocks else 0   # V50.z408 — blocco i-esimo del Master ↔ parte i-esima (cronologica) del manuale WIN-WIN
+        ww = _r2_block_prompt(idx) if idx < len(CGYM_WW_BLOCKS) else f"\n\nBLOCCO ATTUALE «{block}» ({idx + 1}/{len(blocks)}): segui la parte corrispondente del manuale WIN-WIN qui sotto, in ordine cronologico."
+        return base + "\n\n" + CGYM_CLIENT_RULES_V2 + ww + kb
     if kind == "obiezioni":
         return (base + "\n\nSEI UN CLIENTE CHE OBIETTA: il consulente si è presentato e propone l'incontro/la soluzione. Nel blocco «" + block +
                 "» sollevi con naturalezza l'obiezione del blocco (tempo, costo, decisore o quella indicata) e la mantieni finché il consulente non la gestisce "

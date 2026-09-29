@@ -417,21 +417,17 @@ export default function HomeScreen() {
           <Ionicons name="menu" size={22} color={C.text} />
         </Pressable>
         <View style={styles.topBarBrandCol}>
+          {/* V50.z408 — Header: via il nome app troncato («Advis…»); ORARIO grande con la DATA sotto, entrambi leggibili a colpo d'occhio.
+              Il logo aziendale (branding) resta se configurato. */}
           {orgBranding?.logo_data_uri ? (
             <Image source={{ uri: orgBranding.logo_data_uri }} resizeMode="contain" style={styles.topBarOrgLogo} accessibilityLabel={orgBranding.company_name || "Logo aziendale"} testID="brand-header-org" />
-          ) : (
-            <Text style={styles.topBarBrand} numberOfLines={1} testID="brand-header-advisoros">
-              Advisor<Text style={styles.topBarBrandOS}>OS</Text>
-            </Text>
-          )}
-          {/* V50.z363 — data odierna completa sotto il titolo («Sabato 26 settembre 2026»), aggiornata dal tick al minuto */}
-          <Text style={styles.topBarDate} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} testID="home-today-date">{todayLabel}</Text>
+          ) : null}
+          <Text style={styles.topBarClock} numberOfLines={1} testID="home-clock">
+            {new Date(nowTick).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
+          </Text>
+          <Text style={styles.topBarDate} numberOfLines={2} testID="home-today-date">{todayLabel}</Text>{/* V50.z408 — su 2 righe se serve: mai troncata */}
         </View>
-        <View style={{ flex: 1 }} />
         <ViolaHeaderDot />{/* V50.z367 — Axon in ascolto (ViolaWake) */}
-        <Text style={styles.topBarClock} numberOfLines={1} testID="home-clock">
-          {new Date(nowTick).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
-        </Text>
         <HeaderWeatherBadge inline />
         <AlarmHeaderIcon />
         <Pressable
@@ -1182,7 +1178,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 10, // V50.z408 — header leggermente più alto per orario + data
     backgroundColor: C.bg,
     borderBottomWidth: 1,
     borderBottomColor: C.border,
@@ -1192,19 +1188,16 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
     backgroundColor: HT.glass,
   },
-  topBarBrandCol: { marginLeft: 4, justifyContent: "center", flexShrink: 1, minWidth: 0 },
-  topBarBrand: { fontSize: 17, fontWeight: "900", color: C.text, letterSpacing: -0.4 },
-  topBarBrandOS: { color: C.primary },
-  topBarDate: { fontSize: 10.5, fontWeight: "700", color: C.text2, marginTop: 1 }, // V50.z363
+  topBarBrandCol: { marginLeft: 4, justifyContent: "center", flex: 1, minWidth: 0 }, // V50.z408 — tutta la larghezza libera a orario + data
+  topBarDate: { fontSize: 12.5, lineHeight: 15, fontWeight: "700", color: C.text2, marginTop: 1 }, // V50.z363 · V50.z408 più grande
   topBarOrgLogo: { width: 92, height: 30 },
-  topBarClock: {
+  topBarClock: { // V50.z408 — orario in evidenza nella colonna sinistra (sopra la data)
     flexShrink: 0,
-    color: C.text2,
-    fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 0.2,
-    textTransform: "capitalize",
-    marginRight: 4,
+    color: C.text,
+    fontSize: 22,
+    lineHeight: 26,
+    fontWeight: "900",
+    letterSpacing: -0.3,
     fontVariant: ["tabular-nums"],
   },
   topBarAvatar: { width: 32, height: 32, borderRadius: 16, borderWidth: 1.5, borderColor: HT.brandLine },

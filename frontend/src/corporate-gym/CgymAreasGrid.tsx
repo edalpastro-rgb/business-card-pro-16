@@ -1,13 +1,9 @@
 // CgymAreasGrid.tsx — V50.z365 — griglia AREE dinamiche del Corporate Gym (stesso modello visivo: card immagine/logo, nome,
-// stato sessioni). Master: pressione lunga o matita → rinomina + logo; «+ Nuova area». Tap → rotta storica (Obiezioni/WIN-WIN)
-// oppure pagina area (/corporate-gym/area/[id]).
+// stato sessioni). V50.z408: nessuna matita sulle card — il Master usa «Modifica aree» (/corporate-gym/areas-edit). Tap → pagina area.
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, Image, Modal, TextInput, ActivityIndicator } from "react-native";
-import { KScrollView, KModalBody } from "@/src/ui/keyboard"; // V50.z374/z387 — tastiera: campo attivo sempre visibile (anche nella Modal Android)
+import { View, Text, StyleSheet, Pressable, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
-import { notify } from "@/src/utils/notify";
-import { pickImages } from "@/src/image-picker";
 import { cgaApi, CgaArea, RATING_COLOR } from "@/src/corporate-gym/areasApi";
 import { HT } from "@/src/homeTheme";
 
@@ -16,7 +12,7 @@ export function CgymAreaLogo({ a, size = 84 }: { a: CgaArea; size?: number }) {
   if (src) return <Image source={{ uri: src }} style={{ width: size, height: size, borderRadius: 18 }} resizeMode="cover" />;
   return (
     <View style={{ width: size, height: size, borderRadius: 18, backgroundColor: a.color + "22", alignItems: "center", justifyContent: "center" }}>
-      <Ionicons name="barbell" size={size * 0.42} color={a.color} />
+      <Ionicons name={(a.icon as any) || "barbell"} size={size * 0.42} color={a.color} />{/* V50.z408 — icona scelta dalla libreria */}
     </View>
   );
 }
@@ -25,8 +21,6 @@ export function CgymAreasGrid({ pendingByKey }: { pendingByKey?: Record<string, 
   const router = useRouter();
   const [areas, setAreas] = useState<CgaArea[]>([]);
   const [master, setMaster] = useState(false);
-  const [edit, setEdit] = useState<{ a: CgaArea | null; name: string; logo: string | null; blocks: string } | null>(null);
-  const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
     try { const r = await cgaApi.areas(); setAreas(r.items); setMaster(r.is_master); } catch { /* offline */ }
@@ -35,83 +29,37 @@ export function CgymAreasGrid({ pendingByKey }: { pendingByKey?: Record<string, 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
   const open = (a: CgaArea) => router.push(`/corporate-gym/area/${a.area_id}` as any); // V50.z400 — STRUTTURA UNICA: anche Obiezioni e WIN-WIN aprono la pagina area (come ANT)
-  const startEdit = (a: CgaArea | null) => setEdit({ a, name: a?.name || "", logo: null, blocks: (a?.blocks || []).join("\n") });
-  const pickLogo = async () => {
-    const res = await pickImages({ multiple: false, quality: 0.7, allowsEditing: true, aspect: [1, 1] });
-    const first = res[0];
-    if (first?.base64) setEdit((e) => e && { ...e, logo: `data:${first.mimeType || "image/jpeg"};base64,${first.base64}` });
-    else if (first?.uri?.startsWith("data:")) setEdit((e) => e && { ...e, logo: first.uri });
-  };
-  const save = async () => {
-    if (!edit || busy) return;
-    if (edit.name.trim().length < 2) { notify("Nome troppo corto"); return; }
-    setBusy(true);
-    try {
-      const blocks = edit.blocks.split("\n").map((s) => s.trim()).filter(Boolean);
-      if (edit.a) await cgaApi.update(edit.a.area_id, { name: edit.name.trim(), blocks, ...(edit.logo ? { logo_b64: edit.logo } : {}) });
-      else await cgaApi.create({ name: edit.name.trim(), blocks, ...(edit.logo ? { logo_b64: edit.logo } : {}) });
-      setEdit(null); await load(); notify("Area salvata");
-    } catch (e: any) { notify(e?.message || "Errore salvataggio"); } finally { setBusy(false); }
-  };
 
   return (
     <View>
+      {/* V50.z408 — niente più matite sulle card: un solo pulsante «Modifica aree» (Master) → schermata di gestione */}
+      {master ? (
+        <Pressable onPress={() => router.push("/corporate-gym/areas-edit" as any)} style={styles.editAllBtn} testID="cgym-areas-edit">
+          <Ionicons name="options-outline" size={18} color={HT.violet} />
+          <Text style={styles.editAllTxt}>Modifica aree</Text>
+          <Ionicons name="chevron-forward" size={16} color={HT.violet} />
+        </Pressable>
+      ) : null}
       <View style={styles.grid}>
         {areas.map((a) => {
           const n = pendingByKey?.[a.key] ?? 0;
           return (
-            <Pressable key={a.area_id} style={styles.tile} onPress={() => open(a)} onLongPress={master ? () => startEdit(a) : undefined} delayLongPress={400} testID={`cgym-area-${a.key}`}>
+            <Pressable key={a.area_id} style={styles.tile} onPress={() => open(a)} testID={`cgym-area-${a.key}`}>
               <CgymAreaLogo a={a} />
               <Text style={styles.tileTitle} numberOfLines={2}>{a.name}</Text>
               <Text style={styles.tileSub}>{n > 0 ? `${n} da fare` : a.my_last_rating ? `Ultima: ${a.my_last_rating}` : a.my_sessions > 0 ? `${a.my_sessions} sessioni` : "Nessuna in sospeso"}</Text>
               {a.my_last_rating ? <View style={[styles.dot, { backgroundColor: RATING_COLOR[a.my_last_rating] || HT.muted }]} /> : null}
-              {master ? (
-                <Pressable onPress={() => startEdit(a)} hitSlop={8} style={styles.pencil} testID={`cgym-area-edit-${a.key}`} accessibilityLabel="Modifica nome e logo">
-                  <Ionicons name="pencil" size={13} color="#FFF" />
-                </Pressable>
-              ) : null}
             </Pressable>
           );
         })}
-        {master ? (
-          <Pressable style={[styles.tile, styles.tileAdd]} onPress={() => startEdit(null)} testID="cgym-area-add">
-            <View style={styles.addIcon}><Ionicons name="add" size={30} color={HT.violet} /></View>
-            <Text style={styles.tileTitle}>Nuova area</Text>
-            <Text style={styles.tileSub}>Nome, logo e blocchi</Text>
-          </Pressable>
-        ) : null}
       </View>
-
-      <Modal visible={!!edit} transparent animationType="slide" onRequestClose={() => setEdit(null)}>
-        <KModalBody>
-        <Pressable style={styles.back} onPress={() => setEdit(null)} />
-        <View style={styles.sheet} testID="cgym-area-editor">
-          <Text style={styles.sheetTitle}>{edit?.a ? "Modifica area" : "Nuova area"}</Text>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-            <Pressable onPress={pickLogo} testID="cgym-area-logo-pick">
-              {edit?.logo || edit?.a ? (
-                edit?.logo ? <Image source={{ uri: edit.logo }} style={{ width: 72, height: 72, borderRadius: 16 }} /> : <CgymAreaLogo a={edit!.a!} size={72} />
-              ) : <View style={[styles.addIcon, { width: 72, height: 72 }]}><Ionicons name="image" size={26} color={HT.violet} /></View>}
-              <View style={styles.camBadge}><Ionicons name="camera" size={12} color="#FFF" /></View>
-            </Pressable>
-            <TextInput value={edit?.name || ""} onChangeText={(v) => setEdit((e) => e && { ...e, name: v })} placeholder="Nome area" placeholderTextColor={HT.muted} style={[styles.input, { flex: 1 }]} testID="cgym-area-name" />
-          </View>
-          <Text style={styles.label}>Blocchi (uno per riga, come nel manuale)</Text>
-          <KScrollView style={{ maxHeight: 160 }}>
-            <TextInput value={edit?.blocks || ""} onChangeText={(v) => setEdit((e) => e && { ...e, blocks: v })} multiline placeholder={"Dalla telefonata al rapport\nChi sono\n…"} placeholderTextColor={HT.muted} style={[styles.input, { minHeight: 110, textAlignVertical: "top" }]} testID="cgym-area-blocks" />
-          </KScrollView>
-          <View style={{ flexDirection: "row", gap: 10 }}>
-            <Pressable onPress={() => setEdit(null)} style={[styles.btn, { backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border }]}><Text style={[styles.btnTxt, { color: HT.text }]}>Annulla</Text></Pressable>
-            <Pressable onPress={save} disabled={busy} style={[styles.btn, { flex: 1 }]} testID="cgym-area-save">{busy ? <ActivityIndicator color="#FFF" /> : <Text style={styles.btnTxt}>Salva</Text>}</Pressable>
-          </View>
-        </View>
-        </KModalBody>
-      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  editAllBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, alignSelf: "flex-end", minHeight: 40, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1, borderColor: HT.violet + "66", backgroundColor: HT.violetTint, marginBottom: 10 },
+  editAllTxt: { color: HT.violet, fontWeight: "800", fontSize: 13 },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 12, paddingHorizontal: 16, marginTop: 14 },
   tile: { width: "47%", flexGrow: 1, backgroundColor: HT.card, borderRadius: 18, borderWidth: 1, borderColor: HT.border, padding: 14, alignItems: "center", gap: 8, position: "relative" },
   tileAdd: { borderStyle: "dashed", borderColor: HT.violet + "66", backgroundColor: HT.violetTint },
