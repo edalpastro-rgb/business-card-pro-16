@@ -52,7 +52,7 @@ export default function CgymAreaScreen() {
   useEffect(() => { void load(); }, [load]);
   // V50.z394 — finché una trascrizione è in corso, aggiorno ogni 6 s così il testo compare da solo sotto l'audio
   useEffect(() => {
-    if (!Object.values(transcripts).some((t) => t.status === "transcribing")) return;
+    if (!Object.values(transcripts).some((t) => t.status === "processing")) return;
     const iv = setInterval(() => { transcriptApi.list({ source_kind: "cgym_reference" }).then((t) => setTranscripts(Object.fromEntries(t.items.map((x) => [x.source_id, x])))).catch(() => {}); }, 6000);
     return () => clearInterval(iv);
   }, [transcripts]);
@@ -282,7 +282,7 @@ export default function CgymAreaScreen() {
                   <Text style={styles.transcriptLbl}>Trascrizione:{tr.status === "draft" ? " (bozza, visibile solo a te finché non la confermi)" : ""}</Text>
                   <Text style={styles.transcriptTxt} selectable={false}>{tr.text}</Text>
                 </View>
-              ) : r.kind === "audio" && tr?.status === "transcribing" ? (
+              ) : r.kind === "audio" && tr?.status === "processing" ? (
                 <View style={styles.transcriptBox}><Text style={styles.transcriptLbl}>Trascrizione:</Text><View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}><ActivityIndicator size="small" color={HT.violet} /><Text style={styles.meta}>in elaborazione, appare qui appena pronta…</Text></View></View>
               ) : null}
             </View>

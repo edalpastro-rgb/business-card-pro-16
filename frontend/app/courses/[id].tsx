@@ -156,7 +156,7 @@ export default function CourseDetail() {
             {f.transcript_id ? (
               <Pressable onPress={() => setReview({ id: f.transcript_id!, title: f.name })} style={[s.link, tr?.status === "draft" && tr.can_edit && { borderColor: "#F59E0B", backgroundColor: HT.warningTint }]} testID={`course-file-transcript-${f.file_id}`}>
                 <Ionicons name={tr?.status === "draft" && tr.can_edit ? "create-outline" : "document-text-outline"} size={16} color={tr?.status === "draft" && tr.can_edit ? "#D97706" : "#2563EB"} />
-                <Text style={[s.linkTxt, tr?.status === "draft" && tr.can_edit && { color: "#D97706" }]}>{tr?.status === "draft" && tr.can_edit ? "Rivedi e conferma la trascrizione" : tr?.status === "published" ? "Leggi la trascrizione" : tr?.status === "failed" ? "Trascrizione non riuscita" : tr?.status === "transcribing" ? "Trascrizione in corso…" : "Trascrizione"}</Text>
+                <Text style={[s.linkTxt, tr?.status === "draft" && tr.can_edit && { color: "#D97706" }]}>{tr?.status === "draft" && tr.can_edit ? "Rivedi e conferma la trascrizione" : tr?.status === "published" ? "Leggi la trascrizione" : tr?.status === "failed" ? "Trascrizione non riuscita" : tr?.status === "processing" ? "Trascrizione in corso…" : "Trascrizione"}</Text>
               </Pressable>
             ) : null}
           </View>
