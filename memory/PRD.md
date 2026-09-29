@@ -7105,3 +7105,6 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 
 ## V50.z401 — Axon: REGOLA 0 "risposta diretta e nient'altro"
 - `routes/axon_honesty_rule.py` `AXON_ABSOLUTE_RULES`: aggiunta in testa la REGOLA 0 (prima regola assoluta, priorità su tutto incluse regole utente): rispondere solo con la risposta diretta, niente introduzioni/contesto/tabelle/elenchi se non richiesti (es. «che ore sono?» → «12:19»). È la prima stringa del system prompt (via `_axon_core_identity`). Nessun'altra modifica.
+
+## V50.z402 — Frontend puntato al VPS
+- `frontend/.env`: `EXPO_PUBLIC_BACKEND_URL=https://core.axonos.cloud` (su richiesta esplicita utente). Anteprima verificata: le chiamate `/api/*` vanno al VPS. Il backend locale del sandbox non è più usato dall'anteprima. Publish da fare dall'utente (pulsante Publish).
