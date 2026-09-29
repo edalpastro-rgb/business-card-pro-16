@@ -17,7 +17,8 @@ AXON_ABSOLUTE_RULES = (
     "(il sistema invia già «Ci sto pensando…»: tu apri con la risposta, senza preamboli lunghi).\n"
     "2. Rispondi SOLO alla domanda posta. Non aggiungere MAI tabelle, dati, elenchi o spiegazioni non richieste. "
     "Una domanda sì/no o a risposta breve riceve SOLO quella risposta (1-2 frasi) e, al massimo, UNA domanda di follow-up. "
-    "Esempio — «Perché i dati non sono aggiornati?» → CORRETTO: «La cache non è stata aggiornata dal 26 settembre. Vuoi che la aggiorni adesso?» "
+    "Esempio — «Perché i dati non sono aggiornati?» → CORRETTO: una frase con la data REALE letta dalla sezione «STATO PUN (dal database)» "
+    "di questo prompt + «Vuoi che la aggiorni adesso?» (MAI date inventate o ricordate: se la sezione manca, di' che non lo sai) "
     "→ SBAGLIATO: inviare l'intera tabella con spiegazioni.\n"
     f"3. Non inventare MAI dati, nomi di processi, job, file, cache, endpoint, versioni o informazioni tecniche. Se non li vedi ESPLICITAMENTE "
     f"nel contesto di questo prompt o nell'output di un comando eseguito, NON esistono per te. Se non sai, di' ESATTAMENTE: «{AXON_TECH_UNKNOWN_PHRASE}» Stop.\n"
@@ -100,3 +101,62 @@ async def _prepare_assistant_prompt(user: dict, body) -> dict:  # noqa: F811
     except Exception as exc:  # noqa: BLE001
         logger.warning("[honesty-rule] prompt failed: %s", exc)  # noqa: F821
     return prep
+
+
+# ── V50.z406 — FRESCHEZZA PUN LETTA DAL DATABASE (niente date scritte a mano nel codice) ──────────────────────────────
+# `axon_pun_freshness_text()` è sincrona (usata da _axon_core_identity) e ritorna l'ultimo testo calcolato; il calcolo vero
+# (`_pun_freshness_refresh`) legge gme_pun_partial (ultimo giorno con prezzi orari), axon_pun_meta (ultimo run del fetcher)
+# e gme_pun_cache (ultimo mese chiuso) e viene rilanciato in background se il testo ha più di 60 s.
+from typing import Any, Dict
+import asyncio as _pf_asyncio
+import time as _pf_time
+from datetime import datetime as _pf_dt, timezone as _pf_tz
+
+_PF_CACHE: Dict[str, Any] = {"text": "", "ts": 0.0, "running": False}
+
+
+def _pf_fmt(d: Any) -> str:
+    if isinstance(d, _pf_dt):
+        return d.astimezone(_pf_tz.utc).strftime("%d/%m/%Y %H:%M UTC")
+    if isinstance(d, str) and len(d) >= 10:
+        try:
+            return _pf_dt.fromisoformat(d[:10]).strftime("%d/%m/%Y")
+        except ValueError:
+            return d
+    return "sconosciuto"
+
+
+async def _pun_freshness_refresh() -> str:
+    try:
+        partial = await db.gme_pun_partial.find_one({}, {"_id": 0, "month_key": 1, "last_day": 1, "days": 1, "fetched_at": 1, "updated_at": 1}, sort=[("month_key", -1)])  # noqa: F821
+        meta = await db.axon_pun_meta.find_one({"key": "refresh"}, {"_id": 0}) or {}  # noqa: F821
+        closed = await db.gme_pun_cache.find_one({}, {"_id": 0, "month_key": 1, "extracted_at": 1}, sort=[("month_key", -1)])  # noqa: F821
+        lines = ["<STATO_PUN_DAL_DATABASE>", "Dati reali letti ADESSO dal database (usa SOLO questi per parlare di aggiornamento/freschezza del PUN):"]
+        if partial:
+            lines.append(f"- Prezzi orari GME: ultimo giorno disponibile {_pf_fmt(partial.get('last_day'))} ({partial.get('days') or 0} giorni del mese {partial.get('month_key')}), scaricati il {_pf_fmt(partial.get('fetched_at') or partial.get('updated_at'))}.")
+        else:
+            lines.append("- Prezzi orari GME del mese corrente: NESSUN dato in cache.")
+        lines.append(f"- Ultimo mese chiuso in cache: {closed.get('month_key') if closed else 'nessuno'}" + (f" (estratto il {_pf_fmt(closed.get('extracted_at'))})." if closed and closed.get("extracted_at") else "."))
+        if meta.get("last_run"):
+            lines.append(f"- Fetcher PUN: ultimo run {_pf_fmt(meta.get('last_run'))}, mesi aggiunti {meta.get('added', 0)}, mancanti {meta.get('missing', 0)}.")
+        else:
+            lines.append("- Fetcher PUN: nessun run registrato.")
+        lines.append("Se ti chiedono perché i dati non sono aggiornati: cita la data qui sopra e proponi l'aggiornamento. Nessun'altra data.")
+        lines.append("</STATO_PUN_DAL_DATABASE>\n\n")
+        txt = "\n".join(lines)
+    except Exception as exc:  # noqa: BLE001
+        txt = "<STATO_PUN_DAL_DATABASE>\nStato non disponibile in questo momento: se ti chiedono della freschezza del PUN rispondi che non lo sai.\n</STATO_PUN_DAL_DATABASE>\n\n"
+        logger.debug("[pun-freshness] %s", exc)  # noqa: F821
+    _PF_CACHE.update({"text": txt, "ts": _pf_time.time(), "running": False})
+    return txt
+
+
+def axon_pun_freshness_text() -> str:
+    """Testo (cache ≤ 60 s) da inserire nel system prompt; avvia il refresh in background se stantio."""
+    if _pf_time.time() - _PF_CACHE["ts"] > 60 and not _PF_CACHE["running"]:
+        _PF_CACHE["running"] = True
+        try:
+            _pf_asyncio.get_running_loop().create_task(_pun_freshness_refresh())
+        except RuntimeError:
+            _PF_CACHE["running"] = False
+    return _PF_CACHE["text"]

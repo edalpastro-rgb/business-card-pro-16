@@ -1,9 +1,9 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Image, Share, Platform, Linking } from "react-native";
 import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { SettingsGroupButton, SettingsLinkRows, ChangePasswordCard, ChangeEmailCard, SECTION_META, type SettingsSection } from "@/src/SettingsHub"; // V50.z249 · V50.z405 cambio email
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
@@ -72,9 +72,19 @@ function ImpostazioniScreen() {
   const { user, logout, refresh } = useAuth();
   const router = useRouter();
   // V50.z249 — Ristrutturazione: hub (nessuna sezione) → bottoni raggruppati; `?section=` mostra solo i blocchi della sezione.
+  // V50.z407 — BUG NAVIGAZIONE: la sezione era nell'URL (?section=) → «indietro» usciva dalla tab (Home) e riaprendo la tab
+  // restava l'ultima sezione. Ora la sezione è STATO LOCALE: indietro = torna all'hub Profilo, blur della tab = reset all'hub;
+  // il parametro ?section= (deep link dal pannello Master) viene letto una volta al focus e poi svuotato.
   const params = useLocalSearchParams<{ section?: string }>();
-  const sec: SettingsSection | null = (["security", "billing", "branding", "integrations", "general", "axon"] as const).includes(params.section as any) ? (params.section as SettingsSection) : null;
-  const openSection = (k: SettingsSection) => router.push(`/impostazioni?section=${k}` as any);
+  const paramRef = useRef(params.section); paramRef.current = params.section;
+  const [sec, setSec] = useState<SettingsSection | null>(null);
+  const isSection = (v: unknown): v is SettingsSection => (["security", "billing", "branding", "integrations", "general", "axon"] as const).includes(v as any);
+  useFocusEffect(useCallback(() => {
+    if (isSection(paramRef.current)) { setSec(paramRef.current); router.setParams({ section: "" } as any); }
+    return () => setSec(null);
+  }, [router]));
+  const openSection = (k: SettingsSection) => setSec(k);
+  const backToHub = () => setSec(null);
   const isOwner = !user?.parent_user_id;
   const pagePad = usePageBottomPadding();
   const [s, setS] = useState<Settings | null>(null);
@@ -421,7 +431,7 @@ function ImpostazioniScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={[styles.header, { flexDirection: "row", alignItems: "center", gap: 10 }]}>
         {sec ? (
-          <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace("/impostazioni" as any))} hitSlop={10} testID="settings-back" accessibilityLabel="Indietro">
+          <Pressable onPress={backToHub} hitSlop={10} testID="settings-back" accessibilityLabel="Indietro">
             <Ionicons name="chevron-back" size={24} color={HT.text} />
           </Pressable>
         ) : null}
@@ -483,6 +493,10 @@ function ImpostazioniScreen() {
           ]} />
           <ChangeEmailCard />
           <ChangePasswordCard />
+          {/* V50.z407 — Logout: chiude la sessione sul server (POST /auth/logout) e torna al login */}
+          <Pressable onPress={() => logout()} style={[styles.logoutBtn, { marginTop: 4 }]} testID="security-logout">
+            <Ionicons name="log-out-outline" size={18} color={HT.danger} /><Text style={styles.logoutTxt}>Esci dall&apos;account</Text>
+          </Pressable>
         </>)}
         {/* V50.z249 — Integrazioni */}
         {sec === "integrations" && (
