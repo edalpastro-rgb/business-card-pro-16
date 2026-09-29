@@ -195,3 +195,12 @@ Le app puntano a Core tramite `EXPO_PUBLIC_BACKEND_URL`: per tornare indietro ba
 - [ ] dump Mongo importato (conteggio utenti/contatti coerente)
 - [ ] `EXPO_PUBLIC_BACKEND_URL` aggiornato in AdvisorOS e Axon Lite → Publish + build
 - [ ] redirect OAuth aggiornati nelle console
+
+## 11. AdvisorOS web sullo stesso dominio (link pubblici + desktop) — V50.z405
+nginx serve l'export web di Expo (SPA) da `/opt/axon-core/web`: `https://core.axonos.cloud/wake-training`, `/public-review/...`, `/public-lead/...` e l'app intera da desktop. `/api/` resta sul backend.
+```bash
+cd /opt/axon-core
+wget -O axon-web-pkg.tgz "https://business-card-pro-16.preview.emergentagent.com/api/download/axon-web-pkg?key=o6pnNc0Kyh1mn8P2R9Pz0K-8"
+tar xzf axon-web-pkg.tgz && bash axon-web-pkg/install_web_on_vps.sh
+```
+Aggiornamento futuro del frontend: `bash deploy/axon-core/scripts/build_web_package.sh` nel repo → ripetere i 3 comandi sopra.

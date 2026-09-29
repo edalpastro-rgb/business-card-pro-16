@@ -69,6 +69,7 @@ services:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ./nginx/certs:/etc/nginx/certs:ro           # fullchain.pem + privkey.pem (Let's Encrypt o autofirmato — vedi guida)
       - ./nginx/www:/var/www/certbot                # ACME http-01 challenge
+      - ./web:/usr/share/nginx/html:ro               # AdvisorOS web (export Expo) — link pubblici /wake-training, /public-review, desktop
     depends_on:
       - axon-core
     healthcheck:

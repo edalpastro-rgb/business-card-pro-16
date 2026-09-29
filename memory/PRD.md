@@ -7111,3 +7111,9 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 
 ## V50.z403 — Riferimento esplicito EXPO_PUBLIC_BACKEND_URL
 - `frontend/src/api.ts`: `export const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL` (riferimento esplicito, usato da `BASE`). Commit fatto nell'anteprima.
+
+## V50.z405 — AdvisorOS web servito dal VPS (link condivisibile /wake-training funzionante + desktop)
+- Causa: dopo la migrazione `WAKE_TRAINING_URL = EXPO_PUBLIC_BACKEND_URL + /wake-training` puntava a core.axonos.cloud dove nginx rispondeva solo "Axon Core online".
+- Fix: `expo export --platform web` (SPA, 14 MB) con backend core.axonos.cloud → `deploy/axon-core/web-dist`; nginx conf: root `/usr/share/nginx/html`, `try_files … /index.html`, cache lunga per `/_expo` e `/assets`, `/axon-core-status` al posto della vecchia root; compose: volume `./web:/usr/share/nginx/html:ro`.
+- Script: `scripts/build_web_package.sh` (export + tgz), `scripts/install_web_on_vps.sh` (copia web, aggiorna conf/compose mantenendo il dominio, ricrea solo nginx, verifica). Endpoint temporaneo `GET /api/download/axon-web-pkg?key=…` (rimuovere con gli altri).
+- Testato in sandbox con nginx locale: `/`, `/wake-training`, `/public-review/x` → index.html; pagina wake-training renderizza su desktop e chiama `core.axonos.cloud/api/public/wake-samples/*`.

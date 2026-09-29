@@ -47,3 +47,17 @@ async def tpd_download_dump(key: str = ""):
         raise HTTPException(status_code=404, detail="Dump non trovato: esegui mongodump in deploy/axon-core/")
     return FileResponse(TPD_DUMP_PATH, media_type="application/gzip", filename="core-dump.gz",
                         headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache", "Expires": "0"})
+
+
+# V50.z405 — AdvisorOS web (export Expo SPA) + nginx conf + compose aggiornati, da servire su core.axonos.cloud/. Stessa chiave, rimuovere dopo.
+TPD_WEB_PATH = "/app/deploy/axon-core/axon-web-pkg.tgz"
+
+
+@api_router.get("/download/axon-web-pkg")  # noqa: F821
+async def tpd_download_web(key: str = ""):
+    if key != TPD_KEY:
+        raise HTTPException(status_code=403, detail="Chiave non valida")
+    if not _tpd_os.path.exists(TPD_WEB_PATH):
+        raise HTTPException(status_code=404, detail="Pacchetto web non trovato: esegui deploy/axon-core/scripts/build_web_package.sh")
+    return FileResponse(TPD_WEB_PATH, media_type="application/gzip", filename="axon-web-pkg.tgz",
+                        headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache", "Expires": "0"})
