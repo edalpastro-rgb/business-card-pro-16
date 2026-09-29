@@ -50,6 +50,7 @@ const HIDE_ON_PATHS = [
   "/google-drive-picker",
   "/axon-scripts-import",
   "/libretto-editor",
+  "/voice-enroll", // V50.z407 — registrazione impronta vocale: footer sticky Annulla/Avanti/Completa
 ];
 
 export function PersistentBottomNav() {

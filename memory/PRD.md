@@ -7118,3 +7118,7 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 - Script: `scripts/build_web_package.sh` (export + tgz), `scripts/install_web_on_vps.sh` (copia web, aggiorna conf/compose mantenendo il dominio, ricrea solo nginx, verifica). Endpoint temporaneo `GET /api/download/axon-web-pkg?key=…` (rimuovere con gli altri).
 - Testato in sandbox con nginx locale: `/`, `/wake-training`, `/public-review/x` → index.html; pagina wake-training renderizza su desktop e chiama `core.axonos.cloud/api/public/wake-samples/*`.
 - V50.z406 — favicon sostituita (assets/images/favicon.png/.ico), web-dist e axon-web-pkg.tgz rigenerati.
+
+## V50.z407 — Impronta vocale: fix "Permission denied /app/models" + footer visibile
+- Backend `axon_voiceprint.py`: `VP_MODEL_DIR` = `backend/models/speaker` (prima `parent.parent` → `/app/models`, non scrivibile dall'utente non-root nel container Docker). Override via env `VP_MODEL_DIR`. Testato: enroll/chunk OK, engine_ready true. Pacchetto backend rigenerato (`axon-core-pkg.tgz`, include modello ONNX 40 MB + REGOLA 0).
+- Frontend: `/voice-enroll` aggiunto a HIDE_ON_PATHS della PersistentBottomNav; AssistantFAB e CalculatorFAB nascosti su quella rotta; footer Annulla/Avanti/Completa con padding solo safe-area, pulsanti 52px, Avanti pieno viola. Pacchetto web rigenerato.

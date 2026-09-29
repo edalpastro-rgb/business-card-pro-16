@@ -3,6 +3,7 @@
 // via AsyncStorage so it survives app reloads. Quick tap still opens the
 // calculator (drag threshold = 6px to distinguish tap vs drag).
 import { useEffect, useMemo, useRef, useState } from "react";
+import { usePathname } from "expo-router";
 import {
   View, Text, StyleSheet, Pressable, Platform,
   Animated, Dimensions, PanResponder,
@@ -28,6 +29,7 @@ function _clamp(v: number, min: number, max: number): number {
 
 export function CalculatorFAB() {
   const [open, setOpen] = useState(false);
+  const pathname = usePathname() || ""; // V50.z407 — nascosto su /voice-enroll (copriva il footer)
   const { width: screenW, height: screenH } = Dimensions.get("window");
 
   // Default: bottom-right, con margine per non coprire i tab
@@ -270,7 +272,7 @@ function CalculatorModal({ visible, onClose }: { visible: boolean; onClose: () =
     </Pressable>
   );
 
-  if (!mounted) return null;
+  if (!mounted || pathname === "/voice-enroll") return null;
 
   return (
     <Animated.View

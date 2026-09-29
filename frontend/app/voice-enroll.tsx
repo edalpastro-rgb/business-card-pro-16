@@ -5,13 +5,12 @@
 // Parametri: role=owner|secondary, name (secondaria), profile_id (ri-registrazione).
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Platform, Linking } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { AudioModule } from "expo-audio";
 import { HT } from "@/src/homeTheme";
 import { notify } from "@/src/utils/notify";
-import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { vpApi, type VpQuality } from "@/src/violawake/voiceprintApi";
 import { createChunkRecorder, CHUNK_RECORDER_SUPPORTED, type ChunkRecorder } from "@/src/violawake/chunkRecorder";
 
@@ -20,7 +19,8 @@ type Step = "intro" | "reading" | "uploading" | "done";
 
 export default function VoiceEnrollScreen() {
   const router = useRouter();
-  const pagePad = usePageBottomPadding();
+  const insets = useSafeAreaInsets();
+  const pagePad = Math.max(insets.bottom, 16) + 24; // V50.z407 — nav e FAB nascosti su questa rotta (schermo intero)
   const params = useLocalSearchParams<{ role?: string; name?: string; profile_id?: string }>();
   const role: "owner" | "secondary" = params.role === "secondary" ? "secondary" : "owner";
   const [name, setName] = useState((params.name as string) || "");
@@ -187,11 +187,11 @@ export default function VoiceEnrollScreen() {
               </Pressable>
             ))}
           </ScrollView>
-          <View style={[s.footer, { paddingBottom: Math.max(12, pagePad - 40) }]}>
-            <Pressable onPress={cancel} style={[s.btnSm, s.ghost]} testID="voice-enroll-cancel"><Text style={[s.btnSmTxt, { color: HT.text }]}>Annulla</Text></Pressable>
-            <Pressable onPress={next} style={[s.btnSm, { backgroundColor: HT.card, borderWidth: 1, borderColor: HT.violet }]} testID="voice-enroll-next"><Ionicons name="arrow-down" size={16} color={HT.violet} /><Text style={[s.btnSmTxt, { color: HT.violet }]}>Avanti</Text></Pressable>
-            <Pressable onPress={finish} disabled={!quality?.ready || busy} style={[s.btnSm, { flex: 1.4, backgroundColor: quality?.ready ? HT.success : HT.muted }]} testID="voice-enroll-finish">
-              {step === "uploading" ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="checkmark-circle" size={18} color="#FFF" /><Text style={s.btnSmTxt}>{quality?.ready ? "Completa" : "Continua a leggere…"}</Text></>}
+          <View style={[s.footer, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]} testID="voice-enroll-footer">
+            <Pressable onPress={cancel} style={[s.btnSm, s.ghost, { flex: 0.8 }]} testID="voice-enroll-cancel"><Text style={[s.btnSmTxt, { color: HT.text }]}>Annulla</Text></Pressable>
+            <Pressable onPress={next} style={[s.btnSm, { backgroundColor: HT.violet }]} testID="voice-enroll-next"><Ionicons name="arrow-down" size={18} color="#FFF" /><Text style={s.btnSmTxt}>Avanti</Text></Pressable>
+            <Pressable onPress={finish} disabled={!quality?.ready || busy} style={[s.btnSm, { flex: 1.4, backgroundColor: quality?.ready ? HT.success : HT.card, borderWidth: quality?.ready ? 0 : 1, borderColor: HT.border }]} testID="voice-enroll-finish">
+              {step === "uploading" ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="checkmark-circle" size={18} color={quality?.ready ? "#FFF" : HT.muted} /><Text style={[s.btnSmTxt, !quality?.ready && { color: HT.muted }]}>{quality?.ready ? "Completa" : "Continua a leggere…"}</Text></>}
             </Pressable>
           </View>
         </View>
@@ -240,7 +240,7 @@ const s = StyleSheet.create({
   para: { padding: 14, borderRadius: 14, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, opacity: 0.55 },
   paraOn: { opacity: 1, borderColor: HT.violet, backgroundColor: HT.violetTint },
   paraTxt: { fontSize: 15, color: HT.text2, lineHeight: 23 }, paraTxtOn: { fontSize: 19, color: HT.text, fontWeight: "700", lineHeight: 29 },
-  footer: { flexDirection: "row", gap: 8, padding: 12, borderTopWidth: 1, borderTopColor: HT.border, backgroundColor: HT.card2 },
-  btnSm: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 48, borderRadius: 12, paddingHorizontal: 10, backgroundColor: HT.violet },
-  btnSmTxt: { color: "#FFF", fontWeight: "900", fontSize: 13 },
+  footer: { flexDirection: "row", gap: 8, padding: 12, borderTopWidth: 1, borderTopColor: HT.border, backgroundColor: HT.card },
+  btnSm: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 52, borderRadius: 14, paddingHorizontal: 10, backgroundColor: HT.violet },
+  btnSmTxt: { color: "#FFF", fontWeight: "900", fontSize: 14 },
 });

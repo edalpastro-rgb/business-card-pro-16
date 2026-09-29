@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { DeviceEventEmitter, AppState, View, Text, Pressable, Platform, Animated, Easing, Image, PanResponder, Dimensions } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter } from "expo-router";
+import { useRouter, usePathname } from "expo-router";
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
@@ -23,6 +23,7 @@ const AXONOS_LOGO_WHITE = require("@/assets/images/axonos-logo-white.png");
 export function AssistantFAB() {
   const { user } = useAuth();
   const router = useRouter();
+  const pathname = usePathname() || "";
   const [open, setOpen] = useState(false);
   const [unreadInfoReq, setUnreadInfoReq] = useState(0);
   const pulse = useRef(new Animated.Value(1)).current;
@@ -292,8 +293,8 @@ export function AssistantFAB() {
   const fireTapRef = useRef(fireTap);
   useEffect(() => { fireTapRef.current = fireTap; });
 
-  // Hide when not logged in
-  if (!user) return null;
+  // Hide when not logged in — e durante la registrazione vocale (V50.z407: il FAB copriva il footer Annulla/Avanti)
+  if (!user || pathname === "/voice-enroll") return null;
 
   return (
     <>

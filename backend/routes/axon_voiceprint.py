@@ -18,7 +18,7 @@
 
 VP_MODEL_NAME = "nemo_en_titanet_small.onnx"
 VP_MODEL_URL = f"https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/{VP_MODEL_NAME}"
-VP_MODEL_DIR = Path(__file__).resolve().parent.parent / "models" / "speaker"
+VP_MODEL_DIR = Path(os.environ.get("VP_MODEL_DIR") or (Path(__file__).resolve().parent / "models" / "speaker"))  # __file__ = server.py → backend/models/speaker (scrivibile anche nel container)
 VP_MODEL_VERSION = "titanet_small_192"  # cambia se si cambia modello: i profili con versione diversa vanno ri-registrati
 VP_MIN_SPEECH_SEC = float(os.environ.get("VP_MIN_SPEECH_SEC", "120"))   # parlato effettivo minimo per un profilo operativo
 VP_MIN_CONSISTENCY = float(os.environ.get("VP_MIN_CONSISTENCY", "0.60"))  # coerenza minima tra spezzoni (cos)
