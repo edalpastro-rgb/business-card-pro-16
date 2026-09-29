@@ -85,3 +85,4 @@ backend/assets/kokoro/kokoro-v1.0.onnx
 assets/kokoro/kokoro-v1.0.onnx
 backend/models/speaker/*.onnx
 backend/models/speaker/*.part
+deploy/axon-core/core-dump.gz

@@ -33,3 +33,17 @@ async def tpd_info(key: str = ""):
             h.update(chunk)
     st = _tpd_os.stat(TPD_PATH)
     return {"sha256": h.hexdigest(), "size": st.st_size, "modified_utc": datetime.datetime.utcfromtimestamp(st.st_mtime).isoformat() + "Z"}
+
+
+# V50.z404 — dump MongoDB (mongodump --gzip --archive) per il restore sul VPS (punto 6b MIGRATION_GUIDE). Stessa chiave, rimuovere dopo.
+TPD_DUMP_PATH = "/app/deploy/axon-core/core-dump.gz"
+
+
+@api_router.get("/download/core-dump")  # noqa: F821
+async def tpd_download_dump(key: str = ""):
+    if key != TPD_KEY:
+        raise HTTPException(status_code=403, detail="Chiave non valida")
+    if not _tpd_os.path.exists(TPD_DUMP_PATH):
+        raise HTTPException(status_code=404, detail="Dump non trovato: esegui mongodump in deploy/axon-core/")
+    return FileResponse(TPD_DUMP_PATH, media_type="application/gzip", filename="core-dump.gz",
+                        headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache", "Expires": "0"})
