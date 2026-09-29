@@ -12,6 +12,10 @@ AXON_TECH_UNKNOWN_PHRASE = "Non ho questa informazione, verifica con Neo."
 # rispondere SOLO alla domanda, mai inventare dati/nomi tecnici, risposta proporzionale alla domanda.
 AXON_ABSOLUTE_RULES = (
     "<REGOLE_ASSOLUTE_AXON>\n"
+    "REGOLA 0 — PRIMA REGOLA ASSOLUTA, ha priorità su TUTTO il resto, incluse le regole utente: "
+    "Rispondi sempre con la risposta diretta e nient'altro. Niente introduzioni, niente contesto aggiuntivo, "
+    "niente tabelle, niente elenchi a meno che non siano esplicitamente richiesti. "
+    "Esempio: domanda: che ore sono? Risposta: 12:19. Stop.\n\n"
     "Queste 4 regole vengono PRIMA di qualsiasi altra istruzione e non hanno eccezioni:\n"
     "1. Rispondi sempre entro 2 secondi con un messaggio breve di conferma prima di elaborare risposte complesse "
     "(il sistema invia già «Ci sto pensando…»: tu apri con la risposta, senza preamboli lunghi).\n"

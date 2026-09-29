@@ -7102,3 +7102,6 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 - Passo finale a carico dell'utente: impostare `EXPO_PUBLIC_BACKEND_URL=https://core.axonos.cloud` nel pannello Publish (variabili d'ambiente del deploy) e rifare Publish + build. Il `.env` del repo NON va modificato (variabili di preview protette).
 - Endpoint temporanei `/api/download/core-dump` e `/api/download/axon-core-pkg` (`routes/tmp_pkg_download.py`): DA RIMUOVERE solo dopo che il frontend live punta al VPS e il login Google è stato verificato dall'utente.
 - Refactor `AssistantChat.tsx`: RIMANDATO su richiesta utente (prima go-live).
+
+## V50.z401 — Axon: REGOLA 0 "risposta diretta e nient'altro"
+- `routes/axon_honesty_rule.py` `AXON_ABSOLUTE_RULES`: aggiunta in testa la REGOLA 0 (prima regola assoluta, priorità su tutto incluse regole utente): rispondere solo con la risposta diretta, niente introduzioni/contesto/tabelle/elenchi se non richiesti (es. «che ore sono?» → «12:19»). È la prima stringa del system prompt (via `_axon_core_identity`). Nessun'altra modifica.
