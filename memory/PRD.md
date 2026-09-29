@@ -7117,3 +7117,4 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 - Fix: `expo export --platform web` (SPA, 14 MB) con backend core.axonos.cloud → `deploy/axon-core/web-dist`; nginx conf: root `/usr/share/nginx/html`, `try_files … /index.html`, cache lunga per `/_expo` e `/assets`, `/axon-core-status` al posto della vecchia root; compose: volume `./web:/usr/share/nginx/html:ro`.
 - Script: `scripts/build_web_package.sh` (export + tgz), `scripts/install_web_on_vps.sh` (copia web, aggiorna conf/compose mantenendo il dominio, ricrea solo nginx, verifica). Endpoint temporaneo `GET /api/download/axon-web-pkg?key=…` (rimuovere con gli altri).
 - Testato in sandbox con nginx locale: `/`, `/wake-training`, `/public-review/x` → index.html; pagina wake-training renderizza su desktop e chiama `core.axonos.cloud/api/public/wake-samples/*`.
+- V50.z406 — favicon sostituita (assets/images/favicon.png/.ico), web-dist e axon-web-pkg.tgz rigenerati.
