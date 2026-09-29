@@ -7,6 +7,7 @@ import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { notify } from "@/src/utils/notify";
 import { HT } from "@/src/homeTheme";
+import { useResponsive } from "@/src/hooks/useResponsive"; // V50.z409 — desktop: card compatte affiancate all'anteprima
 import { ACTIVE_THEME_ID, BOOT_THEME_FROM_STORAGE, PALETTES, THEME_IDS, ThemeId, getUserTheme, normalizeThemeId, persistTheme, readThemeFallback, reloadApp, safeThemeReload } from "@/src/themes";
 
 /** Sincronizza il tema salvato sul server per l'utente loggato: se differisce da quello attivo → salva in locale e ricarica (una volta). */
@@ -45,6 +46,7 @@ export function ThemePicker() {
   const [selected, setSelected] = useState<ThemeId>(ACTIVE_THEME_ID);
   const sel = PALETTES[selected];
   const dirty = selected !== ACTIVE_THEME_ID;
+  const { isWide } = useResponsive(); // V50.z409 — ≥768 px: card tema compatte (max 110 px) + anteprima live a fianco
 
   const choose = async (id: ThemeId) => {
     if (id === ACTIVE_THEME_ID || busy) return;
@@ -69,12 +71,13 @@ export function ThemePicker() {
           <Text style={styles.sub}>Scegli il tema dell'app. La preferenza è salvata sul tuo profilo.</Text>
         </View>
       </View>
-      <View style={styles.row}>
+      <View style={isWide ? styles.wideBody : undefined}>
+      <View style={[styles.row, isWide && styles.rowWide]}>
         {THEME_IDS.map((id) => {
           const p = PALETTES[id];
           const active = id === ACTIVE_THEME_ID;
           return (
-            <Pressable key={id} onPress={() => setSelected(id)} style={styles.item} testID={`theme-option-${id}`} accessibilityLabel={`Tema ${p.name}`} accessibilityState={{ selected: active }}>
+            <Pressable key={id} onPress={() => setSelected(id)} style={isWide ? styles.itemWide : styles.item} testID={`theme-option-${id}`} accessibilityLabel={`Tema ${p.name}`} accessibilityState={{ selected: active }}>
               <View style={[styles.preview, { backgroundColor: p.bg, borderColor: active ? HT.brand : selected === id ? p.accent : HT.borderStrong, borderWidth: active || selected === id ? 2 : 1 }]}>
                 <View style={[styles.pvBar, { backgroundColor: p.card, borderBottomColor: p.border }, p.shadow && styles.pvShadow]}>
                   <View style={[styles.pvDot, { backgroundColor: p.accent }]} />
@@ -106,7 +109,7 @@ export function ThemePicker() {
       </View>
 
       {/* Anteprima live nella palette selezionata */}
-      <View style={[styles.live, { backgroundColor: sel.bg, borderColor: sel.border }]} testID={`theme-live-preview-${selected}`}>
+      <View style={[styles.live, isWide && styles.liveWide, { backgroundColor: sel.bg, borderColor: sel.border }]} testID={`theme-live-preview-${selected}`}>
         <View style={[styles.liveBar, { backgroundColor: sel.card, borderBottomColor: sel.border }]}>
           <View style={[styles.liveIcon, { backgroundColor: sel.glassStrong }]} />
           <Text style={[styles.liveBrand, { color: sel.text }]}>Advisor<Text style={{ color: sel.accent }}>OS</Text></Text>
@@ -134,6 +137,7 @@ export function ThemePicker() {
           {[0, 1, 2, 3, 4].map((i) => <View key={i} style={[styles.liveNavDot, { backgroundColor: i === 0 ? sel.navActive : sel.navInactive }]} />)}
         </View>
       </View>
+      </View>
 
       {dirty ? (
         <Pressable onPress={() => choose(selected)} disabled={!!busy} style={[styles.applyBtn, { backgroundColor: sel.accent }, busy && { opacity: 0.6 }]} testID="theme-apply">
@@ -154,7 +158,11 @@ const styles = StyleSheet.create({
   title: { fontSize: 15, fontWeight: "800", color: HT.text },
   sub: { fontSize: 12, color: HT.muted, marginTop: 2 },
   row: { flexDirection: "row", gap: 8 },
+  rowWide: { flexWrap: "wrap", alignContent: "flex-start", flex: 1, gap: 10 },
+  wideBody: { flexDirection: "row", gap: 16, alignItems: "flex-start" },
   item: { flex: 1, alignItems: "center", gap: 6, minWidth: 0 },
+  itemWide: { width: 104, alignItems: "center", gap: 6 },
+  liveWide: { width: 300, flexShrink: 0 },
   preview: { width: "100%", aspectRatio: 0.72, borderRadius: 12, overflow: "hidden", padding: 5, gap: 4, position: "relative" },
   pvShadow: { shadowColor: "#000", shadowOpacity: 0.08, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
   pvBar: { height: 12, borderRadius: 4, borderBottomWidth: 1, flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 4 },

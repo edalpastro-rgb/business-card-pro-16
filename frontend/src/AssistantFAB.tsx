@@ -3,6 +3,8 @@ import React, { useEffect, useRef, useState } from "react";
 import { DeviceEventEmitter, AppState, View, Text, Pressable, Platform, Animated, Easing, Image, PanResponder, Dimensions } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter, usePathname } from "expo-router";
+import { useIsDesktop, SIDEBAR_W } from "@/src/hooks/useResponsive";
+import { desktopSidebarHidden } from "@/src/DesktopSidebar";
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
@@ -24,6 +26,7 @@ export function AssistantFAB() {
   const { user } = useAuth();
   const router = useRouter();
   const pathname = usePathname() || "";
+  const isDesktop = useIsDesktop(); // V50.z409
   const [open, setOpen] = useState(false);
   const [unreadInfoReq, setUnreadInfoReq] = useState(0);
   const pulse = useRef(new Animated.Value(1)).current;
@@ -304,6 +307,7 @@ export function AssistantFAB() {
           styles.fabWrap,
           {
             bottom,
+            left: EDGE_MARGIN + (isDesktop && !desktopSidebarHidden(pathname) ? SIDEBAR_W : 0), // V50.z409 — desktop: oltre la sidebar
             // NOTA: qui SOLO valori JS-driven (pan). Se si mescolano con valori
             // useNativeDriver:true (pulse/blink) l'intero transform diventa
             // "native" e la spring del rilascio lancia un'eccezione → il tap

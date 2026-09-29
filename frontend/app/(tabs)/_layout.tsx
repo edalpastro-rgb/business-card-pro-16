@@ -5,6 +5,7 @@ import { View, ActivityIndicator, Platform } from "react-native";
 import { useNavBarBottomInset } from "@/src/hooks/useSafeBottom";
 import { IdDocExpiryPopup } from "@/src/IdDocExpiryPopup"; // V50.z267 — popup documenti in scadenza (≤30 gg)
 import { HT } from "@/src/homeTheme"; // V50.z338 — bottom nav segue il tema attivo
+import { useIsDesktop } from "@/src/hooks/useResponsive"; // V50.z409 — desktop: tab bar nascosta (DesktopSidebar)
 
 // V27 palette (used only for tab bar styling, no global theme override)
 const TAB_ACTIVE = HT.navActive; // V50.z338 — tema attivo
@@ -18,6 +19,7 @@ export default function TabsLayout() {
   // initialWindowMetrics): prima `Math.max(insets.bottom, 20)` locale → in Home la barra
   // risultava attaccata alla navigation bar Android (insets.bottom=0 dentro lo Stack).
   const bottomInset = useNavBarBottomInset();
+  const isDesktop = useIsDesktop();
   const tabBarHeight = 60 + bottomInset;
 
   if (loading) {
@@ -37,7 +39,7 @@ export default function TabsLayout() {
         headerShown: false,
         tabBarActiveTintColor: TAB_ACTIVE,
         tabBarInactiveTintColor: TAB_INACTIVE,
-        tabBarStyle: {
+        tabBarStyle: isDesktop ? { display: "none" } : {
           position: "absolute",
           bottom: 0,
           left: 0,

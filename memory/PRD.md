@@ -7129,3 +7129,9 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 - `at_list` (accetta `?source_kind=lite`, `?status=processing`, `limit`) / `at_get` / `at_update` → formato TranscriptItem (mime, duration_sec, raw_text, clean_text, can_edit, error, text legacy). `at_update` publish=false aggiorna clean_text+text, status invariato. `at_retry` → `{ok, status:"processing"}` + pipeline in background (solo LLM se raw_text, altrimenti Whisper dall'audio salvato). Status legacy "transcribing" normalizzato in output a "processing".
 - Frontend: `TranscriptReviewSheet`, `corporate-gym/area/[id]`, `courses/[id]` usano "processing"; retry riavvia il polling.
 - Test locali OK: probe 422, create → draft in ~3 s, publish, audio 200 Master / 403 sub-user, retry, 413.
+
+## V50.z409 — Web desktop responsive (≥1024 px)
+- `src/hooks/useResponsive.ts` (BP_WIDE 768, BP_DESKTOP 1024, SIDEBAR_W 232, CONTENT_MAX_W 1200). `src/DesktopSidebar.tsx` (logo, TABS della bottom nav, utente + Esci; nascosta su HIDE_ON_PATHS/login). `src/ui/DesktopGrid.tsx` (figli alternati su 2 colonne; su mobile fragment).
+- `app/_layout.tsx`: su desktop `<Sidebar/> + <View maxWidth 1200 centrato><Stack/></View>`; EdgePanel non montato su desktop (overflow orizzontale). `(tabs)/_layout.tsx`: tabBar `display:none` su desktop; `PersistentBottomNav` null su desktop; `usePageBottomPadding` → 32 px su desktop; AssistantFAB spostato a destra della sidebar.
+- Home: sezioni Ritelefonate/Azioni rapide (sx) + Appuntamenti/Scadenze/Statistiche (dx) in DesktopGrid. Impostazioni hub: profilo+Aspetto (sx) / gruppi (dx); sotto-sezioni centrate a 860 px. ThemePicker (≥768): card 104 px in wrap + anteprima live 300 px a fianco. Calendario: celle mese aspectRatio 1.6 su desktop.
+- Test (iteration_127 + verifica manuale): sidebar/nav/grid OK desktop e mobile, resize OK, nessun overflow, calendario OK, Applica tema OK.

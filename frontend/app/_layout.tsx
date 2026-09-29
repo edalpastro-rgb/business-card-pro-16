@@ -25,6 +25,8 @@ function ScannerResumeBridge({ enabled }: { enabled: boolean }) {
 import * as Linking from "expo-linking";
 import { openInAppLink } from "@/src/utils/openInAppLink";
 import { PersistentBottomNav } from "@/src/PersistentBottomNav";
+import { DesktopSidebar, desktopSidebarHidden } from "@/src/DesktopSidebar"; // V50.z409 — web desktop
+import { useResponsive, CONTENT_MAX_W } from "@/src/hooks/useResponsive";
 // V50.z147 — SupportFab non più montato (header Help rimosso); import rimosso.
 import { CalculatorFAB } from "@/src/CalculatorFAB";
 import { OfflineBanner } from "@/src/OfflineBanner"; // V50.z279 — modalità aereo/offline
@@ -217,6 +219,9 @@ function StackWithCallBar() {
   }, [user?.user_id]);
   usePaywallGuard(user?.user_id); // V50.z330 — abbonamento scaduto → /paywall
   useThemeSync(user?.user_id); // V50.z338 — tema per utente (server ↔ locale)
+  // V50.z409 — Desktop web (≥ 1024 px): sidebar laterale + contenuto centrato a max 1200 px
+  const { isDesktop } = useResponsive();
+  const showSidebar = isDesktop && !!user && !inTour && !desktopSidebarHidden(pathname);
   return (
     <View style={{ flex: 1, backgroundColor: ACTIVE.bg }}>
       <StatusBar style={ACTIVE.statusBar} />
@@ -224,7 +229,18 @@ function StackWithCallBar() {
       <OfflineBanner userId={user?.user_id} />
       {/* V50.z186 — padding dinamico = altezza tastiera (solo Android): il campo attivo resta visibile */}
       <AndroidKeyboardPadding>
-        <Stack screenOptions={{ headerShown: false, animation: "fade" }} />
+        {isDesktop ? (
+          <View style={{ flex: 1, flexDirection: "row" }}>
+            {showSidebar ? <DesktopSidebar /> : null}
+            <View style={{ flex: 1, alignItems: "center" }}>
+              <View style={{ flex: 1, width: "100%", maxWidth: CONTENT_MAX_W }} testID="desktop-content">
+                <Stack screenOptions={{ headerShown: false, animation: "fade" }} />
+              </View>
+            </View>
+          </View>
+        ) : (
+          <Stack screenOptions={{ headerShown: false, animation: "fade" }} />
+        )}
       </AndroidKeyboardPadding>
       {/* V50.z242 — BUG-STATE-001: salva l'ultima rotta e la ripristina al cold start */}
       <RoutePersistence />
@@ -251,7 +267,7 @@ function StackWithCallBar() {
       {user && !inTour ? <PersistentBottomNav /> : null}
       {user && !inTour ? <OnboardingWizard /> : null}
       {/* V50.z15 — Edge Panel Samsung-style: linguetta a destra, shortcut personalizzabili */}
-      {user && !inTour ? <EdgePanel /> : null}
+      {user && !inTour && !isDesktop ? <EdgePanel /> : null}{/* V50.z409 — desktop: niente edge panel (causava overflow orizzontale) */}
     </View>
   );
 }

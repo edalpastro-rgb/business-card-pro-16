@@ -3,6 +3,7 @@ import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { usePathname, useRouter } from "expo-router";
 import { useNavBarBottomInset } from "@/src/hooks/useSafeBottom";
+import { useIsDesktop } from "@/src/hooks/useResponsive"; // V50.z409 — su desktop la nav è la DesktopSidebar
 
 /**
  * V29.n — Barra di navigazione inferiore SEMPRE visibile su tutte le schermate
@@ -20,7 +21,7 @@ const TAB_INACTIVE = "#94A3B8";
 const TAB_BG = "#FFFFFF";
 const TAB_BORDER = "#EEF0F4";
 
-type TabDef = {
+export type TabDef = {
   name: string;
   label: string;
   route: `/${string}`;
@@ -30,7 +31,7 @@ type TabDef = {
   activePrefixes?: string[];
 };
 
-const TABS: TabDef[] = [
+export const TABS: TabDef[] = [
   { name: "home",         label: "Home",       route: "/(tabs)/home",         iconOn: "grid",             iconOff: "grid-outline" },
   { name: "contatti",     label: "Contatti",   route: "/(tabs)/contatti",     iconOn: "people",           iconOff: "people-outline" },
   { name: "chat",         label: "Chat",       route: "/(tabs)/chat",         iconOn: "chatbubbles",      iconOff: "chatbubbles-outline" },
@@ -42,7 +43,7 @@ const TABS: TabDef[] = [
 
 // Rotte dove la barra NON deve mai apparire (login, splash, app-lock,
 // schermate di creazione con sticky footer proprio).
-const HIDE_ON_PATHS = [
+export const HIDE_ON_PATHS = [
   "/login", "/index", "/", "/auth",
   "/appointment/new", "/callback/new",
   "/permessi", "/setup", // V50.z211 — flusso onboarding a schermo intero (footer sticky)
@@ -58,6 +59,7 @@ export function PersistentBottomNav() {
   const router = useRouter();
   // V50.z167 — stesso hook della Tabs nativa: padding-bottom identico su tutte le schermate
   const bottomInset = useNavBarBottomInset();
+  const isDesktop = useIsDesktop();
 
   // Se siamo su una rotta interna a (tabs)/*, la Tabs nativa gestisce la barra:
   // rileviamo controllando se il pathname corrisponde a uno dei tab principali
@@ -73,7 +75,7 @@ export function PersistentBottomNav() {
     });
 
   const hideCompletely = HIDE_ON_PATHS.some((p) => pathname === p) || pathname.startsWith("/auth");
-  if (hideCompletely) return null;
+  if (hideCompletely || isDesktop) return null; // V50.z409 — desktop: sidebar laterale
   if (inTabs) return null; // la Tabs nativa è già visibile
 
   const current = TABS.find((t) =>

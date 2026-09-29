@@ -23,6 +23,7 @@ import { ProactiveBubbles } from "@/src/ProactiveBubbles"; // V50.z196 — Blocc
 import { openAxonRecommendations } from "@/src/axonProactive"; // V50.z334 — «Consigli di Axon» → chat (card «Consigliato per te» rimossa dalla Home)
 import { SetupProcessingBadge } from "@/src/SetupProcessingBadge"; // V50.z216 — Blocco 5: «AxonOS sta leggendo i tuoi file…»
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { DesktopGrid } from "@/src/ui/DesktopGrid"; // V50.z409 — desktop: sezioni dashboard su 2 colonne
 import { useOrgBranding } from "@/src/BrandHeaderImage"; // logo aziendale (Personalizzazione Aziendale) nella barra
 import { HT } from "@/src/homeTheme";
 import { ViolaHeaderDot } from "@/src/violawake/ViolaHeaderDot";
@@ -566,6 +567,8 @@ export default function HomeScreen() {
         <View style={{ paddingHorizontal: 16, marginBottom: 8 }} onLayout={onSectionLayout("widgets")}><SetupProcessingBadge /></View>
         <DashboardWidgetsSection exclude={APPT_TODAY_WIDGET} />
 
+        {/* V50.z409 — Desktop: Ritelefonate + Azioni rapide a sinistra, Appuntamenti + Scadenze + Statistiche a destra */}
+        <DesktopGrid gap={16}>
         {/* ── 4) Ritelefonate di oggi ── */}
         <View style={styles.section} onLayout={onSectionLayout("ritelefonate")}>
           <View style={styles.sectionHead}>
@@ -805,6 +808,7 @@ export default function HomeScreen() {
           )}
         </View>
 
+        </DesktopGrid>
         <View style={{ height: 16 }} />
 
         {/* V49 — Bottone "Comunica con l'azienda": apre bottom sheet con nome

@@ -13,6 +13,7 @@ import { isAreaVisible } from "@/src/utils/areaAccess";
 import { useAuth } from "@/src/auth";
 import { ModuleErrorBoundary } from "@/src/shared";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { useIsDesktop } from "@/src/hooks/useResponsive"; // V50.z409 — desktop: celle mese più basse (densità)
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { silentGpsOrigin, requestGpsOrigin, fmtKm, GeoDistancesResp, GeoDistance } from "@/src/utils/geoOrigin"; // V50.z241
 import { useScrollMemory } from "@/src/utils/appStatePersist"; // V50.z243
@@ -963,6 +964,7 @@ function MonthGrid({
   eventColor: (it: any) => string;
   onNavMonth: (delta: number) => void;
 }) {
+  const isDesktop = useIsDesktop(); // V50.z409 — desktop: celle mese più basse
   const year = selectedDate.getFullYear();
   const month = selectedDate.getMonth();
   const first = new Date(year, month, 1);
@@ -1005,7 +1007,7 @@ function MonthGrid({
               const dayEvents = d ? (eventsByDay[d.toDateString()] || []) : [];
               const dots = Array.from(new Set(dayEvents.map((e) => eventColor(e)))).slice(0, 3);
               return (
-                <View key={ci} style={styles.monthCell}>
+                <View key={ci} style={[styles.monthCell, isDesktop && { aspectRatio: 1.6 }]}>
                   {d ? (
                     <Pressable
                       testID={`month-day-${d.toISOString().slice(0,10)}`}

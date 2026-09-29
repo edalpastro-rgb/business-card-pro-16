@@ -15,6 +15,8 @@ import { notify, confirmAsync } from "@/src/utils/notify";
 import { openInAppLink } from "@/src/utils/openInAppLink";
 import { ModuleErrorBoundary } from "@/src/shared";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
+import { DesktopGrid } from "@/src/ui/DesktopGrid"; // V50.z409 — desktop: hub a 2 colonne, sotto-sezioni centrate a 860 px
+import { useResponsive, SIDEBAR_W, CONTENT_MAX_W } from "@/src/hooks/useResponsive";
 import { invalidateTableBrandHeader } from "@/src/ChatTableExport";
 import { AxonMemoryEntryCard } from "@/src/AxonMemoryEntryCard"; // V50.z192 — Profilo → Memoria AxonOS
 import { AppInfoCard } from "@/src/AppInfoCard"; // V50.z208 — Piano attivo + versione APK
@@ -87,6 +89,8 @@ function ImpostazioniScreen() {
   const backToHub = () => setSec(null);
   const isOwner = !user?.parent_user_id;
   const pagePad = usePageBottomPadding();
+  const { isDesktop, width: winW } = useResponsive();
+  const deskPadX = isDesktop ? Math.max(16, (Math.min(winW - SIDEBAR_W, CONTENT_MAX_W) - 860) / 2) : 16; // V50.z409
   const [s, setS] = useState<Settings | null>(null);
   const [saving, setSaving] = useState(false);
   const [ok, setOk] = useState(false);
@@ -437,9 +441,11 @@ function ImpostazioniScreen() {
         ) : null}
         <Text style={[styles.title, { flex: 1 }]} numberOfLines={1}>{sec ? SECTION_META[sec].title : "Profilo & Impostazioni"}</Text>
       </View>
-      <KScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: pagePad }}>
+      <KScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: pagePad, paddingHorizontal: sec === null ? 16 : deskPadX }}>
         {/* V50.z249 — HUB: card Profilo Master (foto, nome, ruolo, azienda) + bottoni raggruppati */}
         {sec === null && (<>
+          <DesktopGrid gap={16}>
+          <View style={{ gap: 16 }}>
           <View style={styles.card} testID="profile-master-card">
             <View style={styles.profileHead}>
               <Pressable testID="profile-avatar-btn" onPress={changeAvatar} style={styles.avatarWrap} disabled={avatarBusy}>
@@ -458,8 +464,9 @@ function ImpostazioniScreen() {
           </View>
           {/* V50.z338 — Aspetto: switcher tema (3 card preview) */}
           <ThemePicker />
-          <SettingsGroupButton section="billing" onPress={() => openSection("billing")} />
+          </View>
           <View style={{ gap: 10 }}>
+          <SettingsGroupButton section="billing" onPress={() => openSection("billing")} />
             <Pressable onPress={() => router.push("/axon-notifications?tab=prefs" as any)} style={hubStyles.group} testID="settings-group-notifications">
               <View style={[hubStyles.groupIcon, { backgroundColor: "#F59E0B1A" }]}><Ionicons name="notifications" size={22} color="#F59E0B" /></View>
               <View style={{ flex: 1 }}><Text style={hubStyles.groupTitle}>Notifiche e Avvisi</Text><Text style={hubStyles.groupSub}>Push, promemoria, copie team, livelli di urgenza</Text></View>
@@ -480,6 +487,7 @@ function ImpostazioniScreen() {
             {isOwner ? <CompressAllCard /> : null}
             {isOwner ? <ResetTestDataCard /> : null}
           </View>
+          </DesktopGrid>
           <Text style={{ fontSize: 11, color: HT.muted, textAlign: "center" }}>Le impostazioni dell'assistente AxonOS (nome, voce, tono, header tabelle, memoria, Insegna ad Axon) sono in AxonOS Center.</Text>
         </>)}
         {/* V50.z249 — Sicurezza: PIN/biometria Spazio Personale, blocco app & 2FA, cambio password */}

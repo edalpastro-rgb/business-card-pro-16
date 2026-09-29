@@ -32,6 +32,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 
 import { useSafeAreaInsets, initialWindowMetrics } from "react-native-safe-area-context";
+import { useWindowDimensions } from "react-native";
 
 export function useBottomSheetPadding(minPad: number = 28): number {
   const insets = useSafeAreaInsets();
@@ -53,7 +54,9 @@ export function useBottomSheetPadding(minPad: number = 28): number {
  */
 export function usePageBottomPadding(extraGap: number = 24): number {
   const insets = useSafeAreaInsets();
+  const isDesktop = useWindowDimensions().width >= 1024; // V50.z409 — desktop: nessuna bottom nav → padding compatto
   const NAV_HEIGHT = 60;
   const bottom = Math.max(insets?.bottom || 0, initialWindowMetrics?.insets?.bottom || 0); // V50.z165
+  if (isDesktop) return Math.max(32, bottom + extraGap);
   return Math.max(140, NAV_HEIGHT + bottom + extraGap);
 }
