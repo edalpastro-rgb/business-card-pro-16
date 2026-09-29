@@ -8,6 +8,7 @@ import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { useAuth } from "@/src/auth"; // V50.z405 — cambio email: aggiorna l'utente in sessione
 
 export type SettingsSection = "security" | "billing" | "branding" | "integrations" | "general" | "axon";
 
@@ -80,6 +81,39 @@ export function ChangePasswordCard() {
       <Pressable onPress={submit} disabled={busy || !cur || !nw || !cf} style={[styles.btn, (busy || !cur || !nw || !cf) && { opacity: 0.5 }]} testID="chpwd-submit">
         {busy ? <ActivityIndicator color="#FFF" size="small" /> : <Ionicons name="checkmark" size={16} color="#FFF" />}
         <Text style={styles.btnTxt}>Aggiorna password</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+/** V50.z405 — Cambio EMAIL DI ACCESSO (POST /auth/change-email): nuova email + password attuale. La sessione resta valida. */
+export function ChangeEmailCard() {
+  const { user, refresh } = useAuth();
+  const [email, setEmail] = useState(""); const [pwd, setPwd] = useState("");
+  const [busy, setBusy] = useState(false);
+  const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  const submit = async () => {
+    if (!valid) { notify("Email non valida", "Controlla l'indirizzo inserito."); return; }
+    setBusy(true);
+    try {
+      const r = await api<{ email: string }>("/auth/change-email", { method: "POST", body: { current_password: pwd, new_email: email.trim() } });
+      setEmail(""); setPwd("");
+      await refresh().catch(() => {});
+      notify("Email aggiornata", `Da ora accedi con ${r.email}. La sessione resta attiva.`);
+    } catch (e: any) { notify("Cambio email non riuscito", e?.message || "Password attuale non corretta"); }
+    finally { setBusy(false); }
+  };
+  return (
+    <View style={styles.card} testID="change-email-card">
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 }}>
+        <Ionicons name="mail" size={18} color={HT.violet} /><Text style={styles.cardTitle}>Email di accesso</Text>
+      </View>
+      <Text style={styles.rowSub} testID="chemail-current">Attuale: {user?.email || "—"}</Text>
+      <TextInput value={email} onChangeText={setEmail} placeholder="Nuova email" placeholderTextColor={HT.muted} autoCapitalize="none" keyboardType="email-address" autoComplete="email" style={styles.input} testID="chemail-new" />
+      <TextInput value={pwd} onChangeText={setPwd} placeholder="Password attuale (per conferma)" placeholderTextColor={HT.muted} secureTextEntry autoCapitalize="none" style={styles.input} testID="chemail-password" />
+      <Pressable onPress={submit} disabled={busy || !valid || !pwd} style={[styles.btn, { backgroundColor: HT.violet }, (busy || !valid || !pwd) && { opacity: 0.5 }]} testID="chemail-submit">
+        {busy ? <ActivityIndicator color="#FFF" size="small" /> : <Ionicons name="checkmark" size={16} color="#FFF" />}
+        <Text style={styles.btnTxt}>Aggiorna email</Text>
       </Pressable>
     </View>
   );

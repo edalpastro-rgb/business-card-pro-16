@@ -4,7 +4,7 @@ import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { SettingsGroupButton, SettingsLinkRows, ChangePasswordCard, SECTION_META, type SettingsSection } from "@/src/SettingsHub"; // V50.z249
+import { SettingsGroupButton, SettingsLinkRows, ChangePasswordCard, ChangeEmailCard, SECTION_META, type SettingsSection } from "@/src/SettingsHub"; // V50.z249 · V50.z405 cambio email
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -481,6 +481,7 @@ function ImpostazioniScreen() {
             { label: "Dispositivi collegati", sub: "1 telefono + 1 tablet + 1 PC per account · team e log accessi (Master)", icon: "phone-portrait", href: "/devices", testID: "sec-devices" },
             { label: "Come proteggiamo i tuoi dati", icon: "shield-half", href: "/security-info", testID: "sec-info" },
           ]} />
+          <ChangeEmailCard />
           <ChangePasswordCard />
         </>)}
         {/* V50.z249 — Integrazioni */}

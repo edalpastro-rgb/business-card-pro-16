@@ -520,3 +520,34 @@ async def auth_change_password(body: ChangePasswordIn, user=Depends(get_current_
     await db.users.update_one({"user_id": uid}, {"$set": {"password_hash": hash_password(body.new_password), "password_changed_at": utcnow()}})
     _CHPWD_ATTEMPTS.pop(uid, None)
     return Response(status_code=204)
+
+
+# V50.z405 — CAMBIO EMAIL DI ACCESSO (Profilo › Sicurezza). Richiede la password attuale; email salvata in minuscolo (come
+# register/login); unicità case-insensitive; rate-limit condiviso con il cambio password; il JWT usa user_id → la sessione resta valida.
+class ChangeEmailIn(BaseModel):
+    current_password: str = Field(min_length=1, max_length=200)
+    new_email: EmailStr
+
+
+@api_router.post("/auth/change-email")
+async def auth_change_email(body: ChangeEmailIn, user=Depends(get_current_user)):
+    import time as _t
+    uid = user["user_id"]
+    now = _t.time()
+    hits = [t for t in _CHPWD_ATTEMPTS.get(uid, []) if now - t < 900]
+    if len(hits) >= 5:
+        raise HTTPException(status_code=429, detail="Troppi tentativi. Riprova tra 15 minuti.")
+    new_email = str(body.new_email).strip().lower()
+    doc = await db.users.find_one({"user_id": uid}, {"_id": 0, "password_hash": 1, "email": 1})
+    if not doc or not doc.get("password_hash") or not verify_password(body.current_password, doc["password_hash"]):
+        _CHPWD_ATTEMPTS[uid] = hits + [now]
+        raise HTTPException(status_code=401, detail="Password attuale non corretta")
+    if new_email == (doc.get("email") or "").lower():
+        raise HTTPException(status_code=422, detail="La nuova email coincide con quella attuale")
+    other = await db.users.find_one({"email": new_email, "user_id": {"$ne": uid}}, {"_id": 0, "user_id": 1})
+    if other:
+        raise HTTPException(status_code=409, detail="Email già utilizzata da un altro account")
+    await db.users.update_one({"user_id": uid}, {"$set": {"email": new_email, "email_changed_at": utcnow(), "email_previous": doc.get("email")}})
+    _CHPWD_ATTEMPTS.pop(uid, None)
+    u = await db.users.find_one({"user_id": uid}, {"_id": 0, "password_hash": 0, "totp_secret": 0})
+    return {"ok": True, "email": new_email, "user": UserOut(**u).model_dump()}
