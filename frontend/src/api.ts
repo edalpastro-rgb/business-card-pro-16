@@ -3,7 +3,9 @@ import { emitDeviceSuspended } from "@/src/device"; // V50.z293
 import { emitSubscriptionExpired } from "@/src/paywallEvents"; // V50.z330
 import * as offline from "@/src/offline"; // V50.z279 — modalità aereo: cache GET + coda scritture
 
-const BASE = process.env.EXPO_PUBLIC_BACKEND_URL as string;
+// V50.z403 — Riferimento esplicito alla variabile d'ambiente del backend (Preview/Live via pannello Segreti).
+export const BACKEND_URL: string = process.env.EXPO_PUBLIC_BACKEND_URL as string;
+const BASE = BACKEND_URL;
 const TOKEN_KEY = "auth_token_v1";
 
 export async function getToken(): Promise<string | null> {
