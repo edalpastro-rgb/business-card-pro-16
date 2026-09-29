@@ -7108,3 +7108,6 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 
 ## V50.z402 — Frontend puntato al VPS
 - `frontend/.env`: `EXPO_PUBLIC_BACKEND_URL=https://core.axonos.cloud` (su richiesta esplicita utente). Anteprima verificata: le chiamate `/api/*` vanno al VPS. Il backend locale del sandbox non è più usato dall'anteprima. Publish da fare dall'utente (pulsante Publish).
+
+## V50.z403 — Riferimento esplicito EXPO_PUBLIC_BACKEND_URL
+- `frontend/src/api.ts`: `export const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL` (riferimento esplicito, usato da `BASE`). Commit fatto nell'anteprima.
