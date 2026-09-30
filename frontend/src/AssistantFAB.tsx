@@ -153,6 +153,16 @@ export function AssistantFAB() {
   // V50.z248 — + avvisi CRITICI non letti (axon-notifications/unread-count.critical) → lampeggio ROSSO pulsante finché
   // l'utente non apre la notifica. Refresh: ogni 30 s, al ritorno in foreground, all'arrivo di una push, dopo lettura.
   const [criticalUnread, setCriticalUnread] = useState(0);
+  // V50.z419 — Briefing spontaneo (collaboratore): colore AMBRA distinto da rosso (critico) e verde (messaggio non letto). Livello 1 = solo colore.
+  const [briefingNew, setBriefingNew] = useState(false);
+  const briefingTs = useRef(0);
+  useEffect(() => {
+    if (!user || open) return;
+    if (Date.now() - briefingTs.current < 5 * 60 * 1000) return;
+    briefingTs.current = Date.now();
+    api<{ has_new: boolean }>("/axon/briefing").then((b) => setBriefingNew(!!b?.has_new)).catch(() => {});
+  }, [user, pathname, open]);
+  useEffect(() => { if (open) setBriefingNew(false); }, [open]);
   // V50.z383 — messaggio di Axon non letto (chat chiusa): il pulsante lampeggia in VERDE finché la chat non viene aperta
   const [axonUnread, setAxonUnread] = useState(false);
   const openRef = useRef(open);
@@ -333,7 +343,7 @@ export function AssistantFAB() {
           <Animated.View pointerEvents="none" style={[styles.fabHalo, { opacity: haloOpacity, transform: [{ scale: haloScale }] }]} testID="assistant-fab-critical-halo" />
         ) : null}
         <Pressable
-          style={[styles.fab, criticalUnread > 0 && styles.fabCritical, showGreen && styles.fabUnreadGreen]}
+          style={[styles.fab, briefingNew && !showGreen && criticalUnread <= 0 && styles.fabBriefing, criticalUnread > 0 && styles.fabCritical, showGreen && styles.fabUnreadGreen]}
           onPress={fireTap}
           hitSlop={14}
           pressRetentionOffset={24}

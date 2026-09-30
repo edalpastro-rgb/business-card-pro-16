@@ -42,6 +42,10 @@ export const styles = StyleSheet.create({
   },
   // V50.z83 — Badge conteggio richieste info non lette
   // V50.z248 — avvisi critici
+  briefingLine: { flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "center", paddingVertical: 8, paddingHorizontal: 14, borderRadius: 999, backgroundColor: CT.surface, borderWidth: 1, borderColor: "#D97706", marginVertical: 8, minHeight: 40 }, // V50.z419
+  briefingTxt: { color: CT.text, fontSize: 13.5, fontWeight: "600" },
+  briefingCta: { color: "#D97706", fontSize: 13, fontWeight: "900" },
+  fabBriefing: { backgroundColor: "#D97706", borderColor: "#FDE68A", borderWidth: 3 }, // V50.z419 — ambra: «Ho qualcosa da dirti, quando vuoi»
   fabHalo: { position: "absolute", left: 0, top: 0, width: 56, height: 56, borderRadius: 28, backgroundColor: "#DC2626" },
   fabCritical: { borderColor: "#DC2626", borderWidth: 3, shadowColor: "#DC2626", shadowOpacity: 0.7 },
   // V50.z383 — messaggio Axon non letto: velo verde lampeggiante sopra il viola + bordo/ombra verdi

@@ -193,6 +193,15 @@ async def _punq_table(n: int) -> dict:
     last_extract = max((d.get("extracted_at") for d in docs.values() if isinstance(d.get("extracted_at"), datetime)), default=None)
     missing = [r["label"] for r in rows if not r["available"]]
     forecast = await _punq_forecast_row(avail)
+    # V50.z419 — FIX 1: la didascalia «Dati aggiornati al» deve coincidere con la riga 🟡 parziale (job pun-fetcher giornaliero):
+    # ultimo aggiornamento = max(estrazione PDF mensile, aggiornamento parziale GME giornaliero)
+    _fc_upd = forecast.get("updated_at") if isinstance(forecast, dict) else None
+    if isinstance(_fc_upd, str):
+        try: _fc_upd = datetime.fromisoformat(_fc_upd)
+        except ValueError: _fc_upd = None
+    _cands = [d for d in (last_extract, _fc_upd) if isinstance(d, datetime)]
+    _cands = [d if d.tzinfo else d.replace(tzinfo=timezone.utc) for d in _cands]
+    last_extract = max(_cands) if _cands else None
     return {"months": n, "rows": rows, "forecast": forecast, "available": len(avail), "missing": missing, "extremes": extremes, "unit": "€/kWh",
             "cache_updated_at": last_extract.isoformat() if last_extract else None, "last_refresh_at": meta.get("last_run").isoformat() if isinstance(meta.get("last_run"), datetime) else None,
             "generated_at": utcnow().isoformat(), "table_markdown": _punq_markdown(rows, n, missing, last_extract, forecast)}
@@ -209,7 +218,7 @@ async def _punq_forecast_row(avail: List[dict]) -> Optional[dict]:
     if p and p.get("monorario") is not None and p.get("days"):
         upd = p.get("updated_at")
         upd_s = upd.astimezone(_PUNQ_TZ).strftime("%d/%m %H:%M") if isinstance(upd, datetime) else ""
-        return {"month_key": key, "label": label, "kind": "partial", "days": p["days"], "last_day": p.get("last_day"),
+        return {"month_key": key, "label": label, "kind": "partial", "days": p["days"], "last_day": p.get("last_day"), "updated_at": upd.isoformat() if isinstance(upd, datetime) else None,
                 "basis": f"media parziale GME giorni 1–{p['days']} ({p['days']} gg, agg. {upd_s})",
                 "kwh": {k: _punq_kwh(p.get(k), "€/MWh") for k in ("monorario", "F1", "F2", "F3")}}
     d = await db.gme_pun_cache.find_one({"month_key": key}, {"_id": 0})

@@ -164,6 +164,25 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   // V29.n — Riferimento all'AbortController della chiamata in corso, per il pulsante "Stop".
   const abortRef = useRef<AbortController | null>(null);
   const [loadingHist, setLoadingHist] = useState(false);
+  // V50.z419 — Briefing spontaneo (collaboratore): livello 2 = una riga «Ho qualcosa da dirti, quando vuoi» (tap → lo racconta);
+  // livello 3 = Axon inizia lui appena apri la chat. Livello 1 = solo il colore del pallino (gestito dal FAB).
+  const [briefing, setBriefing] = useState<{ level: number; has_new: boolean; text: string; teaser: string } | null>(null);
+  const briefingShown = useRef(false);
+  useEffect(() => {
+    if (!visible || briefingShown.current) return;
+    api<{ level: number; has_new: boolean; text: string; teaser: string }>("/axon/briefing").then((b) => {
+      if (!b?.has_new || b.level < 2) return;
+      briefingShown.current = true;
+      if (b.level >= 3) { revealBriefing(b.text); return; }
+      setBriefing(b);
+    }).catch(() => {});
+  }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
+  const revealBriefing = (text: string) => {
+    setBriefing(null);
+    setMessages((prev) => [...prev, { role: "assistant", content: `Ho una cosa da dirti.\n\n${text}\n\nRispondi quando vuoi.`, created_at: new Date().toISOString() } as any]);
+    void api("/axon/briefing/seen", { method: "POST" }).catch(() => {});
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 120);
+  };
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   // V50.z126 — Testo di stato del preflight streaming ("Sto raccogliendo il contesto…")
@@ -1771,6 +1790,13 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                   <ActivityIndicator color={CT.accent} />
                 </View>
               )}
+              {briefing ? (
+                <Pressable onPress={() => revealBriefing(briefing.text)} style={styles.briefingLine} testID="axon-briefing-teaser" accessibilityRole="button">
+                  <Ionicons name="ellipse" size={10} color="#D97706" />
+                  <Text style={styles.briefingTxt}>{briefing.teaser || "Ho qualcosa da dirti, quando vuoi."}</Text>
+                  <Text style={styles.briefingCta}>Ascolta</Text>
+                </Pressable>
+              ) : null}
               {!loadingHist && messages.length === 0 && (
                 <View style={styles.emptyWrap}>
                   <View style={styles.suggestWrap}>

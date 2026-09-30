@@ -16,7 +16,8 @@ import { openInAppLink } from "@/src/utils/openInAppLink";
 import { ModuleErrorBoundary } from "@/src/shared";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { DesktopGrid } from "@/src/ui/DesktopGrid";
-import { TtsEngineCard } from "@/src/TtsEngineCard"; // V50.z414 — motore TTS (Dispositivo · Google TTS / Server) con anteprima // V50.z409 — desktop: hub a 2 colonne, sotto-sezioni centrate a 860 px
+import { TtsEngineCard } from "@/src/TtsEngineCard";
+import { AxonInitiativeCard } from "@/src/AxonInitiativeCard"; // V50.z419 // V50.z414 — motore TTS (Dispositivo · Google TTS / Server) con anteprima // V50.z409 — desktop: hub a 2 colonne, sotto-sezioni centrate a 860 px
 import { useResponsive, SIDEBAR_W, CONTENT_MAX_W } from "@/src/hooks/useResponsive";
 import { invalidateTableBrandHeader } from "@/src/ChatTableExport";
 import { AxonMemoryEntryCard } from "@/src/AxonMemoryEntryCard"; // V50.z192 — Profilo → Memoria AxonOS
@@ -949,6 +950,8 @@ function ImpostazioniScreen() {
 
           {/* V50.z414 — Motore vocale (sempre visibile, anche in modalità testo: serve al replay/lettura delle risposte) */}
           <TtsEngineCard />
+          {/* V50.z419 — Livello di iniziativa (collaboratore): 1 colore pallino · 2 riga in chat · 3 inizia lui */}
+          <AxonInitiativeCard />
 
           {(assistantMode === "voice" || assistantMode === "both") && (
             <>
