@@ -45,6 +45,7 @@ const ITEMS: DrawerItem[] = [
   { label: "Scadenze",          icon: "hourglass-outline",    href: "/deadlines",          categoryKey: "crm" },
   // AI & Axon (viola #7C3AED)
   { label: "Axon Hub",          icon: "sparkles",             href: "/axon-hub",           categoryKey: "axon" },
+  { label: "Addestramento wake-word Axon", icon: "mic-circle-outline", href: "/wake-word-training", categoryKey: "axon" }, // V50.z410
   { label: "Consigli di Axon",  icon: "bulb",                 href: "#axon-recommendations", categoryKey: "axon", action: openAxonRecommendations }, // V50.z334 — consigli del Tour nella chat
   { label: "Insegna ad Axon",   icon: "school-outline",       href: "/ai-teach",           categoryKey: "axon" },
   { label: "Cervello Axon",     icon: "bulb-outline",         href: "/axon-brain",         categoryKey: "axon" },

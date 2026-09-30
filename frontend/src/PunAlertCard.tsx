@@ -17,7 +17,9 @@ const fmt = (v?: number | null) => (v == null ? "—" : v.toFixed(4).replace("."
 export function PunAlertCard() {
   const [enabled, setEnabled] = useState(false);
   const [threshold, setThreshold] = useState("0,2500");
-  const [band, setBand] = useState<Band>("monorario");
+  const [bands, setBands] = useState<Band[]>(["monorario"]); // V50.z410 — selezione multipla
+  const band: Band = bands[0] || "monorario";
+  const toggleBand = (b: Band) => setBands((cur) => (cur.includes(b) ? (cur.length > 1 ? cur.filter((x) => x !== b) : cur) : [...cur, b]));
   const [partial, setPartial] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -27,7 +29,8 @@ export function PunAlertCard() {
       const thr = Number(s?.pun_alert_threshold || 0);
       setEnabled(thr > 0);
       if (thr > 0) setThreshold(thr.toFixed(4).replace(".", ","));
-      if (BANDS.includes(s?.pun_alert_band)) setBand(s.pun_alert_band);
+      if (Array.isArray(s?.pun_alert_bands) && s.pun_alert_bands.length) setBands(s.pun_alert_bands.filter((b: Band) => BANDS.includes(b)));
+      else if (BANDS.includes(s?.pun_alert_band)) setBands([s.pun_alert_band]);
       setPartial(p);
       setLoaded(true);
     });
@@ -42,8 +45,8 @@ export function PunAlertCard() {
     if (enabled && !(Number.isFinite(thrNum) && thrNum > 0)) { notify("Soglia non valida", "Inserisci un valore in €/kWh, es. 0,2500"); return; }
     setSaving(true);
     try {
-      await api("/user-settings", { method: "PUT", body: { pun_alert_threshold: enabled ? thrNum : 0, pun_alert_band: band } });
-      notify(enabled ? "Avviso PUN attivo ✅" : "Avviso PUN disattivato", enabled ? `Ti avviso se la media ${band} del mese supera ${fmt(thrNum)} €/kWh.` : undefined);
+      await api("/user-settings", { method: "PUT", body: { pun_alert_threshold: enabled ? thrNum : 0, pun_alert_band: band, pun_alert_bands: bands } });
+      notify(enabled ? "Avviso PUN attivo ✅" : "Avviso PUN disattivato", enabled ? `Ti avviso se la media ${bands.map((b) => (b === "monorario" ? "monorario" : b)).join(" / ")} del mese supera ${fmt(thrNum)} €/kWh.` : undefined);
     } catch (e: any) { notify("Errore", e?.message); } finally { setSaving(false); }
   };
 
@@ -62,8 +65,8 @@ export function PunAlertCard() {
         <>
           <View style={s.chips}>
             {BANDS.map((b) => (
-              <Pressable key={b} onPress={() => setBand(b)} style={[s.chip, band === b && s.chipOn]} testID={`pun-alert-band-${b}`}>
-                <Text style={[s.chipTxt, band === b && s.chipTxtOn]}>{b === "monorario" ? "Monorario" : b}</Text>
+              <Pressable key={b} onPress={() => toggleBand(b)} style={[s.chip, bands.includes(b) && s.chipOn]} testID={`pun-alert-band-${b}`}>
+                <Text style={[s.chipTxt, bands.includes(b) && s.chipTxtOn]}>{b === "monorario" ? "Monorario" : b}</Text>
               </Pressable>
             ))}
           </View>

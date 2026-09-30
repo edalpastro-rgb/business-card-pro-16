@@ -105,9 +105,10 @@ const REMINDERS: WheelItem<number>[] = [
 ];
 const labelFor = <T,>(items: WheelItem<T>[], v: T, fallback = "-") =>
   (items.find((it) => it.value === v)?.label) ?? fallback;
+const WEEKDAYS = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"]; // V50.z410
 const RECURRENCES = [
-  { k: "none", label: "Nessuna" }, { k: "weekly", label: "Settimanale" },
-  { k: "monthly", label: "Mensile" }, { k: "yearly", label: "Annuale" },
+  { k: "none", label: "Nessuna" }, { k: "daily", label: "Ogni giorno" }, { k: "weekly", label: "Ogni settimana" },
+  { k: "monthly", label: "Ogni mese" }, { k: "yearly", label: "Ogni anno" }, { k: "custom", label: "Personalizzata" },
 ];
 
 export default function NewAppointmentRoute() {
@@ -145,7 +146,9 @@ function NewAppointmentScreen() {
     start_at: new Date(Date.now() + 60 * 60 * 1000),
     duration_min: 60,
     reminder_minutes: 15,
-    recurrence: "none" as "none" | "weekly" | "monthly" | "yearly",
+    recurrence: "none" as "none" | "daily" | "weekly" | "monthly" | "yearly" | "custom",
+    recurrence_days: [] as number[], // V50.z410 — ricorrenza personalizzata: giorni della settimana (0=Lun … 6=Dom)
+    end_at: null as Date | null, // V50.z410 — data di fine opzionale (eventi multi-giorno)
     is_phone: prefPhone === "1",
     phone_mobile: "",
     phone_work: "",
@@ -183,7 +186,7 @@ function NewAppointmentScreen() {
       } catch {}
     })();
   }, [canBroadcast, user?.user_id]);
-  const [showPicker, setShowPicker] = useState<"date" | "time" | null>(null);
+  const [showPicker, setShowPicker] = useState<"date" | "time" | "endDate" | null>(null);
   // V50.z242 — BUG-STATE-001: bozza del form nuovo appuntamento (no modifica, no prefill da altre pagine):
   // ripristinata al mount se presente (< 12 h), salvata con debounce 700 ms, cancellata al salvataggio riuscito.
   const DRAFT_KEY = "draft_appointment_new_v1";
@@ -197,7 +200,7 @@ function NewAppointmentScreen() {
       try {
         const d = JSON.parse(raw);
         if (!d?.form || Date.now() - Number(d.at || 0) > 12 * 3600 * 1000) return;
-        setForm((f) => ({ ...f, ...d.form, start_at: d.form.start_at ? new Date(d.form.start_at) : f.start_at }));
+        setForm((f) => ({ ...f, ...d.form, start_at: d.form.start_at ? new Date(d.form.start_at) : f.start_at, end_at: d.form.end_at ? new Date(d.form.end_at) : null }));
       } catch { /* ignore */ }
     }).catch(() => { draftLoaded.current = true; });
   }, [draftEnabled]);
@@ -205,7 +208,7 @@ function NewAppointmentScreen() {
     if (!draftEnabled || !draftLoaded.current) return;
     const t = setTimeout(() => {
       const dirty = !!(form.title || form.notes || form.location || form.contact_id || form.address_street || form.address_city || form.phone_mobile || form.email);
-      if (dirty) AsyncStorage.setItem(DRAFT_KEY, JSON.stringify({ at: Date.now(), form: { ...form, start_at: form.start_at.toISOString() } })).catch(() => {});
+      if (dirty) AsyncStorage.setItem(DRAFT_KEY, JSON.stringify({ at: Date.now(), form: { ...form, start_at: form.start_at.toISOString(), end_at: form.end_at ? form.end_at.toISOString() : null } })).catch(() => {});
       else AsyncStorage.removeItem(DRAFT_KEY).catch(() => {});
     }, 700);
     return () => clearTimeout(t);
@@ -366,6 +369,8 @@ function NewAppointmentScreen() {
           duration_min: a.duration_min || 60,
           reminder_minutes: typeof a.reminder_minutes === "number" ? a.reminder_minutes : 15,
           recurrence: a.recurrence || "none",
+          recurrence_days: Array.isArray(a.recurrence_days) ? a.recurrence_days : [],
+          end_at: a.end_at ? new Date(a.end_at) : null,
           is_phone: !!a.is_phone,
           phone_mobile: a.phone_mobile || "",
           phone_work: a.phone_work || "",
@@ -434,6 +439,8 @@ function NewAppointmentScreen() {
         ...form,
         location: effectiveLocation,
         start_at: form.start_at.toISOString(),
+        end_at: form.end_at ? form.end_at.toISOString() : null,
+        recurrence_days: form.recurrence === "custom" ? form.recurrence_days : [],
         value_amount: form.value_amount ? parseFloat(form.value_amount) : 0,
         note_attachments: attachments,
         is_broadcast: broadcast.enabled && canBroadcast,
@@ -724,6 +731,14 @@ function NewAppointmentScreen() {
                 style={webInputStyle}
               />
             </View>
+          ) : null}
+          {Platform.OS === "web" ? (
+            <View style={{ marginTop: 8 }}>
+              <Text style={styles.lbl}>Data di fine (opzionale · eventi su più giorni)</Text>
+              {/* @ts-expect-error web-only */}
+              <input type="date" value={form.end_at ? new Date(form.end_at.getTime() - form.end_at.getTimezoneOffset() * 60000).toISOString().slice(0, 10) : ""}
+                onChange={(e: any) => setForm({ ...form, end_at: e.target.value ? new Date(`${e.target.value}T23:59:00`) : null })} style={webInputStyle} />
+            </View>
           ) : (
             <>
               <View style={styles.dateRow}>
@@ -736,9 +751,17 @@ function NewAppointmentScreen() {
                   <Text style={styles.dateBtnTxt}>{form.start_at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text>
                 </Pressable>
               </View>
+              <Text style={styles.lbl}>Data di fine (opzionale · eventi su più giorni)</Text>
+              <View style={styles.dateRow}>
+                <Pressable testID="ap-end-date-btn" onPress={() => setShowPicker("endDate")} style={styles.dateBtn}>
+                  <Ionicons name="calendar-number-outline" size={18} color={HT.brand} />
+                  <Text style={styles.dateBtnTxt}>{form.end_at ? form.end_at.toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "short" }) : "Stesso giorno"}</Text>
+                </Pressable>
+                {form.end_at ? <Pressable onPress={() => setForm({ ...form, end_at: null })} style={styles.dateBtn} testID="ap-end-date-clear"><Ionicons name="close" size={18} color={HT.muted} /><Text style={styles.dateBtnTxt}>Rimuovi</Text></Pressable> : null}
+              </View>
               {showPicker && (
-                <DateTimePicker value={form.start_at} mode={showPicker}
-                  onChange={(e, d) => { setShowPicker(null); if (d) { if (showPicker === "date") setDate(d); else setTime(d); } }} />
+                <DateTimePicker value={showPicker === "endDate" ? (form.end_at || form.start_at) : form.start_at} mode={showPicker === "endDate" ? "date" : showPicker} minimumDate={showPicker === "endDate" ? form.start_at : undefined}
+                  onChange={(e, d) => { const which = showPicker; setShowPicker(null); if (d) { if (which === "date") setDate(d); else if (which === "time") setTime(d); else { const n = new Date(d); n.setHours(23, 59, 0, 0); setForm({ ...form, end_at: n }); } } }} />
               )}
             </>
           )}
@@ -768,11 +791,21 @@ function NewAppointmentScreen() {
           <Text style={styles.lbl}>Ricorrenza</Text>
           <View style={styles.pillsRow}>
             {RECURRENCES.map((r) => (
-              <Pressable key={r.k} onPress={() => setForm({ ...form, recurrence: r.k as any })} style={[styles.pill, form.recurrence === r.k && styles.pillActive]}>
+              <Pressable key={r.k} testID={`ap-rec-${r.k}`} onPress={() => setForm({ ...form, recurrence: r.k as any, recurrence_days: r.k === "custom" && form.recurrence_days.length === 0 ? [(form.start_at.getDay() + 6) % 7] : form.recurrence_days })} style={[styles.pill, form.recurrence === r.k && styles.pillActive]}>
                 <Text style={[styles.pillTxt, form.recurrence === r.k && styles.pillTxtActive]}>{r.label}</Text>
               </Pressable>
             ))}
           </View>
+          {form.recurrence === "custom" ? (
+            <View style={[styles.pillsRow, { marginTop: 8 }]} testID="ap-rec-weekdays">
+              {WEEKDAYS.map((d, i) => { const on = form.recurrence_days.includes(i); return (
+                <Pressable key={d} testID={`ap-rec-day-${i}`} onPress={() => setForm({ ...form, recurrence_days: on ? form.recurrence_days.filter((x) => x !== i) : [...form.recurrence_days, i].sort() })} style={[styles.pill, on && styles.pillActive]}>
+                  <Text style={[styles.pillTxt, on && styles.pillTxtActive]}>{d}</Text>
+                </Pressable>
+              ); })}
+              <Text style={{ width: "100%", fontSize: 12, color: HT.muted, marginTop: 4 }}>Si ripete ogni settimana nei giorni selezionati.</Text>
+            </View>
+          ) : null}
         </View>
 
         <View style={styles.card}>

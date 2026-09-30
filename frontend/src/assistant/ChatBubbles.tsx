@@ -233,6 +233,7 @@ export function MessageBubble({
           const navChips = msg.streaming ? [] : navChips0;
           try { segments = parseMessageSegments(cleanContent); }
           catch { segments = [{ type: "text", content: cleanContent }] as any; }
+          if (segments.length === 0 && (cleanContent || "").trim()) segments = [{ type: "text", content: cleanContent.trim() }] as any; // V50.z410 — mai bolla vuota se c'è testo
           if (segments.length === 0 && !cfgMatch && navChips.length === 0) return null;
           return (
             <View style={{ gap: 6 }}>

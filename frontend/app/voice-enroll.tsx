@@ -6,6 +6,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Platform, Linking } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets"; // V50.z410 — fallback gesture bar Android
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { AudioModule } from "expo-audio";
@@ -20,6 +21,7 @@ type Step = "intro" | "reading" | "uploading" | "done";
 export default function VoiceEnrollScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const footerPad = useBottomSheetPadding(28); // safe-area reale (insets o initialWindowMetrics) + 12, minimo 28
   const pagePad = Math.max(insets.bottom, 16) + 24; // V50.z407 — nav e FAB nascosti su questa rotta (schermo intero)
   const params = useLocalSearchParams<{ role?: string; name?: string; profile_id?: string }>();
   const role: "owner" | "secondary" = params.role === "secondary" ? "secondary" : "owner";
@@ -187,7 +189,7 @@ export default function VoiceEnrollScreen() {
               </Pressable>
             ))}
           </ScrollView>
-          <View style={[s.footer, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]} testID="voice-enroll-footer">
+          <View style={[s.footer, { paddingBottom: footerPad + 8 }]} testID="voice-enroll-footer">
             <Pressable onPress={cancel} style={[s.btnSm, s.ghost, { flex: 0.8 }]} testID="voice-enroll-cancel"><Text style={[s.btnSmTxt, { color: HT.text }]}>Annulla</Text></Pressable>
             <Pressable onPress={next} style={[s.btnSm, { backgroundColor: HT.violet }]} testID="voice-enroll-next"><Ionicons name="arrow-down" size={18} color="#FFF" /><Text style={s.btnSmTxt}>Avanti</Text></Pressable>
             <Pressable onPress={finish} disabled={!quality?.ready || busy} style={[s.btnSm, { flex: 1.4, backgroundColor: quality?.ready ? HT.success : HT.card, borderWidth: quality?.ready ? 0 : 1, borderColor: HT.border }]} testID="voice-enroll-finish">

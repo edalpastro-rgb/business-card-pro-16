@@ -7,6 +7,7 @@ import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { notify } from "@/src/utils/notify";
 import { HT } from "@/src/homeTheme";
+import { setPostReloadRoute } from "@/src/RoutePersistence";
 import { useResponsive } from "@/src/hooks/useResponsive"; // V50.z409 — desktop: card compatte affiancate all'anteprima
 import { ACTIVE_THEME_ID, BOOT_THEME_FROM_STORAGE, PALETTES, THEME_IDS, ThemeId, getUserTheme, normalizeThemeId, persistTheme, readThemeFallback, reloadApp, safeThemeReload } from "@/src/themes";
 
@@ -55,6 +56,7 @@ export function ThemePicker() {
       // V50.z344 — 1) salva sul profilo utente (database) 2) salva in locale 3) applica subito ricaricando il bundle
       try { await api("/me/theme", { method: "PUT", body: { ui_theme: id } }); } catch { /* offline: la copia locale verrà riallineata al prossimo avvio online */ }
       await persistTheme(id, user?.user_id);
+      await setPostReloadRoute("/(tabs)/impostazioni"); // V50.z410 — dopo il reload si resta su Profilo
       const ok = await reloadApp();
       if (!ok) notify("Tema salvato", "Chiudi e riapri l'app per applicare il nuovo tema.");
     } finally {

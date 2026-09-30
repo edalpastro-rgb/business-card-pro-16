@@ -522,8 +522,10 @@ async def _punq_threshold_alerts(doc: dict) -> int:
     (fascia scelta, default monorario) SUPERA la soglia → card proattiva + messaggio in chat, una sola volta per mese/soglia (dedupe)."""
     sent = 0
     key = doc.get("month_key"); label = f"{_GME_MONTH_NAMES_REV.get(int(doc.get('month') or 0), '').capitalize()} {doc.get('year')}"
-    async for st in db.user_settings.find({"pun_alert_threshold": {"$gt": 0}}, {"_id": 0, "user_id": 1, "pun_alert_threshold": 1, "pun_alert_band": 1}):
-        band = st.get("pun_alert_band") if st.get("pun_alert_band") in ("monorario", "F1", "F2", "F3") else "monorario"
+    async for st in db.user_settings.find({"pun_alert_threshold": {"$gt": 0}}, {"_id": 0, "user_id": 1, "pun_alert_threshold": 1, "pun_alert_band": 1, "pun_alert_bands": 1}):
+      # V50.z410 — più fasce selezionabili: un avviso per ciascuna fascia sopra soglia
+      bands_sel = [b for b in (st.get("pun_alert_bands") or [st.get("pun_alert_band")]) if b in ("monorario", "F1", "F2", "F3")] or ["monorario"]
+      for band in bands_sel:
         raw = doc.get(band)
         if raw is None:
             continue

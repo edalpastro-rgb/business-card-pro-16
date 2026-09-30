@@ -20,7 +20,8 @@ export function ViolaStatusPill() {
   useEffect(() => { pulse.value = withRepeat(withTiming(1, { duration: 1100 }), -1, true); }, [pulse]);
   const dot = useAnimatedStyle(() => ({ opacity: interpolate(pulse.value, [0, 1], [0.35, 1]), transform: [{ scale: interpolate(pulse.value, [0, 1], [0.8, 1.2]) }] }));
 
-  const visible = state === "listening" || state === "capturing" || state === "thinking" || state === "speaking" || state === "starting";
+  // V50.z410 — niente banner «Di' «Axon» per parlare» in ascolto passivo (il microfono nell'header basta): pill solo mentre Axon cattura/pensa/risponde
+  const visible = state === "capturing" || state === "thinking" || state === "speaking";
   if (!visible) return null;
 
   const label =

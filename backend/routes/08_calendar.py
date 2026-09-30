@@ -38,11 +38,71 @@ async def list_appointments(
     if contact_id:
         q["contact_id"] = contact_id
     items = await db.appointments.find(q, {"_id": 0}).sort("start_at", 1).to_list(1000)
+    # V50.z410 — Ricorrenze: gli eventi ricorrenti iniziati PRIMA della finestra vengono espansi in occorrenze virtuali
+    # (occurrence_of = appointment_id originale) dentro [start, end]. Senza finestra si restituisce solo il record base.
+    if start and end:
+        rq = {**base, "recurrence": {"$in": ["daily", "weekly", "monthly", "yearly", "custom"]}, "start_at": {"$lt": start}}
+        if area in ("energy", "network"): rq["area"] = area
+        if contact_id: rq["contact_id"] = contact_id
+        seen_ids = {it.get("appointment_id") for it in items}
+        async for rec in db.appointments.find(rq, {"_id": 0}):
+            items.extend(_appt_occurrences(rec, start, end))
+        for it in [x for x in items if x.get("recurrence") in ("daily", "weekly", "monthly", "yearly", "custom") and not x.get("occurrence_of") and x.get("appointment_id") in seen_ids]:
+            items.extend(o for o in _appt_occurrences(it, start, end) if o["start_at"] != _aware_utc_times(dict(it))["start_at"])
+        items.sort(key=lambda x: x.get("start_at") or start)
     # Attach read_only flag for broadcast recipients (creator != me)
     for it in items:
         _aware_utc_times(it)
         it["read_only"] = bool(it.get("is_broadcast") and it.get("created_by") != user["user_id"] and not is_owner(user))
     return {"items": items}
+
+
+def _appt_occurrences(rec: dict, start: datetime, end: datetime, cap: int = 370) -> List[dict]:
+    """V50.z410 — Occorrenze virtuali di un evento ricorrente dentro [start, end] (esclusa quella originale, gestita a parte)."""
+    from datetime import timedelta as _td
+    import calendar as _cal
+    _aware_utc_times(rec)
+    s0 = rec.get("start_at"); e0 = rec.get("end_at")
+    if not isinstance(s0, datetime):
+        return []
+    if start.tzinfo is None: start = start.replace(tzinfo=timezone.utc)
+    if end.tzinfo is None: end = end.replace(tzinfo=timezone.utc)
+    dur = (e0 - s0) if isinstance(e0, datetime) else None
+    kind = rec.get("recurrence"); days = [int(d) for d in (rec.get("recurrence_days") or []) if 0 <= int(d) <= 6]
+    out: List[dict] = []
+
+    def _emit(dt: datetime):
+        if dt == s0 or dt < start or dt > end:
+            return
+        o = dict(rec); o["start_at"] = dt; o["end_at"] = (dt + dur) if dur else None
+        o["occurrence_of"] = rec.get("appointment_id"); o["appointment_id"] = f"{rec.get('appointment_id')}@{dt.strftime('%Y%m%d')}"
+        out.append(o)
+
+    if kind in ("daily", "weekly", "custom"):
+        step = _td(days=1) if kind in ("daily", "custom") else _td(days=7)
+        dt = s0
+        # salta velocemente fino alla finestra
+        if dt < start:
+            n = int((start - dt) / step); dt = dt + step * max(0, n - 1)
+        i = 0
+        while dt <= end and i < 5000 and len(out) < cap:
+            if kind != "custom" or (not days) or dt.weekday() in days:
+                _emit(dt)
+            dt += step; i += 1
+    elif kind in ("monthly", "yearly"):
+        y, m = s0.year, s0.month
+        for _ in range(0, 1200):
+            if kind == "monthly":
+                m += 1
+                if m > 12: m = 1; y += 1
+            else:
+                y += 1
+            day = min(s0.day, _cal.monthrange(y, m)[1])
+            dt = s0.replace(year=y, month=m, day=day)
+            if dt > end or len(out) >= cap:
+                break
+            _emit(dt)
+    return out
     _ = scope_filter  # placeholder to avoid unused warnings
 
 
@@ -134,6 +194,7 @@ async def appointments_stats(
 
 @api_router.get("/appointments/{appointment_id}")
 async def get_appointment(appointment_id: str, user=Depends(get_current_user)):
+    appointment_id = appointment_id.split("@", 1)[0]  # V50.z410 — occorrenza virtuale «id@YYYYMMDD» → evento base
     # Fetch within tenant (allow broadcast visibility)
     a = await db.appointments.find_one({
         "user_id": tenant_id(user),
@@ -219,6 +280,7 @@ async def appointment_share_preview(appointment_id: str, user=Depends(get_curren
 
 @api_router.put("/appointments/{appointment_id}")
 async def update_appointment(appointment_id: str, body: AppointmentUpdate, user=Depends(get_current_user)):
+    appointment_id = appointment_id.split("@", 1)[0]  # V50.z410 — occorrenza virtuale «id@YYYYMMDD» → evento base
     # Only creator (or owner) can update
     existing = await db.appointments.find_one({
         "user_id": tenant_id(user),
@@ -239,6 +301,7 @@ async def update_appointment(appointment_id: str, body: AppointmentUpdate, user=
 
 @api_router.delete("/appointments/{appointment_id}")
 async def delete_appointment(appointment_id: str, user=Depends(get_current_user)):
+    appointment_id = appointment_id.split("@", 1)[0]  # V50.z410 — occorrenza virtuale «id@YYYYMMDD» → evento base
     existing = await db.appointments.find_one({
         "user_id": tenant_id(user),
         "appointment_id": appointment_id,

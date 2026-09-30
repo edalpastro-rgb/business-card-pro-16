@@ -60,6 +60,7 @@ class UserSettingsIn(BaseModel):
     assistant_response_mode: Optional[str] = None  # "text" | "voice" | "both" (default "text")
     pun_alert_threshold: Optional[float] = None  # V50.z325 — soglia €/kWh media parziale mese (0 = disattivo)
     pun_alert_band: Optional[str] = None  # V50.z325 — monorario | F1 | F2 | F3
+    pun_alert_bands: Optional[List[str]] = None  # V50.z410 — selezione multipla di fasce
     assistant_voice: Optional[str] = None  # voce: sara | nicola (Kokoro locale) oppure OpenAI alloy | echo | fable | onyx | nova | shimmer | coral | sage | ash
     assistant_tts_engine: Optional[str] = None  # V50.z347 — "local" (Kokoro sul server, gratis) | "cloud" (OpenAI)
     assistant_language: Optional[str] = None  # V50.z271 — lingua delle risposte di Axon (it | en | es | fr | de | pt | ro | uk | ar | zh)

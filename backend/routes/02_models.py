@@ -503,7 +503,8 @@ class AppointmentIn(BaseModel):
     notes: str = ""
     note_attachments: List[Dict[str, Any]] = Field(default_factory=list)
     reminder_minutes: int = 15
-    recurrence: Literal["none", "weekly", "monthly", "yearly"] = "none"
+    recurrence: Literal["none", "daily", "weekly", "monthly", "yearly", "custom"] = "none"
+    recurrence_days: List[int] = Field(default_factory=list)  # V50.z410 — custom: giorni settimana 0=Lun … 6=Dom
     participant_contact_ids: List[str] = Field(default_factory=list)
     value_amount: float = 0.0
     appointment_type_tags: List[str] = Field(default_factory=list)
@@ -549,7 +550,8 @@ class AppointmentUpdate(BaseModel):
     products_sold: Optional[int] = None
     contract_signed: Optional[bool] = None
     reminder_minutes: Optional[int] = None
-    recurrence: Optional[Literal["none", "weekly", "monthly", "yearly"]] = None
+    recurrence: Optional[Literal["none", "daily", "weekly", "monthly", "yearly", "custom"]] = None
+    recurrence_days: Optional[List[int]] = None
     participant_contact_ids: Optional[List[str]] = None
     value_amount: Optional[float] = None
     appointment_type_tags: Optional[List[str]] = None

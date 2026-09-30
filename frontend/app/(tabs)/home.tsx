@@ -654,6 +654,18 @@ export default function HomeScreen() {
                 </View>
                 <Text style={styles.quickTxt} numberOfLines={2}>Nuovo contatto</Text>
               </Pressable>
+              <Pressable testID="qa-axon-hub" style={styles.quick} onPress={() => router.push("/axon-hub" as any)}>
+                <View style={[styles.quickIcon, { backgroundColor: '#7C3AED' }]}>
+                  <Ionicons name="sparkles" size={22} color="#FFF" />
+                </View>
+                <Text style={styles.quickTxt} numberOfLines={2}>Axon HUB</Text>
+              </Pressable>
+              <Pressable testID="qa-wake-training" style={styles.quick} onPress={() => router.push("/wake-word-training" as any)}>
+                <View style={[styles.quickIcon, { backgroundColor: '#7C3AED' }]}>
+                  <Ionicons name="mic-circle" size={22} color="#FFF" />
+                </View>
+                <Text style={styles.quickTxt} numberOfLines={2}>Addestramento wake-word Axon</Text>
+              </Pressable>
               <Pressable testID="qa-voice-copilot" style={styles.quick} onPress={() => router.push("/voice-copilot")}>
                 <View style={[styles.quickIcon, { backgroundColor: '#7C3AED' /* V50.z34 AI & Axon */ }]}>
                   <Ionicons name="car-sport" size={22} color="#FFF" />
