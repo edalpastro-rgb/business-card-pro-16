@@ -7148,3 +7148,9 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 ## V50.z411 — /wake-training: ripresa sessione
 - `app/wake-training.tsx`: snapshot `{sessionId, step, envIdx, wordIdx, counts, totalSaved}` in AsyncStorage (`wake_training_resume_v1`, TTL 30 gg) salvato a ogni cambio di posizione dopo il consenso; cancellato a "done". Alla riapertura: step `resume` («Bentornato: hai già registrato N campioni — Riprendi da dove ero / Ricomincia da capo»). Riprendendo si riusa lo stesso `session_id` → per il Super Master la sessione passa Parziale → Completato (una sola visita); Ricomincia genera un nuovo id e traccia `open`.
 - Verificato su web: snapshot scritto, reload → schermata ripresa → continua da Sezione 1 · ambiente 1/7.
+
+## V50.z412 — TTS Axon: motore «Dispositivo» + streaming più rapido
+- `expo-speech` NON installabile (cmd-guard piattaforma) → voce di sistema disponibile solo su web (browser speechSynthesis; su Android Chrome = Google TTS it-IT). `src/utils/deviceTts.ts`: `pickBestItalianVoice()` (punteggio: Google > natural/neural/online/network/enhanced > it-IT generica; penalizza compact/espeak), `deviceTtsSpeak()` senza ritardi, code native del motore.
+- `SentenceSpeaker` opts `{engine: "server"|"device", rate}`: in device mode nessuna chiamata rete (parla appena c'è la frase); MAX_INFLIGHT 2→3, MIN_SENTENCE 24→16, primo taglio eager 60→40 caratteri. AssistantChat: engine da `assistant_tts_engine` ("device" o default device su web Android), replay bolla con voce di sistema.
+- Settings `assistant_tts_engine` accetta "device" (backend 18_master_interface; 01d_kokoro_tts tratta device come locale se chiamato). UI `/axon-voice`: terzo chip «Dispositivo · Google TTS» con anteprima e nome voce scelta.
+- Nell'app nativa (build/Expo Go) «device» → fallback automatico al server streaming.

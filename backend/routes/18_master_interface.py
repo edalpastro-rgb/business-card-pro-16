@@ -568,7 +568,7 @@ async def get_user_settings(user=Depends(get_current_user)):
         s["assistant_response_mode"] = "text"
     if not s.get("assistant_voice"):
         s["assistant_voice"] = "sara"
-    if s.get("assistant_tts_engine") not in ("local", "cloud"):
+    if s.get("assistant_tts_engine") not in ("local", "cloud", "device"):
         s["assistant_tts_engine"] = "local"
     # V29 — Default finestra scadenze
     if not isinstance(s.get("deadlines_window_days"), int) or s.get("deadlines_window_days") <= 0:
@@ -595,8 +595,8 @@ async def update_user_settings(body: UserSettingsIn, user=Depends(get_current_us
     updates = {k: v for k, v in body.model_dump().items() if v is not None}
     if not updates:
         return {"ok": True}
-    if "assistant_tts_engine" in updates and updates["assistant_tts_engine"] not in ("local", "cloud"):
-        raise HTTPException(status_code=400, detail="assistant_tts_engine: local | cloud")
+    if "assistant_tts_engine" in updates and updates["assistant_tts_engine"] not in ("local", "cloud", "device"):
+        raise HTTPException(status_code=400, detail="assistant_tts_engine: local | cloud | device")
     # V28.o — Normalize quick_actions (attach ids, trim, drop empties)
     if "assistant_quick_actions" in updates:
         updates["assistant_quick_actions"] = _normalize_quick_actions(updates["assistant_quick_actions"])

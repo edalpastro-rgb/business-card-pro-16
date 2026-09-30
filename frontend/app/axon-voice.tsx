@@ -7,6 +7,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
+import { deviceTtsAvailable, deviceTtsSpeak, pickBestItalianVoice } from "@/src/utils/deviceTts"; // V50.z412
 import { playAudioBase64 } from "@/src/utils/audioPlayback";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
@@ -46,7 +47,7 @@ export default function AxonVoiceScreen() {
   const router = useRouter();
   const pagePad = usePageBottomPadding();
   const [voice, setVoice] = useState("sara");
-  const [engine, setEngine] = useState<"local" | "cloud">("local"); // V50.z347
+  const [engine, setEngine] = useState<"local" | "cloud" | "device">("local"); // V50.z347
   const [engStatus, setEngStatus] = useState<{ local_ready: boolean; local_loading: boolean; local_disabled?: boolean; local_error?: string | null; avg_ms?: number | null; generations?: number } | null>(null);
   const [lang, setLang] = useState("it");
   const [rate, setRate] = useState(1); // V50.z284 — velocità di lettura (0.75–2×)
@@ -55,7 +56,7 @@ export default function AxonVoiceScreen() {
   const [stop, setStop] = useState<(() => void) | null>(null);
 
   useEffect(() => {
-    api<{ assistant_voice?: string; assistant_language?: string; assistant_speech_rate?: number; assistant_tts_engine?: "local" | "cloud" }>("/user-settings")
+    api<{ assistant_voice?: string; assistant_language?: string; assistant_speech_rate?: number; assistant_tts_engine?: "local" | "cloud" | "device" }>("/user-settings")
       .then((s) => { if (s?.assistant_voice) setVoice(s.assistant_voice); if (s?.assistant_language) setLang(s.assistant_language); if (s?.assistant_speech_rate) setRate(Number(s.assistant_speech_rate)); if (s?.assistant_tts_engine) setEngine(s.assistant_tts_engine); })
       .catch(() => {}).finally(() => setLoading(false));
     loadEngine();
@@ -63,12 +64,17 @@ export default function AxonVoiceScreen() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadEngine = () => { api<typeof engStatus>("/tts/engine").then((r) => setEngStatus(r)).catch(() => {}); };
-  const chooseEngine = async (e: "local" | "cloud") => {
+  const chooseEngine = async (e: "local" | "cloud" | "device") => {
     setEngine(e); await save({ assistant_tts_engine: e });
+    if (e === "device") { // V50.z412 — anteprima con la voce di sistema (dove disponibile)
+      if (deviceTtsAvailable()) { const v = await pickBestItalianVoice(); notify("Axon", v ? `Voce di sistema: ${v.name}` : "Nessuna voce italiana di sistema trovata: userò la voce del server"); deviceTtsSpeak(AXON_LANGUAGES[0].sample, { rate, onDone: () => {} }); }
+      else notify("Axon", "Nell'app installata la voce di sistema non è disponibile: Axon userà la voce del server in streaming.");
+      return;
+    }
     if (e === "local" && engStatus && !engStatus.local_ready) { try { await api("/tts/engine/warmup", { method: "POST" }); } catch {} setTimeout(loadEngine, 4000); }
     void preview(voice, lang);
   };
-  const save = async (patch: { assistant_voice?: string; assistant_language?: string; assistant_speech_rate?: number; assistant_tts_engine?: "local" | "cloud" }) => {
+  const save = async (patch: { assistant_voice?: string; assistant_language?: string; assistant_speech_rate?: number; assistant_tts_engine?: "local" | "cloud" | "device" }) => {
     try { await api("/user-settings", { method: "PUT", body: patch }); } catch (e: any) { notify("Axon", e?.message || "Salvataggio non riuscito"); }
   };
   const chooseVoice = async (v: string) => { setVoice(v); await save({ assistant_voice: v }); void preview(v, lang); };
@@ -95,9 +101,9 @@ export default function AxonVoiceScreen() {
         <ScrollView contentContainerStyle={{ padding: 14, gap: 16, paddingBottom: pagePad }}>
           {/* V50.z347 — motore vocale: locale (Kokoro sul server) o cloud (OpenAI) */}
           <Text style={s.section}>🎛️ Motore vocale</Text>
-          <Text style={s.hint}>«Locale» genera la voce sul server AdvisorOS: gratis, senza limiti e senza inviare testo a terzi. «Cloud» usa OpenAI.</Text>
-          <View style={{ flexDirection: "row", gap: 8 }} testID="axon-engine-row">
-            {([["local", "Locale · gratis", "hardware-chip-outline"], ["cloud", "Cloud OpenAI", "cloud-outline"]] as const).map(([k, lbl, ic]) => {
+          <Text style={s.hint}>«Locale» genera la voce sul server AdvisorOS: gratis, senza limiti e senza inviare testo a terzi. «Cloud» usa OpenAI. «Dispositivo» usa la voce di sistema (su Android Chrome: Google TTS italiano, qualità più alta disponibile), parte all'istante e funziona anche offline.</Text>
+          <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }} testID="axon-engine-row">
+            {([["local", "Locale · gratis", "hardware-chip-outline"], ["cloud", "Cloud OpenAI", "cloud-outline"], ["device", "Dispositivo · Google TTS", "phone-portrait-outline"]] as const).map(([k, lbl, ic]) => {
               const on = engine === k;
               return (
                 <Pressable key={k} onPress={() => chooseEngine(k)} style={[s.chip, { flex: 1, justifyContent: "center" }, on && s.chipOn]} testID={`axon-engine-${k}`}>

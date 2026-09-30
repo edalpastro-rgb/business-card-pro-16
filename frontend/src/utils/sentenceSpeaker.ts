@@ -15,6 +15,10 @@
 import { Platform } from "react-native";
 import { acquireAudio } from "@/src/utils/audioMutex"; // V50.z385
 import { api } from "@/src/api";
+import { deviceTtsAvailable, deviceTtsSpeak } from "@/src/utils/deviceTts"; // V50.z412 — motore «dispositivo» (browser/Google TTS it-IT)
+
+export type SpeakerEngine = "server" | "device";
+export type SentenceSpeakerOptions = { engine?: SpeakerEngine; rate?: number };
 
 type Audio = { b64: string; mime: string } | null;
 type QueueItem = { text: string; audio: Promise<Audio> | null };
@@ -25,8 +29,8 @@ export type SentenceSpeakerHandlers = {
   onAudioElement?: (audio: any | null) => void; // web: elemento <audio> corrente (per pausa/riprendi)
 };
 
-const MAX_INFLIGHT = 2;
-const MIN_SENTENCE = 24;   // caratteri minimi prima di "chiudere" una frase
+const MAX_INFLIGHT = 3;    // V50.z412 — più frasi sintetizzate in anticipo → nessuna pausa tra una e l'altra
+const MIN_SENTENCE = 16;   // caratteri minimi prima di "chiudere" una frase (V50.z412: prima frase più rapida)
 const HARD_SPLIT = 240;    // senza punteggiatura: taglia all'ultimo spazio
 
 /** Rimuove markdown/tabelle/URL: il TTS deve leggere solo testo "parlabile". */
@@ -68,7 +72,14 @@ export class SentenceSpeaker {
   private currentPause: (() => void) | null = null;
   private currentResume: (() => void) | null = null;
 
-  constructor(private voice: string | undefined, private handlers: SentenceSpeakerHandlers = {}) {}
+  private engine: SpeakerEngine;
+  private rate: number;
+  constructor(private voice: string | undefined, private handlers: SentenceSpeakerHandlers = {}, opts: SentenceSpeakerOptions = {}) {
+    // V50.z412 — «device» solo dove il motore di sistema esiste (web/Android Chrome); altrove si torna al server
+    this.engine = opts.engine === "device" && deviceTtsAvailable() ? "device" : "server";
+    this.rate = opts.rate || 1;
+  }
+  get engineInUse() { return this.engine; }
 
   /** Quanto testo è stato ricevuto finora (per capire se lo stream ha prodotto delta). */
   get fedLength() { return this.fedChars; }
@@ -156,7 +167,7 @@ export class SentenceSpeaker {
     // Prima frase "eager": finché non abbiamo ancora messo nulla in coda,
     // appena ci sono ≥ 60 caratteri tagliamo all'ultima virgola/punto e virgola
     // così la voce parte entro pochi secondi anche con frasi lunghe.
-    if (!final && this.queue.length === 0 && !this.started && this.buffer.length >= 60) {
+    if (!final && this.queue.length === 0 && !this.started && this.buffer.length >= 40) { // V50.z412 — 60 → 40: la voce parte prima
       const cut = Math.max(this.buffer.lastIndexOf(", "), this.buffer.lastIndexOf("; "));
       if (cut >= MIN_SENTENCE) {
         this.enqueue(this.buffer.slice(0, cut + 1));
@@ -189,6 +200,7 @@ export class SentenceSpeaker {
     for (const item of this.queue) {
       if (this.inflight >= MAX_INFLIGHT) break;
       if (item.audio) continue;
+      if (this.engine === "device") { item.audio = Promise.resolve({ b64: "", mime: "device" }); continue; } // V50.z412 — nessuna rete: parla subito
       this.inflight += 1;
       item.audio = api<{ audio_base64: string; mime: string }>("/assistant/tts", {
         method: "POST",
@@ -244,6 +256,12 @@ export class SentenceSpeaker {
   }
 
   private async play(audio: { b64: string; mime: string }, text: string, onEnded: () => void): Promise<() => void> {
+    if (audio.mime === "device") { // V50.z412 — voce di sistema (Google TTS it-IT su Android Chrome): nessun download, nessun ritardo
+      const stop = deviceTtsSpeak(text, { rate: this.rate, onDone: onEnded });
+      this.currentPause = stop; // pausa = stop (il motore browser non riprende in modo affidabile) …
+      this.currentResume = () => { this.currentCleanup = deviceTtsSpeak(text, { rate: this.rate, onDone: onEnded }); }; // … riprendi = ripeti la frase
+      return stop;
+    }
     let ended = false;
     // V50.z383 — quando il timer di sicurezza scatta PRIMA della fine reale dell'audio, la frase corrente va fermata:
     // altrimenti la successiva parte sopra → «due voci in contemporanea».

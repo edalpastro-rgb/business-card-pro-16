@@ -16,7 +16,8 @@ import * as FileSystem from "expo-file-system/legacy";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter, usePathname, useGlobalSearchParams } from "expo-router";
 import { api } from "@/src/api";
-import { SentenceSpeaker } from "@/src/utils/sentenceSpeaker";
+import { deviceTtsAvailable, deviceTtsSpeak } from "@/src/utils/deviceTts"; // V50.z412
+import { SentenceSpeaker, cleanForSpeech } from "@/src/utils/sentenceSpeaker";
 import { acquireAudio } from "@/src/utils/audioMutex"; // V50.z385 — una sola voce alla volta
 import { useAuth } from "@/src/auth";
 import { SaveConfirmModal, suggestFileName } from "@/src/SaveConfirmModal";
@@ -173,6 +174,8 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   // V28.o — Quick actions personalizzabili (mostrate nell'empty state della chat).
   // `null` = non ancora caricate; array vuoto = utente ha esplicitamente rimosso tutte le azioni.
   const [quickActions, setQuickActions] = useState<{ id: string; label: string; prompt: string }[] | null>(null);  const [assistantVoice, setAssistantVoice] = useState<string>("nova");
+  const ttsEngineRef = useRef<"server" | "device">("server"); // V50.z412
+  const ttsRateRef = useRef<number>(1);
   const [playingIdx, setPlayingIdx] = useState<number | null>(null);
   const [showModeMenu, setShowModeMenu] = useState(false);
   // V50.z160 — Menu ⋯ "Altro": condividi / PDF / copia intera conversazione
@@ -233,6 +236,10 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       const m = (us?.assistant_response_mode || "text") as ResponseMode;
       setResponseMode(MODE_ORDER.includes(m) ? m : "text");
       if (us?.assistant_voice) setAssistantVoice(us.assistant_voice);
+      // V50.z412 — motore TTS: "device" = voce di sistema (browser/Google TTS it-IT); default su web Android = device
+      const eng = (us as any)?.assistant_tts_engine as string | undefined;
+      ttsEngineRef.current = eng === "device" || (!eng && deviceTtsAvailable() && /android/i.test(typeof navigator !== "undefined" ? navigator.userAgent : "")) ? "device" : "server";
+      ttsRateRef.current = Number((us as any)?.assistant_speech_rate) || 1;
       if (Array.isArray(us?.assistant_quick_actions)) {
         setQuickActions(us.assistant_quick_actions);
       }
@@ -729,7 +736,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
           cleanupAudioRef.current = null;
           if (opts?.onSpoken) opts.onSpoken();
         },
-      });
+      }, { engine: ttsEngineRef.current, rate: ttsRateRef.current }); // V50.z412
       const sp = speaker;
       speakerRef.current = sp;
       cleanupAudioRef.current = () => sp.stop();
@@ -976,6 +983,11 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       const targetIdx = typeof forceIdx === "number" ? forceIdx : -1;
       setPlayingIdx(targetIdx);
       setPaused(false);
+      if (ttsEngineRef.current === "device" && deviceTtsAvailable()) { // V50.z412 — replay con la voce di sistema
+        const stop = deviceTtsSpeak(cleanForSpeech(text), { rate: ttsRateRef.current, onDone: () => { cleanupAudioRef.current = null; setPlayingIdx(null); if (onEnded) onEnded(); } });
+        cleanupAudioRef.current = stop;
+        return;
+      }
       const r = await api<{ audio_base64: string; mime: string }>("/assistant/tts", {
         method: "POST",
         body: { text, voice: assistantVoice },
