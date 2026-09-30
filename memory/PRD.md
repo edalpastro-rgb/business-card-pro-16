@@ -7172,3 +7172,8 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 
 ## V50.z416 — Navigatore: motore TTS → /impostazioni?section=assistente
 - `axon_navigator.py`: nuova voce `tts_engine` (kw: motore vocale/tts/google tts/voce di sistema/cambia voce/kokoro/…) → `/impostazioni?section=assistente`; `voice_copilot` senza kw generica «vocale» (solo copilota/mani libere/guida/in auto). Tutti i link `section=axon` → `section=assistente` (navigator, omniscience; stress test accetta entrambi). Frontend `impostazioni.tsx`: alias `assistente`/`assistant` → sezione "axon". Verificato: «come cambio il motore vocale TTS?» → [[NAV:/impostazioni?section=assistente|…]].
+
+## V50.z417 — Audit link navigatore Axon
+- Script di verifica: 93 route distinte (NAV_MAP + [[NAV:…]] nei prompt) → tutte esistono in `frontend/app` (statiche, (tabs), dinamiche `[id]`). Parametri query verificati lato schermata: home?section, contact/{id}?tab, calendario?view, optimal-route?contacts, bill-quick?config, axon-notifications?tab, impostazioni?section (alias assistente).
+- Correzioni: `viola_wake` rinominata «Impostazioni Wake Word Axon» (kw aggiornate, senza «mani libere» che confliggeva col copilota); nuova voce `wake_training` → `/wake-word-training`; (V50.z416) `tts_engine` → `/impostazioni?section=assistente`, `voice_copilot` solo guida.
+- Stress test notturno: ATTIVO (scheduler APScheduler ogni 10 min, `stress_nightly` per owner con hour/mode/reps configurabili via PUT /axon/stress/nightly da /axon-stress-report; ultimo run nightly 30/09 03:00 → 94,9% passed). Lasciato invariato.
