@@ -81,14 +81,16 @@ function ImpostazioniScreen() {
   const params = useLocalSearchParams<{ section?: string }>();
   const paramRef = useRef(params.section); paramRef.current = params.section;
   const [sec, setSec] = useState<SettingsSection | null>(null);
+  // V50.z416 — alias «assistente» (usato dai link del navigatore Axon: /impostazioni?section=assistente) → sezione "axon"
+  const normSection = (v: unknown): unknown => (v === "assistente" || v === "assistant" ? "axon" : v);
   const isSection = (v: unknown): v is SettingsSection => (["security", "billing", "branding", "integrations", "general", "axon"] as const).includes(v as any);
   useFocusEffect(useCallback(() => {
-    if (isSection(paramRef.current)) { setSec(paramRef.current); router.setParams({ section: "" } as any); }
+    { const ps = normSection(paramRef.current); if (isSection(ps)) { setSec(ps); router.setParams({ section: "" } as any); } }
     return () => setSec(null);
   }, [router]));
   // V50.z414 — il parametro ?section= cambia mentre la schermata è già a fuoco (deep link dalla chat Axon su web): reagisci comunque
   useEffect(() => {
-    if (isSection(params.section)) { setSec(params.section); router.setParams({ section: "" } as any); }
+    { const ps = normSection(params.section); if (isSection(ps)) { setSec(ps); router.setParams({ section: "" } as any); } }
   }, [params.section]); // eslint-disable-line react-hooks/exhaustive-deps
   const openSection = (k: SettingsSection) => setSec(k);
   const backToHub = () => setSec(null);

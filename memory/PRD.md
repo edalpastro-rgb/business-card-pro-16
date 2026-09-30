@@ -7169,3 +7169,6 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 
 ## V50.z415 — FAB Axon su web desktop: overlay fisso
 - `AssistantFAB`: su desktop (≥1024) posizione FISSA `bottom 24 / right 96` (a sinistra della calcolatrice che sta a right 24), nessun drag né posizione salvata (`axon_fab_pos_v2` da un'altra finestra lo portava fuori schermo = «FAB sparito»). `chatStyles.fabWrap` senza `left` (impostato per render: mobile 16). Verificato su Contatti/Calendario/Help e mobile invariato. Nota: se l'utente non ha accettato i termini AI il tap porta a /help-center?onboarding=1 (comportamento voluto).
+
+## V50.z416 — Navigatore: motore TTS → /impostazioni?section=assistente
+- `axon_navigator.py`: nuova voce `tts_engine` (kw: motore vocale/tts/google tts/voce di sistema/cambia voce/kokoro/…) → `/impostazioni?section=assistente`; `voice_copilot` senza kw generica «vocale» (solo copilota/mani libere/guida/in auto). Tutti i link `section=axon` → `section=assistente` (navigator, omniscience; stress test accetta entrambi). Frontend `impostazioni.tsx`: alias `assistente`/`assistant` → sezione "axon". Verificato: «come cambio il motore vocale TTS?» → [[NAV:/impostazioni?section=assistente|…]].
