@@ -362,6 +362,8 @@ _axs_prev_prepare_prompt = _prepare_assistant_prompt
 
 async def _prepare_assistant_prompt(user: dict, body) -> dict:  # noqa: F811
     prep = await _axs_prev_prepare_prompt(user, body)
+    if isinstance(prep, dict) and prep.get("query_class") == "simple":
+        return prep  # V50.z413 — domanda semplice (ora/meteo/saluti/domotica): nessuna sezione extra nel prompt
     try:
         await _axs_flush()
         sec = await _axs_context_section(user)

@@ -7154,3 +7154,10 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 - `SentenceSpeaker` opts `{engine: "server"|"device", rate}`: in device mode nessuna chiamata rete (parla appena c'è la frase); MAX_INFLIGHT 2→3, MIN_SENTENCE 24→16, primo taglio eager 60→40 caratteri. AssistantChat: engine da `assistant_tts_engine` ("device" o default device su web Android), replay bolla con voce di sistema.
 - Settings `assistant_tts_engine` accetta "device" (backend 18_master_interface; 01d_kokoro_tts tratta device come locale se chiamato). UI `/axon-voice`: terzo chip «Dispositivo · Google TTS» con anteprima e nome voce scelta.
 - Nell'app nativa (build/Expo Go) «device» → fallback automatico al server streaming.
+
+## V50.z413 — Costo per risposta Axon
+- Prompt caching Anthropic: VERIFICATO NON supportato dal proxy Emergent (test con `cache_control` in `initial_messages` → cache_creation_input_tokens=0 su 3 chiamate). Nessuna modifica.
+- Contesto condizionale: `_axon_query_class(msg, has_attachments)` in 21 → simple|crm|full (regex ora/data/meteo/saluti/domotica/«chi sei», ≤120 char, senza keyword CRM). `simple` → niente snapshot CRM (contesto minimo ora+nome), omniscienza, RAG, KB, teach, memorie, few-shot, brain/script/cheat/cloud; navigatore saltato (axon_navigator) e 14 wrapper di sezione ritornano subito (system_awareness, proactive, integrations, contact_visits, wizard_*, setup_wizard, org_branding, media, neo_bridge, pun_quick, stress_test, area_wizard). `prep["query_class"]` esposto; telemetria `axon_prompt_size.query_class`.
+- Modello: `simple` → sempre Haiku 4.5 (22_axon_alarm_commit_teach); resto via `_pick_axon_model` (Sonnet per allegati/analisi/lunghi).
+- Cronologia: 10→6 messaggi, 600 caratteri max ciascuno (2 punti in 21).
+- Misura: «che ore sono?» 55.084 → 13.002 caratteri di prompt (−76%, ~3.7k token, Haiku ≈ 0,3 ¢/risposta vs ~3,5 ¢); domande CRM invariate (~50k) ma con storia ridotta.

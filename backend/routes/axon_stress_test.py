@@ -489,6 +489,8 @@ _st_prev_prepare = _prepare_assistant_prompt  # noqa: F821
 
 async def _prepare_assistant_prompt(user: dict, body) -> dict:  # noqa: F811
     prep = await _st_prev_prepare(user, body)
+    if isinstance(prep, dict) and prep.get("query_class") == "simple":
+        return prep  # V50.z413 — domanda semplice (ora/meteo/saluti/domotica): nessuna sezione extra nel prompt
     try:
         rules = await _st_rules(tenant_id(user))  # noqa: F821
         if rules and isinstance(prep, dict) and isinstance(prep.get("system_message"), str):

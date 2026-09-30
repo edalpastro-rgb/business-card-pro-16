@@ -336,6 +336,15 @@ async def _prepare_assistant_prompt(user: dict, body) -> dict:  # noqa: F811
     prep = await _nav_prev_prepare(user, body)
     if _user_product(user) == "lite":  # noqa: F821 — V50.z329: niente mappa schermate/guardia off-topic AdvisorOS per Lite
         return prep
+    if isinstance(prep, dict) and prep.get("query_class") == "simple":  # V50.z413 — domanda semplice: niente navigatore (~10k caratteri)
+        try:
+            ctx = getattr(body, "client_context", None) or (body.get("client_context") if isinstance(body, dict) else None)
+            if isinstance(ctx, dict) and ctx.get("voice") and isinstance(prep.get("system_message"), str):
+                prep["system_message"] = ("🔊 MODALITÀ VOCE: risposta letta ad alta voce → massimo 2 frasi brevi, niente tabelle/elenchi/emoji.\n\n") + prep["system_message"]
+            await db.axon_prompt_size.update_one({"_id": "last"}, {"$set": {"total": len(prep.get("system_message") or ""), "navigator": 0, "query_class": "simple", "at": utcnow()}}, upsert=True)
+        except Exception:  # noqa: BLE001
+            pass
+        return prep
     try:
         msg = getattr(body, "message", None) or (body.get("message") if isinstance(body, dict) else "") or ""
         section = _nav_prompt_section(user, msg)
@@ -353,7 +362,7 @@ async def _prepare_assistant_prompt(user: dict, body) -> dict:  # noqa: F811
         if isinstance(prep, dict) and isinstance(prep.get("system_message"), str):
             prep["system_message"] = voice_block + prep["system_message"] + "\n\n" + section + ("\n\n" + voice_block if voice_block else "")
             try:  # V50.z308 — telemetria dimensione prompt (ultimi valori in db.axon_prompt_size, per pulizia/consolidamento)
-                await db.axon_prompt_size.update_one({"_id": "last"}, {"$set": {"total": len(prep["system_message"]), "navigator": len(section), "at": utcnow()}}, upsert=True)
+                await db.axon_prompt_size.update_one({"_id": "last"}, {"$set": {"total": len(prep["system_message"]), "navigator": len(section), "query_class": prep.get("query_class") or "crm", "at": utcnow()}}, upsert=True)
             except Exception:  # noqa: BLE001
                 pass
     except Exception as e:

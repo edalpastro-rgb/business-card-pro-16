@@ -204,6 +204,36 @@ _HEAVY_KEYWORDS = {
 }
 
 
+# V50.z413 — CONTESTO CONDIZIONALE: classe della domanda → cosa mettere nel prompt e quale modello usare.
+#   "simple": ora/data, meteo, saluti/ringraziamenti, domotica, «chi sei», ripeti/leggi, sì/no brevi → prompt minimo
+#             (identità + regole + ora, NIENTE snapshot CRM, omniscienza, KB/RAG, teach, script, navigatore) + Haiku 4.5.
+#   "crm":    nomi/clienti/contatti/appuntamenti/numeri → contesto CRM completo, modello via _pick_axon_model.
+#   "full":   analisi, contratti, documenti, allegati → tutto + Sonnet 4.5.
+import re as _qc_re
+_QC_SIMPLE_RX = _qc_re.compile(
+    r"^(ciao|buongiorno|buonasera|buonanotte|salve|hey|ehi|ok|okay|grazie|grazie mille|perfetto|bene|va bene|d'accordo|"
+    r"sì|si|no|esatto|certo|ottimo|bravo|brava|a dopo|a presto|arrivederci)\b[\s!.,]*$|"
+    r"\b(che or[ae] (sono|è|e)|che giorno è|che data è|in che (giorno|mese|anno) siamo|quanto manca a|"
+    r"che tempo fa|meteo|previsioni|piove|pioverà|nevica|temperatura fuori|gradi ci sono)\b|"
+    r"\b(accendi|spegni|abbassa|alza|apri|chiudi) (la |le |il |lo |i |gli |l')?(luce|luci|lampad|termostato|riscaldamento|tapparell|tenda|tende|musica|tv|televisore|volume|allarme|caldaia|condizionat)|"
+    r"\b(chi sei|come ti chiami|cosa sai fare|cosa puoi fare|come stai|sei sveglio|ci sei|mi senti|ripeti|ripetilo|leggi di nuovo|"
+    r"parla più (piano|forte|lentamente|veloce)|racconta(mi)? una barzelletta|dimmi una curiosità)\b",
+    _qc_re.I)
+_QC_CRM_HINTS = {"cliente", "clienti", "contatto", "contatti", "appuntamento", "appuntamenti", "agenda", "calendario", "ritelefon", "richiam",
+                 "contratto", "contratti", "bolletta", "fattura", "pun", "listino", "offerta", "preventivo", "scadenz", "lead", "provvigion",
+                 "pratica", "pratiche", "kpi", "vendite", "fatturato", "documento", "documenti", "pdf", "drive", "tabella", "storico", "cerca", "trova"}
+
+
+def _axon_query_class(msg: str, has_attachments: bool) -> str:
+    txt = (msg or "").strip()
+    low = txt.lower()
+    if has_attachments or len(txt) > 320:
+        return "full"
+    if len(txt) <= 120 and _QC_SIMPLE_RX.search(low) and not any(k in low for k in _QC_CRM_HINTS):
+        return "simple"
+    return "crm"
+
+
 def _pick_axon_model(msg: str, has_attachments: bool, has_rag_context: bool, has_web: bool) -> str:
     """Ritorna 'haiku' o 'sonnet' basato su euristica veloce.
     V50.z26 — Preferiamo Haiku 4.5 anche per query pesanti quando i dati sono
@@ -266,7 +296,13 @@ async def _prepare_assistant_prompt(
     weather_city = _detect_weather_query(msg)
     _tenant_id_val = tenant_id(user)
 
+    # V50.z413 — classe della domanda: per «simple» i costruttori pesanti (snapshot CRM, omniscienza, KB, RAG, teach) NON girano
+    query_class = _axon_query_class(msg, bool(body.attachments))
+    _simple = query_class == "simple"
+
     async def _safe_context():
+        if _simple:
+            return {"ora_attuale": _fmt_dt_it(utcnow()), "utente": {"nome": user.get("name") or user.get("email") or ""}}  # noqa: F821
         try:
             return await _build_assistant_context(user)
         except Exception as e:
@@ -281,12 +317,16 @@ async def _prepare_assistant_prompt(
         return None
 
     async def _safe_rag_prefetch():
+        if _simple:
+            return []
         try:
             return await _retrieve_master_doc_chunks(_tenant_id_val, msg)
         except Exception:
             return []
 
     async def _safe_memories():
+        if _simple:
+            return []
         try:
             return await _load_neo_memories(user["user_id"], limit=5)
         except Exception:
@@ -296,6 +336,8 @@ async def _prepare_assistant_prompt(
         return await _build_attachments_section_advanced(msg, body.attachments or [])
 
     async def _safe_teach_section():
+        if _simple:
+            return ""
         try:
             return await _build_axon_teach_section(_tenant_id_val, msg)
         except Exception as exc:
@@ -315,6 +357,8 @@ async def _prepare_assistant_prompt(
 
     # V50.kb — Ricerca automatica nella Knowledge Base personale (pagine web salvate dall'utente).
     async def _safe_kb():
+        if _simple:
+            return ""
         try:
             return await _build_kb_section(_tenant_id_val, msg)
         except Exception as exc:
@@ -323,6 +367,8 @@ async def _prepare_assistant_prompt(
 
     # V50.z180 — Axon vede TUTTE le sezioni dell'app (dati completi + schede dei contatti citati + mappa app)
     async def _safe_omni():
+        if _simple:
+            return ""
         try:
             return await _build_crm_omniscience_section(user, msg)
         except Exception as exc:
@@ -450,6 +496,8 @@ async def _prepare_assistant_prompt(
     # 2 con 👎 (anti-esempi da evitare). Iniezione leggera, solo Q+A troncati.
     few_shot_section = ""
     try:
+        if _simple:
+            raise StopIteration  # V50.z413 — nessun few-shot per domande semplici
         _fs_tid = tenant_id(user)
         _fs_ups_cur = db.assistant_feedback.find(
             {"tenant_id": _fs_tid, "rating": "up"},
@@ -580,6 +628,8 @@ async def _prepare_assistant_prompt(
         _cloud_section = "\n".join(lines) + "\n"
     except Exception:
         _cloud_section = ""
+    if _simple:  # V50.z413 — domanda semplice: niente brain/script/cheat/cloud/few-shot (restano identità, regole, ora, meteo/web se rilevati)
+        _brain_section = _scripts_section = _cheat_section = _cloud_section = ""
     system_message = system_message + _brain_section + _scripts_section + _cheat_section + _cloud_section
     # V50.z284 — profilo interessi (form spuntabile + risposte libere del tour) → personalizzazione e suggerimenti proattivi
     try:
@@ -604,9 +654,10 @@ async def _prepare_assistant_prompt(
 
     if history:
         convo_text = ""
-        for h in history[-10:]:
+        for h in history[-6:]:  # V50.z413 — 10 → 6 messaggi, max 600 caratteri ciascuno
             role = "Utente" if h["role"] == "user" else assistant_name
-            convo_text += f"{role}: {h['content']}\n"
+            _c = h.get("content") or ""
+            convo_text += f"{role}: {_c[:600] + ('…' if len(_c) > 600 else '')}\n"
         user_prompt = (
             f"Conversazione precedente:\n{convo_text}\n"
             f"---\nNuovo messaggio dell'utente: {msg}"
@@ -621,6 +672,7 @@ async def _prepare_assistant_prompt(
 
     return {
         "msg": msg,
+        "query_class": query_class,  # V50.z413
         "session_id": session_id,
         "assistant_name": assistant_name,
         "system_message": system_message,
@@ -995,9 +1047,10 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     # We prepend history summary to the current user message for continuity
     if history:
         convo_text = ""
-        for h in history[-10:]:
+        for h in history[-6:]:  # V50.z413 — 10 → 6 messaggi, max 600 caratteri ciascuno
             role = "Utente" if h["role"] == "user" else assistant_name
-            convo_text += f"{role}: {h['content']}\n"
+            _c = h.get("content") or ""
+            convo_text += f"{role}: {_c[:600] + ('…' if len(_c) > 600 else '')}\n"
         user_prompt = (
             f"Conversazione precedente:\n{convo_text}\n"
             f"---\nNuovo messaggio dell'utente: {msg}"
