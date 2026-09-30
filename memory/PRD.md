@@ -7144,3 +7144,7 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 - Chat: ChatBubbles fallback → testo semplice se il parser non produce segmenti (mai bolla vuota). Streaming VPS verificato OK via curl.
 - Voci: Home Azioni rapide «Axon HUB» + «Addestramento wake-word Axon»; DrawerMenu AI & Axon; Axon Hub «Impostazioni Wake Word Axon» + «Addestramento wake-word Axon». Rotta `/wake-word-training` → owner: /admin/wake-samples, altri: /wake-training. Il pannello Super Master gestisce già parole/frasi personalizzate (aggiungi/attiva/elimina).
 - Test iteration_128: 7/7 PASS.
+
+## V50.z411 — /wake-training: ripresa sessione
+- `app/wake-training.tsx`: snapshot `{sessionId, step, envIdx, wordIdx, counts, totalSaved}` in AsyncStorage (`wake_training_resume_v1`, TTL 30 gg) salvato a ogni cambio di posizione dopo il consenso; cancellato a "done". Alla riapertura: step `resume` («Bentornato: hai già registrato N campioni — Riprendi da dove ero / Ricomincia da capo»). Riprendendo si riusa lo stesso `session_id` → per il Super Master la sessione passa Parziale → Completato (una sola visita); Ricomincia genera un nuovo id e traccia `open`.
+- Verificato su web: snapshot scritto, reload → schermata ripresa → continua da Sezione 1 · ambiente 1/7.

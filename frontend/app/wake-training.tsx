@@ -10,6 +10,7 @@ import { useAudioRecorder, RecordingPresets } from "expo-audio";
 import { api } from "@/src/api";
 import { getMicPermission, requestMicPermission, openAppSettings, startRecording, stopRecording, playBase64, stopPlayback, getLiveLevelDb, type MicPermissionState } from "@/src/corporate-gym/voice";
 import { notify } from "@/src/utils/notify";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const LOGO = require("@/assets/images/advisoros-logo-transparent.png");
 // Palette ufficiale AdvisorOS (pagina pubblica: identica in chiaro/scuro)
@@ -34,11 +35,23 @@ const DEFAULT_CFG: WtConfig = {
   negative: [["action", "Action (EK-shon)"], ["axel", "Axel (AK-sel)"], ["accent", "Accent (AK-sent)"], ["axia", "Axia (AK-sia)"], ["auction", "Auction (OK-shon)"], ["acton", "Acton (AK-ton)"], ["saxon", "Saxon (SAK-son)"], ["faction", "Faction (FAK-shon)"], ["oxygen", "Oxygen (OK-si-gen)"], ["flaxen", "Flaxen (FLAK-sen)"]].map(([word, label]) => ({ word, label })),
   min_per_env: 10, max_per_env: 50,
 };
-type Step = "hero" | "consent" | "pron" | "intro" | "pos" | "negIntro" | "neg" | "done";
+type Step = "hero" | "resume" | "consent" | "pron" | "intro" | "pos" | "negIntro" | "neg" | "done";
 const PRIVACY_HERO = "Nessun dato personale viene raccolto. Registriamo esclusivamente la pronuncia della parola “Axon” e delle parole simili indicate. Non sappiamo chi sei, dove sei, né da dove stai registrando. I file audio vengono usati solo per addestrare il riconoscimento vocale di Axon. Nient'altro.";
 const PRIVACY_FOOTER = "Audio raccolto: solo la pronuncia di “Axon” e parole simili. Nessun dato personale. Nessuna registrazione ambientale.";
 
-const sessionId = `w${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+// V50.z411 — RIPRESA: session_id e posizione (step/sezione/ambiente/parola/campioni) persistiti in AsyncStorage (web: localStorage).
+// Alla riapertura del link: «Bentornato: hai già registrato N campioni — Riprendi / Ricomincia». Il Super Master vede UNA sessione
+// (Parziale → Completato) invece di due visite separate. I campioni erano già salvati sul server uno per uno: qui si riprende solo lo step.
+const WT_RESUME_KEY = "wake_training_resume_v1";
+type WtSnapshot = { sessionId: string; step: Step; envIdx: number; wordIdx: number; counts: Record<string, number>; totalSaved: number; savedAt: number };
+const newSessionId = () => `w${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+let sessionId = newSessionId();
+const loadSnapshot = async (): Promise<WtSnapshot | null> => {
+  try { const raw = await AsyncStorage.getItem(WT_RESUME_KEY); if (!raw) return null; const s = JSON.parse(raw) as WtSnapshot;
+    if (!s?.sessionId || !s.step || Date.now() - (s.savedAt || 0) > 30 * 24 * 3600 * 1000) return null; return s; } catch { return null; }
+};
+const saveSnapshot = (s: Omit<WtSnapshot, "savedAt">) => AsyncStorage.setItem(WT_RESUME_KEY, JSON.stringify({ ...s, savedAt: Date.now() })).catch(() => {});
+const clearSnapshot = () => AsyncStorage.removeItem(WT_RESUME_KEY).catch(() => {});
 // V50.z398 — tracciamento ANONIMO dell'apertura/consenso/fine (solo id sessione casuale + piattaforma): serve al pannello Super Master
 // per lo stato «Solo visualizzato / Parziale / Completato». Nessun dato personale.
 const trackVisit = (event: "open" | "consent" | "done") => { api("/public/wake-samples/visit", { method: "POST", body: { session_id: sessionId, event, platform: Platform.OS } }).catch(() => {}); };
@@ -66,15 +79,29 @@ export default function WakeTrainingScreen() {
   const [step, setStep] = useState<Step>("hero");
   const [mic, setMic] = useState<MicPermissionState>("undetermined");
   const [cfg, setCfg] = useState<WtConfig>(DEFAULT_CFG);
-  useEffect(() => { trackVisit("open"); api<WtConfig>("/public/wake-samples/config").then((c) => { if (c?.positive?.length) setCfg({ ...DEFAULT_CFG, ...c }); }).catch(() => {}); }, []);
+  useEffect(() => {
+    // V50.z411 — se c'è una sessione interrotta con campioni/consenso, riusa il suo session_id (stessa sessione per il Super Master) e proponi la ripresa
+    loadSnapshot().then((snap) => {
+      if (snap && snap.step !== "done" && (snap.totalSaved > 0 || ["pron", "intro", "pos", "negIntro", "neg"].includes(snap.step))) { sessionId = snap.sessionId; setResume(snap); setStep("resume"); }
+      else { if (snap) void clearSnapshot(); trackVisit("open"); }
+    });
+  }, []);
+  useEffect(() => { api<WtConfig>("/public/wake-samples/config").then((c) => { if (c?.positive?.length) setCfg({ ...DEFAULT_CFG, ...c }); }).catch(() => {}); }, []);
   const POS_WORDS = cfg.positive; const NEG_WORDS = cfg.negative; const MIN_PER_ENV = cfg.min_per_env; const MAX_PER_ENV = cfg.max_per_env;
   const [envIdx, setEnvIdx] = useState(0);
   const [wordIdx, setWordIdx] = useState(0);
   const [counts, setCounts] = useState<Record<string, number>>({}); // key `${kind}:${word}:${env}`
   const [totalSaved, setTotalSaved] = useState(0);
+  const [resume, setResume] = useState<WtSnapshot | null>(null); // V50.z411 — sessione interrotta trovata in storage
   const [recording, setRecording] = useState(false);
   const [level, setLevel] = useState(-60);
   const [pending, setPending] = useState<{ b64: string; mime: string; ms: number } | null>(null);
+  useEffect(() => {
+    // V50.z411 — snapshot progressivo della posizione (dopo il consenso, fino al completamento)
+    if (step === "hero" || step === "resume" || step === "consent") return;
+    if (step === "done") { void clearSnapshot(); return; }
+    void saveSnapshot({ sessionId, step, envIdx, wordIdx, counts, totalSaved });
+  }, [step, envIdx, wordIdx, counts, totalSaved]);
   const [saving, setSaving] = useState(false);
   const [playingPron, setPlayingPron] = useState(false);
   const startedAt = useRef(0);
@@ -167,6 +194,15 @@ export default function WakeTrainingScreen() {
           <Pressable onPress={() => setStep("consent")} style={s.cta} testID="wt-cta-start"><Text style={s.ctaTxt}>Inizia ora</Text><Ionicons name="arrow-forward" size={20} color={WT.white} /></Pressable>
         </Animated.View>
         <View style={s.privacyBox} testID="wt-privacy-hero"><Ionicons name="shield-checkmark" size={20} color={WT.green} /><Text style={s.privacyTxt}>{PRIVACY_HERO}</Text></View>
+      </View>
+    );
+    if (step === "resume" && resume) return (
+      <View style={s.card} testID="wt-resume">
+        <Text style={s.h2}>Bentornato 👋</Text>
+        <Text style={s.p}>{resume.totalSaved > 0 ? `Hai già registrato ${resume.totalSaved} ${resume.totalSaved === 1 ? "campione" : "campioni"}: sono salvati, non serve rifarli.` : "Avevi iniziato l'addestramento ma non hai ancora registrato campioni."}</Text>
+        <Text style={s.p}>Vuoi riprendere da dove ti eri fermato{resume.step === "pos" || resume.step === "neg" ? ` (${resume.step === "pos" ? "Sezione 1" : "Sezione 2"} · ambiente ${resume.envIdx + 1}/${ENVS.length})` : ""}?</Text>
+        <Pressable onPress={() => { setCounts(resume.counts || {}); setTotalSaved(resume.totalSaved || 0); setEnvIdx(resume.envIdx || 0); setWordIdx(resume.wordIdx || 0); setStep(resume.step); }} style={[s.cta, { backgroundColor: WT.green }]} testID="wt-resume-continue"><Ionicons name="play" size={20} color={WT.white} /><Text style={s.ctaTxt}>Riprendi da dove ero</Text></Pressable>
+        <Pressable onPress={() => { void clearSnapshot(); sessionId = newSessionId(); trackVisit("open"); setResume(null); setCounts({}); setTotalSaved(0); setEnvIdx(0); setWordIdx(0); setStep("hero"); }} style={s.ghost} testID="wt-resume-restart"><Text style={s.ghostTxt}>Ricomincia da capo</Text></Pressable>
       </View>
     );
     if (step === "consent") return (
