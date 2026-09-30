@@ -1,0 +1,23 @@
+{
+  "summary": "V50.z410 frontend-only smoke on preview (desktop 1280x800). All 7 requested items PASS. (1) /appointment/new: 'Data di fine (opzionale · eventi su più giorni)' <input type=date> renders alongside the start <input type=datetime-local>. Recurrence pills ap-rec-{none,daily,weekly,monthly,yearly,custom} all render; clicking 'Personalizzata' reveals ap-rec-day-0..6 with 'Mer' (index 2) preselected because today = Mercoledì 30/09/2026 and code uses `(start.getDay()+6)%7`. Toggling day-0 flips bg rgb(54,61,92)↔rgb(107,140,255) without crash. (2) /impostazioni?section=axon → PunAlertCard shows chips pun-alert-band-{monorario,F1,F2,F3}; multiple bands active simultaneously (starting state had F1+F3 both amber); attempting to deselect all leaves at least one band ON (last-active-lock works). (3) Home /home: 'Azioni rapide' grid contains qa-axon-hub → routes to /axon-hub, and qa-wake-training → routes to /admin/wake-samples (owner). (4) /axon-hub lists '🎙️ Impostazioni Wake Word Axon' at idx 1004 followed directly by '🎯 Addestramento wake-word Axon' at idx 1080; the old label 'Wake Word \"Axon\"' is NOT present anywhere. (5) Home drawer (top-left hamburger) shows the 'AI & AXON' category with the entry 'Addestramento wake-word Axon'. (6) Home page contains NO purple pill/banner with text starting 'Di «Axon» per parlare'. (7) /impostazioni → Aspetto: tapping 'Pearl' (non-active) reveals 'Applica tema Pearl' button (theme-apply); after click the page reloads and stays on /impostazioni with 'Profilo & Impostazioni' visible. Original 'Slate' theme was restored the same way.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_128.json"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Task referred to testID `theme-option-luce` but the actual testID on Web is `theme-option-light` (the theme id, not the Italian label). Tests should use `light`. Not a bug, just a naming clarification for future testing agents.",
+    "The 'Azioni rapide' grid on Home is a toggle that persists its collapsed/expanded state across sessions. First page load after a previous collapse may hide qa-axon-hub / qa-wake-training until the user re-expands the section. Consider defaulting to expanded on first visit or when new quick-action items are added."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only)", "frontend": "100% (7/7)"},
+  "seed_data_creation": "None. Theme was temporarily switched Slate→Pearl and restored to Slate. PUN alert bands were temporarily toggled but final state (mono+F1+F2 ON, F3 OFF) differs from the pre-test state (F1+F3 ON) — the user had 'save' as a manual step (Salva button) which was NOT tapped, so the DB-persisted config is unchanged. In-memory UI state only was mutated.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Preview URL: https://business-card-pro-16.preview.emergentagent.com. Frontend calls REMOTE backend https://core.axonos.cloud — remote does NOT yet have recurrence_days / pun_alert_bands / occurrence expansion fields, so UI behaviour was verified but persistence of the new fields cannot be verified end-to-end. Auth: test@dalpastro.it / Test1234! (auth-email-input / auth-password-input / auth-submit-button). Landing needs 'ENTRA' click, /tour needs 'Salta intro' click. On desktop 1280x800 the DesktopSidebar (testID desktop-sidebar with tabs home/contatti/chat/calendario/help + Profilo/Esci at bottom) is visible. PunAlertCard is inside `sec === 'axon'` on /impostazioni; open with `/impostazioni?section=axon` (query param is handled by useEffect in impostazioni.tsx that reads `paramRef.current`). Theme cards testIDs are `theme-option-{light,pearl,slate,midnight}` (NOT 'luce' — Luce is only the visible label of the 'light' theme).",
+  "rca_of_issue": "N/A — no issues found."
+}
