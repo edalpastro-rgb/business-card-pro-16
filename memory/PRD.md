@@ -7135,3 +7135,12 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 - `app/_layout.tsx`: su desktop `<Sidebar/> + <View maxWidth 1200 centrato><Stack/></View>`; EdgePanel non montato su desktop (overflow orizzontale). `(tabs)/_layout.tsx`: tabBar `display:none` su desktop; `PersistentBottomNav` null su desktop; `usePageBottomPadding` → 32 px su desktop; AssistantFAB spostato a destra della sidebar.
 - Home: sezioni Ritelefonate/Azioni rapide (sx) + Appuntamenti/Scadenze/Statistiche (dx) in DesktopGrid. Impostazioni hub: profilo+Aspetto (sx) / gruppi (dx); sotto-sezioni centrate a 860 px. ThemePicker (≥768): card 104 px in wrap + anteprima live 300 px a fianco. Calendario: celle mese aspectRatio 1.6 su desktop.
 - Test (iteration_127 + verifica manuale): sidebar/nav/grid OK desktop e mobile, resize OK, nessun overflow, calendario OK, Applica tema OK.
+
+## V50.z410 — Batch UI/UX + calendario
+- Impronta vocale: footer `useBottomSheetPadding(28)+8` (safe-area reale, nav/FAB nascosti). ViolaStatusPill: visibile solo capturing/thinking/speaking (via banner «Di' «Axon» per parlare»).
+- PUN: `pun_alert_bands: string[]` (multi-selezione, min 1) in UserSettings + job `_punq_threshold_alerts` → un avviso per fascia. Compat `pun_alert_band`.
+- Calendario: `end_at` opzionale (data fine, eventi multi-giorno) + `recurrence` daily|weekly|monthly|yearly|custom + `recurrence_days` (0=Lun…6=Dom). Backend `GET /appointments?start&end` espande occorrenze virtuali (`appointment_id = id@YYYYMMDD`, `occurrence_of`); GET/PUT/DELETE accettano la chiave con `@`. Testato: custom Lun/Mer/Ven → 6 occorrenze in 2 settimane.
+- Tema: `setPostReloadRoute("/(tabs)/impostazioni")` prima del reload → `RoutePersistence` riapre Profilo (web+nativo).
+- Chat: ChatBubbles fallback → testo semplice se il parser non produce segmenti (mai bolla vuota). Streaming VPS verificato OK via curl.
+- Voci: Home Azioni rapide «Axon HUB» + «Addestramento wake-word Axon»; DrawerMenu AI & Axon; Axon Hub «Impostazioni Wake Word Axon» + «Addestramento wake-word Axon». Rotta `/wake-word-training` → owner: /admin/wake-samples, altri: /wake-training. Il pannello Super Master gestisce già parole/frasi personalizzate (aggiungi/attiva/elimina).
+- Test iteration_128: 7/7 PASS.
