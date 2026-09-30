@@ -11,7 +11,7 @@ export const styles = StyleSheet.create({
   // AssistantFAB from safe-area insets and passed via inline style.
   fabWrap: {
     position: "absolute",
-    left: 16, // V50.z385 — in basso a sinistra (la calcolatrice resta a destra)
+    // V50.z415 — `left` impostato per render in AssistantFAB (mobile: 16 a sinistra; desktop web: right 96, fisso)
     zIndex: 999,
   },
   fab: {
