@@ -227,12 +227,25 @@ async def get_latest_pun(user=Depends(get_current_user)):
     _IT_SHORT = ["GEN", "FEB", "MAR", "APR", "MAG", "GIU", "LUG", "AGO", "SET", "OTT", "NOV", "DIC"]
     m = int(doc.get("month") or 0)
     month_short = _IT_SHORT[m - 1] if 1 <= m <= 12 else ""
+    # V50.z420 — FIX etichetta banner Home: prima mostrava «SET 26» (= anno 2026 troncato, letto come giorno fermo).
+    # Ora `data_last_day` = ultimo giorno coperto dal job pun-fetcher (gme_pun_partial.last_day) o ultimo giorno del mese chiuso.
+    _last_day = None
+    try:
+        if doc.get("last_day"):
+            _last_day = str(doc["last_day"])[:10]
+        elif 1 <= m <= 12 and doc.get("year"):
+            import calendar as _cal
+            _last_day = f"{int(doc['year']):04d}-{m:02d}-{_cal.monthrange(int(doc['year']), m)[1]:02d}"
+    except Exception:
+        _last_day = None
     return {
         "available": True,
         "month_key": doc.get("month_key"),
         "month_name": doc.get("month_name"),
         "month_short": month_short,
         "year": doc.get("year"),
+        "data_last_day": _last_day,
+        "data_day": int(_last_day[8:10]) if _last_day else None,
         "F1": doc.get("F1"),
         "F2": doc.get("F2"),
         "F3": doc.get("F3"),

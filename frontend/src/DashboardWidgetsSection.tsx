@@ -16,7 +16,7 @@ import { CgymWidget } from "@/src/corporate-gym/CgymWidget"; // Corporate Gym (B
  */
 
 type Widget = { id: string; enabled: boolean; order: number; label: string; coming_soon: boolean };
-type PunLatest = { available: boolean; month_name?: string; month_short?: string; year?: number; F1?: number; F2?: number; F3?: number; monorario?: number; unit?: string; source_url?: string; delta_pct?: number | null; delta_f1_pct?: number | null; delta_f2_pct?: number | null; delta_f3_pct?: number | null; partial?: boolean; partial_days?: number | null; partial_updated_at?: string | null };
+type PunLatest = { available: boolean; month_name?: string; month_short?: string; year?: number; data_last_day?: string | null; data_day?: number | null; F1?: number; F2?: number; F3?: number; monorario?: number; unit?: string; source_url?: string; delta_pct?: number | null; delta_f1_pct?: number | null; delta_f2_pct?: number | null; delta_f3_pct?: number | null; partial?: boolean; partial_days?: number | null; partial_updated_at?: string | null };
 
 // V50.z132 — `only` / `exclude` permettono di renderizzare un sottoinsieme di
 // widget in punti diversi della Home (es. "Appuntamenti di oggi" sotto Ritelefonate).
@@ -144,7 +144,8 @@ function PunLiveCard({ data }: { data: PunLatest | null }) {
             <Ionicons name="flash" size={16} color={HT.warning} />
           </View>
           <Text style={styles.punTitle}>PUN</Text>
-          {data.month_short ? <Text style={styles.punMonth}>{data.month_short}{data.year ? ` ${String(data.year).slice(2)}` : ""}</Text> : null}
+          {/* V50.z420 — etichetta = mese + ultimo giorno coperto dal job pun-fetcher (es. «SET 30»), non più l'anno troncato («SET 26») */}
+          {data.month_short ? <Text style={styles.punMonth} testID="widget-pun-month">{data.month_short}{data.data_day ? ` ${data.data_day}` : ""}</Text> : null}
         </View>
         <PunFascia label="F1" value={data.F1} delta={data.delta_f1_pct} unit={unit} bg={HT.axonTint} fg={HT.axon} />
         <PunFascia label="F2" value={data.F2} delta={data.delta_f2_pct} unit={unit} bg={HT.brandTint} fg="#FB923C" />

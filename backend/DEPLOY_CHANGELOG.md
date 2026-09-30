@@ -1,0 +1,12 @@
+# DEPLOY CHANGELOG — Axon Core (VPS core.axonos.cloud)
+
+Registro dei deploy del backend, letto da Axon nel prompt (sezione «🛰️ STATO SISTEMA → ULTIMI DEPLOY»).
+Ogni riga viene aggiunta automaticamente da `deploy/axon-core/scripts/build_package.sh "descrizione"` al momento del packaging.
+Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN CIMA.
+
+| Data | Tag | Descrizione |
+|---|---|---|
+| 2026-09-30 | D2026.09.30 | Banner PUN in Home: etichetta mostra il giorno dell'ultimo dato del job pun-fetcher (es. «SET 30») invece dell'anno troncato («SET 26»); nuovo CHANGELOG DEPLOY (backend/DEPLOY_CHANGELOG.md) letto da Axon nel prompt, aggiornato automaticamente a ogni deploy da build_package.sh |
+| 2026-09-29 | D2026.09.29 | Axon «Collaboratore»: briefing proattivo (livelli 1/2/3, indicatore ambra sul FAB, nessun popup); export cronologia chat deterministico; didascalia «Dati aggiornati al» della tabella PUN allineata al job pun-fetcher |
+| 2026-09-28 | D2026.09.28 | Ottimizzazione costi LLM: contesto CRM/RAG/Navigator escluso sulle domande semplici (saluti, ora, meteo), cronologia ridotta a 6 messaggi, domande semplici instradate su Claude Haiku 4.5; audit 93 link AI Navigator + fix deep-link desktop; fix stress test «crt» |
+| 2026-09-27 | D2026.09.27 | Web App servita dal VPS (link condivisibili non più vuoti); layout desktop responsive (sidebar, griglie, max 1200px); pipeline trascrizioni audio (Whisper + Haiku); ripresa sessione wake-word training; TTS «Google/Dispositivo» con fallback Kokoro; fix voice enrollment |

@@ -174,9 +174,13 @@ def _axs_changelog() -> Dict[str, Any]:
         mt_prd = os.path.getmtime(_AXS_PRD_PATH)
     except OSError:
         mt_prd = 0.0
-    key = (mt, mt_prd)
+    try:
+        mt_dep = os.path.getmtime(_AXS_DEPLOY_CL_PATH)
+    except OSError:
+        mt_dep = 0.0
+    key = (mt, mt_prd, mt_dep)
     if _AXS_CL_CACHE.get("mtime") == key:
-        return {"version": _AXS_CL_CACHE["version"], "rows": _AXS_CL_CACHE["rows"], "path": _AXS_CHANGELOG_PATH}
+        return {"version": _AXS_CL_CACHE["version"], "rows": _AXS_CL_CACHE["rows"], "deploys": _AXS_CL_CACHE.get("deploys") or [], "path": _AXS_CHANGELOG_PATH}
     rows: List[dict] = []
     try:
         with open(_AXS_CHANGELOG_PATH, encoding="utf-8") as fh:
@@ -196,8 +200,34 @@ def _axs_changelog() -> Dict[str, Any]:
         return int(m.group(1)) if m else -1
     rows.sort(key=_vkey, reverse=True)
     version = rows[0]["version"] if rows else None
-    _AXS_CL_CACHE.update({"mtime": key, "rows": rows[:60], "version": version})
-    return {"version": version, "rows": rows[:60], "path": _AXS_CHANGELOG_PATH}
+    # V50.z420 — CHANGELOG DEPLOY (backend/DEPLOY_CHANGELOG.md, incluso nel pacchetto VPS): sul VPS CHANGELOG.md e PRD.md non esistono,
+    # quindi la versione backend e le novità arrivano da qui. La riga più recente in cima = deploy corrente.
+    deploys = _axs_deploy_rows()
+    if deploys:
+        version = deploys[0]["version"]
+    _AXS_CL_CACHE.update({"mtime": key, "rows": rows[:60], "version": version, "deploys": deploys})
+    return {"version": version, "rows": rows[:60], "deploys": deploys, "path": _AXS_CHANGELOG_PATH}
+
+
+_AXS_DEPLOY_CL_PATH = next((p for p in (os.path.join(os.path.dirname(os.path.abspath(__file__)), "DEPLOY_CHANGELOG.md"), os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "DEPLOY_CHANGELOG.md"), "/app/backend/DEPLOY_CHANGELOG.md") if os.path.exists(p)), "/app/backend/DEPLOY_CHANGELOG.md")  # __file__ = server.py (moduli exec'd nel suo namespace) → backend/
+_AXS_DEPLOY_ROW_RE = re.compile(r"^\|\s*(\d{4}-\d{2}-\d{2}[^|]*?)\s*\|\s*([^|]+?)\s*\|\s*(.+?)\s*\|\s*$")
+
+
+def _axs_deploy_rows() -> List[dict]:
+    """Righe di backend/DEPLOY_CHANGELOG.md (aggiunte da build_package.sh a ogni deploy): data · tag · descrizione, più recenti prima."""
+    rows: List[dict] = []
+    try:
+        with open(_AXS_DEPLOY_CL_PATH, encoding="utf-8") as fh:
+            for line in fh:
+                m = _AXS_DEPLOY_ROW_RE.match(line.strip())
+                if m:
+                    rows.append({"version": m.group(2).strip(), "date": m.group(1).strip(), "desc": m.group(3).strip(), "src": "deploy"})
+    except FileNotFoundError:
+        pass
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[axs] deploy changelog read failed: %s", exc)
+    rows.sort(key=lambda r: r["date"], reverse=True)
+    return rows[:30]
 
 
 # ---------------------------------------------------------------------------- 2) heartbeat client (versione app installata)
@@ -288,7 +318,7 @@ async def _axs_status(user: dict, events_limit: int = 30) -> dict:
                                                   "uptime_label": f"{uptime_s // 86400}g {uptime_s % 86400 // 3600}h {uptime_s % 3600 // 60}m", "python": _axs_platform.python_version(),
                                                   "llm_key": bool(os.environ.get("EMERGENT_LLM_KEY")), "push_configured": bool(os.environ.get("EMERGENT_PUSH_KEY")) and os.environ.get("EMERGENT_PUSH_KEY") != "placeholder",
                                                   "modules": len(__import__("routes").MODULES)},
-            "changelog": cl["rows"][:10], "devices": devices, "team_devices": team_devices, "events": events, "counters": {"errors_24h": errors_24h, "warnings_24h": warnings_24h, "api_actions_24h": api_24h},
+            "changelog": cl["rows"][:10], "deploys": (cl.get("deploys") or [])[:8], "devices": devices, "team_devices": team_devices, "events": events, "counters": {"errors_24h": errors_24h, "warnings_24h": warnings_24h, "api_actions_24h": api_24h},
             "jobs": jobs[:20], "integrations": integ, "push_devices": push_dev}
 
 
@@ -337,6 +367,11 @@ async def _axs_context_section(user: dict) -> str:
              "REGOLA: NON dire MAI «non ho visibilità su build/aggiornamenti/backend» o «devi avvisarmi tu»: usa questi dati. Se manca un heartbeat recente di un dispositivo dillo esplicitamente (ultimo visto).",
              f"Backend: versione {b['version'] or 'n/d'} · avviato {b['started_at'][:16].replace('T', ' ')} UTC (uptime {b['uptime_label']}, boot {b['boot_id']}) · {b['modules']} moduli · LLM key {'ok' if b['llm_key'] else 'ASSENTE'} · push service {'configurato' if b['push_configured'] else 'non configurato in questo ambiente (attivo solo sull app pubblicata)'} · dispositivi push registrati: {st['push_devices']}.",
              f"Ultime 24h: {st['counters']['errors_24h']} errori · {st['counters']['warnings_24h']} warning · {st['counters']['api_actions_24h']} azioni API nel tenant."]
+    if st.get("deploys"):
+        # V50.z420 — CHANGELOG DEPLOY: aggiornato automaticamente a ogni deploy (build_package.sh) con data e modifiche principali.
+        lines.append("📦 CHANGELOG DEPLOY BACKEND (cosa è cambiato e quando — dal più recente; il primo è il deploy attualmente in produzione). "
+                     "Se l'utente chiede «cosa è cambiato», «ultimo deploy», «quando è stato aggiornato», rispondi con QUESTE righe (data + modifiche), senza chiedere all'utente di dirtelo:\n"
+                     + "\n".join(f"• {r['date']} [{r['version']}]: {r['desc'][:260]}" for r in st["deploys"][:8]))
     if st["changelog"]:
         lines.append("ULTIME NOVITÀ RILASCIATE (CHANGELOG dinamico backend+PRD, dalla più recente) — se l'utente chiede novità/versioni/cosa c'è di nuovo, ELENCA QUESTE righe testualmente (mai dire di non avere accesso allo storico). "
                      "⛔ Le UNICHE versioni esistenti sono queste, nel formato V50.zNNN: IGNORA qualsiasi altra numerazione (es. «v3.8.x», «v2.x») o novità che ricordi da conversazioni precedenti o dalla memoria — sarebbero inventate. "
