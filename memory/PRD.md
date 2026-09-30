@@ -7161,3 +7161,8 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 - Modello: `simple` → sempre Haiku 4.5 (22_axon_alarm_commit_teach); resto via `_pick_axon_model` (Sonnet per allegati/analisi/lunghi).
 - Cronologia: 10→6 messaggi, 600 caratteri max ciascuno (2 punti in 21).
 - Misura: «che ore sono?» 55.084 → 13.002 caratteri di prompt (−76%, ~3.7k token, Haiku ≈ 0,3 ¢/risposta vs ~3,5 ¢); domande CRM invariate (~50k) ma con storia ridotta.
+
+## V50.z414 — Web desktop: FAB, deep link chat, motore TTS in Impostazioni
+- FAB Axon: verificato visibile su Home/Contatti/Calendario/Chat nella build corrente (era assente sul VPS con la web build precedente): serve installare l'ultimo `axon-web-pkg.tgz`.
+- Link contestuali Axon ([[NAV:/impostazioni?section=axon|…]]): `navigateTo` fa `router.push({pathname, params})` per le route con query; `impostazioni.tsx` reagisce anche al cambio di `params.section` mentre è già montata (prima solo `useFocusEffect`). Verificato: `/impostazioni?section=axon` apre la sezione Assistente.
+- `src/TtsEngineCard.tsx` in Impostazioni › AxonOS · Assistente (sempre visibile, anche in modalità testo): radio «Dispositivo · Google TTS» (nome voce di sistema rilevata) / «Server AdvisorOS» + ▶ anteprima per ciascuno + link a /axon-voice. Salva `assistant_tts_engine` (device | local/cloud).

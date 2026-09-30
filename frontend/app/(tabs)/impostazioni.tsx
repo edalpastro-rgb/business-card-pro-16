@@ -15,7 +15,8 @@ import { notify, confirmAsync } from "@/src/utils/notify";
 import { openInAppLink } from "@/src/utils/openInAppLink";
 import { ModuleErrorBoundary } from "@/src/shared";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
-import { DesktopGrid } from "@/src/ui/DesktopGrid"; // V50.z409 — desktop: hub a 2 colonne, sotto-sezioni centrate a 860 px
+import { DesktopGrid } from "@/src/ui/DesktopGrid";
+import { TtsEngineCard } from "@/src/TtsEngineCard"; // V50.z414 — motore TTS (Dispositivo · Google TTS / Server) con anteprima // V50.z409 — desktop: hub a 2 colonne, sotto-sezioni centrate a 860 px
 import { useResponsive, SIDEBAR_W, CONTENT_MAX_W } from "@/src/hooks/useResponsive";
 import { invalidateTableBrandHeader } from "@/src/ChatTableExport";
 import { AxonMemoryEntryCard } from "@/src/AxonMemoryEntryCard"; // V50.z192 — Profilo → Memoria AxonOS
@@ -85,6 +86,10 @@ function ImpostazioniScreen() {
     if (isSection(paramRef.current)) { setSec(paramRef.current); router.setParams({ section: "" } as any); }
     return () => setSec(null);
   }, [router]));
+  // V50.z414 — il parametro ?section= cambia mentre la schermata è già a fuoco (deep link dalla chat Axon su web): reagisci comunque
+  useEffect(() => {
+    if (isSection(params.section)) { setSec(params.section); router.setParams({ section: "" } as any); }
+  }, [params.section]); // eslint-disable-line react-hooks/exhaustive-deps
   const openSection = (k: SettingsSection) => setSec(k);
   const backToHub = () => setSec(null);
   const isOwner = !user?.parent_user_id;
@@ -939,6 +944,9 @@ function ImpostazioniScreen() {
 
           {/* V50.z218 — Blocco 6: tono di AxonOS (1 Istituzionale … 5 Fantasiosa) */}
           <AxonToneLevelPicker />
+
+          {/* V50.z414 — Motore vocale (sempre visibile, anche in modalità testo: serve al replay/lettura delle risposte) */}
+          <TtsEngineCard />
 
           {(assistantMode === "voice" || assistantMode === "both") && (
             <>

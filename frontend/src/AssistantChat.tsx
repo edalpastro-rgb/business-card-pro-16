@@ -952,7 +952,12 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     stopGeneration();
     api("/axon/nav/track", { method: "POST", body: { feature: `nav:${route.split("?")[0]}` } }).catch(() => {});
     onClose();
-    setTimeout(() => router.push(route as any), 150);
+    // V50.z414 — web: route con query (es. /impostazioni?section=axon) → push strutturato {pathname, params}, così i parametri
+    // arrivano a useLocalSearchParams anche se la schermata è già montata (prima il click «non faceva nulla» sul desktop)
+    const [pathname, qs] = route.split("?");
+    const params: Record<string, string> = {};
+    if (qs) qs.split("&").forEach((kv) => { const [k, v = ""] = kv.split("="); if (k) params[decodeURIComponent(k)] = decodeURIComponent(v); });
+    setTimeout(() => { try { router.push(qs ? ({ pathname, params } as any) : (route as any)); } catch { router.push(route as any); } }, 150);
   };
   // V50.z259 — Azione confermabile [[ACTION]] (es. sposta appuntamenti mancati) → risposta appesa in chat
   const runNavAction = async (action: string, payload: Record<string, any>) => {
