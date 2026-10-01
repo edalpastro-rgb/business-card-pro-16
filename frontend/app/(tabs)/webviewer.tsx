@@ -20,6 +20,7 @@ export default function WebViewerTab() {
         url={url}
         title={title}
         contactId={contactId}
+        hideFab
         onClose={() => {
           try { router.back(); } catch { router.replace("/(tabs)/home" as any); }
         }}

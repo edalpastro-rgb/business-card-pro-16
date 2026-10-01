@@ -7,7 +7,7 @@ import { ChatShell } from "@/src/assistant/ChatShell"; // V50.z403
 // V29.au — Import expo-audio per il pulsante microfono su native (APK Android/iOS).
 // Prima era solo web (MediaRecorder), quindi su APK i pulsanti mic + ascolto
 // continuo sparivano. Ora usiamo useAudioRecorder di expo-audio in modo nativo.
-import { useAudioRecorder, useAudioRecorderState, AudioModule, RecordingPresets } from "expo-audio";
+import { useAudioRecorder, AudioModule, RecordingPresets } from "expo-audio";
 // V50.z186 — stop vocale nativo (barge-in) + sessione audio in background (moduli isolati)
 import { useNativeBargeIn } from "@/src/voice/useNativeBargeIn";
 import { ensureVoiceAudioMode, releaseVoiceAudioMode } from "@/src/voice/voiceAudioMode";
@@ -303,19 +303,8 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       const pending = consumePendingPrompt();
       const pendingVoice = consumePendingVoice(); // V50.z315 — ViolaWake → risposta parlata
       if (pending) setTimeout(() => { void sendRef.current?.(pending, pendingVoice ? { forceSpeak: true } : undefined); }, 900);
-      // V50.z17 — Al primo avvio dell'assistente AxonOS, apri l'HELP CENTER
-      // (termini d'uso + richiesta cancellazione dati). Flag salvato su
-      // AsyncStorage: `helpcenter_seen_v1`.
-      (async () => {
-        try {
-          const seen = await AsyncStorage.getItem("helpcenter_seen_v1");
-          if (!seen) {
-            // Chiudi la chat e reindirizza al Help Center in modalità onboarding
-            onClose();
-            setTimeout(() => router.push("/help-center?onboarding=1" as any), 200);
-          }
-        } catch { /* ignore */ }
-      })();
+      // V50.z430 — Bug 2: il FAB apre SEMPRE direttamente la chat (rimosso il redirect al primo avvio verso /help-center,
+      // che chiudeva la chat e faceva restare il pulsante verde lampeggiante). L'Help Center resta raggiungibile dal menu.
     } else {
       // stop any recording on close
       if (mrRef.current && mrRef.current.state !== "inactive") {
@@ -660,10 +649,17 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   };
 
 
-  const send = async (text?: string, opts?: { forceSpeak?: boolean; onSpoken?: () => void; quickLabel?: string }) => {
+  const send = async (text?: string, opts?: { forceSpeak?: boolean; textOnly?: boolean; onSpoken?: () => void; quickLabel?: string }) => {
     const msg = (text ?? inputTextRef.current ?? input).trim();  // V50.z422 — sempre l'ultimo testo digitato, non lo stato (può essere in ritardo)
     // V28.l — Consenti l'invio se c'è ALMENO un allegato, anche senza testo
     if ((!msg && pendingAttachments.length === 0) || sendingRef.current) return;
+    // V50.z430 — Bug 10: testo e voce mutuamente esclusivi. Messaggio DIGITATO → risposta solo testo e stop di qualsiasi
+    // audio/registrazione in corso; messaggio DETTATO (mic) → risposta parlata (forceSpeak).
+    if (opts?.textOnly) {
+      if (cleanupAudioRef.current) { try { cleanupAudioRef.current(); } catch {} cleanupAudioRef.current = null; }
+      setPlayingIdx(null);
+      if (convModeRef.current) endConversation();
+    }
     sendingRef.current = true;
     setSending(true);
     setInput("");
@@ -722,7 +718,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
               qa_from_cache: !!qa.from_cache,
             },
           ]);
-          const shouldSpeak = opts?.forceSpeak || responseMode === "voice" || responseMode === "both";
+          const shouldSpeak = !opts?.textOnly && (opts?.forceSpeak || responseMode === "voice" || responseMode === "both");
           if (shouldSpeak) {
             void speakReply(qa.reply, undefined, opts?.onSpoken);
           } else if (opts?.onSpoken) {
@@ -749,7 +745,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     // V50.z112 — Voce in streaming: le frasi vengono sintetizzate e riprodotte
     // man mano che arrivano i delta (prima frase entro pochi secondi), senza
     // attendere la fine della risposta. Testo e voce procedono in parallelo.
-    const wantSpeech = !!(opts?.forceSpeak || responseMode === "voice" || responseMode === "both");
+    const wantSpeech = !opts?.textOnly && !!(opts?.forceSpeak || responseMode === "voice" || responseMode === "both");
     let speaker: SentenceSpeaker | null = null;
     if (wantSpeech) {
       if (cleanupAudioRef.current) { cleanupAudioRef.current(); cleanupAudioRef.current = null; }
@@ -1455,17 +1451,24 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   // ovunque; su native usiamo `expo-audio` (useAudioRecorder), su web
   // manteniamo MediaRecorder.
   // V50.u — Abilita metering per rilevare silenzio e stoppare automaticamente
-  const nativeRecorder = useAudioRecorder({ ...RecordingPresets.HIGH_QUALITY, isMeteringEnabled: true });
-  // Polling metering ogni 250ms (state.metering in dB, range ~ -160..0)
-  const nativeRecState = useAudioRecorderState(nativeRecorder, 250);
+  // V50.z430 — Bug 7/8/9: preset leggero (upload 4× più piccolo → trascrizione più rapida) + metering attivo.
+  const nativeRecorder = useAudioRecorder({ ...RecordingPresets.LOW_QUALITY, isMeteringEnabled: true });
   const nativeUriRef = useRef<string | null>(null);
-  // V50.u — Timer di silenzio: se il livello audio resta sotto -40 dB per 2s
-  // consecutivi DOPO che almeno una volta è stato sopra soglia (utente ha
-  // parlato), fermiamo automaticamente la registrazione.
+  // V50.z430 — Auto-stop su silenzio: PRIMA era un useEffect dipendente da `useAudioRecorderState().metering`, che su
+  // Android spesso non cambia valore (o resta undefined) → l'effetto non rieseguiva, il microfono restava aperto fino al
+  // limite di 60 s e la risposta arrivava «dopo un minuto». Ora un intervallo di 200 ms legge `recorder.getStatus()`
+  // direttamente (indipendente dai render): 2 s di silenzio dopo aver parlato → stop; se il metering non è disponibile
+  // sul dispositivo, stop dopo 4 s senza parlato rilevabile oltre i 12 s (fallback) e comunque al limite massimo.
   const lastVoiceRef = useRef<number | null>(null);
   const hasSpokenRef = useRef<boolean>(false);
+  const recStartRef = useRef<number>(0);
+  const meterSeenRef = useRef<boolean>(false);
+  const silenceTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const recordingRef = useRef(false);
+  const stopRecRef = useRef<() => void>(() => {});
   const VOICE_DB_THRESHOLD = -40;
-  const SILENCE_TIMEOUT_MS = 2200;
+  const SILENCE_TIMEOUT_MS = 2000;
+  const MAX_REC_MS = 45000;
   const voiceSupported =
     Platform.OS === "web"
       ? (typeof navigator !== "undefined" &&
@@ -1473,28 +1476,33 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
          typeof (globalThis as any).MediaRecorder !== "undefined")
       : true; // native = sempre supportato via expo-audio
 
-  // V50.u — Auto-stop su silenzio prolungato (solo native):
-  // se dopo aver rilevato la voce (metering > -40 dB) restiamo sotto
-  // soglia per SILENCE_TIMEOUT_MS, chiudiamo la registrazione.
-  useEffect(() => {
-    if (Platform.OS === "web") return;
-    if (!recording) return;
-    const m = typeof nativeRecState?.metering === "number" ? nativeRecState.metering : -160;
-    const now = Date.now();
-    if (m > VOICE_DB_THRESHOLD) {
-      // Utente sta parlando
-      hasSpokenRef.current = true;
-      lastVoiceRef.current = now;
-    } else if (hasSpokenRef.current && lastVoiceRef.current) {
-      // Silenzio dopo aver parlato: check timeout
-      if (now - lastVoiceRef.current >= SILENCE_TIMEOUT_MS && durRef.current >= 2) {
-        // Auto-stop
-        stopRec();
+  const stopSilenceWatch = () => {
+    if (silenceTimerRef.current) { clearInterval(silenceTimerRef.current); silenceTimerRef.current = null; }
+  };
+  const startSilenceWatch = () => {
+    stopSilenceWatch();
+    recStartRef.current = Date.now();
+    lastVoiceRef.current = null;
+    hasSpokenRef.current = false;
+    meterSeenRef.current = false;
+    silenceTimerRef.current = setInterval(() => {
+      const now = Date.now();
+      const elapsed = now - recStartRef.current;
+      let m: number | undefined;
+      try { const st: any = nativeRecorder.getStatus(); m = typeof st?.metering === "number" ? st.metering : undefined; } catch { m = undefined; }
+      if (typeof m === "number" && m > -159) meterSeenRef.current = true;
+      if (typeof m === "number" && m > VOICE_DB_THRESHOLD) {
+        hasSpokenRef.current = true;
+        lastVoiceRef.current = now;
+      } else if (hasSpokenRef.current && lastVoiceRef.current && now - lastVoiceRef.current >= SILENCE_TIMEOUT_MS && elapsed >= 1500) {
+        stopRecRef.current();
+        return;
       }
-    }
-    // dep esplicite: reagiamo al cambio di metering
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nativeRecState?.metering, recording]);
+      if (!meterSeenRef.current && elapsed >= 12000) { stopRecRef.current(); return; } // nessun metering disponibile → non restare aperti
+      if (elapsed >= MAX_REC_MS) stopRecRef.current();
+    }, 200);
+  };
+  useEffect(() => () => stopSilenceWatch(), []);
 
   const startRec = async () => {
     if (!voiceSupported) return;
@@ -1506,12 +1514,11 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
         await ensureVoiceAudioMode({ recording: true }); // V50.z186 — registrazione anche in background/schermo bloccato
         await nativeRecorder.prepareToRecordAsync();
         nativeRecorder.record();
+        recordingRef.current = true;
         setRecording(true);
         durRef.current = 0;
         setRecDuration(0);
-        // V50.u — Reset stato voice/silence detection
-        lastVoiceRef.current = null;
-        hasSpokenRef.current = false;
+        startSilenceWatch(); // V50.z430 — rilevamento silenzio indipendente dai render
         timerRef.current = setInterval(() => {
           durRef.current += 1;
           setRecDuration(durRef.current);
@@ -1555,6 +1562,9 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
 
   const stopRec = () => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    stopSilenceWatch();
+    if (!recordingRef.current && Platform.OS !== "web") return; // V50.z430 — stop già eseguito (intervallo + timer)
+    recordingRef.current = false;
     setRecording(false);
     // V29.au — Branch native: stop expo-audio + handle base64 upload
     if (Platform.OS !== "web") {
@@ -1572,7 +1582,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
             body: { audio_base64: b64, mime: "audio/m4a" },
           });
           const t = (r?.transcript || "").trim();
-          if (t) await send(t);
+          if (t) await send(t, { forceSpeak: true }); // V50.z430 — Bug 10: dettato → risposta parlata
         } catch (e: any) {
           notify("Errore trascrizione", e?.message || String(e));
         } finally {
@@ -1585,6 +1595,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       if (mrRef.current && mrRef.current.state !== "inactive") mrRef.current.stop();
     } catch {}
   };
+  stopRecRef.current = stopRec;
 
   const handleStop = async (recMime: string) => {
     setTranscribing(true);
@@ -1606,7 +1617,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       const t = (r?.transcript || "").trim();
       if (t) {
         // Send immediately
-        await send(t);
+        await send(t, { forceSpeak: true }); // V50.z430 — Bug 10: dettato → risposta parlata
       }
     } catch {
       // ignore
@@ -1937,14 +1948,14 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                     onFocus={() => setInputFocused(true)}
                     onBlur={() => setInputFocused(false)}
                     multiline
-                    onSubmitEditing={() => { const t = inputTextRef.current.trim(); if (sending && t) { setInput(""); void enqueue(t); } else void send(); }}
+                    onSubmitEditing={() => { const t = inputTextRef.current.trim(); if (sending && t) { setInput(""); void enqueue(t); } else void send(undefined, { textOnly: true }); }}
                     blurOnSubmit={false}
                     returnKeyType="send"
                     testID="assistant-input"
                   />
                   {/* V50.z223 — input SEMPRE attivo: se Axon sta elaborando, il messaggio va in coda (⏳) e parte da solo dopo */}
                   <Pressable
-                    onPress={() => { if (sending) { const t = inputTextRef.current.trim(); if (!t) return; setInput(""); void enqueue(t); } else void send(); }}
+                    onPress={() => { if (sending) { const t = inputTextRef.current.trim(); if (!t) return; setInput(""); void enqueue(t); } else void send(undefined, { textOnly: true }); }}
                     disabled={!input.trim() && pendingAttachments.length === 0}
                     style={[styles.sendBtn, { opacity: !input.trim() && pendingAttachments.length === 0 ? 0.5 : 1 }, sending && input.trim() ? { backgroundColor: CT.warning } : null]}
                     testID="assistant-send"

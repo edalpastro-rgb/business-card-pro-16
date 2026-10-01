@@ -551,3 +551,37 @@ async def auth_change_email(body: ChangeEmailIn, user=Depends(get_current_user))
     _CHPWD_ATTEMPTS.pop(uid, None)
     u = await db.users.find_one({"user_id": uid}, {"_id": 0, "password_hash": 0, "totp_secret": 0})
     return {"ok": True, "email": new_email, "user": UserOut(**u).model_dump()}
+
+
+# V50.z430 — Bug 1 (login Google su tablet/APK): auth.emergentagent.com reindirizza a «frontend://#session_id=…»;
+# su alcuni Android/tablet Chrome Custom Tabs BLOCCA la navigazione automatica verso schemi custom (nessun gesto
+# utente) → pagina bianca su emergentagent.com e l'app torna al login. Ora l'app usa come redirect QUESTA pagina
+# https (sempre apribile): legge session_id dal frammento, prova subito il deep link e mostra un bottone grande
+# «Apri AdvisorOS» (gesto utente → Chrome consente lo schema custom). Nessun dato passa dal server (hash lato client).
+_APP_RETURN_HTML = """<!doctype html><html lang="it"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>AdvisorOS · Accesso</title>
+<style>body{margin:0;font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#2d3250;color:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center}
+.c{padding:32px 24px;max-width:420px}.l{font-size:30px;font-weight:900;letter-spacing:-.5px}.l span{color:#6b8cff}
+p{color:#c5cbe3;font-size:15px;line-height:1.5}a.b{display:inline-block;margin-top:18px;background:#6b8cff;color:#fff;text-decoration:none;font-weight:800;font-size:17px;padding:16px 28px;border-radius:14px;min-width:220px}
+.s{margin-top:16px;font-size:12px;color:#8b93b8}</style></head><body><div class="c">
+<div class="l">Advisor<span>OS</span></div><p id="m">Accesso completato. Sto riaprendo l'app…</p>
+<a id="b" class="b" href="#" style="display:none">Apri AdvisorOS</a>
+<div class="s" id="e"></div></div>
+<script>
+(function(){
+  var q=new URLSearchParams(location.search);var to=q.get("to")||"";
+  var h=(location.hash||"").replace(/^#/,"");var m=(h+"&"+location.search).match(/session_id=([^&#]+)/);
+  var sid=m?m[1]:"";var msg=document.getElementById("m"),btn=document.getElementById("b"),err=document.getElementById("e");
+  if(!to||!/^[a-zA-Z][a-zA-Z0-9+.-]*:\\/\\//.test(to)){msg.textContent="Link di ritorno non valido.";return;}
+  if(!sid){msg.textContent="Accesso non completato: riprova dall'app.";err.textContent="Nessun codice di sessione ricevuto.";return;}
+  var link=to+(to.indexOf("#")>=0?"&":"#")+"session_id="+encodeURIComponent(sid);
+  btn.href=link;btn.style.display="inline-block";
+  try{location.replace(link);}catch(e){}
+  setTimeout(function(){msg.textContent="Tocca il bottone per tornare nell'app e completare l'accesso.";},1200);
+})();
+</script></body></html>"""
+
+
+@api_router.get("/auth/app-return", include_in_schema=False)
+async def auth_app_return():
+    return HTMLResponse(content=_APP_RETURN_HTML, headers={"Cache-Control": "no-store"})

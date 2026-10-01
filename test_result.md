@@ -523,3 +523,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z387-389 — vedi PRD: TS fix live.tsx; ANT 3 livelli + DISTACCO live (turn → distacco/distacco_color/interventions, action=correct); upload referenze ANT non bloccante (compressione background) + player audio nativo; DateField nativo globale (12 schermate); Area Corsi light projection + timeout/riprova; compressione globale su tutti gli upload; FUNZ. 4 trascrizione globale (routes/audio_transcripts.py, GET/PUT /audio-transcripts, bozza→publish; audio riservato al Master: /cgym/references/{id}/link e /courses/{id}/files/{fid} → 403 per non-Master su audio). Test dati: area cga_015003b2da, ref cgr_2e8ea56836 (transcript atr_f6d2ba0e44a4 published)."
+
+  - agent: "main"
+    message: "V50.z430 — 14 bug critici (vedi PRD): login Google tablet via pagina ponte GET /api/auth/app-return + listener deep link globale; FAB Axon apre sempre la chat (rimosso redirect Help Center); tema: File.create prima di write; webview: stelline → chat, segnalibro → salvataggio, FAB locale; voce nativa: auto-stop silenzio 2 s con intervallo su recorder.getStatus() (root cause latenza 60 s), preset LOW_QUALITY; testo/voce esclusivi (textOnly/forceSpeak); prompt regole 6-8 (brevità, zero output tecnico, verifica strumenti); URL fetch diretto fallback (HTML/PDF). Test: pytest 4/4 + web OK (iteration_430.json)."

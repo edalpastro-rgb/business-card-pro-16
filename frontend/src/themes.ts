@@ -102,7 +102,15 @@ function readSync(key: string): string | null {
 async function write(key: string, value: string): Promise<void> {
   try {
     if (Platform.OS === "web") { localStorage.setItem(key, value); return; }
-    try { themeFile(key)?.write(value); } catch { /* file non scrivibile → resta SecureStore */ }
+    // V50.z430 — Bug 3: `File.write` su alcuni Android fallisce se il file non esiste ancora → crea prima il file
+    // e verifica la rilettura; se il file non è affidabile resta SecureStore (+ mirror AsyncStorage in persistTheme).
+    try {
+      const f = themeFile(key);
+      if (f) {
+        if (!f.exists) { try { f.create({ intermediates: true, overwrite: true }); } catch { /* già esistente */ } }
+        f.write(value);
+      }
+    } catch { /* file non scrivibile → resta SecureStore */ }
     await SecureStore.setItemAsync(key, value);
   } catch { /* ignore */ }
 }

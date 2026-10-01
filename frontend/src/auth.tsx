@@ -6,6 +6,10 @@ import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
 import { api, getToken, setToken, clearToken } from "@/src/api";
 import { storage } from "@/src/utils/storage";
+import { installPrefsSync, restorePrefsFromServer, disablePrefsSync, flush as flushPrefs } from "@/src/utils/prefsSync";
+// V50.z428 — preferenze (PIN, tema, widget sidebar, impostazioni…) specchiate sul server e ripristinate al login
+installPrefsSync();
+const syncPrefs = () => Promise.race([restorePrefsFromServer(), new Promise<void>((res) => setTimeout(res, 3500))]);
 
 WebBrowser.maybeCompleteAuthSession();
 const usedSessionIds = new Set<string>(); // V50.z272 — un session_id va scambiato una sola volta
@@ -146,6 +150,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     try {
       const r = await api<{ user: User }>("/auth/me");
+      await syncPrefs();
       setUser(r.user);
     } catch (e: any) {
       // V50.z279 — offline senza cache: non invalidare la sessione (il token resta valido al ritorno online)
@@ -175,12 +180,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const iso = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
             await saveTrust(iso);
             setTrustExpiresAt(iso);
+            await syncPrefs();
             setUser(r.user);
             window.history.replaceState(null, "", window.location.pathname);
             setLoading(false);
             return;
-          } catch (e) {
+          } catch (e: any) {
             console.warn("google session err", e);
+            notify("Accesso Google non riuscito", e?.message || "Il codice di accesso non è valido o è scaduto: riprova.");
           }
         }
       }
@@ -191,12 +198,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const m = initial ? initial.match(/[?#&]session_id=([^&#]+)/) : null;
           if (m && !usedSessionIds.has(m[1])) {
             usedSessionIds.add(m[1]);
-            const r = await api<{ token: string; user: User }>("/auth/google-session", { method: "POST", body: { session_id: m[1], device: await getDeviceInfo() } });
+            const r = await api<{ token: string; user: User }>("/auth/google-session", { method: "POST", body: { session_id: decodeURIComponent(m[1]), device: await getDeviceInfo() } });
             await setToken(r.token);
             const iso = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
             await saveTrust(iso);
             setTrustExpiresAt(iso);
             await storage.secureSet(LAST_UNLOCK_KEY, Date.now());
+            await syncPrefs();
             setUser(r.user);
             setLoading(false);
             return;
@@ -230,6 +238,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })();
   }, [refresh]);
 
+  // V50.z430 — Bug 1: deep link «frontend://#session_id=…» ricevuto ad app GIÀ aperta (es. dopo il bottone «Apri AdvisorOS»
+  // della pagina di ritorno, quando loginGoogle ha già smesso di attendere) → completa comunque l'accesso.
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    const sub = Linking.addEventListener("url", (e) => {
+      const m = e?.url ? e.url.match(/[?#&]session_id=([^&#]+)/) : null;
+      if (!m || usedSessionIds.has(m[1])) return;
+      // lascia 1,5 s a loginGoogle (se in attesa) per consumarlo; altrimenti lo gestiamo qui
+      setTimeout(() => {
+        if (usedSessionIds.has(m[1])) return;
+        usedSessionIds.add(m[1]);
+        void (async () => {
+          try {
+            const r = await api<{ token: string; user: User }>("/auth/google-session", { method: "POST", body: { session_id: decodeURIComponent(m[1]), device: await getDeviceInfo() } });
+            await setToken(r.token);
+            const iso = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
+            await saveTrust(iso);
+            setTrustExpiresAt(iso);
+            await storage.secureSet(LAST_UNLOCK_KEY, Date.now());
+            await syncPrefs();
+            setUser(r.user);
+            setLoading(false);
+          } catch (err: any) {
+            notify("Accesso Google non riuscito", err?.message || "Riprova dall'app.");
+          }
+        })();
+      }, 1500);
+    });
+    return () => sub.remove();
+  }, []);
+
   const loginEmail = async (email: string, password: string): Promise<LoginResult> => {
     const r = await api<
       | { requires_2fa: true; temp_token: string }
@@ -257,6 +296,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await saveTrust(r.trust_expires_at);
     setTrustExpiresAt(r.trust_expires_at);
     await storage.secureSet(LAST_UNLOCK_KEY, Date.now());
+    await syncPrefs();
     setUser(r.user);
   };
 
@@ -270,6 +310,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await saveTrust(iso);
     setTrustExpiresAt(iso);
     await storage.secureSet(LAST_UNLOCK_KEY, Date.now());
+    await syncPrefs();
     setUser(r.user);
   };
 
@@ -280,11 +321,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const AUTH_BASE = "https://auth.emergentagent.com";
     const DEPLOY_BASE = (process.env.EXPO_PUBLIC_BACKEND_URL || "").replace(/\/+$/, ""); // V50.z373 — nessun host fisso: origine del sito o env di deploy
     let redirectUrl: string;
+    // V50.z430 — Bug 1 (tablet/APK): Chrome Custom Tabs può bloccare il redirect automatico verso «frontend://» (pagina bianca
+    // su emergentagent.com). Il redirect passa da una pagina https del backend (/api/auth/app-return) che riapre l'app con il
+    // deep link e, se il browser lo blocca, mostra il bottone «Apri AdvisorOS». openAuthSessionAsync resta in ascolto sullo schema app.
+    const appScheme = Platform.OS === "web" ? "" : Linking.createURL("");
     if (Platform.OS === "web") {
       const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
       redirectUrl = (origin || DEPLOY_BASE) + "/";
     } else {
-      redirectUrl = Linking.createURL("");
+      redirectUrl = DEPLOY_BASE ? `${DEPLOY_BASE}/api/auth/app-return?to=${encodeURIComponent(appScheme)}` : appScheme;
     }
     const authUrl = `${AUTH_BASE}/?redirect=${encodeURIComponent(redirectUrl)}`;
     if (Platform.OS === "web") {
@@ -295,11 +340,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const sub = Linking.addEventListener("url", (e) => { if (e?.url && /session_id=/.test(e.url)) hotUrl = e.url; });
     let cbUrl: string | null = null;
     try {
-      const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
+      const result = await WebBrowser.openAuthSessionAsync(authUrl, appScheme);
       if (result.type === "success" && result.url) cbUrl = result.url;
     } catch {}
     if (!cbUrl) {
-      await new Promise((r) => setTimeout(r, 400));
+      // V50.z430 — il deep link può arrivare qualche istante DOPO la chiusura della Custom Tab (bottone «Apri AdvisorOS»)
+      for (let i = 0; i < 8 && !hotUrl; i++) await new Promise((r) => setTimeout(r, 400));
       cbUrl = hotUrl || (await Linking.getInitialURL().catch(() => null));
     }
     sub.remove();
@@ -308,16 +354,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!m) return;
     if (usedSessionIds.has(m[1])) return;
     usedSessionIds.add(m[1]);
-    const r = await api<{ token: string; user: User }>("/auth/google-session", {
-      method: "POST",
-      body: { session_id: m[1], device: await getDeviceInfo() },
-    });
-    await setToken(r.token);
-    const iso = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
-    await saveTrust(iso);
-    setTrustExpiresAt(iso);
-    await storage.secureSet(LAST_UNLOCK_KEY, Date.now());
-    setUser(r.user);
+    try {
+      const r = await api<{ token: string; user: User }>("/auth/google-session", {
+        method: "POST",
+        body: { session_id: decodeURIComponent(m[1]), device: await getDeviceInfo() },
+      });
+      await setToken(r.token);
+      const iso = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
+      await saveTrust(iso);
+      setTrustExpiresAt(iso);
+      await storage.secureSet(LAST_UNLOCK_KEY, Date.now());
+      await syncPrefs();
+      setUser(r.user);
+    } catch (e: any) {
+      notify("Accesso Google non riuscito", e?.message || "Riprova tra qualche secondo.");
+    }
   };
 
   // V50.z293 — dispositivo sospeso da un altro login dello stesso tipo → esci e avvisa
@@ -329,6 +380,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }), []);
 
   const logout = async () => {
+    try { await flushPrefs(); } catch { /* ignore */ }
+    disablePrefsSync();
     try { await api("/auth/logout", { method: "POST" }); } catch {}
     await clearToken();
     await saveTrust(null);

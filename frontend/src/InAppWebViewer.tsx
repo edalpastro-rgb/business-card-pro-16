@@ -1,11 +1,14 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, Pressable, ActivityIndicator, Platform, Alert, Linking, Modal, TextInput } from "react-native";
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, Platform, Alert, Linking, Modal, TextInput, Image } from "react-native";
 import { KModalBody } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { Ionicons } from "@expo/vector-icons";
 import { WebView } from "react-native-webview";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { AssistantChatModal } from "@/src/AssistantChat"; // V50.z430 — Bug 6: chat Axon apribile dentro il webview
+import { ASSISTANT_COLOR, ASSISTANT_COLOR_DARK } from "@/src/assistant/chatStyles";
+const AXONOS_LOGO_WHITE = require("@/assets/images/axonos-logo-white.png");
 
 /**
  * V50.z74 / V50.z92 — WebViewer con azione "Chiedi ad Axon" (estrazione + save).
@@ -19,15 +22,19 @@ export function InAppWebViewer({
   url,
   onClose,
   contactId,
+  hideFab,
 }: {
   title: string;
   url: string;
   onClose: () => void;
   contactId?: string;
+  /** true quando il viewer è una route (il FAB globale è già visibile) */
+  hideFab?: boolean;
 }) {
   const [loading, setLoading] = useState(true);
   const [errMsg, setErrMsg] = useState<string | null>(null);
   const [askOpen, setAskOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false); // V50.z430 — Bug 6
   const [busy, setBusy] = useState<null | "kb" | "contact" | "instant">(null);
   const [note, setNote] = useState("");
 
@@ -64,10 +71,14 @@ export function InAppWebViewer({
           <Ionicons name="chevron-back" size={24} color="#FFF" />
         </Pressable>
         <Text style={styles.title} numberOfLines={1}>{title || "Link"}</Text>
-        <View style={{ flexDirection: "row", gap: 12 }}>
-          <Pressable onPress={() => setAskOpen(true)} hitSlop={8} testID="inapp-webview-axon" style={styles.axonBtn}>
+        <View style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
+          {/* V50.z430 — Bug 6: le stelline aprono la CHAT di Axon; il salvataggio contenuti passa all'icona segnalibro */}
+          <Pressable onPress={() => setChatOpen(true)} hitSlop={8} testID="inapp-webview-axon" style={styles.axonBtn}>
             <Ionicons name="sparkles" size={16} color="#F59E0B" />
             <Text style={styles.axonBtnTxt}>Axon</Text>
+          </Pressable>
+          <Pressable onPress={() => setAskOpen(true)} hitSlop={8} testID="inapp-webview-save" accessibilityLabel="Salva contenuti della pagina">
+            <Ionicons name="bookmark-outline" size={21} color="#FFF" />
           </Pressable>
           <Pressable onPress={openExternal} hitSlop={8} testID="inapp-webview-external">
             <Ionicons name="open-outline" size={22} color="#FFF" />
@@ -120,7 +131,14 @@ export function InAppWebViewer({
             </Pressable>
           </View>
         ) : null}
+        {/* V50.z430 — Bug 6: FAB Axon visibile anche nel webview (il viewer è spesso dentro un Modal nativo che copre il FAB globale) */}
+        {!hideFab ? (
+          <Pressable onPress={() => setChatOpen(true)} style={styles.fab} testID="inapp-webview-fab" accessibilityLabel="Apri la chat con Axon">
+            <Image source={AXONOS_LOGO_WHITE} style={styles.fabImg} resizeMode="contain" />
+          </Pressable>
+        ) : null}
       </View>
+      <AssistantChatModal visible={chatOpen} onClose={() => setChatOpen(false)} />
 
       {/* V50.z92 — Modal "Dove salvo questi contenuti?" */}
       <Modal visible={askOpen} transparent animationType="fade" onRequestClose={() => setAskOpen(false)}><KModalBody>
@@ -188,6 +206,8 @@ const styles = StyleSheet.create({
   title: { color: "#FFF", fontSize: 15, fontWeight: "700", flex: 1, marginHorizontal: 12, textAlign: "center" },
   axonBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: "rgba(245,158,11,0.15)", borderWidth: 1, borderColor: "#F59E0B55" },
   axonBtnTxt: { color: "#F59E0B", fontWeight: "800", fontSize: 12 },
+  fab: { position: "absolute", right: 16, bottom: 96, width: 56, height: 56, borderRadius: 28, backgroundColor: ASSISTANT_COLOR, alignItems: "center", justifyContent: "center", shadowColor: ASSISTANT_COLOR_DARK, shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 8 },
+  fabImg: { width: 36, height: 36 },
   loader: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.6)" },
   errBox: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center", gap: 8, padding: 24, backgroundColor: HT.card },
   errTitle: { color: HT.text, fontSize: 16, fontWeight: "800", textAlign: "center", marginTop: 8 },

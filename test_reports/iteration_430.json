@@ -1,0 +1,25 @@
+{
+  "summary": "V50.z430 bug-fix batch — all tested bugs PASS. Backend (4/4 pytest green): /api/auth/app-return returns HTML bridge page with 'Apri AdvisorOS' button and location.hash/session_id JS reader (Bug 1); POST /api/assistant/chat with 'https://example.com/' pasted produces 'Pagina di esempio IANA… dominio example.com è riservato a scopi dimostrativi' — URL actually fetched (Bug 14), short reply (<=4 lines), no tech leakage like fetched_at/Tavily/user_id (Bug 11-13); 'Quanti contatti ho?' → 'Ciao! Hai 5 contatti: 3 nell'area Energy e 2 in Network.' (short, no IDs). Frontend (mobile 390x844): with fresh localStorage, /axon-proactive → tap proactive-open-chat opens Axon chat modal DIRECTLY (assistant-input visible), NO redirect to /help-center (Bug 2 fixed). Typing text + assistant-send yields streaming reply with 18 message bubbles and ZERO audio elements playing (Bug 10 textOnly confirmed). /webviewer?url=example.com shows all 3 header testIDs (inapp-webview-axon/save/external); local inapp-webview-fab NOT rendered (hideFab); sparkles 'Axon' button opens chat modal (NOT save popup); bookmark 'Save' button opens 'Dove salvo questi contenuti?' popup (Bug 6 confirmed).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v50z430_bugfixes.py",
+    "/app/test_reports/pytest/v50z430_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Backend /api/auth/app-return doesn't declare `to` as a FastAPI query parameter (it's read client-side from the browser URL via the inline JS). This is intentional per the comment at line 556-560 of 03_auth.py (no server-side data flow — the fragment is parsed client-side). FastAPI silently ignores the unused `to` query string, which is the desired behavior for the bridge page use case."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "100% (4/4)", "frontend": "100% (7/7 flows)" },
+  "seed_data_creation": "none",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend reply for example.com URL fetch demonstrates Tavily/httpx fallback working: returns clean content ('IANA documentation page… domain reserved for illustrative purposes'). Owner test@dalpastro.it now has 5 contatti (3 Energy, 2 Network). Login response field is `token` (JWT). Fresh localStorage required to prove helpcenter_seen_v1 gating no longer blocks chat open. Native-only items (Google login deep link, expo-audio silence auto-stop) were skipped per request — they are web-untestable.",
+  "rca_of_issue": "N/A — this iteration was validation only; the previous main-agent commit for V50.z430 fully resolves the reported bugs."
+}

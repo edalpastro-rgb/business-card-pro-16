@@ -121,6 +121,7 @@ MODULES = [
     "corporate_gym_rules_v2.py",  # V50.z396 — MOD 4-8 Gym: cliente V2, 8 blocchi WIN-WIN, esaminatore ANT, risposta modello, KB Obiezioni da pag. 13 (wrap di _cgym_customer_turn/_cgym_ww_phase/_cgym_scenario_for/_cga_area/_cga_client_system)
     "contact_import_folder.py",  # V50.z424 — Import cliente da cartella documenti (visura → anagrafica, allegati compressi, cartelle preservate)
     "axon_landing_ref.py",
+    "user_prefs_sync.py",  # V50.z428 — GET/PUT /me/prefs: preferenze utente (PIN, tema, widget sidebar…) legate all account
     "pkg_delivery.py",  # V50.z424 — consegna pacchetti VPS, attivo SOLO se AXON_PKG_DOWNLOAD_KEY è nell .env (dev); in produzione risponde 404  # V50.z422 — Condividi Landing Page: GET /me/landing-link (ref = codice agente) + GET /public/advisor/{ref} → nome
     "37_app_startup_scheduler.py",
 ]

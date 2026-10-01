@@ -861,6 +861,66 @@ async def _tavily_extract_url(url: str) -> Optional[str]:
         return None
 
 
+# V50.z430 — Bug 14: fetch DIRETTO di qualsiasi URL pubblica (fallback quando Tavily manca/fallisce):
+# HTML → testo pulito (BeautifulSoup), PDF (anche senza estensione .pdf) → testo via _extract_pdf_text_bytes.
+_DIRECT_FETCH_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36 AdvisorOS-Axon/1.0"
+_DIRECT_FETCH_MAX = 12 * 1024 * 1024
+
+
+def _html_to_text(html: str) -> tuple[str, str]:
+    """Ritorna (titolo, testo) da HTML grezzo."""
+    try:
+        from bs4 import BeautifulSoup  # type: ignore
+        soup = BeautifulSoup(html, "html.parser")
+        for t in soup(["script", "style", "noscript", "svg", "nav", "footer", "header", "form", "iframe"]):
+            t.decompose()
+        title = (soup.title.get_text(" ", strip=True) if soup.title else "") or ""
+        main = soup.find("main") or soup.find("article") or soup.body or soup
+        text = main.get_text("\n", strip=True)
+    except Exception:
+        title = ""
+        text = re.sub(r"<[^>]+>", " ", html)
+    text = re.sub(r"[ \t\xa0]+", " ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text).strip()
+    return title.strip(), text
+
+
+async def _direct_fetch_url(url: str) -> Optional[str]:
+    """Scarica una URL pubblica e ne restituisce il testo (HTML o PDF). None se non raggiungibile/leggibile."""
+    try:
+        async with _httpx.AsyncClient(timeout=25.0, follow_redirects=True, headers={"User-Agent": _DIRECT_FETCH_UA, "Accept": "text/html,application/pdf,*/*;q=0.8"}) as client:
+            async with client.stream("GET", url) as r:
+                if r.status_code >= 400:
+                    return None
+                ctype = (r.headers.get("content-type") or "").lower()
+                buf = bytearray()
+                async for chunk in r.aiter_bytes():
+                    buf.extend(chunk)
+                    if len(buf) > _DIRECT_FETCH_MAX:
+                        break
+        data = bytes(buf)
+        if not data:
+            return None
+        if "pdf" in ctype or data[:5] == b"%PDF-":
+            text = await asyncio.to_thread(_extract_pdf_text_bytes, data) or ""  # noqa: F821 — 27_teach_ai_kb.py
+            title = url.rsplit("/", 1)[-1]
+        elif "html" in ctype or "xml" in ctype or data[:1000].lower().find(b"<html") >= 0:
+            title, text = _html_to_text(data.decode(r.encoding or "utf-8", errors="ignore"))
+        elif ctype.startswith("text/") or "json" in ctype:
+            title, text = "", data.decode("utf-8", errors="ignore")
+        else:
+            return None
+        text = (text or "").strip()
+        if len(text) < 40:
+            return None
+        if len(text) > 8000:
+            text = text[:8000] + "\n\n[... contenuto troncato ...]"
+        return f"### {title}\n{text}" if title else text
+    except Exception as exc:
+        logger.debug(f"[axon-url-direct] {url} failed: {exc}")
+        return None
+
+
 async def _summarize_long_text(text: str, source_name: str) -> str:
     """Riassume un file lungo (>10k caratteri) con Claude Haiku via emergentintegrations.
     Fallback: prime 8000 caratteri troncati."""
@@ -973,9 +1033,15 @@ async def _build_attachments_section_advanced(msg: str, attachments: List) -> st
         if u_clean in seen_urls:
             continue
         seen_urls.add(u_clean)
-        extract = await _tavily_extract_url(u_clean)
+        _pdf_in = globals().get("_axon_pdf_links_in")
+        if _pdf_in and u_clean in _pdf_in(u_clean):
+            continue  # link PDF espliciti: già scaricati e letti dal parser PDF (36b)
+        # V50.z430 — Bug 14: Tavily → fallback fetch diretto (HTML/PDF); se entrambi falliscono Axon lo dice chiaramente
+        extract = await _tavily_extract_url(u_clean) or await _direct_fetch_url(u_clean)
         if extract:
-            parts.append(f"--- URL letta via Tavily: {u_clean} ---\n{extract}")
+            parts.append(f"CONTENUTO DELLA PAGINA {u_clean} (letta ora dal server; usala per rispondere, non citare questa intestazione):\n{extract}")
+        else:
+            parts.append(f"PAGINA {u_clean}: non raggiungibile o senza testo leggibile (sito protetto/dinamico). Dillo all'utente in una frase e chiedi di incollare il testo o caricare il file.")
 
     # --- 2) Attachments con riassunto per file grandi ---
     for att in (attachments or [])[:5]:

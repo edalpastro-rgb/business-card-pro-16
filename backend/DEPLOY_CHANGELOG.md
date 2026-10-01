@@ -6,6 +6,8 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-01 | D2026.10.01-1827 | Fix login Google su tablet/APK (pagina di ritorno con bottone Apri AdvisorOS); FAB Axon apre sempre la chat (anche nel browser interno, stelline → chat); chat vocale: stop automatico dopo 2 s di silenzio e risposta in pochi secondi; testo e voce esclusivi; Axon: risposte max 3-4 righe, nessun output tecnico, verifica strumenti prima di dire non posso, lettura di qualsiasi URL pubblica (HTML e PDF) |
+| 2026-10-01 | D2026.10.01-1717 | Preferenze utente salvate sul server e ripristinate al login (PIN aree critiche, blocco app, tema, widget menu laterale, impostazioni personali, tour/intro visti): sopravvivono a reinstallazione APK, aggiornamenti e cambio dispositivo |
 | 2026-10-01 | D2026.10.01-1417 | Fix definitivo cambio tema (lettura tema al boot da file, non più da SecureStore) e menu bottom unico a livello radice su tutte le schermate (stesso comportamento della Help Center) |
 | 2026-10-01 | D2026.10.01-1214 | Modulo Importazione clienti con 3 modalità in una schermata: cartella dispositivo (sottocartelle, OCR), CSV/Excel con mappatura colonne, Google Drive letto direttamente dal cloud senza download |
 | 2026-10-01 | D2026.10.01-1143 | Import cliente da cartella anche nell'app nativa: selettore cartella di sistema (Android/iOS) con lettura automatica di tutte le sottocartelle, permesso limitato alla sola cartella scelta |
