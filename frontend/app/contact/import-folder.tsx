@@ -8,12 +8,34 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
+import { Directory, File as FsFile } from "expo-file-system";
 import { api, apiUpload } from "@/src/api";
 import { notify } from "@/src/utils/notify";
 import { HT } from "@/src/homeTheme";
 import { useResponsive } from "@/src/hooks/useResponsive";
 
-type PickedFile = { name: string; relPath: string; size: number; mime: string; uri?: string; blob?: Blob };
+type PickedFile = { name: string; relPath: string; size: number; mime: string; uri?: string; blob?: Blob; fsFile?: FsFile };
+const DOC_EXT = /\.(pdf|jpe?g|png|heic|webp|tiff?)$/i;
+const mimeFor = (name: string) => name.toLowerCase().endsWith(".pdf") ? "application/pdf" : /\.(jpe?g)$/i.test(name) ? "image/jpeg" : /\.png$/i.test(name) ? "image/png" : "application/octet-stream";
+
+// V50.z425 — APP NATIVA: cartella scelta con il selettore di sistema (Android Storage Access Framework / iOS File) e
+// navigazione ricorsiva di TUTTE le sottocartelle. Il permesso di accesso allo storage è concesso dall'utente proprio
+// nel selettore (SAF): nessun permesso globale «tutti i file» richiesto, solo la cartella scelta (es. OKEN Scanner/Asolo Pneus).
+function scanDirectory(dir: Directory, prefix: string, out: PickedFile[], depth = 0) {
+  if (depth > 12 || out.length >= 150) return;
+  let items: (Directory | FsFile)[] = [];
+  try { items = dir.list(); } catch { return; }
+  for (const it of items) {
+    if (out.length >= 150) break;
+    const name = (it as any).name as string;
+    if (!name || name.startsWith(".")) continue;
+    if (it instanceof Directory) { scanDirectory(it, `${prefix}${name}/`, out, depth + 1); continue; }
+    if (!DOC_EXT.test(name)) continue;
+    let size = 0;
+    try { size = (it as FsFile).size || 0; } catch { size = 0; }
+    out.push({ name, relPath: `${prefix}${name}`, size, mime: mimeFor(name), uri: it.uri, fsFile: it as FsFile });
+  }
+}
 type FileMeta = { id: string; name: string; rel_path: string; folder: string; size: number; mime: string; pages?: number; scanned?: boolean; is_visura?: boolean };
 type Analysis = { fields: Record<string, string>; sources: Record<string, string>; missing: string[]; required: string[]; labels: Record<string, string>; visura_file: string | null; files: FileMeta[]; warnings: string[] };
 type Step = "pick" | "upload" | "analyze" | "preview" | "commit" | "done";
@@ -68,6 +90,27 @@ export default function ContactImportFolderScreen() {
     if (res.canceled || !res.assets?.length) return;
     setPicked(res.assets.map((a) => ({ name: a.name, relPath: a.name, size: a.size || 0, mime: a.mimeType || "application/pdf", uri: a.uri })));
   };
+  const [permInfo, setPermInfo] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const pickMobileFolder = async () => {
+    setPermInfo(false);
+    try {
+      const dir = await Directory.pickDirectoryAsync();
+      if (!dir) return;
+      setScanning(true);
+      const root = (dir as any).name || decodeURIComponent(dir.uri.split(/[/:]/).pop() || "Cartella");
+      const out: PickedFile[] = [];
+      scanDirectory(dir as unknown as Directory, `${root}/`, out);
+      setScanning(false);
+      if (!out.length) { notify("Nessun documento", "Nella cartella scelta (e sottocartelle) non ci sono PDF o immagini."); return; }
+      setPicked(out);
+    } catch (e: any) {
+      setScanning(false);
+      const msg = String(e?.message || e || "");
+      if (/cancel|annull/i.test(msg)) return; // utente ha chiuso il selettore
+      notify("Accesso alla cartella non riuscito", msg || "Riprova oppure usa «Scegli i documenti».");
+    }
+  };
 
   // ---- upload + analisi ----
   const startUpload = async () => {
@@ -80,6 +123,12 @@ export default function ContactImportFolderScreen() {
       for (let i = 0; i < picked.length; i++) {
         const p = picked[i];
         setProgress({ done: i, total: picked.length, current: p.relPath });
+        if (p.fsFile) {
+          // nativo (SAF/iOS Files): lettura base64 dal File picker → JSON (i content:// non sono sempre accettati da FormData)
+          const b64 = await p.fsFile.base64();
+          await api(`/contacts/import-folder/${s.session_id}/file-b64`, { method: "POST", body: { name: p.name, rel_path: p.relPath, mime: p.mime, data_base64: b64 } });
+          continue;
+        }
         const form = new FormData();
         if (Platform.OS === "web" && p.blob) {
           form.append("file", new File([p.blob], p.name, { type: p.mime }));
@@ -138,9 +187,23 @@ export default function ContactImportFolderScreen() {
                   <Pressable style={s.secondary} onPress={() => pickWeb(false)} testID="imp-pick-files"><Ionicons name="documents-outline" size={18} color={HT.violet} /><Text style={s.secondaryTxt}>Scegli file</Text></Pressable>
                 </>
               ) : (
-                <Pressable style={s.primary} onPress={pickMobile} testID="imp-pick-files"><Ionicons name="documents-outline" size={18} color="#fff" /><Text style={s.primaryTxt}>Scegli i documenti</Text></Pressable>
+                <>
+                  <Pressable style={s.primary} onPress={() => setPermInfo(true)} testID="imp-pick-folder"><Ionicons name="folder-open-outline" size={18} color="#fff" /><Text style={s.primaryTxt}>Scegli cartella</Text></Pressable>
+                  <Pressable style={s.secondary} onPress={pickMobile} testID="imp-pick-files"><Ionicons name="documents-outline" size={18} color={HT.violet} /><Text style={s.secondaryTxt}>Scegli i documenti</Text></Pressable>
+                </>
               )}
             </View>
+            {permInfo && (
+              <View style={s.card} testID="imp-perm-info">
+                <Text style={s.cardTitle}>Accesso alla cartella del cliente</Text>
+                <Text style={s.lead}>Per leggere visura e documenti, AdvisorOS chiede l&apos;accesso alla sola cartella che scegli nel selettore di sistema (es. OKEN Scanner › Asolo Pneus), comprese le sottocartelle. Nessun altro file del dispositivo viene letto.</Text>
+                <View style={s.row}>
+                  <Pressable style={s.primary} onPress={pickMobileFolder} testID="imp-perm-continue"><Ionicons name="shield-checkmark-outline" size={18} color="#fff" /><Text style={s.primaryTxt}>Continua e scegli la cartella</Text></Pressable>
+                  <Pressable style={s.secondary} onPress={() => setPermInfo(false)}><Text style={s.secondaryTxt}>Non ora</Text></Pressable>
+                </View>
+              </View>
+            )}
+            {scanning && <View style={s.card}><ActivityIndicator color={HT.violet} /><Text style={s.progressTxt}>Lettura cartella e sottocartelle…</Text></View>}
             {picked.length > 0 && (
               <View style={s.card}>
                 <Text style={s.cardTitle}>{rootFolder ? `Cartella «${rootFolder}»` : "File selezionati"} · {picked.length} file · {fmtKb(picked.reduce((a, p) => a + p.size, 0))}</Text>

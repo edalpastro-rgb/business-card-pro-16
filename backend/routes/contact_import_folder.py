@@ -118,6 +118,41 @@ async def ci_file_upload(sid: str, file: UploadFile = File(...), rel_path: str =
     return meta
 
 
+class CiFileB64In(_CiBase):
+    name: str
+    rel_path: str = ""
+    mime: str = ""
+    data_base64: str
+
+
+@api_router.post("/contacts/import-folder/{sid}/file-b64")  # noqa: F821
+async def ci_file_upload_b64(sid: str, body: CiFileB64In, user=Depends(get_current_user)):  # noqa: F821
+    """Variante JSON/base64 per l'app nativa (file letti dallo Storage Access Framework Android / Files iOS)."""
+    s = await _ci_session(sid, user)
+    if len(s.get("files") or []) >= _CI_MAX_FILES:
+        raise HTTPException(status_code=400, detail=f"Massimo {_CI_MAX_FILES} file per import")  # noqa: F821
+    b64 = body.data_base64.split(",", 1)[1] if body.data_base64.startswith("data:") else body.data_base64
+    try:
+        raw = _ci_b64.b64decode(b64)
+    except Exception:  # noqa: BLE001
+        raise HTTPException(status_code=400, detail="Contenuto base64 non valido")  # noqa: F821
+    if not raw:
+        raise HTTPException(status_code=400, detail="File vuoto")  # noqa: F821
+    if len(raw) > _CI_MAX_FILE:
+        raise HTTPException(status_code=413, detail=f"«{body.name}» supera {_CI_MAX_FILE // (1024 * 1024)} MB")  # noqa: F821
+    rel = _ci_safe_rel(body.rel_path, body.name or "file")
+    fid = f"f_{_ci_uuid.uuid4().hex[:10]}"
+    with open(_ci_os.path.join(_ci_dir(sid), fid), "wb") as fh:
+        fh.write(raw)
+    name = rel.rsplit("/", 1)[-1]
+    mime = (body.mime or "").split(";")[0].strip() or ("application/pdf" if name.lower().endswith(".pdf") else "application/octet-stream")
+    if raw[:5] == b"%PDF-":
+        mime = "application/pdf"
+    meta = {"id": fid, "name": name, "rel_path": rel, "folder": rel.rsplit("/", 1)[0] + "/" if "/" in rel else "", "mime": mime, "size": len(raw)}
+    await db.contact_import_sessions.update_one({"session_id": sid}, {"$push": {"files": meta}})  # noqa: F821
+    return meta
+
+
 async def _ci_pdf_text(raw: bytes) -> Dict[str, Any]:
     """Testo del PDF: layer testuale (PyMuPDF) → se scarso, OCR Tesseract (prime 4 pagine). {text, scanned, pages}."""
     text, pages = "", 0
