@@ -309,6 +309,7 @@ class ContactFile(BaseModel):
     data_base64: str
     size: int = 0
     created_at: datetime = Field(default_factory=utcnow)
+    folder: Optional[str] = None  # V50.z424 — percorso relativo originale (import da cartella: "Asolo Pneus/Visure/")
 
 
 class ContactIn(BaseModel):
@@ -343,6 +344,12 @@ class ContactIn(BaseModel):
     birthday_sender_email: Optional[str] = None
     birthday_recipient_email: Optional[str] = None
     is_active_client: bool = False
+    client_since: Optional[str] = None  # V50.z424 — data attivazione cliente (YYYY-MM-DD), impostabile anche retroattiva
+    legal_form: Optional[str] = None    # V50.z424 — forma giuridica (SRL, SNC, ditta individuale…)
+    pec: Optional[str] = None
+    sdi_code: Optional[str] = None
+    bank_name: Optional[str] = None
+    iban: Optional[str] = None
     anniversaries: List[Dict[str, Any]] = Field(default_factory=list)
     fiscal_code: str = ""
     vat_number: str = ""
@@ -420,6 +427,12 @@ class ContactUpdate(BaseModel):
     birthday_sender_email: Optional[str] = None  # V38H
     birthday_recipient_email: Optional[str] = None  # V38H
     is_active_client: Optional[bool] = None  # V38H
+    client_since: Optional[str] = None  # V50.z424
+    legal_form: Optional[str] = None
+    pec: Optional[str] = None
+    sdi_code: Optional[str] = None
+    bank_name: Optional[str] = None
+    iban: Optional[str] = None
     anniversaries: Optional[List[Dict[str, Any]]] = None
     fiscal_code: Optional[str] = None
     vat_number: Optional[str] = None

@@ -282,6 +282,12 @@ function ContattiScreen() {
           <Text style={styles.importBtnTxt}>Importa contatti da CSV / Excel</Text>
           <Ionicons name="chevron-forward" size={14} color={HT.violet} />
         </Pressable>
+        {/* V50.z424 — Import cliente da cartella documenti scansionati (visura → anagrafica + allegati) */}
+        <Pressable testID="contacts-import-folder-btn" onPress={() => router.push("/contact/import-folder" as any)} style={[styles.importBtn, { marginTop: 8 }]}>
+          <Ionicons name="folder-open-outline" size={16} color={HT.violet} />
+          <Text style={styles.importBtnTxt}>Importa cliente da cartella documenti</Text>
+          <Ionicons name="chevron-forward" size={14} color={HT.violet} />
+        </Pressable>
       </View>
 
       {loading ? (

@@ -205,6 +205,8 @@ async def _omni_contact_dossier(user: dict, c: dict) -> dict:
     dossier = {k: (v.isoformat() if hasattr(v, "isoformat") else v) for k, v in c.items()
                if k not in skip and v not in ("", None, [], {}, False)}
     dossier["nome"] = _omni_name(c)
+    if c.get("custom_fields"):  # V50.z424 — dati societari dall'import cartella (REA, ATECO, legale rappresentante) utili per i contratti
+        dossier["dati_societari_extra"] = {k: v for k, v in c["custom_fields"].items() if v not in ("", None)}
     notes = []
     for n in (c.get("notes") or [])[-12:]:
         kind = n.get("kind") or "text"
@@ -214,7 +216,7 @@ async def _omni_contact_dossier(user: dict, c: dict) -> dict:
         notes.append(f"{_omni_dt(n.get('created_at'))} · {n.get('source') or 'nota'}: {(n.get('text') or '')[:300]}")
     if notes:
         dossier["note"] = notes[:20]
-    files = [f"{f.get('name') or f.get('title') or '?'} ({f.get('mime') or ''}, {_omni_dt(f.get('created_at'))})" for f in (c.get("files") or [])[-15:]]
+    files = [f"{(f.get('folder') or '')}{f.get('name') or f.get('title') or '?'} ({f.get('mime') or ''}, {_omni_dt(f.get('created_at'))})" for f in (c.get("files") or [])[-15:]]
     if files:
         dossier["file_allegati"] = files
     appts = []

@@ -922,8 +922,41 @@ def compress_pdf(pdf: bytes, dpi_threshold: int = 200, dpi_target: int = 150, qu
     return {"pdf": out, "before": before, "after": len(out), "ratio": round(len(out) / before, 3)}
 
 
+def compress_pdf_target(pdf: bytes, target_bytes: int = 200 * 1024, tolerance_bytes: int = 300 * 1024) -> Dict[str, Any]:
+    """V50.z424 — Compressione PDF scansionato verso un OBIETTIVO di peso (import cliente da cartella: 200 KB per PDF).
+    Passi progressivi (dpi/qualità/scala di grigi) finché il file è ≤ target; ci si ferma al piano più aggressivo ancora
+    leggibile (100 dpi, q50, grigio): se resta sopra la tolleranza (~300 KB) si tiene comunque il risultato più piccolo."""
+    import pymupdf as fitz
+    before = len(pdf)
+    if before <= target_bytes:
+        return {"pdf": pdf, "before": before, "after": before, "ratio": 1.0, "skipped": "already-small", "steps": 0}
+    best = pdf
+    steps = [(150, 72, False), (120, 62, False), (110, 55, True), (100, 50, True)]
+    used = 0
+    for dpi, q, gray in steps:
+        used += 1
+        try:
+            doc = fitz.open(stream=pdf, filetype="pdf")
+            if doc.is_encrypted:
+                doc.close(); break
+            doc.rewrite_images(dpi_threshold=dpi + 1, dpi_target=dpi, quality=q, lossy=True, lossless=True, bitonal=True, color=True, gray=True, set_to_gray=gray)
+            out = doc.tobytes(garbage=4, deflate=True, deflate_images=True, deflate_fonts=True, clean=True)
+            doc.close()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("compress_pdf_target step %s failed: %s", dpi, exc)
+            continue
+        if len(out) < len(best):
+            best = out
+        if len(best) <= target_bytes:
+            break
+    after = len(best)
+    return {"pdf": best, "before": before, "after": after, "ratio": round(after / before, 3) if before else 1.0, "steps": used,
+            "within_target": after <= target_bytes, "within_tolerance": after <= tolerance_bytes}
+
+
 OPS = {
     "compress_pdf": compress_pdf,
+    "compress_pdf_target": compress_pdf_target,
     "scan_document": scan_document, "manual_crop": manual_crop, "detect_corners": detect_corners, "autocrop_preview": autocrop_preview, "merge_pdf": merge_pdf,
     "process_page": process_page,
     "pdf_ocr": pdf_ocr, "pdf_render": pdf_render,

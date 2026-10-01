@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput, Linking, Platform, Image, Modal } from "react-native";
 import { KModalBody } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { LinearGradient } from "expo-linear-gradient"; // V50.z335 — header dark premium
@@ -203,6 +203,21 @@ function ContactDetail() {
   }, [c?.contact_id, c?.address, c?.address_street, c?.address_city, c?.address_zip, c?.address_province, c?.work_address, c?.residence_address, distanceOrigin]);
   const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
   const [viewerFile, setViewerFile] = useState<CFile | null>(null);
+  // V50.z424 — stato cliente attivo / data attivazione (anche retroattiva), modificabile in ogni momento dalla scheda
+  const [activeEdit, setActiveEditState] = useState(false);
+  const [activeDraft, setActiveDraft] = useState<{ active: boolean; since: string }>({ active: true, since: "" });
+  const setActiveEdit = (open: boolean) => {
+    if (open && c) setActiveDraft({ active: !!(c as any).is_active_client, since: (c as any).client_since || new Date().toISOString().slice(0, 10) });
+    setActiveEditState(open);
+  };
+  const saveActive = async () => {
+    if (activeDraft.active && !/^\d{4}-\d{2}-\d{2}$/.test(activeDraft.since)) { notify("Data non valida", "Usa il formato AAAA-MM-GG (es. 2025-01-15)"); return; }
+    try {
+      await api(`/contacts/${id}`, { method: "PUT", body: { is_active_client: activeDraft.active, client_since: activeDraft.active ? activeDraft.since : null, ...(activeDraft.active ? { status: "client" } : {}) } });
+      setActiveEditState(false);
+      await load();
+    } catch (e: any) { notify("Errore", e?.message || "Salvataggio non riuscito"); }
+  };
   const [scannerOpen, setScannerOpen] = useState(false);
   const { user } = useAuth();
   const canAssign = user?.role === "owner" || user?.role === "admin";
@@ -1062,6 +1077,39 @@ function ContactDetail() {
               </View>
             )}
             {c.company ? <InfoRow icon="business-outline" label="Azienda" value={c.company} /> : null}
+            {/* V50.z424 — dati societari (import da cartella / scheda azienda) + stato cliente attivo con data attivazione */}
+            {(c as any).legal_form ? <InfoRow icon="ribbon-outline" label="Forma giuridica" value={(c as any).legal_form} /> : null}
+            {c.vat_number ? <InfoRow icon="card-outline" label="Partita IVA" value={c.vat_number} /> : null}
+            {(c as any).pec ? <InfoRow icon="mail-unread-outline" label="PEC" value={(c as any).pec} href={`mailto:${(c as any).pec}`} /> : null}
+            {(c as any).sdi_code ? <InfoRow icon="barcode-outline" label="Codice SDI" value={(c as any).sdi_code} /> : null}
+            {(c as any).bank_name || (c as any).iban ? <InfoRow icon="cash-outline" label="Banca / IBAN" value={[(c as any).bank_name, (c as any).iban].filter(Boolean).join(" · ")} /> : null}
+            {c.status === "client" || (c as any).is_active_client ? (
+              <Pressable testID="contact-active-row" onPress={() => setActiveEdit(true)} style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8 }}>
+                <Ionicons name={(c as any).is_active_client ? "checkmark-circle" : "pause-circle-outline"} size={20} color={(c as any).is_active_client ? HT.success : HT.muted} />
+                <Text style={{ color: HT.text, fontWeight: "700", fontSize: 13, flex: 1 }}>
+                  {(c as any).is_active_client ? `Cliente attivo${(c as any).client_since ? ` dal ${String((c as any).client_since).split("-").reverse().join("/")}` : ""}` : "Cliente disattivato"}
+                </Text>
+                <Text style={{ color: HT.violet, fontWeight: "800", fontSize: 12 }}>Modifica</Text>
+              </Pressable>
+            ) : null}
+            {activeEdit ? (
+              <View style={{ gap: 8, padding: 10, borderRadius: 12, borderWidth: 1, borderColor: HT.border, backgroundColor: HT.card2 }} testID="contact-active-editor">
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                  <Text style={{ color: HT.text2, fontWeight: "700", fontSize: 13 }}>Cliente attivo</Text>
+                  <Pressable testID="contact-active-toggle" onPress={() => setActiveDraft((d) => ({ ...d, active: !d.active }))} hitSlop={8}>
+                    <Ionicons name={activeDraft.active ? "toggle" : "toggle-outline"} size={36} color={activeDraft.active ? HT.success : HT.muted} />
+                  </Pressable>
+                </View>
+                {activeDraft.active ? (
+                  <TextInput testID="contact-active-since" value={activeDraft.since} onChangeText={(v) => setActiveDraft((d) => ({ ...d, since: v }))} placeholder="Attivo dal (AAAA-MM-GG, anche retroattiva)" placeholderTextColor={HT.muted}
+                    style={{ borderWidth: 1, borderColor: HT.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: HT.text, minHeight: 44 }} />
+                ) : null}
+                <View style={{ flexDirection: "row", gap: 10, justifyContent: "flex-end" }}>
+                  <Pressable onPress={() => setActiveEdit(false)} style={{ paddingHorizontal: 14, paddingVertical: 10 }}><Text style={{ color: HT.muted, fontWeight: "700" }}>Annulla</Text></Pressable>
+                  <Pressable testID="contact-active-save" onPress={saveActive} style={{ paddingHorizontal: 14, paddingVertical: 10, backgroundColor: HT.violet, borderRadius: 10 }}><Text style={{ color: "#fff", fontWeight: "800" }}>Salva</Text></Pressable>
+                </View>
+              </View>
+            ) : null}
             {c.role ? <InfoRow icon="briefcase-outline" label="Ruolo" value={c.role} /> : null}
             {(c.phones || []).length ? (c.phones || []).map((p, i) => (
               <InfoRow key={`ph-${i}`} icon={p.type === "fax" ? "print-outline" : p.type === "landline" ? "call-outline" : "phone-portrait-outline"} label={`${p.primary ? "★ " : ""}${p.label || "Telefono"}${p.type === "fax" ? " (fax)" : p.type === "landline" ? " (fisso)" : ""}`} value={p.number} href={p.type === "fax" ? undefined : `tel:${p.number.replace(/[^\d+]/g, "")}`} />
@@ -1353,9 +1401,16 @@ function ContactDetail() {
                 <Text style={{ color: HT.muted, fontSize: 12 }}>({c.files.filter((f: any) => f.folder === "CRT").length})</Text>
               </View>
             ) : null}
-            {c.files && c.files.length > 0 ? [...c.files].sort((a: any, b: any) => (a.folder === "CRT" ? -1 : 0) - (b.folder === "CRT" ? -1 : 0)).map((f) => (
+            {/* V50.z424 — file importati da cartella: ordinati per percorso originale, con intestazione della sottocartella */}
+            {c.files && c.files.length > 0 ? [...c.files].sort((a: any, b: any) => ((a.folder === "CRT" ? -1 : 0) - (b.folder === "CRT" ? -1 : 0)) || String(a.folder || "").localeCompare(String(b.folder || "")) || String(a.name).localeCompare(String(b.name))).map((f, idx, arr) => (
+              <React.Fragment key={f.id}>
+              {!!(f as any).folder && (f as any).folder !== "CRT" && (idx === 0 || (arr[idx - 1] as any).folder !== (f as any).folder) ? (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 }} testID={`contact-folder-${idx}`}>
+                  <Ionicons name="folder-outline" size={16} color={HT.violet} />
+                  <Text style={{ color: HT.text2, fontWeight: "800", fontSize: 12 }} numberOfLines={1}>{(f as any).folder}</Text>
+                </View>
+              ) : null}
               <Pressable
-                key={f.id}
                 testID={`file-open-${f.id}`}
                 onPress={() => setViewerFile(f)}
                 style={styles.fileCard}
@@ -1381,6 +1436,7 @@ function ContactDetail() {
                   <Ionicons name="trash-outline" size={18} color={HT.danger} />
                 </Pressable>
               </Pressable>
+              </React.Fragment>
             )) : <Text style={styles.emptyTxt}>Nessun file</Text>}
             {/* V50.z25 — Allegati dalle mail (Auto-CRM) */}
             <ContactMailAttachmentsSection contactId={id as string} />
