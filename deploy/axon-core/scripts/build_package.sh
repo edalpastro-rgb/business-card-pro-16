@@ -29,11 +29,6 @@ fi
 PKG="$(mktemp -d)/axon-core-pkg"
 mkdir -p "$PKG"
 rsync -a --exclude '__pycache__' --exclude '*.pyc' --exclude 'assets/kokoro' --exclude '.env' --exclude 'tests' "$ROOT/backend/" "$PKG/backend/"
-# V50.z421 — gli endpoint TEMPORANEI di download (/api/download/*, routes/tmp_pkg_download.py) NON vanno in produzione:
-# il file viene escluso dal pacchetto e la riga tolta da MODULES. Restano solo nell'ambiente di sviluppo come canale di consegna del pacchetto.
-rm -f "$PKG/backend/routes/tmp_pkg_download.py"
-sed -i '/tmp_pkg_download\.py/d' "$PKG/backend/routes/__init__.py"
-grep -q "tmp_pkg_download" "$PKG/backend/routes/__init__.py" && { echo "ERRORE: tmp_pkg_download ancora in MODULES"; exit 1; }
 # FIX build VPS: tolgo la riga `litellm @ …#sha256=…` (stesso wheel richiesto da emergentintegrations senza hash → ResolutionImpossible)
 grep -v '^litellm @ ' "$PKG/backend/requirements.txt" > "$PKG/backend/requirements.tmp" && mv "$PKG/backend/requirements.tmp" "$PKG/backend/requirements.txt"
 cp "$ROOT/deploy/axon-core/Dockerfile" "$PKG/backend/Dockerfile"
