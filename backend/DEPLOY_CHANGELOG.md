@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-01 | D2026.10.01-1417 | Fix definitivo cambio tema (lettura tema al boot da file, non più da SecureStore) e menu bottom unico a livello radice su tutte le schermate (stesso comportamento della Help Center) |
 | 2026-10-01 | D2026.10.01-1214 | Modulo Importazione clienti con 3 modalità in una schermata: cartella dispositivo (sottocartelle, OCR), CSV/Excel con mappatura colonne, Google Drive letto direttamente dal cloud senza download |
 | 2026-10-01 | D2026.10.01-1143 | Import cliente da cartella anche nell'app nativa: selettore cartella di sistema (Android/iOS) con lettura automatica di tutte le sottocartelle, permesso limitato alla sola cartella scelta |
 | 2026-10-01 | D2026.10.01-1132 | Import cliente da cartella documenti scansionati: visura camerale → ragione sociale e anagrafica completa (P.IVA, CF, sede, email, PEC, SDI, telefono, banca, IBAN), anteprima con campi mancanti in rosso, scheda cliente attiva con data attivazione, documenti compressi verso 200 KB con struttura cartelle preservata, dati disponibili ad Axon per i contratti |

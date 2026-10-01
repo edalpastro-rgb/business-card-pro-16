@@ -8,6 +8,7 @@
 
 import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
+import { File as FsFile, Paths } from "expo-file-system";
 
 export type ThemeId = "light" | "pearl" | "slate" | "midnight";
 export const DEFAULT_THEME: ThemeId = "slate";
@@ -77,15 +78,31 @@ export const PALETTES: Record<ThemeId, Palette> = {
 const LAST_KEY = "axon_theme_last";
 const userKey = (userId: string) => `axon_theme_${userId}`;
 
+// V50.z427 — FIX definitivo «tema che torna al precedente»: il tema è un valore letto SINCRONO al boot (ACTIVE_THEME_ID).
+// Prima la sola fonte era SecureStore.getItem() sincrono, che su alcuni Android/tablet al boot restituisce null (keystore non
+// pronto) → l'app partiva col tema di default, useThemeSync vedeva la differenza e riavviava (lampeggio) e, scattata la guardia
+// anti-loop, restava il tema vecchio. Ora la fonte primaria è un FILE nel documentDirectory (expo-file-system: lettura/scrittura
+// sincrone, sempre disponibili); SecureStore resta come mirror/fallback.
+function themeFile(key: string): FsFile | null {
+  try { return new FsFile(Paths.document, `axon_theme_${key.replace(/[^a-zA-Z0-9_\-]/g, "_")}.txt`); } catch { return null; }
+}
 function readSync(key: string): string | null {
   try {
     if (Platform.OS === "web") return typeof localStorage !== "undefined" ? localStorage.getItem(key) : null;
+    const f = themeFile(key);
+    if (f && f.exists) {
+      const v = f.textSync().trim();
+      if (v) return v;
+    }
     return SecureStore.getItem(key);
-  } catch { return null; }
+  } catch {
+    try { return SecureStore.getItem(key); } catch { return null; }
+  }
 }
 async function write(key: string, value: string): Promise<void> {
   try {
     if (Platform.OS === "web") { localStorage.setItem(key, value); return; }
+    try { themeFile(key)?.write(value); } catch { /* file non scrivibile → resta SecureStore */ }
     await SecureStore.setItemAsync(key, value);
   } catch { /* ignore */ }
 }
@@ -139,6 +156,7 @@ export async function markPendingTheme(id: ThemeId): Promise<void> { await write
 export async function clearPendingTheme(): Promise<void> {
   try {
     if (Platform.OS === "web") { localStorage.removeItem(PENDING_KEY); return; }
+    try { const f = themeFile(PENDING_KEY); if (f?.exists) f.delete(); } catch { /* ignore */ }
     await SecureStore.deleteItemAsync(PENDING_KEY);
   } catch { /* ignore */ }
 }

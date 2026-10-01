@@ -1,26 +1,17 @@
 import { Tabs, Redirect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/src/auth";
-import { View, ActivityIndicator, Platform } from "react-native";
-import { useNavBarBottomInset } from "@/src/hooks/useSafeBottom";
+import { View, ActivityIndicator } from "react-native";
 import { IdDocExpiryPopup } from "@/src/IdDocExpiryPopup"; // V50.z267 — popup documenti in scadenza (≤30 gg)
 import { HT } from "@/src/homeTheme"; // V50.z338 — bottom nav segue il tema attivo
-import { useIsDesktop } from "@/src/hooks/useResponsive"; // V50.z409 — desktop: tab bar nascosta (DesktopSidebar)
 
 // V27 palette (used only for tab bar styling, no global theme override)
 const TAB_ACTIVE = HT.navActive; // V50.z338 — tema attivo
 const TAB_INACTIVE = HT.navInactive;
-const TAB_BG = HT.nav;
-const TAB_BORDER = HT.border;
 
 export default function TabsLayout() {
   const { user, loading } = useAuth();
-  // V50.z167 — Stesso valore della PersistentBottomNav (hook condiviso, con fallback
-  // initialWindowMetrics): prima `Math.max(insets.bottom, 20)` locale → in Home la barra
-  // risultava attaccata alla navigation bar Android (insets.bottom=0 dentro lo Stack).
-  const bottomInset = useNavBarBottomInset();
-  const isDesktop = useIsDesktop();
-  const tabBarHeight = 60 + bottomInset;
+  // V50.z427 — la barra inferiore è SOLO <PersistentBottomNav /> (radice): qui la Tabs nativa resta nascosta.
 
   if (loading) {
     return (
@@ -39,28 +30,8 @@ export default function TabsLayout() {
         headerShown: false,
         tabBarActiveTintColor: TAB_ACTIVE,
         tabBarInactiveTintColor: TAB_INACTIVE,
-        tabBarStyle: isDesktop ? { display: "none" } : {
-          position: "absolute",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          backgroundColor: TAB_BG,
-          borderTopColor: TAB_BORDER,
-          ...(HT.navShadow as object), // V50.z339 — Pearl: ombra superiore leggera
-          borderTopWidth: 1,
-          height: tabBarHeight,
-          paddingTop: 10,
-          paddingBottom: bottomInset,
-          ...Platform.select({
-            ios: {
-              shadowColor: "#0F172A",
-              shadowOpacity: 0.05,
-              shadowRadius: 12,
-              shadowOffset: { width: 0, height: -4 },
-            },
-            android: { elevation: 8 },
-          }),
-        },
+        // V50.z427 — barra nativa SEMPRE nascosta: la barra unica è <PersistentBottomNav /> a livello radice (riferimento Help Center)
+        tabBarStyle: { display: "none" },
         tabBarLabelStyle: { fontSize: 12, fontWeight: "700", letterSpacing: 0.2, marginTop: 3, marginBottom: 0, includeFontPadding: false },
         tabBarItemStyle: { paddingVertical: 2 },
       }}

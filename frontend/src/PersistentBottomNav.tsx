@@ -76,11 +76,14 @@ export function PersistentBottomNav() {
 
   const hideCompletely = HIDE_ON_PATHS.some((p) => pathname === p) || pathname.startsWith("/auth");
   if (hideCompletely || isDesktop) return null; // V50.z409 — desktop: sidebar laterale
-  if (inTabs) return null; // la Tabs nativa è già visibile
+  // V50.z427 — BUG «menu bottom tagliato dalla gesture bar»: la Help Center (stack screen) era giusta perché usa QUESTA barra
+  // a livello radice, mentre le schermate tab usavano la barra nativa di <Tabs> dentro il navigator (inset errato su Android
+  // edge-to-edge). Ora la barra radice è l'UNICA barra per tutte le schermate (la Tabs nativa è nascosta): stesso comportamento
+  // della Help Center ovunque. `inTabs` resta solo per evidenziare la tab attiva.
 
-  const current = TABS.find((t) =>
-    t.activePrefixes ? t.activePrefixes.some((p) => pathname.startsWith(p)) : pathname.includes(`/${t.name}`),
-  )?.name;
+  const current = inTabs && (pathname === "/" || pathname === "/(tabs)" || pathname === "/(tabs)/home" || pathname === "/home")
+    ? "home"
+    : TABS.find((t) => (t.activePrefixes ? t.activePrefixes.some((p) => pathname.startsWith(p)) : pathname.includes(`/${t.name}`)))?.name;
 
   return (
     <View
