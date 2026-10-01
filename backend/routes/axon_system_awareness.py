@@ -360,36 +360,71 @@ def _axs_fmt_event(e: dict) -> str:
     return f"{_AXS_LEVEL_ICON.get(e.get('level'), '•')} {ts}{who} {e.get('title')}"
 
 
-async def _axs_context_section(user: dict) -> str:
-    st = await _axs_status(user, events_limit=18)
+_AXS_FULL_RX = re.compile(r"version|novit|changelog|aggiorna|deploy|build|backend|release|rilasci|\bjob\b|errori?|warning|\blog\b|dispositiv|heartbeat|stato (del )?sistema|uptime|riavvi|integrazion|\bpush\b|modul|cosa (è|e') cambiato|che c'è di nuovo|installat", re.I)
+
+
+def _axs_group_devices(devs: List[dict], with_user: bool = False) -> List[str]:
+    """V50.z421 — raggruppa i dispositivi identici (stesso nome/piattaforma/versione): «Safari (web) v2.0.0 ×10 · ultimo heartbeat …»."""
+    groups: Dict[tuple, dict] = {}
+    for d in devs:
+        k = ((d.get("user_id") or "")[-6:] if with_user else "", d.get("device_name") or d.get("platform") or "?", d.get("platform") or "", d.get("app_env") or "", _axs_ver_label(d), d.get("js_version") or "?")
+        g = groups.setdefault(k, {"n": 0, "last": "", "prev": None})
+        g["n"] += 1
+        g["last"] = max(g["last"], (d.get("last_seen") or "")[:16])
+        g["prev"] = g["prev"] or d.get("previous_version")
+    out = []
+    for k, g in groups.items():
+        uid, name, plat, env, ver, js = k
+        out.append((f"{uid} " if uid else "") + f"{name} ({plat}{', ' + env if env else ''}) v{ver} · JS {js} · ×{g['n']} · ultimo heartbeat {g['last'].replace('T', ' ')}" + (f" · aggiornata da {g['prev']}" if g["prev"] else ""))
+    return out
+
+
+async def _axs_context_section(user: dict, msg: str = "") -> str:
+    """Sezione «Stato sistema» del prompt. V50.z421 — versione COMPATTA (~700 car.) di default; completa (~5k car.: changelog,
+    dispositivi, job, integrazioni, eventi) solo se il messaggio riguarda versioni/novità/deploy/errori/dispositivi/sistema."""
+    full = bool(_AXS_FULL_RX.search(msg or ""))
+    st = await _axs_status(user, events_limit=12 if full else 1)  # NB: limit(0) in Mongo = nessun limite
     b = st["backend"]
+    deploys = st.get("deploys") or []
+    if not full:
+        last_dep = f" Ultimo deploy {deploys[0]['date']} [{deploys[0]['version']}]: {deploys[0]['desc'][:180]}." if deploys else ""
+        return ("🛰️ STATO SISTEMA (sintesi; hai visibilità COMPLETA su backend, versioni, changelog, deploy, job, errori e dispositivi — non dire mai «non ho visibilità» o «devi avvisarmi tu»; "
+                "se l'utente chiede novità/versioni/errori/dispositivi la sezione completa arriva in quel turno). "
+                f"Backend {b['version'] or 'n/d'} · avviato {b['started_at'][:16].replace('T', ' ')} UTC (uptime {b['uptime_label']}) · ultime 24h: {st['counters']['errors_24h']} errori, {st['counters']['warnings_24h']} warning."
+                + last_dep)
     lines = ["🛰️ STATO SISTEMA IN TEMPO REALE — Axon ha ACCESSO COMPLETO al backend: versioni installate, aggiornamenti dell'app rilevati in autonomia (heartbeat), CHANGELOG, riavvii, job, errori, ogni azione API. "
              "REGOLA: NON dire MAI «non ho visibilità su build/aggiornamenti/backend» o «devi avvisarmi tu»: usa questi dati. Se manca un heartbeat recente di un dispositivo dillo esplicitamente (ultimo visto).",
              f"Backend: versione {b['version'] or 'n/d'} · avviato {b['started_at'][:16].replace('T', ' ')} UTC (uptime {b['uptime_label']}, boot {b['boot_id']}) · {b['modules']} moduli · LLM key {'ok' if b['llm_key'] else 'ASSENTE'} · push service {'configurato' if b['push_configured'] else 'non configurato in questo ambiente (attivo solo sull app pubblicata)'} · dispositivi push registrati: {st['push_devices']}.",
              f"Ultime 24h: {st['counters']['errors_24h']} errori · {st['counters']['warnings_24h']} warning · {st['counters']['api_actions_24h']} azioni API nel tenant."]
-    if st.get("deploys"):
+    if deploys:
         # V50.z420 — CHANGELOG DEPLOY: aggiornato automaticamente a ogni deploy (build_package.sh) con data e modifiche principali.
         lines.append("📦 CHANGELOG DEPLOY BACKEND (cosa è cambiato e quando — dal più recente; il primo è il deploy attualmente in produzione). "
                      "Se l'utente chiede «cosa è cambiato», «ultimo deploy», «quando è stato aggiornato», rispondi con QUESTE righe (data + modifiche), senza chiedere all'utente di dirtelo:\n"
-                     + "\n".join(f"• {r['date']} [{r['version']}]: {r['desc'][:260]}" for r in st["deploys"][:8]))
+                     + "\n".join(f"• {r['date']} [{r['version']}]: {r['desc'][:220]}" for r in deploys[:5]))
     if st["changelog"]:
         lines.append("ULTIME NOVITÀ RILASCIATE (CHANGELOG dinamico backend+PRD, dalla più recente) — se l'utente chiede novità/versioni/cosa c'è di nuovo, ELENCA QUESTE righe testualmente (mai dire di non avere accesso allo storico). "
                      "⛔ Le UNICHE versioni esistenti sono queste, nel formato V50.zNNN: IGNORA qualsiasi altra numerazione (es. «v3.8.x», «v2.x») o novità che ricordi da conversazioni precedenti o dalla memoria — sarebbero inventate. "
-                     + " | ".join(f"{r['version']} ({r['date']}): {r['desc'][:170]}" for r in st["changelog"][:10]))
+                     + " | ".join(f"{r['version']} ({r['date']}): {r['desc'][:140]}" for r in st["changelog"][:6]))
     if st["devices"]:
-        lines.append("App installata sui dispositivi dell'utente: " + "; ".join(f"{d.get('device_name') or d.get('platform')} ({d.get('platform')}, {d.get('app_env') or ''}) v{_axs_ver_label(d)} · JS {d.get('js_version') or '?'} · ultimo heartbeat {(d.get('last_seen') or '')[:16].replace('T', ' ')}" + (f" · aggiornata da {d['previous_version']}" if d.get("previous_version") else "") for d in st["devices"]))
+        lines.append("App installata sui dispositivi dell'utente: " + "; ".join(_axs_group_devices(st["devices"])))
     else:
         lines.append("Nessun heartbeat ricevuto ancora da un'app installata (l'app invia versione e dispositivo all'avvio: se l'utente usa il web non c'è versione nativa).")
     if st["team_devices"]:
-        lines.append("Dispositivi del team: " + "; ".join(f"{d.get('user_id', '')[-6:]} {d.get('platform')} v{_axs_ver_label(d)} ({(d.get('last_seen') or '')[:10]})" for d in st["team_devices"][:10]))
+        lines.append("Dispositivi del team: " + "; ".join(_axs_group_devices(st["team_devices"], with_user=True)[:8]))
     if st["jobs"]:
         lines.append("Job pianificati (prossime esecuzioni UTC): " + ", ".join(f"{j['id']}@{(j['next_run'] or '')[11:16]}" for j in st["jobs"][:12]))
     integ = st["integrations"]
     if integ:
         lines.append("Integrazioni: " + ", ".join(f"{k}={'✓' if v else '✗'}" for k, v in integ.items()))
     if st["events"]:
-        lines.append("ULTIMI EVENTI BACKEND (più recenti prima):\n" + "\n".join(_axs_fmt_event(e) for e in st["events"]))
-    return "\n".join(lines)[:8000]
+        # V50.z421 — eventi consecutivi identici (es. riavvii ripetuti) collassati in uno con «×N»
+        ev_lines: List[str] = []; prev_title = None; run = 0
+        for e in st["events"]:
+            if e.get("title") == prev_title:
+                run += 1; ev_lines[-1] = ev_lines[-1].split(" ×")[0] + f" ×{run + 1}"; continue
+            prev_title = e.get("title"); run = 0; ev_lines.append(_axs_fmt_event(e))
+        lines.append("ULTIMI EVENTI BACKEND (più recenti prima):\n" + "\n".join(ev_lines[:10]))
+    return "\n".join(lines)[:6000]
 
 
 _axs_prev_prepare_prompt = _prepare_assistant_prompt
@@ -401,7 +436,7 @@ async def _prepare_assistant_prompt(user: dict, body) -> dict:  # noqa: F811
         return prep  # V50.z413 — domanda semplice (ora/meteo/saluti/domotica): nessuna sezione extra nel prompt
     try:
         await _axs_flush()
-        sec = await _axs_context_section(user)
+        sec = await _axs_context_section(user, str(getattr(body, "message", "") or ""))
         if sec and prep.get("system_message"):
             prep["system_message"] = f"{prep['system_message']}\n\n{sec}"
             logger.info("[axs] sezione stato aggiunta (%d car., changelog=%s, prompt totale %d car.)", len(sec), "ULTIME NOVITÀ" in sec, len(prep["system_message"]))

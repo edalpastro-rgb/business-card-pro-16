@@ -124,6 +124,7 @@ async def _maybe_push_command(msg: str, user: dict) -> Optional[dict]:  # noqa: 
 
 
 _neo_prev_prepare_prompt = _prepare_assistant_prompt
+_NEO_TOPIC_RX = __import__("re").compile(r"\bneo\b|emmy|prompt|sviluppat|sviluppo|emergent|\bbug\b|segnal|errore|non funziona|correggi|codice")
 
 
 async def _prepare_assistant_prompt(user: dict, body) -> dict:  # noqa: F811
@@ -133,6 +134,15 @@ async def _prepare_assistant_prompt(user: dict, body) -> dict:  # noqa: F811
     try:
         if prep.get("system_message"):
             c = await _neo_counts(tenant_id(user))
+            msg_low = str(getattr(body, "message", "") or "").lower()
+            # V50.z421 — consolidamento prompt: blocco completo (~1.6k car.) solo se il messaggio parla di Neo/prompt/sviluppo/bug;
+            # altrimenti una riga di promemoria (la regola «nessun canale diretto» resta sempre presente).
+            if not _NEO_TOPIC_RX.search(msg_low):
+                prep["system_message"] += (
+                    f"\n\n🔗 NEO (agente di sviluppo Emergent, distinto da te anche se «Neo» può essere il tuo nome): NON hai alcun canale diretto con lui — mai «lo invio a Neo». "
+                    f"Per segnalazioni l'utente scrive «invia questo prompt a Neo» (salvato in Master Files → «Prompt per Neo», poi lo copia lui nella chat di sviluppo). Coda reale: {c['pending']} in attesa, {c['done']} completati."
+                )
+                return prep
             prep["system_message"] += (
                 "\n\n🔗 NEO (AGENTE DI SVILUPPO EMERGENT) — REGOLA VINCOLANTE: tu NON hai NESSUN canale diretto con Neo, né via Teams, email, file o API. "
                 "Non dire MAI «lo invio io a Neo», «glielo passo», «l'ho mandato a Neo» o simili: sarebbe falso. Il flusso reale è: l'utente ti dice «invia questo prompt a Neo» → il prompt viene salvato in "

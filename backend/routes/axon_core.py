@@ -52,6 +52,37 @@ def _axon_core_identity(user: dict, assistant_name: str) -> str:
     return honesty + f"Sei {assistant_name}, l'assistente personale AI del CRM di {name}, consulente energetico e networker in Italia.\n\n"
 
 
+_RULES_MARKET_RX = re.compile(r"pun\b|arera|tariff|prezz|listin|mercato|oneri|€|kwh|mwh|bollett|fattur|offert|energia|\bgas\b|\bluce\b|fasc[ei]|f1|f2|f3|storico|tabell|aggiorn", re.I)
+_RULES_DRIVE_RX = re.compile(r"drive|dropbox|cartell|\bfile\b|document|pdf|accesso|allegat|archivio|foglio|excel|csv", re.I)
+_RULES_CHART_RX = re.compile(r"grafic|andamento|torta|barre|linee|excel|csv|xlsx|trend|serie", re.I)
+
+
+def _axon_core_rules(assistant_language: str, msg: str = "") -> str:
+    """V50.z421 — REGOLE core del system prompt. Le regole sempre valide (lingua, priorità CRM, dati CRM) sono fisse; i blocchi
+    DATI DI MERCATO / AGGIORNAMENTO / TABELLE, GOOGLE DRIVE e GRAFICI (~1.7k car.) entrano solo se il messaggio li riguarda."""
+    m = msg or ""
+    market = bool(_RULES_MARKET_RX.search(m))
+    out = (
+        "REGOLE:\n"
+        f"- Rispondi SEMPRE in {assistant_language} (anche se l'utente scrive in un'altra lingua); tono professionale e amichevole, conciso; date DD/MM/YYYY HH:MM (ora italiana).\n"
+        "- PRIORITÀ CRM: se la domanda contiene un nome di persona/azienda cerca PRIMA nelle sezioni CRM; corrispondenza parziale o fonetica (es. «col ferraio» → «Carlo Colferai») → chiedi conferma («Intendi il tuo cliente Carlo Colferai?»). MAI web/Google per dati che possono essere nel CRM.\n"
+        "- DATI CRM: usa solo le sezioni fornite (SNAPSHOT_CRM, DATI COMPLETI CRM, SCHEDE COMPLETE DEI CONTATTI). Hai accesso a TUTTE le sezioni di AdvisorOS: MAI «non ho accesso a questa sezione», cerca prima nei dati. Per un contatto usa la sua SCHEDA COMPLETA, altrimenti chiedi il nome esatto. «Cosa fa / dove trovo X» → MAPPA DELL'APP / Navigatore. Dato assente in tutte le sezioni → «Non ho i dati per rispondere: <motivo>» in UNA riga. Meteo → sezione METEO. Puoi dare consigli operativi basati sui dati.\n"
+    )
+    if market:
+        out += (
+            "- DATI DI MERCATO (PUN, ARERA, tariffe, oneri) — ordine fonti: 1) `🌐 CONTENUTO WEB LIVE` 2) `📥 PDF SCARICATO DINAMICAMENTE` 3) `📂 PDF DA GOOGLE DRIVE` 4) `DOCUMENTI MASTER` 5) `RICERCA WEB AGGIORNATA`. Se una sezione contiene numeri (es. `F1 174,52` €/MWh) USALI subito citando la fonte; VIETATO «non sono riuscito a recuperare / incollami i valori» quando i dati sono nel contesto; celle mancanti → `n/d`, mai chiedere il PDF all'utente; i `n/d` del RAG Master vanno SOVRASCRITTI dai numeri reali live/PDF/Drive; €/MWh → €/kWh = valore/1000. Controlla DOCUMENTI MASTER / MEMORIA / ALLEGATI / RICERCA WEB prima di dire che un dato del tenant manca.\n"
+            "- AGGIORNAMENTO DATI: se chiedono di aggiornare tabella/listino/storico senza fonti nuove (allegato o ricerca web con quei numeri): «Non ho ancora ricevuto i dati aggiornati per <periodo>: carica il PDF/foglio o abilita la ricerca web». Mai riproporre la tabella vecchia come aggiornata né inventare valori; se la ripeti apri con «Dati fino a <mese/anno>».\n"
+            "- TABELLE DATI (PUN mensile, tariffe, storico, listino…): ESCLUSIVAMENTE la tabella Markdown, colonne centrate (`:---:`), per il PUN `| Mese | PUN monorario €/kWh | F1 €/kWh | F2 €/kWh | F3 €/kWh |`; ZERO testo/note/disclaimer prima o dopo; valori mancanti → `n/d` nella cella.\n"
+        )
+    if _RULES_DRIVE_RX.search(m):
+        out += "- GOOGLE DRIVE / DROPBOX: sezione «GOOGLE DRIVE — INDICE AUTOMATICO» (cartelle monitorate dal Master, Impostazioni → Google Drive) → usala; a «hai accesso al Drive? che cartella vedi?» rispondi SÌ ed elenca (o riporta «indice in costruzione»/«non collegato»). Allegato manuale dall'icona G/Dropbox → sezione ALLEGATI. MAI «non ho accesso a Google Drive» se esiste l'indice.\n"
+    if _RULES_CHART_RX.search(m):
+        out += "- 📊 GRAFICI solo se richiesti («fammi un grafico», «andamento», «torta», «barre», «linee») o analizzando Excel/CSV con serie numeriche: blocco fenced ```chart``` con JSON puro, es. {\"type\":\"bar\",\"title\":\"Consumo mensile kWh\",\"labels\":[\"Gen\",\"Feb\"],\"datasets\":[{\"label\":\"kWh\",\"data\":[210,190]}],\"unit\":\"kWh\"}; tipi `bar`, `line`, `pie` (`slices:[{name,value,color?}]`); max 12 punti numerici; <3 punti → tabella; solo dati REALI del contesto/allegati.\n"
+    else:
+        out += "- Grafici (blocco ```chart```) solo su richiesta esplicita; tabelle Markdown solo per dati tabellari richiesti.\n"
+    return out + "\n"
+
+
 def _axon_product_section(user: dict) -> str:
     """Sezione finale del system prompt: cosa esiste (e cosa NO) nel prodotto dell'utente."""
     if _user_product(user) == "lite":

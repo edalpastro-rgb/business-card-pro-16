@@ -336,9 +336,12 @@ async def _build_crm_omniscience_section(user: dict, msg: str) -> str:  # noqa: 
         items = await db.axon_user_memory.find({"user_id": user["user_id"]}, {"_id": 0, "section": 1, "text": 1, "sphere": 1}).limit(40).to_list(40)
         if not items:
             return base
+        # V50.z421 — consolidamento prompt: max 14 voci (preferenze di comunicazione e stile prima), testo ≤140 car.
+        _pri = {"comunicazione": 0, "stile_lavoro": 1, "argomenti": 2, "clienti_chiave": 3}
+        items = sorted(items, key=lambda i: _pri.get(str(i.get("section") or ""), 4))[:14]
         lab = {k: l for k, l, _, _ in _AM_SECTIONS}
         ico = {"business": "🔵", "home": "🟢"}
-        lines = "\n".join(f"- {ico.get(i.get('sphere'), '')}[{lab.get(i['section'], i['section'])}] {i['text']}" for i in items)
+        lines = "\n".join(f"- {ico.get(i.get('sphere'), '')}[{lab.get(i['section'], i['section'])}] {str(i['text'])[:140]}" for i in items)
         return f"{base}\n\n=== COSA SAI DI QUESTO UTENTE (memoria visibile in Profilo → Memoria AxonOS; rispetta le preferenze; 🔵 = sfera Business, 🟢 = sfera Home/privata: non mescolarle) ===\n{lines}"
     except Exception:
         return base

@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-01 | D2026.10.01 | Prompt di Axon consolidato: base 33k → ~18k caratteri (regole compattate; sezioni mercato/Drive/grafici, stato sistema, Neo, Corporate Gym ed elenco contatti incluse solo quando pertinenti al messaggio) → costo per messaggio ridotto di circa un terzo; fix wizard (/setup) e tabelle PUN non più intercettate dal navigatore; endpoint temporanei /api/download rimossi dalla produzione |
 | 2026-09-30 | D2026.09.30 | Banner PUN in Home: etichetta mostra il giorno dell'ultimo dato del job pun-fetcher (es. «SET 30») invece dell'anno troncato («SET 26»); nuovo CHANGELOG DEPLOY (backend/DEPLOY_CHANGELOG.md) letto da Axon nel prompt, aggiornato automaticamente a ogni deploy da build_package.sh |
 | 2026-09-29 | D2026.09.29 | Axon «Collaboratore»: briefing proattivo (livelli 1/2/3, indicatore ambra sul FAB, nessun popup); export cronologia chat deterministico; didascalia «Dati aggiornati al» della tabella PUN allineata al job pun-fetcher |
 | 2026-09-28 | D2026.09.28 | Ottimizzazione costi LLM: contesto CRM/RAG/Navigator escluso sulle domande semplici (saluti, ora, meteo), cronologia ridotta a 6 messaggi, domande semplici instradate su Claude Haiku 4.5; audit 93 link AI Navigator + fix deep-link desktop; fix stress test «crt» |

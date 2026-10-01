@@ -85,7 +85,7 @@ def _omni_app_map_entries() -> list:
             for sec in _omni_json.load(fh):
                 if sec.get("id") in ("consigli", "faq", "intro"):
                     continue
-                desc = " ".join((sec.get("paragraphs") or [])[:2])[:420]
+                desc = " ".join((sec.get("paragraphs") or [])[:2])[:300]
                 entries.append((str(sec.get("title") or ""), f"• {sec.get('title')} — {sec.get('subtitle')}. {desc}"))
     except Exception as exc:  # noqa: BLE001
         logger.debug("[axon-omni] app map load failed: %s", exc)
@@ -110,12 +110,12 @@ def _omni_app_map_text(msg: str = "") -> str:
         if sc:
             scored.append((sc, text))
     scored.sort(key=lambda x: -x[0])
-    picked = [t for _, t in scored[:8]]
-    lines = ["MAPPA DELL'APP ADVISOROS — indice sezioni (dettagli sotto solo per quelle pertinenti; per le altre usa l'ELENCO SCHERMATE del Navigatore): "
-             + " · ".join(t for t, _ in entries)]
-    if picked:
-        lines.append("SEZIONI PERTINENTI A QUESTO MESSAGGIO:")
-        lines.extend(picked)
+    picked = [t for _, t in scored[:5]]
+    # V50.z421 — consolidamento: l'indice dei ~75 titoli (≈1.8k car.) duplicava l'ELENCO SCHERMATE del Navigatore → solo le sezioni pertinenti.
+    if not picked:
+        return ""
+    lines = ["MAPPA DELL'APP ADVISOROS — sezioni pertinenti a questo messaggio (per le altre usa l'ELENCO SCHERMATE del Navigatore):"]
+    lines.extend(picked)
     return "\n".join(lines)
 
 
@@ -302,6 +302,15 @@ async def _omni_find_contacts(user: dict, terms: list, limit: int = 3) -> list:
     return cands[:limit]
 
 
+_OMNI_LIST_RX = _omni_re.compile(r"elenc|lista|list[ae]\b|tutti|tutte|quali|clienti|contatti|prospect|citt[àa]|zona|provincia|senza appuntamento|non visitat|anagrafica|rubrica|export|csv|tabella|mappa")
+
+
+def _omni_contact_list_limit(msg_low: str) -> int:
+    """V50.z421 — consolidamento prompt: l'elenco contatti completo (fino a 250 × ~150 car. ≈ 37k) solo se il messaggio chiede
+    liste/filtri di clienti; altrimenti 30 righe (conteggi e per_stato/area/città restano sempre; il contatto citato per nome arriva con la SCHEDA COMPLETA)."""
+    return 250 if _OMNI_LIST_RX.search(msg_low or "") else 30
+
+
 async def _omni_overview(user: dict, msg_low: str) -> dict:
     """Panoramica di TUTTE le sezioni con conteggi + liste compatte (limiti per non saturare il prompt)."""
     tid = tenant_id(user); uid = user["user_id"]; now = utcnow()
@@ -320,7 +329,7 @@ async def _omni_overview(user: dict, msg_low: str) -> dict:
             by_city[k["c"]] = by_city.get(k["c"], 0) + row["n"]
     active_clients = await db.contacts.count_documents({"$and": [cq, {"is_active_client": True}]})
     lst = []
-    async for c in db.contacts.find(cq, {"_id": 0, "contact_id": 1, "first_name": 1, "last_name": 1, "company": 1, "contact_code": 1, "phone": 1, "phone_mobile": 1, "whatsapp": 1, "email": 1, "address_city": 1, "city": 1, "area": 1, "status": 1, "is_active_client": 1, "tags": 1, "source": 1, "created_at": 1}).sort("last_name", 1).limit(250):
+    async for c in db.contacts.find(cq, {"_id": 0, "contact_id": 1, "first_name": 1, "last_name": 1, "company": 1, "contact_code": 1, "phone": 1, "phone_mobile": 1, "whatsapp": 1, "email": 1, "address_city": 1, "city": 1, "area": 1, "status": 1, "is_active_client": 1, "tags": 1, "source": 1, "created_at": 1}).sort("last_name", 1).limit(_omni_contact_list_limit(msg_low)):
         lst.append(_omni_compact_contact(c))
     ov["contatti"] = {"totale": total, "clienti_attivi": active_clients, "per_stato": by_status, "per_area": by_area,
                       "per_citta_top": dict(sorted(by_city.items(), key=lambda x: -x[1])[:15]),
@@ -445,6 +454,7 @@ async def _omni_overview(user: dict, msg_low: str) -> dict:
     # --- Corporate Gym ---
     try:
         g_q = {"tenant_id": tid} if is_admin_or_owner(user) else {"tenant_id": tid, "user_id": uid}
+        _gym_detail = bool(_omni_re.search(r"gym|formazion|role.?play|obiezion|allenament|training|collaborator|team|report|punteggi|sessioni", msg_low or ""))
         sessions = await db.cgym_sessions.find(g_q, {"_id": 0, "user_id": 1, "type": 1, "title": 1, "status": 1, "score": 1, "scheduled_at": 1, "completed_at": 1, "mandatory": 1}).sort("created_at", -1).limit(40).to_list(40)
         u_names = {}
         async for u in db.users.find({"user_id": {"$in": list({s.get("user_id") for s in sessions})}}, {"_id": 0, "user_id": 1, "name": 1}):
@@ -453,14 +463,14 @@ async def _omni_overview(user: dict, msg_low: str) -> dict:
         reports = []
         async for r in db.cgym_ai_reports.find(g_q if is_admin_or_owner(user) else {"tenant_id": tid, "user_id": uid}, {"_id": 0, "kind": 1, "agent_name": 1, "generated_at": 1, "content": 1}).sort("generated_at", -1).limit(3):
             ct = r.get("content") or {}
-            reports.append({"tipo": r.get("kind"), "agente": r.get("agent_name"), "quando": _omni_dt(r.get("generated_at")), "sintesi": str(ct.get("summary") or ct.get("sintesi") or ct)[:400]})
+            reports.append({"tipo": r.get("kind"), "agente": r.get("agent_name"), "quando": _omni_dt(r.get("generated_at")), "sintesi": str(ct.get("summary") or ct.get("sintesi") or ct)[:160]})  # V50.z421 — 400 → 160 car.
         ov["corporate_gym"] = {"sessioni_totali": len(sessions), "completate": sum(1 for s in sessions if s.get("status") == "completata"),
                                "da_fare": sum(1 for s in sessions if s.get("status") not in ("completata", "annullata")),
                                "punteggio_medio": round(sum(scores) / len(scores), 1) if scores else None,
                                "roleplay_disponibili": await db.cgym_roleplays.count_documents({}),
                                "sessioni": [{"chi": u_names.get(s.get("user_id")), "tipo": s.get("type"), "titolo": s.get("title"), "stato": s.get("status"), "punteggio": s.get("score"),
-                                             "programmata": _omni_dt(s.get("scheduled_at")), "completata": _omni_dt(s.get("completed_at")), "obbligatoria": bool(s.get("mandatory"))} for s in sessions[:25]],
-                               "report_axon": reports,
+                                             "programmata": _omni_dt(s.get("scheduled_at")), "completata": _omni_dt(s.get("completed_at")), "obbligatoria": bool(s.get("mandatory"))} for s in (sessions[:6] if _gym_detail else [])],
+                               "report_axon": reports if _gym_detail else [],  # V50.z421 — dettagli Gym solo se richiesti (messaggio su gym/formazione/collaboratori)
                                "manuali_drive": bool(await db.cgym_manuals_config.find_one({"tenant_id": tid}, {"_id": 1}))}
     except Exception as exc:  # noqa: BLE001
         ov["corporate_gym"] = {"errore": str(exc)[:100]}
@@ -468,7 +478,7 @@ async def _omni_overview(user: dict, msg_low: str) -> dict:
     # --- My Thing, audio, biglietto, mail, master files, documenti/offerte, KB, regole, sveglie, chat, link, drive ---
     my_q = {"owner_user_id": uid}
     ov["my_thing"] = {"totale": await db.my_thing.count_documents(my_q),
-                      "elementi": [f"{m.get('kind')}: {m.get('title') or ''} — {(m.get('body') or '')[:80]}" async for m in db.my_thing.find(my_q, {"_id": 0, "kind": 1, "title": 1, "body": 1}).sort("created_at", -1).limit(15)]}
+                      "elementi": [f"{m.get('kind')}: {m.get('title') or ''} — {(m.get('body') or '')[:80]}" async for m in db.my_thing.find(my_q, {"_id": 0, "kind": 1, "title": 1, "body": 1}).sort("created_at", -1).limit(6)]}  # V50.z421 — 15 → 6
     ov["audio_personali"] = await db.audio_records.count_documents({"created_by": uid})
     bc = await db.business_cards.find_one({"user_id": uid}, {"_id": 0, "display_name": 1, "title": 1, "card_id": 1})
     if bc:
@@ -477,7 +487,7 @@ async def _omni_overview(user: dict, msg_low: str) -> dict:
     ov["caselle_mail"] = [f"{m.get('label') or ''} <{m.get('email')}> ({m.get('provider')}){' — errore: ' + m['last_error'][:60] if m.get('last_error') else ''}" async for m in db.mail_accounts.find({"user_id": uid}, {"_id": 0, "email": 1, "label": 1, "provider": 1, "last_error": 1}).limit(10)]
     mf_q = {"user_id": tid}
     ov["master_files"] = {"totale": await db.master_files.count_documents(mf_q),
-                          "ultimi": [f"{f.get('category') or ''} · {f.get('title') or f.get('name')} ({_omni_dt(f.get('created_at'))})" async for f in db.master_files.find(mf_q, {"_id": 0, "category": 1, "title": 1, "name": 1, "created_at": 1}).sort("created_at", -1).limit(15)]}
+                          "ultimi": [f"{f.get('category') or ''} · {f.get('title') or f.get('name')} ({_omni_dt(f.get('created_at'))})" async for f in db.master_files.find(mf_q, {"_id": 0, "category": 1, "title": 1, "name": 1, "created_at": 1}).sort("created_at", -1).limit(6)]}  # V50.z421 — 15 → 6
     ov["documenti_azienda"] = [d.get("name") async for d in db.company_documents.find({"tenant_id": tid}, {"_id": 0, "name": 1}).limit(20)]
     ov["offerte_azienda"] = [f"{o.get('bill_type')}: {o.get('label') or o.get('pdf_name')}" async for o in db.company_offers.find({"user_id": tid}, {"_id": 0, "bill_type": 1, "label": 1, "pdf_name": 1}).limit(20)]
     ov["documenti_master_rag"] = [f"{d.get('name')} ({d.get('total_pages') or 0} pag.)" async for d in db.master_documents.find({"tenant_id": tid}, {"_id": 0, "name": 1, "total_pages": 1}).limit(20)]
@@ -502,7 +512,8 @@ async def _build_crm_omniscience_section(user: dict, msg: str) -> str:
     import time as _omni_time
     _t0 = _omni_time.time()
     msg_low = (msg or "").lower()
-    parts = ["\n\n" + _omni_app_map_text(msg)]
+    _map = _omni_app_map_text(msg)
+    parts = [("\n\n" + _map) if _map else ""]
     try:
         ov = await _omni_overview(user, msg_low)
     except Exception as exc:  # noqa: BLE001

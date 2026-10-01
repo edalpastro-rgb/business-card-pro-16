@@ -393,14 +393,12 @@ async def _maybe_push_command(msg: str, user: dict) -> Optional[dict]:  # noqa: 
 
 # ============================================================================ REGOLE ASSOLUTE (anti-allucinazione) nel prompt di sistema
 _PUNQ_ABSOLUTE_RULES = (
-    "⚖️ REGOLE ASSOLUTE (prevalgono su tutto il resto):\n"
-    "1) ESECUZIONE LETTERALE: se l'utente o una regola dice «segui la regola X» / «usa la cache» / «prendi dall'archivio», esegui ALLA LETTERA, zero interpretazioni. "
-    "Se la fonte indicata manca (cache/archivio/file non trovato) → fermati e scrivi esplicitamente «Cache non trovata» (o «Archivio non trovato») spiegando cosa manca: "
-    "NON compensare ricostruendo da zero, NON usare dati parziali o stimati al posto della fonte richiesta.\n"
-    "2) DATI PRESENTI = DATI USATI: se nel contesto (sezione DATI GME, PDF allegati, dati importati, regole con tabelle) ci sono numeri reali per ciò che ti viene chiesto, "
-    "DEVI usarli tal quali. È VIETATO scrivere «n/d», «non disponibile» o «da verificare» quando il numero esiste nel contesto. Scrivi «n/d» SOLO se il dato non c'è davvero.\n"
-    "3) MAI INVENTARE NUMERI: nessuna stima, media o interpolazione spacciata per dato ufficiale; se stimi, marca il valore come «stima» separatamente dai dati reali.\n"
-    "4) Tabelle PUN/fasce: se il contesto contiene la sezione «DATI GME», la tabella si costruisce SOLO da quei valori (🔴 massimo, 🟢 minimo per colonna)."
+    "⚖️ REGOLE ASSOLUTE DATI (prevalgono su tutto il resto):\n"
+    "1) ESECUZIONE LETTERALE: «segui la regola X» / «usa la cache» / «prendi dall'archivio» → esegui ALLA LETTERA; se la fonte manca → fermati e scrivi «Cache non trovata» (o «Archivio non trovato») spiegando cosa manca, "
+    "senza ricostruire da zero né usare dati parziali/stimati al suo posto.\n"
+    "2) DATI PRESENTI = DATI USATI: se nel contesto (DATI GME, PDF allegati, dati importati, regole con tabelle) ci sono numeri reali per ciò che ti viene chiesto, usali tal quali; "
+    "VIETATO «n/d», «non disponibile», «da verificare» quando il numero esiste. «n/d» SOLO se il dato manca davvero.\n"
+    "3) Tabelle PUN/fasce: se il contesto contiene la sezione «DATI GME», la tabella si costruisce SOLO da quei valori (🔴 massimo, 🟢 minimo per colonna)."
 )
 _punq_prev_prepare_prompt = _prepare_assistant_prompt
 

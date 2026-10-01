@@ -253,7 +253,7 @@ async def _asl_start():
 
 
 # --- c) Contesto nelle conversazioni --------------------------------------------------------------
-async def _asl_context_section(tid: str, msg: str, limit: int = 8) -> str:
+async def _asl_context_section(tid: str, msg: str, limit: int = 5) -> str:  # V50.z421 — 8 → 5
     mt = _asl_tokens(msg)
     own = await db.axon_knowledge_base.find({"tenant_id": tid, "enabled": True}, {"_id": 0}).sort("frequency", -1).limit(300).to_list(300)
     glob = await db.axon_knowledge_base.find({"tenant_id": {"$ne": tid}, "enabled": True, "frequency": {"$gte": _ASL_GLOBAL_MIN_FREQ}}, {"_id": 0}) \
@@ -268,7 +268,7 @@ async def _asl_context_section(tid: str, msg: str, limit: int = 8) -> str:
 
     ranked = sorted([(score(d, 1.0), d) for d in own] + [(score(d, 0.0), d) for d in glob], key=lambda x: -x[0])
     chosen = [d for s, d in ranked if s > 0.5][:limit] or [d for s, d in ranked[:4]]
-    lines = [f"- [{d['category']} · {d['kind']} · ×{d.get('frequency', 1)}] {d['insight']}" for d in chosen]
+    lines = [f"- [{d['category']} · {d['kind']} · ×{d.get('frequency', 1)}] {str(d['insight'])[:160]}" for d in chosen]
     return ("\n\n=== APPRENDIMENTO AXONOS (insight anonimizzati da conversazioni precedenti; usali per anticipare bisogni, "
             "colmare lacune note e rispondere in modo più pertinente; NON citarli come fonte) ===\n" + "\n".join(lines))
 

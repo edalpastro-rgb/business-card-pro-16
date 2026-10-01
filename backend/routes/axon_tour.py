@@ -433,22 +433,21 @@ async def _axon_interest_section(user_id: str) -> str:
     if not free and tour.get("text"):
         free = [str(tour.get("text"))[:600]]
     if free:
-        lines.append("- Cosa fa / cosa gli complica la vita / cosa si aspetta: " + " | ".join(str(t)[:300] for t in free[:4]))
+        lines.append("- Cosa fa / cosa gli complica la vita / cosa si aspetta: " + " | ".join(str(t)[:220] for t in free[:3]))
     if prof.get("summary"):
-        lines.append("- Sintesi bisogni: " + str(prof["summary"])[:900])
+        lines.append("- Sintesi bisogni: " + str(prof["summary"])[:400])
     if prof.get("notes"):
-        lines.append("- PRECISAZIONI dell'utente (soglie/preferenze da rispettare alla lettera): " + " | ".join(str(n)[:200] for n in prof["notes"][:12]))
+        lines.append("- PRECISAZIONI dell'utente (da rispettare alla lettera): " + " | ".join(str(n)[:160] for n in prof["notes"][:6]))
     yes_f = [f for f in (prof.get("yes_features") or []) if f in names] or [f for f in (tour.get("features") or []) if f in names]
     if yes_f:
         lines.append("- INTERESSATO A (funzione → percorso): " + "; ".join(f"{names[f]} → {_TOUR_FEATURE_ROUTES.get(f, '/')}" for f in yes_f[:16]))
     no_f = [f for f in (prof.get("no_features") or []) if f in names]
     if no_f:
         lines.append("- NON interessato a: " + ", ".join(names[f] for f in no_f[:16]))
+    # V50.z421 — regole compattate (stesso comportamento)
     lines.append(
-        "REGOLE: (1) adatta tono, esempi e priorità a questo profilo; (2) quando è pertinente al messaggio, proponi PROATTIVAMENTE al massimo UNA scorciatoia o funzione correlata "
-        "tra quelle di interesse, indicando il percorso nell'app (es. «Ho visto che usi la Mappa clienti: vuoi sapere in anticipo quanti km percorri in un giorno? Apri Resoconto Km»); "
-        "(3) mai insistere: se l'utente declina, non riproporla nella stessa conversazione; (4) non proporre funzioni marcate NON interessato salvo richiesta esplicita; "
-        "(5) ECCEZIONE «Consigli di Axon»: se l'utente chiede esplicitamente i consigli / cosa gli consigli / le funzioni per lui in base al Tour, elenca TUTTE le funzioni "
-        "di interesse come lista puntata «Nome → percorso» con una riga di beneficio ciascuna, e chiudi chiedendo quale vuole aprire."
+        "REGOLE: adatta tono, esempi e priorità al profilo; se pertinente proponi al massimo UNA funzione di interesse con il suo percorso (mai insistere se declina, "
+        "mai proporre quelle NON interessato salvo richiesta); se chiede esplicitamente i «consigli di Axon» / le funzioni per lui in base al Tour, elenca TUTTE quelle di interesse "
+        "come «Nome → percorso» con una riga di beneficio ciascuna e chiedi quale aprire."
     )
     return "\n".join(lines) + "\n"

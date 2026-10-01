@@ -328,7 +328,7 @@ async def _build_assistant_context(user: dict) -> dict:
     total_contacts = await db.contacts.count_documents(contacts_query)
     recent_cursor = db.contacts.find(contacts_query, {
         "_id": 0, "contact_id": 1, "first_name": 1, "last_name": 1, "phone_mobile": 1, "phone_work": 1, "email": 1, "city": 1, "area": 1,
-    }).sort("created_at", -1).limit(15)
+    }).sort("created_at", -1).limit(5)  # V50.z421 — 15 → 5 (l elenco completo è in DATI COMPLETI CRM)
     recent_contacts = [c async for c in recent_cursor]
 
     # Contacts without any appointment scheduled (future)
@@ -342,7 +342,7 @@ async def _build_assistant_context(user: dict) -> dict:
     orphan_count = await db.contacts.count_documents(orphan_query)
     orphan_cursor = db.contacts.find(orphan_query, {
         "_id": 0, "contact_id": 1, "first_name": 1, "last_name": 1, "phone_mobile": 1, "phone_work": 1,
-    }).sort("last_name", 1).limit(15)
+    }).sort("last_name", 1).limit(5)
     orphans_sample = [c async for c in orphan_cursor]
 
     # Contracts (last 30 days)
@@ -350,7 +350,7 @@ async def _build_assistant_context(user: dict) -> dict:
     contracts_cursor = db.contracts.find(
         _own({"created_at": {"$gte": since}}),
         {"_id": 0, "contract_id": 1, "title": 1, "amount": 1, "status": 1, "created_at": 1, "contact_id": 1, "area": 1},
-    ).sort("created_at", -1).limit(15)
+    ).sort("created_at", -1).limit(8)
     recent_contracts = []
     async for ct in contracts_cursor:
         cname = None

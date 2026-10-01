@@ -147,7 +147,8 @@ async def _prepare_assistant_prompt(user: dict, body) -> dict:  # noqa: F811
             "Rispondi normalmente con ciò che puoi. SOLO SE la richiesta non può essere soddisfatta bene perché manca una configurazione "
             "(integrazioni Google/Drive non collegate, preferenze non impostate, dati del profilo/azienda/zona assenti, orari o obiettivi non definiti), "
             f"chiudi la risposta con una riga separata che contiene ESATTAMENTE questa frase: «{_SW_NUDGE_PHRASE}». "
-            "Non usare la frase se la risposta è completa. Non spiegare il wizard: il link lo aggiunge l'app."
+            "Non usare la frase se la risposta è completa. Non spiegare il wizard: il link lo aggiunge l'app. "
+            "Se l'utente chiede come rifare/riaprire la configurazione guidata o il wizard → [[NAV:/setup|Wizard configurazione]] (non /impostazioni)."
         )
     except Exception as exc:  # noqa: BLE001
         logger.warning("[setup-wizard] prompt failed: %s", exc)

@@ -485,11 +485,11 @@ async def _prepare_assistant_prompt(
     memory_section = ""
     if memories:
         memory_section = "\n\nMEMORIA PERSISTENTE (contesto delle conversazioni precedenti):\n"
-        for m in memories:
-            memory_section += f"- {m.get('summary', '')}\n"
-            for f in (m.get("facts") or []):
-                memory_section += f"  • {f}\n"
-        memory_section += "\nUsa la memoria per personalizzare le risposte, ma non citare esplicitamente 'ricordo che...' a meno che sia utile.\n"
+        for m in memories[:3]:  # V50.z421 — consolidamento: 3 memorie, sintesi ≤220 car., max 4 fatti ≤120 car.
+            memory_section += f"- {str(m.get('summary', ''))[:220]}\n"
+            for f in (m.get("facts") or [])[:4]:
+                memory_section += f"  • {str(f)[:120]}\n"
+        memory_section += "Usa la memoria per personalizzare, senza citare «ricordo che…» se non utile.\n"
 
     # V49.n — Few-shot dinamico basato sui feedback 👍/👎 del tenant.
     # Carica gli ultimi 5 esempi con 👍 (best answers da imitare) e gli ultimi
@@ -539,20 +539,7 @@ async def _prepare_assistant_prompt(
     system_message = (
         _axon_core_identity(user, assistant_name) +  # V50.z323 — Axon Core: identità per prodotto (advisor | lite)
         # V50.z309 — REGOLE CORE CONSOLIDATE (stesso comportamento, ~60% più corte: eliminati doppioni e ripetizioni)
-        "REGOLE:\n"
-        f"- Rispondi SEMPRE in {assistant_language}, tono professionale ma amichevole; conciso (max 3-4 frasi per domande semplici, niente preamboli tipo «Ecco come funziona:», elenchi solo se servono). Date DD/MM/YYYY HH:MM (ora italiana).\n"
-        "- PRIORITÀ CRM (V50.z368): se la domanda contiene un nome di persona/azienda, cerca PRIMA tra contatti e clienti nelle sezioni CRM. Corrispondenza parziale o fonetica (es. «col ferraio» → «Carlo Colferai») → chiedi conferma: «Intendi il tuo cliente Carlo Colferai?» prima di rispondere. Solo se nel CRM non c'è nulla passa ad altre fonti; MAI web/Google per dati che possono essere nel CRM.\n"
-        "- DATI CRM: usa solo le sezioni fornite (SNAPSHOT_CRM, DATI COMPLETI CRM, SCHEDE COMPLETE DEI CONTATTI). Hai accesso a TUTTE le sezioni di AdvisorOS (contatti con note/file/bollette/contratti, appuntamenti, scadenze, telefonate, ritelefonate, gruppi, team, Corporate Gym, My Thing, mail, Master Files, documenti/offerte, KB, regole insegnate, sveglie, biglietto da visita, impostazioni): MAI «non ho accesso a questa sezione», cerca prima nei dati. Per un contatto usa la sua SCHEDA COMPLETA, altrimenti chiedi il nome esatto. «Cosa fa / dove trovo X» → MAPPA DELL'APP (nome, percorso, cosa fa). Se un dato manca in tutte le sezioni: «Non ho i dati per rispondere: <motivo>» in UNA riga. Meteo → sezione METEO. Puoi dare consigli operativi basati sui dati.\n"
-        "- DATI DI MERCATO (PUN, ARERA, tariffe, oneri) — ordine fonti: 1) `🌐 CONTENUTO WEB LIVE` 2) `📥 PDF SCARICATO DINAMICAMENTE` 3) `📂 PDF DA GOOGLE DRIVE` 4) `DOCUMENTI MASTER` 5) `RICERCA WEB AGGIORNATA` (solo se il resto non basta). ANTI-ALLUCINAZIONE: se in una sezione ci sono numeri (`Agosto 2026`, `F1 174,52`, €/MWh, €/kWh) USALI subito e cita la fonte; VIETATO «non sono riuscito a recuperare / scarica il PDF e incollami i valori» quando i dati sono nel contesto; celle mancanti → `n/d`, mai chiedere il PDF all'utente. MERGE: i `n/d` del RAG Master vanno SOVRASCRITTI dai numeri reali trovati nelle fonti live/PDF/Drive; €/MWh → €/kWh = valore/1000 (174,52 → 0,17452). Controlla SEMPRE prima in DOCUMENTI MASTER / MEMORIA / ALLEGATI / RICERCA WEB prima di dire che un dato del tenant manca; se c'è, usalo senza chiedere conferma.\n"
-        "- AGGIORNAMENTO DATI: se ti chiedono di aggiornare tabella/listino/storico e NON ci sono fonti nuove (allegato appena caricato o ricerca web con quei numeri), dillo: «Non ho ancora ricevuto i dati aggiornati per <periodo>: carica il PDF/foglio o abilita la ricerca web». Mai riproporre la tabella vecchia come aggiornata né inventare valori; se la ripeti, apri con «Dati fino a <mese/anno>».\n"
-        "- GOOGLE DRIVE / DROPBOX: (1) INDICE AUTOMATICO delle cartelle monitorate dal Master (Impostazioni → Google Drive; link Drive di Insegna ad Axon) → sezione «GOOGLE DRIVE — INDICE AUTOMATICO» con cartelle/file e testi pertinenti: usala; a «hai accesso al Drive? che cartella vedi?» rispondi SÌ ed elenca (o riporta «indice in costruzione»/«non collegato» se così dice). (2) ALLEGATO MANUALE dall'icona G/Dropbox nel campo di input → sezione ALLEGATI. MAI «non ho accesso a Google Drive» se esiste la sezione indice.\n"
-        "- TABELLE DATI (PUN mensile, tariffe, storico, listino…): rispondi ESCLUSIVAMENTE con la tabella Markdown, colonne centrate (`:---:`), per il PUN `| Mese | PUN monorario €/kWh | F1 €/kWh | F2 €/kWh | F3 €/kWh |`; ZERO testo prima/dopo, zero note/disclaimer/«Ecco la tabella»/«Premessa»/«Attualmente ho dati fino a»; valori mancanti → `n/d` nella cella, mai avvisi fuori tabella.\n"
-        "- 📊 GRAFICI: solo se richiesto esplicitamente («fammi un grafico», «andamento», «torta», «barre», «linee») o se stai analizzando un Excel/CSV con serie numeriche: blocco fenced ```chart``` con JSON puro, al massimo una riga di intestazione fuori dal blocco:\n"
-        "  ```chart\n"
-        "  {\"type\":\"bar\",\"title\":\"Consumo mensile kWh\",\"labels\":[\"Gen\",\"Feb\",\"Mar\"],"
-        "\"datasets\":[{\"label\":\"kWh\",\"data\":[210,190,240]}],\"unit\":\"kWh\"}\n"
-        "  ```\n"
-        "Tipi: `bar`, `line` (labels + datasets), `pie` (`slices:[{name,value,color?}]`); max 12 punti; valori numerici (non stringhe); con <3 punti usa la tabella; solo dati REALI del contesto/allegati.\n\n"
+        _axon_core_rules(assistant_language, msg) +  # V50.z421 — regole core: blocchi mercato/Drive/tabelle/grafici solo se pertinenti al messaggio
         f"ORA ATTUALE: {context.get('ora_attuale', '')}\n\n"
         "SNAPSHOT_CRM (JSON):\n"
         f"{ctx_json}\n"
@@ -649,6 +636,9 @@ async def _prepare_assistant_prompt(
         _sizes = {"base_core": len(system_message) - len(_brain_section) - len(_scripts_section) - len(_cheat_section) - len(_cloud_section) - len(_pinned_section or ""),
                   "brain": len(_brain_section), "scripts": len(_scripts_section), "cheat": len(_cheat_section), "cloud": len(_cloud_section), "pinned": len(_pinned_section or "")}
         await db.axon_prompt_size.update_one({"_id": "last"}, {"$set": {"sections": _sizes}}, upsert=True)
+        if os.environ.get("AXON_PROMPT_DUMP"):  # V50.z421 — dump del prompt finale per l'analisi del consolidamento (solo dev)
+            with open(os.environ["AXON_PROMPT_DUMP"], "w", encoding="utf-8") as _fh:
+                _fh.write(system_message)
     except Exception:  # noqa: BLE001
         pass
 
@@ -870,11 +860,11 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     memory_section = ""
     if memories:
         memory_section = "\n\nMEMORIA PERSISTENTE (contesto delle conversazioni precedenti):\n"
-        for m in memories:
-            memory_section += f"- {m.get('summary', '')}\n"
-            for f in (m.get("facts") or []):
-                memory_section += f"  • {f}\n"
-        memory_section += "\nUsa la memoria per personalizzare le risposte, ma non citare esplicitamente 'ricordo che...' a meno che sia utile.\n"
+        for m in memories[:3]:  # V50.z421 — consolidamento: 3 memorie, sintesi ≤220 car., max 4 fatti ≤120 car.
+            memory_section += f"- {str(m.get('summary', ''))[:220]}\n"
+            for f in (m.get("facts") or [])[:4]:
+                memory_section += f"  • {str(f)[:120]}\n"
+        memory_section += "Usa la memoria per personalizzare, senza citare «ricordo che…» se non utile.\n"
 
     # V49.n — Few-shot dinamico basato sui feedback 👍/👎 del tenant.
     # Carica gli ultimi 5 esempi con 👍 (best answers da imitare) e gli ultimi
@@ -922,20 +912,7 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     system_message = (
         _axon_core_identity(user, assistant_name) +  # V50.z323 — Axon Core: identità per prodotto (advisor | lite)
         # V50.z309 — REGOLE CORE CONSOLIDATE (stesso comportamento, ~60% più corte: eliminati doppioni e ripetizioni)
-        "REGOLE:\n"
-        f"- Rispondi SEMPRE in {assistant_language}, tono professionale ma amichevole; conciso (max 3-4 frasi per domande semplici, niente preamboli tipo «Ecco come funziona:», elenchi solo se servono). Date DD/MM/YYYY HH:MM (ora italiana).\n"
-        "- PRIORITÀ CRM (V50.z368): se la domanda contiene un nome di persona/azienda, cerca PRIMA tra contatti e clienti nelle sezioni CRM. Corrispondenza parziale o fonetica (es. «col ferraio» → «Carlo Colferai») → chiedi conferma: «Intendi il tuo cliente Carlo Colferai?» prima di rispondere. Solo se nel CRM non c'è nulla passa ad altre fonti; MAI web/Google per dati che possono essere nel CRM.\n"
-        "- DATI CRM: usa solo le sezioni fornite (SNAPSHOT_CRM, DATI COMPLETI CRM, SCHEDE COMPLETE DEI CONTATTI). Hai accesso a TUTTE le sezioni di AdvisorOS (contatti con note/file/bollette/contratti, appuntamenti, scadenze, telefonate, ritelefonate, gruppi, team, Corporate Gym, My Thing, mail, Master Files, documenti/offerte, KB, regole insegnate, sveglie, biglietto da visita, impostazioni): MAI «non ho accesso a questa sezione», cerca prima nei dati. Per un contatto usa la sua SCHEDA COMPLETA, altrimenti chiedi il nome esatto. «Cosa fa / dove trovo X» → MAPPA DELL'APP (nome, percorso, cosa fa). Se un dato manca in tutte le sezioni: «Non ho i dati per rispondere: <motivo>» in UNA riga. Meteo → sezione METEO. Puoi dare consigli operativi basati sui dati.\n"
-        "- DATI DI MERCATO (PUN, ARERA, tariffe, oneri) — ordine fonti: 1) `🌐 CONTENUTO WEB LIVE` 2) `📥 PDF SCARICATO DINAMICAMENTE` 3) `📂 PDF DA GOOGLE DRIVE` 4) `DOCUMENTI MASTER` 5) `RICERCA WEB AGGIORNATA` (solo se il resto non basta). ANTI-ALLUCINAZIONE: se in una sezione ci sono numeri (`Agosto 2026`, `F1 174,52`, €/MWh, €/kWh) USALI subito e cita la fonte; VIETATO «non sono riuscito a recuperare / scarica il PDF e incollami i valori» quando i dati sono nel contesto; celle mancanti → `n/d`, mai chiedere il PDF all'utente. MERGE: i `n/d` del RAG Master vanno SOVRASCRITTI dai numeri reali trovati nelle fonti live/PDF/Drive; €/MWh → €/kWh = valore/1000 (174,52 → 0,17452). Controlla SEMPRE prima in DOCUMENTI MASTER / MEMORIA / ALLEGATI / RICERCA WEB prima di dire che un dato del tenant manca; se c'è, usalo senza chiedere conferma.\n"
-        "- AGGIORNAMENTO DATI: se ti chiedono di aggiornare tabella/listino/storico e NON ci sono fonti nuove (allegato appena caricato o ricerca web con quei numeri), dillo: «Non ho ancora ricevuto i dati aggiornati per <periodo>: carica il PDF/foglio o abilita la ricerca web». Mai riproporre la tabella vecchia come aggiornata né inventare valori; se la ripeti, apri con «Dati fino a <mese/anno>».\n"
-        "- GOOGLE DRIVE / DROPBOX: (1) INDICE AUTOMATICO delle cartelle monitorate dal Master (Impostazioni → Google Drive; link Drive di Insegna ad Axon) → sezione «GOOGLE DRIVE — INDICE AUTOMATICO» con cartelle/file e testi pertinenti: usala; a «hai accesso al Drive? che cartella vedi?» rispondi SÌ ed elenca (o riporta «indice in costruzione»/«non collegato» se così dice). (2) ALLEGATO MANUALE dall'icona G/Dropbox nel campo di input → sezione ALLEGATI. MAI «non ho accesso a Google Drive» se esiste la sezione indice.\n"
-        "- TABELLE DATI (PUN mensile, tariffe, storico, listino…): rispondi ESCLUSIVAMENTE con la tabella Markdown, colonne centrate (`:---:`), per il PUN `| Mese | PUN monorario €/kWh | F1 €/kWh | F2 €/kWh | F3 €/kWh |`; ZERO testo prima/dopo, zero note/disclaimer/«Ecco la tabella»/«Premessa»/«Attualmente ho dati fino a»; valori mancanti → `n/d` nella cella, mai avvisi fuori tabella.\n"
-        "- 📊 GRAFICI: solo se richiesto esplicitamente («fammi un grafico», «andamento», «torta», «barre», «linee») o se stai analizzando un Excel/CSV con serie numeriche: blocco fenced ```chart``` con JSON puro, al massimo una riga di intestazione fuori dal blocco:\n"
-        "  ```chart\n"
-        "  {\"type\":\"bar\",\"title\":\"Consumo mensile kWh\",\"labels\":[\"Gen\",\"Feb\",\"Mar\"],"
-        "\"datasets\":[{\"label\":\"kWh\",\"data\":[210,190,240]}],\"unit\":\"kWh\"}\n"
-        "  ```\n"
-        "Tipi: `bar`, `line` (labels + datasets), `pie` (`slices:[{name,value,color?}]`); max 12 punti; valori numerici (non stringhe); con <3 punti usa la tabella; solo dati REALI del contesto/allegati.\n\n"
+        _axon_core_rules(assistant_language, msg) +  # V50.z421 — regole core: blocchi mercato/Drive/tabelle/grafici solo se pertinenti al messaggio
         f"ORA ATTUALE: {context.get('ora_attuale', '')}\n\n"
         "SNAPSHOT_CRM (JSON):\n"
         f"{ctx_json}\n"
@@ -1022,7 +999,7 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     # V50.z360 — «Stato sistema» + CHANGELOG dinamico anche nel percorso NON-stream (ViolaWake): stessa sezione dello stream.
     try:
         await _axs_flush()  # noqa: F821 — definita in axon_system_awareness.py (stesso namespace)
-        _axs_sec_ns = await _axs_context_section(user)  # noqa: F821
+        _axs_sec_ns = await _axs_context_section(user, msg)  # noqa: F821
         if _axs_sec_ns:
             system_message = f"{system_message}\n\n{_axs_sec_ns}"
     except Exception as exc:  # noqa: BLE001

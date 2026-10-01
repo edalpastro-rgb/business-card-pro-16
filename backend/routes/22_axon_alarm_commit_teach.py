@@ -744,6 +744,12 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
                 return
 
         msg = prep["msg"]
+        if os.environ.get("AXON_PROMPT_DUMP"):  # V50.z421 — dump del prompt FINALE (dopo tutti i wrapper) per l'analisi dei costi (solo dev)
+            try:
+                with open(os.environ["AXON_PROMPT_DUMP"] + ".final", "w", encoding="utf-8") as _fh:
+                    _fh.write(prep.get("system_message") or "")
+            except Exception:  # noqa: BLE001
+                pass
         session_id = prep["session_id"]
         assistant_name = prep["assistant_name"]
         used_web_search = prep["used_web_search"]
