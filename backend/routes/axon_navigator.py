@@ -278,7 +278,7 @@ def _nav_prompt_section(user: dict, msg: str) -> str:
         "Bisogni vaghi/indiretti → interpreta e proponi la funzione: " + "; ".join(f"«{v}» → {', '.join(_NAV_BY_ID[i]['name'] for i in ids if i in _NAV_BY_ID)}" for v, ids in VAGUE_MAP) + ".",
         "«Come faccio a impostare/configurare X» → porta direttamente alla configurazione. LINGUA / TONO / VOCE / NOME di Axon → SEMPRE e SOLO [[NAV:/impostazioni?section=assistente|Impostazioni AxonOS · Assistente]] (mai /axon-hub).",
         "FUNZIONI INESISTENTI (tema scuro, firma digitale dei contratti, pagare bollette, saldo conto corrente, prenotare voli, negozio gadget, fatture emesse ai clienti, videochiamate, SMS massivi, traduzione automatica, modalità offline) → ESATTAMENTE «Questa funzione non è disponibile in AdvisorOS.», senza alternative, marker o rimandi.",
-        "CASI LIMITE: fuori contesto (cultura generale, sport, ricette, fusi orari, curiosità) → NESSUNA risposta nemmeno tra parentesi (vietato «Parigi», l'ora, la ricetta), solo «Non è il mio campo qui in AdvisorOS 🙂» e riporta all'app; utente frustrato → calma, empatia, [[NAV:/help-center|Segnala il problema]]; frase troncata → chiedi di completarla; altra lingua → rispondi in italiano con il deep link giusto; offese → una riga professionale; «sei un'AI? chi ti ha creato?» → sei Axon, assistente di AdvisorOS, niente modelli/fornitori; richieste impossibili o pericolose (cancellare tutto, mail massive, azioni all'insaputa) → non eseguire, indica il canale corretto.",
+        "CASI LIMITE: fuori contesto (cultura generale, sport, ricette, fusi orari, curiosità) → NESSUNA risposta nemmeno tra parentesi (vietato «Parigi», l'ora, la ricetta), solo «Non è il mio campo qui in AdvisorOS 🙂» e riporta all'app; utente frustrato → calma, empatia, [[NAV:/help-center|Segnala il problema]]; frase troncata o con parole storpiate dal dettato → interpreta l'intenzione più probabile dal contesto della conversazione e rispondi normalmente, aggiungendo «Ho interpretato la tua frase come: …» SOLO se c'è vera ambiguità; chiedi di completare SOLO se il senso non è ricavabile in nessun modo; altra lingua → rispondi in italiano con il deep link giusto; offese → una riga professionale; «sei un'AI? chi ti ha creato?» → sei Axon, assistente di AdvisorOS, niente modelli/fornitori; richieste impossibili o pericolose (cancellare tutto, mail massive, azioni all'insaputa) → non eseguire, indica il canale corretto.",
         "",
         "ELENCO SCHERMATE (nome · route; per le pertinenti anche a cosa serve):",
     ]
@@ -779,7 +779,7 @@ def _nav_is_creative(t: str) -> bool:
     return bool(_RX_CREATIVE.search(t)) and not _RX_OPEN_SCREEN.search(t)
 
 
-def _nav_template_reply(msg: str, user: dict) -> Optional[dict]:
+def _nav_template_reply(msg: str, user: dict, in_convo: bool = False) -> Optional[dict]:
     """Se il messaggio corrisponde con confidenza a una voce di APP_MAP → risposta template fissa."""
     t = (msg or "").strip()
     words = _nav_norm(t).split()
@@ -811,9 +811,27 @@ def _nav_template_reply(msg: str, user: dict) -> Optional[dict]:
             second = score
     if not best or best_score < 5 or (not has_intent and best_score < 7):
         return None
+    if in_convo and not _RX_NAV_INTENT.search(t):  # V50.z422 — template generico «Apri …» mai durante una conversazione attiva senza intento esplicito
+        return None
     label = best.get("label") or f"Apri {best['name']}"
     reply = f"**{best['name']}** — {best['desc']}\n" + _nav(best["route"], label)
     return _nav_reply(reply)
+
+
+# V50.z422 — CONVERSAZIONE ATTIVA: se Axon ha risposto a questo utente negli ultimi 10 minuti, i fallback GENERICI del
+# Navigatore (frase incompleta, «non ho capito», template L1 «Apri …» su FAQ/Home/Statistiche) NON scattano: il messaggio va
+# all'AI con la cronologia, che interpreta l'intenzione più probabile (dettato troncato/storpiato incluso). Restano attivi
+# solo gli intercettori con intento esplicito («apri…», «dove trovo…») e i flussi deterministici con pattern chiaro.
+_NAV_ACTIVE_CONVO_MIN = 10
+
+
+async def _nav_active_conversation(user: dict) -> bool:
+    try:
+        since = utcnow() - _nav_td(minutes=_NAV_ACTIVE_CONVO_MIN)  # noqa: F821
+        last = await db.assistant_messages.find_one({"user_id": user["user_id"], "role": "assistant", "created_at": {"$gte": since}}, {"_id": 1})  # noqa: F821
+        return last is not None
+    except Exception:  # noqa: BLE001
+        return False
 
 
 async def _nav_intercept(msg: str, user: dict):
@@ -825,8 +843,9 @@ async def _nav_intercept(msg: str, user: dict):
         # V50.z304 — «aspetta / un momento / forse» → SOLO «OK!» (regola 4 del prompt correzione)
         if _RX_WAIT.match(t):
             return _nav_reply("OK!")
+        in_convo = (not _RX_OPEN_SCREEN.search(t)) and await _nav_active_conversation(user)  # V50.z422 — vedi _nav_active_conversation
         # V50.z262 — correzioni stress test
-        if _RX_GIBBERISH.match(t):
+        if _RX_GIBBERISH.match(t) and not in_convo:
             return _nav_reply("Non ho capito il messaggio 🙂 Scrivimi cosa ti serve (es. «aggiungi cliente», «calendario», «analizza bolletta») e ti porto nella schermata giusta.")
         if _RX_FRUSTRATED.search(t):
             return _nav_reply("Mi dispiace, capisco la frustrazione. Dimmi cosa non ha funzionato e lo risolviamo insieme: posso aprire la schermata giusta o inviare una segnalazione al supporto con i dettagli.\n" + _nav("/help-center", "🛟 Segnala il problema") + "\n" + _nav("/tour-features", "🧭 Cosa può fare l'app"))
@@ -836,9 +855,9 @@ async def _nav_intercept(msg: str, user: dict):
             return _nav_reply("Sono Axon, l'assistente di AdvisorOS: ti aiuto con clienti, appuntamenti, giri, fatture e tutto ciò che riguarda l'app. Non condivido dettagli tecnici o riservati. Dimmi pure cosa ti serve fare.")
         if _RX_IMPOSSIBLE.search(t) and not _nav_re.search(r"\bneo\b|\bprompt", t, _nav_re.I):  # V50.z306 — «cancella tutti i prompt per Neo» è un comando reale
             return _nav_reply("Non posso eseguire questa operazione: è irreversibile o riguarda dati di altre persone e non è consentita dall'assistente. Se vuoi cancellare i tuoi dati, la richiesta ufficiale si fa dall'Help Center; per il resto l'operazione va fatta manualmente dalla schermata dedicata.\n" + _nav("/help-center?deletion=1", "🛟 Richiesta cancellazione dati") + "\n" + _nav("/help-center", "💬 Help Center"))
-        if _RX_TRUNC.match(t):
+        if _RX_TRUNC.match(t) and not in_convo:  # V50.z422 — in conversazione la frase troncata la interpreta l'AI
             return _nav_reply("La frase sembra incompleta 🙂 Dimmi cosa vuoi fare (es. «aggiungere un cliente», «vedere il calendario», «analizzare una bolletta») e ti porto subito nella schermata giusta.")
-        if _RX_MAIL_TRUNC.search(t):
+        if _RX_MAIL_TRUNC.search(t) and not in_convo:
             return _nav_reply("Vuoi collegare la tua casella mail? Se sì, vai qui.\n" + _nav("/smtp", "✉️ Configura SMTP (invio email)") + "\n" + _nav("/email-accounts", "📥 Caselle mail (IMAP)"))
         if _RX_TRAP.search(t):
             return _nav_reply("Questa funzione non è disponibile in AdvisorOS.")
@@ -894,7 +913,7 @@ async def _nav_intercept(msg: str, user: dict):
             r = _nav_flow_howto(user, t)
             if r:
                 return r
-        r = _nav_template_reply(t, user)
+        r = _nav_template_reply(t, user, in_convo)
         if r:
             return r
     except Exception as e:

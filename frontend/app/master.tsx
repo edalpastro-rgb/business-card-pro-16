@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, Image, ImageBackground, Modal, Linking, Animated, Easing, Platform } from "react-native";
+import { Share, View, Text, StyleSheet, ScrollView, Pressable, Image, ImageBackground, Modal, Linking, Animated, Easing, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useFocusEffect } from "expo-router";
 import { api } from "@/src/api";
@@ -242,6 +243,21 @@ function MasterScreen() {
     router.push("/axon-lab" as any); // V50.z343 — Axon Lab sostituisce Autocompilazione CRT
   };
 
+  // V50.z422 — «Condividi Landing Page»: link personalizzato https://landing.axonos.cloud?ref=<CODICE_AGENTE> copiato negli appunti
+  const shareLanding = async () => {
+    try {
+      const r = await api<{ url: string; ref: string; has_agent_code: boolean }>("/me/landing-link");
+      let copied = false;
+      try { await Clipboard.setStringAsync(r.url); copied = true; } catch { /* appunti non disponibili */ }
+      if (Platform.OS !== "web") {
+        try { await Share.share({ message: r.url, url: r.url }); } catch { /* annullato */ }
+      }
+      notify(copied ? "Link copiato negli appunti" : "Il tuo link landing", r.url + (r.has_agent_code ? "" : "\n(Imposta un codice agente in Team per un link più leggibile)"));
+    } catch {
+      notify("Errore", "Non riesco a generare il link in questo momento.");
+    }
+  };
+
   const buttons: { label: string; icon: MenuIconName; color: string; onPress: () => void; badge?: number; pulse?: Animated.Value }[] = [
     // V50.z40 — Colori palette semantica (Proposta A): stessa di Axon Hub e drawer.
     // CRM Core (blu #0EA5E9)
@@ -298,7 +314,8 @@ function MasterScreen() {
     { label: "Script Telefonata", icon: "document-text", color: "#F97316", onPress: () => goto("/call-script-config") },
     // AI & Axon
     { label: "Axon Center", icon: "sparkles", color: "#7C3AED", onPress: () => goto("/axon-hub"), badge: pendingProposals },
-    ...(labAccess ? [{ label: "Axon Lab", icon: "color-wand" as const, color: "#7C3AED", onPress: handleNewContract, badge: alerts.unread }] : []), // V50.z356 — solo Super Master/delegati · V50.z362 — sezione AI & Axon
+    ...(labAccess ? [{ label: "Axon Lab", icon: "color-wand" as const, color: "#7C3AED", onPress: handleNewContract, badge: alerts.unread }] : []),
+    { label: "Condividi Landing", icon: "share-social", color: "#7C3AED", onPress: shareLanding }, // V50.z422 — accanto ad Axon Lab // V50.z356 — solo Super Master/delegati · V50.z362 — sezione AI & Axon
     // CRM Core
     { label: "Cruscotto", icon: "grid", color: "#0EA5E9", onPress: () => goto("/cruscotto") },
     { label: "Azioni rapide", icon: "flash", color: "#0EA5E9", onPress: () => goto("/quick-actions") },

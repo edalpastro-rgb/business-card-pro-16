@@ -14,7 +14,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import { BACKEND_URL } from "@/src/api";
 import { LP } from "@/src/landing/palette";
 import { AxonOrb, Aurora, RotatingWord, Reveal, LiveDot } from "@/src/landing/LandingFx";
 import { AppDemoPlayer } from "@/src/landing/AppDemoPlayer";
@@ -68,6 +69,19 @@ export default function LandingScreen() {
   const router = useRouter();
   const { width, height } = useWindowDimensions();
   const compact = width < 720;
+  // V50.z422 — ?ref=<codice agente>: «Ti ha invitato: Nome Cognome» nella hero (endpoint pubblico, solo il nome)
+  const params = useLocalSearchParams<{ ref?: string }>();
+  const refCode = typeof params.ref === "string" ? params.ref.trim() : "";
+  const [inviter, setInviter] = useState<string | null>(null);
+  useEffect(() => {
+    if (!refCode || !/^[A-Za-z0-9_\-\.]{2,64}$/.test(refCode)) { setInviter(null); return; }
+    let alive = true;
+    fetch(`${BACKEND_URL}/api/public/advisor/${encodeURIComponent(refCode)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (alive) setInviter(j?.name || null); })
+      .catch(() => { if (alive) setInviter(null); });
+    return () => { alive = false; };
+  }, [refCode]);
   const [mods, setMods] = useState<Record<string, boolean>>(() => Object.fromEntries(MODULES.map((m) => [m.key, m.on])));
   const activeCount = Object.values(mods).filter(Boolean).length;
 
@@ -125,6 +139,14 @@ export default function LandingScreen() {
               <Text style={s.eyebrowTxt}>La nostra risposta: prepararci al futuro</Text>
             </View>
           </Reveal>
+          {inviter ? (
+            <Reveal delay={180} style={{ alignItems: "center" }}>
+              <View style={s.inviter} testID="landing-inviter">
+                <Ionicons name="person-circle" size={20} color={LP.axon} />
+                <Text style={s.inviterTxt}>Ti ha invitato: <Text style={s.inviterName}>{inviter}</Text></Text>
+              </View>
+            </Reveal>
+          ) : null}
 
           <Reveal delay={250} style={{ alignItems: "center" }}>
             <Animated.View style={{ transform: [{ scale: orbPulse }] }} testID="landing-orb"><AxonOrb size={compact ? 170 : 230} /></Animated.View>
@@ -429,6 +451,9 @@ const s = StyleSheet.create({
   hero: { justifyContent: "center", alignItems: "center", paddingVertical: 48, overflow: "hidden", backgroundColor: LP.surface },
   eyebrow: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999, borderWidth: 1, borderColor: LP.axonLine, backgroundColor: LP.axonGlow },
   eyebrowTxt: { color: LP.axon, fontSize: 13, fontWeight: "800", letterSpacing: 0.6 },
+  inviter: { marginTop: 12, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999, borderWidth: 1, borderColor: LP.axonLine, backgroundColor: LP.axonGlow },
+  inviterTxt: { color: LP.onSurface, fontSize: 15, fontWeight: "600" },
+  inviterName: { color: LP.axon, fontWeight: "900" },
   h1: { color: LP.onSurface, fontSize: 56, fontWeight: "900", letterSpacing: -2, textAlign: "center", lineHeight: 60, marginTop: 4 },
   h1Compact: { fontSize: 38, lineHeight: 42, letterSpacing: -1.2 },
   rotRow: { flexDirection: "row", alignItems: "baseline", justifyContent: "center", flexWrap: "wrap", marginTop: 10, marginBottom: 28 },

@@ -5,7 +5,7 @@ import * as Notifications from "expo-notifications";
 import React, { useEffect } from "react";
 import { LogBox, Platform, View, AppState, Modal } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import { SafeAreaProvider, initialWindowMetrics } from "react-native-safe-area-context";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
@@ -297,7 +297,7 @@ export default function RootLayout() {
   return (
     <GlobalErrorBoundary>
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <SafeAreaProvider>
+        <SafeAreaProvider initialMetrics={initialWindowMetrics}>{/* V50.z422 — insets corretti già al primo frame (Android edge-to-edge / tablet) */}
           {/* V50.z55 — Tastiera globale: `KeyboardProvider` di
               `react-native-keyboard-controller` abilita in tutte le pagine
               il comportamento nativo che porta il TextInput focalizzato sopra

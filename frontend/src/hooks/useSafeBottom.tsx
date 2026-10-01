@@ -25,7 +25,7 @@
  * garantire il minimo di 20px anche dove le insets nativa riporta 0.
  */
 import React from "react";
-import { View, ViewStyle } from "react-native";
+import { View, ViewStyle, Dimensions, StatusBar } from "react-native";
 import { Platform } from "react-native";
 import { useSafeAreaInsets, initialWindowMetrics } from "react-native-safe-area-context";
 
@@ -46,10 +46,15 @@ let _rootLiveBottom = 0;
 const _rootListeners = new Set<(v: number) => void>();
 export function RootInsetsProbe() {
   const insets = useSafeAreaInsets();
+  const [, force] = React.useState(0);
+  React.useEffect(() => { // V50.z422 — rotazione / tablet multi-finestra: ricalcolo quando cambiano le dimensioni
+    const sub = Dimensions.addEventListener("change", () => force((n) => n + 1));
+    return () => sub.remove();
+  }, []);
   React.useEffect(() => {
-    const v = insets.bottom || 0;
+    const v = Math.max(insets.bottom || 0, androidNavBarFromDimensions());
     if (v !== _rootLiveBottom) { _rootLiveBottom = v; _rootListeners.forEach((l) => l(v)); }
-  }, [insets.bottom]);
+  });
   return null;
 }
 function useRootLiveBottom(): number {
@@ -58,8 +63,21 @@ function useRootLiveBottom(): number {
   return v;
 }
 
+// V50.z422 — FIX barra inferiore coperta dalla gesture/navigation bar Android (segnalato da 2 mesi, anche tablet/landscape):
+// su alcuni dispositivi `useSafeAreaInsets().bottom` e `initialWindowMetrics` valgono 0 anche in edge-to-edge. Terza fonte
+// indipendente: differenza tra altezza `screen` e `window` (= navigation bar di sistema quando l'app NON è edge-to-edge) e,
+// in edge-to-edge, il valore minimo noto della gesture bar Android (24dp) / 3 tasti (48dp) letto dalle insets quando disponibili.
+function androidNavBarFromDimensions(): number {
+  if (Platform.OS !== "android") return 0;
+  try {
+    const scr = Dimensions.get("screen"); const win = Dimensions.get("window");
+    const status = StatusBar.currentHeight || 0;
+    const diff = Math.round(scr.height - win.height - status);
+    return diff > 0 && diff <= 160 ? diff : 0; // valori assurdi (tastiera, split-screen) ignorati
+  } catch { return 0; }
+}
 export function safeBottomFallback(): number {
-  return Math.max(initialWindowMetrics?.insets?.bottom || 0, _rootLiveBottom);
+  return Math.max(initialWindowMetrics?.insets?.bottom || 0, _rootLiveBottom, androidNavBarFromDimensions());
 }
 
 /** Insets con fallback bottom (per componenti che usano `insets.bottom` direttamente, es. dentro Modal). */

@@ -149,7 +149,16 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   // insets.bottom (il KeyboardAvoidingView spinge autonomamente sopra la tastiera).
   const [assistantName, setAssistantName] = useState("Neo");
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [input, setInput] = useState("");
+  const [input, setInputState] = useState("");
+  // V50.z422 — FIX testo troncato all'invio: lo stato React `input` arriva con un render di ritardo rispetto a ciò che l'utente
+  // vede nel campo (ultima parola/sillaba del dettato o digitazione rapida + Invio). `inputTextRef` è aggiornato in modo SINCRONO
+  // da onChangeText e `send()`/coda leggono SEMPRE da qui, mai dallo stato.
+  const inputTextRef = useRef("");
+  const setInput = useCallback((v: string | ((cur: string) => string)) => {
+    const next = typeof v === "function" ? v(inputTextRef.current) : v;
+    inputTextRef.current = next;
+    setInputState(next);
+  }, []);
   // V50.z242 — BUG-STATE-001: bozza del messaggio salvata (debounce 600 ms) e ripristinata al rientro/riavvio
   useDraft("draft_axon_chat_v1", input, setInput);
   // V28.l — Allegati caricati dall'utente per la prossima /assistant/chat
@@ -652,7 +661,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
 
 
   const send = async (text?: string, opts?: { forceSpeak?: boolean; onSpoken?: () => void; quickLabel?: string }) => {
-    const msg = (text ?? input).trim();
+    const msg = (text ?? inputTextRef.current ?? input).trim();  // V50.z422 — sempre l'ultimo testo digitato, non lo stato (può essere in ritardo)
     // V28.l — Consenti l'invio se c'è ALMENO un allegato, anche senza testo
     if ((!msg && pendingAttachments.length === 0) || sendingRef.current) return;
     sendingRef.current = true;
@@ -1928,14 +1937,14 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                     onFocus={() => setInputFocused(true)}
                     onBlur={() => setInputFocused(false)}
                     multiline
-                    onSubmitEditing={() => { if (sending && input.trim()) { const t = input.trim(); setInput(""); void enqueue(t); } else void send(); }}
+                    onSubmitEditing={() => { const t = inputTextRef.current.trim(); if (sending && t) { setInput(""); void enqueue(t); } else void send(); }}
                     blurOnSubmit={false}
                     returnKeyType="send"
                     testID="assistant-input"
                   />
                   {/* V50.z223 — input SEMPRE attivo: se Axon sta elaborando, il messaggio va in coda (⏳) e parte da solo dopo */}
                   <Pressable
-                    onPress={() => { if (sending) { const t = input.trim(); if (!t) return; setInput(""); void enqueue(t); } else void send(); }}
+                    onPress={() => { if (sending) { const t = inputTextRef.current.trim(); if (!t) return; setInput(""); void enqueue(t); } else void send(); }}
                     disabled={!input.trim() && pendingAttachments.length === 0}
                     style={[styles.sendBtn, { opacity: !input.trim() && pendingAttachments.length === 0 ? 0.5 : 1 }, sending && input.trim() ? { backgroundColor: CT.warning } : null]}
                     testID="assistant-send"

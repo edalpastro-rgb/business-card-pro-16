@@ -120,6 +120,29 @@ export async function persistTheme(id: ThemeId, userId?: string | null): Promise
   try { const AS = (await import("@react-native-async-storage/async-storage")).default; await AS.setItem(LAST_KEY, id); } catch { /* mirror best-effort */ }
 }
 
+// V50.z422 — FIX «il tema lampeggia e torna al precedente»: la scelta dell'utente è SEMPRE prioritaria sul server.
+// Quando l'utente applica un tema si salva anche un marcatore «pending» (id + ora); finché il server non conferma la PUT,
+// useThemeSync NON riapplica il tema del server ma ritenta la PUT. Senza questo, una PUT fallita/lenta faceva vincere il
+// vecchio tema letto da GET /me/theme al riavvio (lampeggio + ritorno al precedente).
+const PENDING_KEY = "axon_theme_pending";
+const PENDING_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+export function readPendingTheme(): ThemeId | null {
+  try {
+    const raw = readSync(PENDING_KEY);
+    if (!raw) return null;
+    const g = JSON.parse(raw) as { id?: string; at?: number };
+    if (Date.now() - (g.at || 0) > PENDING_TTL_MS) return null;
+    return normalizeThemeId(g.id);
+  } catch { return null; }
+}
+export async function markPendingTheme(id: ThemeId): Promise<void> { await write(PENDING_KEY, JSON.stringify({ id, at: Date.now() })); }
+export async function clearPendingTheme(): Promise<void> {
+  try {
+    if (Platform.OS === "web") { localStorage.removeItem(PENDING_KEY); return; }
+    await SecureStore.deleteItemAsync(PENDING_KEY);
+  } catch { /* ignore */ }
+}
+
 /** Fallback asincrono (AsyncStorage) usato al boot se la lettura sincrona di SecureStore non ha restituito nulla. */
 export async function readThemeFallback(): Promise<ThemeId | null> {
   try { const AS = (await import("@react-native-async-storage/async-storage")).default; return normalizeThemeId(await AS.getItem(LAST_KEY)); } catch { return null; }

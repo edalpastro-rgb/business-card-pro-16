@@ -9,7 +9,7 @@ import { notify } from "@/src/utils/notify";
 import { HT } from "@/src/homeTheme";
 import { setPostReloadRoute } from "@/src/RoutePersistence";
 import { useResponsive } from "@/src/hooks/useResponsive"; // V50.z409 — desktop: card compatte affiancate all'anteprima
-import { ACTIVE_THEME_ID, BOOT_THEME_FROM_STORAGE, PALETTES, THEME_IDS, ThemeId, getUserTheme, normalizeThemeId, persistTheme, readThemeFallback, reloadApp, safeThemeReload } from "@/src/themes";
+import { ACTIVE_THEME_ID, readPendingTheme, markPendingTheme, clearPendingTheme, BOOT_THEME_FROM_STORAGE, PALETTES, THEME_IDS, ThemeId, getUserTheme, normalizeThemeId, persistTheme, readThemeFallback, reloadApp, safeThemeReload } from "@/src/themes";
 
 /** Sincronizza il tema salvato sul server per l'utente loggato: se differisce da quello attivo → salva in locale e ricarica (una volta). */
 export function useThemeSync(userId?: string | null) {
@@ -20,6 +20,18 @@ export function useThemeSync(userId?: string | null) {
       // V50.z344 — Il PROFILO UTENTE sul database è la fonte di verità: ad ogni avvio si legge il tema salvato e, se
       // diverso da quello con cui l'app è partita, si applica subito (ricarica bundle). Offline → locale/AsyncStorage.
       let target: ThemeId | null = null;
+      // V50.z422 — scelta locale non ancora confermata dal server → vince la scelta locale: ritenta la PUT, mai revert.
+      const pending = readPendingTheme();
+      if (pending) {
+        try {
+          await api("/me/theme", { method: "PUT", body: { ui_theme: pending } });
+          await clearPendingTheme();
+        } catch { /* ancora offline: riproverà al prossimo avvio */ }
+        if (cancelled) return;
+        if (pending !== ACTIVE_THEME_ID) { await persistTheme(pending, userId); if (!cancelled) await safeThemeReload(pending); }
+        else if (getUserTheme(userId) !== pending) await persistTheme(pending, userId);
+        return;
+      }
       try {
         const r = await api<{ ui_theme: string }>("/me/theme");
         target = normalizeThemeId(r.ui_theme);
@@ -54,8 +66,11 @@ export function ThemePicker() {
     setBusy(id);
     try {
       // V50.z344 — 1) salva sul profilo utente (database) 2) salva in locale 3) applica subito ricaricando il bundle
-      try { await api("/me/theme", { method: "PUT", body: { ui_theme: id } }); } catch { /* offline: la copia locale verrà riallineata al prossimo avvio online */ }
+      // V50.z422 — prima il salvataggio LOCALE (immediato, è la fonte di verità), poi il server; se la PUT fallisce resta
+      // il marcatore «pending» e useThemeSync la ritenta al prossimo avvio invece di tornare al tema vecchio.
       await persistTheme(id, user?.user_id);
+      await markPendingTheme(id);
+      try { await api("/me/theme", { method: "PUT", body: { ui_theme: id } }); await clearPendingTheme(); } catch { /* offline: ritentato da useThemeSync */ }
       await setPostReloadRoute("/(tabs)/impostazioni"); // V50.z410 — dopo il reload si resta su Profilo
       const ok = await reloadApp();
       if (!ok) notify("Tema salvato", "Chiudi e riapri l'app per applicare il nuovo tema.");

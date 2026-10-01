@@ -120,5 +120,6 @@ MODULES = [
     "wake_samples.py",  # V50.z390 — Raccolta pubblica campioni audio wake-word «Axon» (/public/wake-samples, pronuncia TTS) + pannello Super Master (stats, export.zip)
     "corporate_gym_rules_v2.py",  # V50.z396 — MOD 4-8 Gym: cliente V2, 8 blocchi WIN-WIN, esaminatore ANT, risposta modello, KB Obiezioni da pag. 13 (wrap di _cgym_customer_turn/_cgym_ww_phase/_cgym_scenario_for/_cga_area/_cga_client_system)
     "tmp_pkg_download.py",  # V50.z399 — TEMPORANEO: GET /download/axon-core-pkg?key= serve deploy/axon-core/axon-core-pkg.tgz al VPS (rimuovere dopo la migrazione)
+    "axon_landing_ref.py",  # V50.z422 — Condividi Landing Page: GET /me/landing-link (ref = codice agente) + GET /public/advisor/{ref} → nome
     "37_app_startup_scheduler.py",
 ]
