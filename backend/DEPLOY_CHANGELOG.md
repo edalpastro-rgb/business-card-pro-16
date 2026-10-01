@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-01 | D2026.10.01-1214 | Modulo Importazione clienti con 3 modalità in una schermata: cartella dispositivo (sottocartelle, OCR), CSV/Excel con mappatura colonne, Google Drive letto direttamente dal cloud senza download |
 | 2026-10-01 | D2026.10.01-1143 | Import cliente da cartella anche nell'app nativa: selettore cartella di sistema (Android/iOS) con lettura automatica di tutte le sottocartelle, permesso limitato alla sola cartella scelta |
 | 2026-10-01 | D2026.10.01-1132 | Import cliente da cartella documenti scansionati: visura camerale → ragione sociale e anagrafica completa (P.IVA, CF, sede, email, PEC, SDI, telefono, banca, IBAN), anteprima con campi mancanti in rosso, scheda cliente attiva con data attivazione, documenti compressi verso 200 KB con struttura cartelle preservata, dati disponibili ad Axon per i contratti |
 | 2026-10-01 | D2026.10.01-0957 | Fix chat Axon: testo non più troncato all'invio; fix tema che tornava al precedente (scelta locale prioritaria sul server); fix barra inferiore coperta dalla gesture bar Android/tablet; Axon interpreta frasi troncate/storpiate dal dettato e non usa più i fallback di navigazione generici durante una conversazione attiva; nuovo pulsante «Condividi Landing» nella sezione Master (link https://landing.axonos.cloud?ref=CODICE_AGENTE) e landing con «Ti ha invitato: Nome Cognome» |

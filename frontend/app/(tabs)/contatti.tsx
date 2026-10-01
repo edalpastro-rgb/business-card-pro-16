@@ -273,19 +273,10 @@ function ContattiScreen() {
 
       {/* Barra import CSV/Excel sopra la lista (spostata dall'header) */}
       <View style={styles.importBar}>
-        <Pressable
-          testID="contacts-import-btn"
-          onPress={() => router.push("/contacts-import" as any)}
-          style={styles.importBtn}
-        >
+        {/* V50.z426 — modulo unico «Importazione clienti»: cartella dispositivo · CSV/Excel · Google Drive */}
+        <Pressable testID="contacts-import-btn" onPress={() => router.push("/contact/import-folder" as any)} style={styles.importBtn}>
           <Ionicons name="cloud-upload-outline" size={16} color={HT.violet} />
-          <Text style={styles.importBtnTxt}>Importa contatti da CSV / Excel</Text>
-          <Ionicons name="chevron-forward" size={14} color={HT.violet} />
-        </Pressable>
-        {/* V50.z424 — Import cliente da cartella documenti scansionati (visura → anagrafica + allegati) */}
-        <Pressable testID="contacts-import-folder-btn" onPress={() => router.push("/contact/import-folder" as any)} style={[styles.importBtn, { marginTop: 8 }]}>
-          <Ionicons name="folder-open-outline" size={16} color={HT.violet} />
-          <Text style={styles.importBtnTxt}>Importa cliente da cartella documenti</Text>
+          <Text style={styles.importBtnTxt}>Importazione clienti · cartella, CSV/Excel, Google Drive</Text>
           <Ionicons name="chevron-forward" size={14} color={HT.violet} />
         </Pressable>
       </View>

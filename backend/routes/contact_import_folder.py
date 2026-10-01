@@ -368,6 +368,84 @@ async def ci_commit(sid: str, body: CiCommitIn, user=Depends(get_current_user)):
     return {"contact_id": cid, "company": company, "stats": stats, "files": [{k: v for k, v in e.items() if k != "data_base64"} for e in files_out]}
 
 
+class CiDriveIn(_CiBase):
+    folder_id: str
+    folder_name: Optional[str] = None
+
+
+@api_router.post("/contacts/import-folder/{sid}/from-drive")  # noqa: F821
+async def ci_from_drive(sid: str, body: CiDriveIn, user=Depends(get_current_user)):  # noqa: F821
+    """V50.z426 — MODALITÀ C: legge una cartella Google Drive (ricorsiva) direttamente dal server, senza download locale.
+    I PDF/immagini finiscono nella sessione di import con rel_path = <cartella>/<sottocartelle>/<file>; poi analyze/commit come sempre."""
+    from googleapiclient.discovery import build  # type: ignore
+    from googleapiclient.http import MediaIoBaseDownload  # type: ignore
+    from io import BytesIO
+    s = await _ci_session(sid, user)
+    creds = await _gd_get_credentials(user["user_id"])  # noqa: F821
+    service = build("drive", "v3", credentials=creds, cache_discovery=False)
+    root_meta = service.files().get(fileId=body.folder_id, fields="id,name", supportsAllDrives=True).execute()
+    root_name = body.folder_name or root_meta.get("name") or "Drive"
+    added: List[dict] = []
+    skipped: List[str] = []
+    count = len(s.get("files") or [])
+
+    def _list(parent: str) -> List[dict]:
+        out: List[dict] = []
+        token = None
+        while True:
+            r = service.files().list(q=f"'{parent}' in parents and trashed = false", fields="nextPageToken, files(id,name,mimeType,size)",
+                                     pageSize=200, pageToken=token, supportsAllDrives=True, includeItemsFromAllDrives=True).execute()
+            out.extend(r.get("files") or [])
+            token = r.get("nextPageToken")
+            if not token:
+                break
+        return out
+
+    async def _walk(folder_id: str, prefix: str, depth: int) -> None:
+        nonlocal count
+        if depth > 12 or count >= _CI_MAX_FILES:
+            return
+        items = await _ci_asyncio.to_thread(_list, folder_id)
+        for it in items:
+            if count >= _CI_MAX_FILES:
+                skipped.append("limite file raggiunto"); return
+            name = it.get("name") or "file"
+            mime = it.get("mimeType") or ""
+            if mime == "application/vnd.google-apps.folder":
+                await _walk(it["id"], f"{prefix}{name}/", depth + 1); continue
+            is_doc = mime == "application/pdf" or mime.startswith("image/") or name.lower().endswith((".pdf", ".jpg", ".jpeg", ".png"))
+            if not is_doc:
+                skipped.append(f"{prefix}{name}"); continue
+            size = int(it.get("size") or 0)
+            if size > _CI_MAX_FILE:
+                skipped.append(f"{prefix}{name} (> {_CI_MAX_FILE // (1024 * 1024)} MB)"); continue
+
+            def _dl(fid: str = it["id"]) -> bytes:
+                buf = BytesIO(); dl = MediaIoBaseDownload(buf, service.files().get_media(fileId=fid, supportsAllDrives=True))
+                done = False
+                while not done:
+                    _, done = dl.next_chunk()
+                return buf.getvalue()
+            try:
+                raw = await _ci_asyncio.to_thread(_dl)
+            except Exception as exc:  # noqa: BLE001
+                skipped.append(f"{prefix}{name} (errore: {str(exc)[:60]})"); continue
+            if not raw:
+                continue
+            rel = _ci_safe_rel(f"{prefix}{name}", name)
+            fid_local = f"f_{_ci_uuid.uuid4().hex[:10]}"
+            with open(_ci_os.path.join(_ci_dir(sid), fid_local), "wb") as fh:
+                fh.write(raw)
+            meta = {"id": fid_local, "name": name, "rel_path": rel, "folder": rel.rsplit("/", 1)[0] + "/" if "/" in rel else "",
+                    "mime": "application/pdf" if raw[:5] == b"%PDF-" else (mime or "application/octet-stream"), "size": len(raw), "drive_id": it["id"]}
+            added.append(meta); count += 1
+
+    await _walk(body.folder_id, f"{root_name}/", 0)
+    if added:
+        await db.contact_import_sessions.update_one({"session_id": sid}, {"$push": {"files": {"$each": added}}, "$set": {"source": "google-drive", "drive_folder": {"id": body.folder_id, "name": root_name}}})  # noqa: F821
+    return {"added": len(added), "skipped": skipped[:30], "files": added, "root": root_name}
+
+
 @api_router.delete("/contacts/import-folder/{sid}")  # noqa: F821
 async def ci_abort(sid: str, user=Depends(get_current_user)):  # noqa: F821
     await _ci_session(sid, user)

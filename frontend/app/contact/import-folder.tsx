@@ -39,6 +39,8 @@ function scanDirectory(dir: Directory, prefix: string, out: PickedFile[], depth 
 type FileMeta = { id: string; name: string; rel_path: string; folder: string; size: number; mime: string; pages?: number; scanned?: boolean; is_visura?: boolean };
 type Analysis = { fields: Record<string, string>; sources: Record<string, string>; missing: string[]; required: string[]; labels: Record<string, string>; visura_file: string | null; files: FileMeta[]; warnings: string[] };
 type Step = "pick" | "upload" | "analyze" | "preview" | "commit" | "done";
+type Mode = "folder" | "csv" | "drive";
+type DriveFolder = { id: string; name: string; path?: string };
 
 const FIELD_ORDER = ["company", "legal_form", "vat_number", "fiscal_code", "address_street", "address_zip", "address_city", "address_province", "whatsapp", "email", "phone", "pec", "sdi_code", "bank_name", "iban", "legal_rep", "rea", "ateco"];
 const todayIso = () => new Date().toISOString().slice(0, 10);
@@ -57,6 +59,46 @@ export default function ContactImportFolderScreen() {
   const [since, setSince] = useState(todayIso());
   const [result, setResult] = useState<{ contact_id: string; company: string; stats: { files: number; before: number; after: number; compressed: number; over_tolerance: number } } | null>(null);
   const webInputRef = useRef<any>(null);
+  // V50.z426 — MODULO «IMPORTAZIONE CLIENTI»: tre modalità in un'unica schermata
+  const [mode, setMode] = useState<Mode>("folder");
+  const [drive, setDrive] = useState<{ connected: boolean; configured: boolean } | null>(null);
+  const [driveParent, setDriveParent] = useState<{ id: string; name: string }[]>([{ id: "root", name: "Il mio Drive" }]);
+  const [driveFolders, setDriveFolders] = useState<DriveFolder[]>([]);
+  const [driveQ, setDriveQ] = useState("");
+  const [driveLoading, setDriveLoading] = useState(false);
+  const loadDriveFolders = async (parent: string, q = "") => {
+    setDriveLoading(true);
+    try {
+      const r = await api<{ folders: DriveFolder[] }>(`/google-drive/folders/browse?parent=${encodeURIComponent(parent)}${q ? `&q=${encodeURIComponent(q)}` : ""}`);
+      setDriveFolders(r.folders || []);
+    } catch (e: any) { notify("Google Drive", e?.message || "Impossibile leggere le cartelle"); }
+    finally { setDriveLoading(false); }
+  };
+  const openDriveMode = async () => {
+    setMode("drive");
+    try {
+      const st = await api<{ connected: boolean; configured: boolean }>("/google-drive/status");
+      setDrive(st);
+      if (st.connected) await loadDriveFolders("root");
+    } catch { setDrive({ connected: false, configured: false }); }
+  };
+  const importDriveFolder = async (f: DriveFolder) => {
+    try {
+      setStep("upload");
+      setProgress({ done: 0, total: 1, current: `Google Drive › ${f.name}` });
+      const sess = await api<{ session_id: string }>("/contacts/import-folder/session", { method: "POST" });
+      setSessionId(sess.session_id);
+      const r = await api<{ added: number; skipped: string[] }>(`/contacts/import-folder/${sess.session_id}/from-drive`, { method: "POST", body: { folder_id: f.id, folder_name: f.name } });
+      if (!r.added) { notify("Nessun documento", "Nella cartella Drive scelta (e sottocartelle) non ci sono PDF o immagini."); setStep("pick"); return; }
+      if (r.skipped?.length) notify("File ignorati", `${r.skipped.length} file non documentali o troppo grandi sono stati saltati.`);
+      setStep("analyze");
+      const a = await api<Analysis>(`/contacts/import-folder/${sess.session_id}/analyze`, { method: "POST" });
+      setAnalysis(a); setFields({ ...a.fields }); setStep("preview");
+    } catch (e: any) {
+      notify("Errore import da Drive", e?.message || "Lettura non riuscita");
+      setStep("pick");
+    }
+  };
 
   const rootFolder = useMemo(() => {
     const firsts = new Set(picked.map((p) => p.relPath.split("/")[0]).filter(Boolean));
@@ -174,10 +216,65 @@ export default function ContactImportFolderScreen() {
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
       <View style={[s.header, wrap]}>
         <Pressable onPress={() => router.back()} style={s.back} testID="imp-back" hitSlop={10}><Ionicons name="chevron-back" size={24} color={HT.text} /></Pressable>
-        <Text style={s.title}>Importa cliente da cartella</Text>
+        <Text style={s.title}>Importazione clienti</Text>
       </View>
       <ScrollView contentContainerStyle={[s.body, wrap]} keyboardShouldPersistTaps="handled">
         {step === "pick" && (
+          <View style={s.modes} testID="imp-modes">
+            {([
+              { k: "folder", icon: "folder-open-outline", t: "Cartella", d: "Documenti scansionati dal dispositivo" },
+              { k: "csv", icon: "grid-outline", t: "CSV / Excel", d: "Tante anagrafiche in una volta" },
+              { k: "drive", icon: "cloud-outline", t: "Google Drive", d: "Legge dal cloud, senza scaricare" },
+            ] as { k: Mode; icon: any; t: string; d: string }[]).map((m) => (
+              <Pressable key={m.k} testID={`imp-mode-${m.k}`} onPress={() => (m.k === "csv" ? router.push("/contacts-import" as any) : m.k === "drive" ? openDriveMode() : setMode("folder"))}
+                style={[s.modeCard, mode === m.k && s.modeCardOn]}>
+                <Ionicons name={m.icon} size={22} color={mode === m.k ? "#fff" : HT.violet} />
+                <Text style={[s.modeT, mode === m.k && { color: "#fff" }]}>{m.t}</Text>
+                <Text style={[s.modeD, mode === m.k && { color: "rgba(255,255,255,0.85)" }]}>{m.d}</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
+        {step === "pick" && mode === "drive" && (
+          <View style={s.card} testID="imp-drive">
+            {!drive ? <ActivityIndicator color={HT.violet} /> : !drive.connected ? (
+              <>
+                <Text style={s.cardTitle}>Google Drive non collegato</Text>
+                <Text style={s.lead}>Collega il tuo Google Drive una volta sola: AdvisorOS leggerà le cartelle dei clienti direttamente dal cloud, senza scaricare nulla sul dispositivo.</Text>
+                <Pressable style={s.primary} onPress={() => router.push("/google-drive" as any)} testID="imp-drive-connect"><Ionicons name="link-outline" size={18} color="#fff" /><Text style={s.primaryTxt}>Collega Google Drive</Text></Pressable>
+              </>
+            ) : (
+              <>
+                <Text style={s.cardTitle}>Scegli la cartella del cliente su Drive</Text>
+                <View style={s.row}>
+                  <TextInput value={driveQ} onChangeText={setDriveQ} onSubmitEditing={() => loadDriveFolders(driveParent[driveParent.length - 1].id, driveQ.trim())} placeholder="Cerca cartella in tutto il Drive…" placeholderTextColor={HT.muted} style={[s.input, { flex: 1 }]} testID="imp-drive-search" returnKeyType="search" />
+                </View>
+                <View style={[s.row, { alignItems: "center" }]}>
+                  {driveParent.map((p, i) => (
+                    <Pressable key={p.id} onPress={() => { const np = driveParent.slice(0, i + 1); setDriveParent(np); setDriveQ(""); loadDriveFolders(p.id); }}>
+                      <Text style={s.crumb}>{i > 0 ? "› " : ""}{p.name}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                {driveLoading ? <ActivityIndicator color={HT.violet} /> : driveFolders.length === 0 ? <Text style={s.muted}>Nessuna sottocartella qui.</Text> : driveFolders.map((f) => (
+                  <View key={f.id} style={s.driveRow}>
+                    <Pressable style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 8 }} onPress={() => { setDriveParent([...driveParent, { id: f.id, name: f.name }]); setDriveQ(""); loadDriveFolders(f.id); }} testID={`imp-drive-open-${f.id}`}>
+                      <Ionicons name="folder" size={18} color={HT.violet} />
+                      <View style={{ flex: 1 }}><Text style={s.fileLine} numberOfLines={1}>{f.name}</Text>{f.path ? <Text style={s.muted} numberOfLines={1}>{f.path}</Text> : null}</View>
+                    </Pressable>
+                    <Pressable style={s.pick} onPress={() => importDriveFolder(f)} testID={`imp-drive-import-${f.id}`}><Text style={s.pickTxt}>Importa</Text></Pressable>
+                  </View>
+                ))}
+                {driveParent.length > 1 && (
+                  <Pressable style={[s.primary, { marginTop: 8 }]} onPress={() => importDriveFolder(driveParent[driveParent.length - 1])} testID="imp-drive-import-current">
+                    <Ionicons name="cloud-download-outline" size={18} color="#fff" /><Text style={s.primaryTxt}>Importa «{driveParent[driveParent.length - 1].name}» (con sottocartelle)</Text>
+                  </Pressable>
+                )}
+              </>
+            )}
+          </View>
+        )}
+        {step === "pick" && mode === "folder" && (
           <>
             <Text style={s.lead}>Seleziona la cartella del cliente con tutti i documenti scansionati (visura camerale, fatture, bollette, contratti…). Le sottocartelle vengono mantenute così come sono.</Text>
             <View style={s.row}>
@@ -334,4 +431,13 @@ const s = StyleSheet.create({
   input: { borderWidth: 1, borderColor: HT.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: HT.text, backgroundColor: HT.card2, minHeight: 44, fontSize: 14 },
   inputMissing: { borderColor: HT.danger, backgroundColor: HT.dangerTint },
   src: { color: HT.muted, fontSize: 11 },
+  modes: { flexDirection: "row", gap: 10 },
+  modeCard: { flex: 1, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, borderRadius: 14, padding: 12, gap: 4, minHeight: 96 },
+  modeCardOn: { backgroundColor: HT.violet, borderColor: HT.violet },
+  modeT: { color: HT.text, fontWeight: "800", fontSize: 14 },
+  modeD: { color: HT.muted, fontSize: 11, lineHeight: 15 },
+  crumb: { color: HT.violet, fontWeight: "700", fontSize: 12 },
+  driveRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: HT.border },
+  pick: { backgroundColor: HT.violetTint, borderWidth: 1, borderColor: HT.violet + "55", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minHeight: 36, justifyContent: "center" },
+  pickTxt: { color: HT.violet, fontWeight: "800", fontSize: 12 },
 });
