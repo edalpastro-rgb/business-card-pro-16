@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { KScrollView, KModalBody } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { View, Text, StyleSheet, TextInput, Pressable, Alert, ActivityIndicator, Modal, Platform } from "react-native";
+import { PasswordInput } from "@/src/PasswordInput"; // V50.z433 — occhio mostra/nascondi password
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -189,7 +190,9 @@ export default function AnagraficaMasterScreen() {
           <View style={styles.modalCard}>
             <Text style={styles.section}>Nuova credenziale</Text>
             {([["service", "Servizio (es. Aruba, Google, INPS)*"], ["username", "Username / email"], ["password", "Password*"], ["url", "URL sito (opzionale)"], ["notes", "Note (opzionale)"]] as [keyof typeof nc, string][]).map(([k, l]) => (
-              <TextInput key={k} value={nc[k]} onChangeText={(t) => setNc((prev) => ({ ...prev, [k]: t }))} placeholder={l} placeholderTextColor={HT.muted} style={styles.input} secureTextEntry={k === "password"} autoCapitalize="none" />
+              k === "password"
+                ? <PasswordInput key={k} value={nc[k]} onChangeText={(t) => setNc((prev) => ({ ...prev, [k]: t }))} placeholder={l} placeholderTextColor={HT.muted} style={styles.input} />
+                : <TextInput key={k} value={nc[k]} onChangeText={(t) => setNc((prev) => ({ ...prev, [k]: t }))} placeholder={l} placeholderTextColor={HT.muted} style={styles.input} autoCapitalize="none" />
             ))}
             <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
               <Pressable onPress={() => setAddOpen(false)} style={[styles.saveBtn, { flex: 1, backgroundColor: '#94A3B8' }]}><Text style={styles.saveTxt}>ANNULLA</Text></Pressable>

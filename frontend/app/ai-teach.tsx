@@ -7,6 +7,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, Modal, TextInput, ActivityIndicator, Platform, Alert } from "react-native";
+import { PasswordInput } from "@/src/PasswordInput"; // V50.z433 — occhio mostra/nascondi password
 import { KeyboardAvoidingView } from "react-native-keyboard-controller"; // V50.z374 — behavior "padding" valido su iOS e Android
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -1228,7 +1229,7 @@ export default function AiTeachScreen() {
 
               <Text style={[styles.lbl, { marginTop: 12 }]}>Credenziali (opzionali — per siti protetti)</Text>
               <TextInput testID="url-username" value={editUrl?.username || ""} onChangeText={(t) => setEditUrl((u) => ({ ...(u || {}), username: t }))} placeholder="Username (se richiesto)" placeholderTextColor={HT.muted} style={styles.input} autoCapitalize="none" />
-              <TextInput testID="url-password" value={(editUrl as any)?.password || ""} onChangeText={(t) => setEditUrl((u) => ({ ...(u || {}), password: t }))} placeholder="Password (se richiesta)" placeholderTextColor={HT.muted} style={styles.input} secureTextEntry />
+              <PasswordInput testID="url-password" value={(editUrl as any)?.password || ""} onChangeText={(t) => setEditUrl((u) => ({ ...(u || {}), password: t }))} placeholder="Password (se richiesta)" placeholderTextColor={HT.muted} style={styles.input} />
               <Text style={styles.metaTxt}>La password viene salvata cifrata sul tuo tenant e mai mostrata di nuovo.</Text>
 
               <Pressable onPress={saveUrl} disabled={busy} style={[styles.saveBtn, { backgroundColor: busy ? C.muted : C.primary }]} testID="save-url">

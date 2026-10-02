@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Image, Alert, Platform } from "react-native";
+import { PasswordInput } from "@/src/PasswordInput"; // V50.z433 — occhio mostra/nascondi password
 import * as Clipboard from "expo-clipboard";
 import * as LocalAuthentication from "expo-local-authentication";
 import { QuickUnlockSettingRow } from "@/src/quickUnlock/QuickUnlockCard"; // V50.z187
@@ -469,11 +470,10 @@ function SecurityScreen() {
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Disattivare 2FA?</Text>
             <Text style={styles.cardSub}>Inserisci la password del tuo account per confermare.</Text>
-            <TextInput
+            <PasswordInput
               testID="disable-password"
               value={disablePwd}
               onChangeText={setDisablePwd}
-              secureTextEntry
               placeholder="Password"
               placeholderTextColor={HT.muted}
               style={[styles.input, { marginTop: 8 }]}
@@ -538,13 +538,12 @@ function SecurityScreen() {
           ) : (
             <View style={styles.deleteForm}>
               <Text style={styles.deleteLabel}>Password</Text>
-              <TextInput
+              <PasswordInput
                 testID="delete-account-password"
                 value={deletePwd}
                 onChangeText={setDeletePwd}
                 placeholder="La tua password"
                 placeholderTextColor={HT.muted}
-                secureTextEntry
                 style={styles.input}
               />
               <Text style={[styles.deleteLabel, { marginTop: 10 }]}>

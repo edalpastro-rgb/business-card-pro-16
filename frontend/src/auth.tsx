@@ -18,6 +18,7 @@ export type User = {
   user_id: string;
   email: string;
   name: string;
+  email_verified?: boolean | null; // V50.z433
   picture?: string | null;
   role: string;
   areas: string[];
@@ -43,6 +44,7 @@ const APP_LOCK_IDLE_MINUTES = 5;
 
 export type LoginResult =
   | { requires_2fa: true; temp_token: string }
+  | { requires_2fa: false; requires_email_verification: true; email: string } // V50.z433
   | { requires_2fa: false; ok: true };
 
 type AuthCtx = {
@@ -50,7 +52,12 @@ type AuthCtx = {
   loading: boolean;
   loginEmail: (email: string, password: string) => Promise<LoginResult>;
   verify2FA: (tempToken: string, code: string) => Promise<void>;
-  register: (email: string, password: string, name: string) => Promise<void>;
+  register: (email: string, password: string, name: string, extra?: { lastName?: string; promoCode?: string }) => Promise<{ promo: { ok: boolean; code: string; message: string } | null; requiresEmailVerification: boolean }>;
+  /** V50.z433 — attivazione account con codice a 6 cifre ricevuto via email */
+  verifyEmail: (code: string) => Promise<void>;
+  resendEmailCode: () => Promise<string>;
+  /** V50.z433 — true se al boot il token appartiene a un account non ancora attivato */
+  pendingEmailVerification: string | null;
   loginGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -138,6 +145,7 @@ export async function biometricEnabled(): Promise<boolean> {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pendingEmailVerification, setPendingEmailVerification] = useState<string | null>(null); // V50.z433
   const [locked, setLocked] = useState(false);
   const [trustExpiresAt, setTrustExpiresAt] = useState<string | null>(null);
 
@@ -150,6 +158,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     try {
       const r = await api<{ user: User }>("/auth/me");
+      if (r.user?.email_verified === false) { // V50.z433 — account da attivare: resta sul login con la schermata del codice
+        setPendingEmailVerification(r.user.email);
+        setUser(null);
+        return;
+      }
       await syncPrefs();
       setUser(r.user);
     } catch (e: any) {
@@ -272,11 +285,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loginEmail = async (email: string, password: string): Promise<LoginResult> => {
     const r = await api<
       | { requires_2fa: true; temp_token: string }
+      | { requires_email_verification: true; token: string; email: string }
       | { requires_2fa?: false; token: string; user: User; trust_expires_at: string }
     >("/auth/login", { method: "POST", body: { email, password, device: await getDeviceInfo() } }); // V50.z293
 
     if ("requires_2fa" in r && r.requires_2fa) {
       return { requires_2fa: true, temp_token: r.temp_token };
+    }
+    if ("requires_email_verification" in r && r.requires_email_verification) { // V50.z433
+      await setToken(r.token);
+      setPendingEmailVerification(r.email);
+      return { requires_2fa: false, requires_email_verification: true, email: r.email };
     }
     const rr = r as { token: string; user: User; trust_expires_at: string };
     await setToken(rr.token);
@@ -300,18 +319,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(r.user);
   };
 
-  const register = async (email: string, password: string, name: string) => {
-    const r = await api<{ token: string; user: User }>("/auth/register", {
+  // V50.z433 — Cognome + codice promozionale opzionale (stesso sistema promo del Master/landing); l'account resta da attivare
+  // finché l'utente non inserisce il codice ricevuto via email (verifyEmail): token salvato, `user` impostato solo dopo.
+  const register = async (email: string, password: string, name: string, extra?: { lastName?: string; promoCode?: string }) => {
+    const r = await api<{ token: string; user: User; promo?: { ok: boolean; code: string; message: string } | null; requires_email_verification?: boolean }>("/auth/register", {
       method: "POST",
-      body: { email, password, name, product: "advisor" }, // V50.z323 — Axon Core: questa app è AdvisorOS
+      body: { email, password, name, product: "advisor", last_name: extra?.lastName || undefined, promo_code: extra?.promoCode || undefined }, // V50.z323 — Axon Core: questa app è AdvisorOS
     });
     await setToken(r.token);
     const iso = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
     await saveTrust(iso);
     setTrustExpiresAt(iso);
     await storage.secureSet(LAST_UNLOCK_KEY, Date.now());
+    if (r.requires_email_verification) {
+      setPendingEmailVerification(r.user.email);
+      return { promo: r.promo ?? null, requiresEmailVerification: true };
+    }
     await syncPrefs();
     setUser(r.user);
+    return { promo: r.promo ?? null, requiresEmailVerification: false };
+  };
+
+  const verifyEmail = async (code: string) => {
+    const r = await api<{ ok: boolean; user: User }>("/auth/verify-email", { method: "POST", body: { code } });
+    setPendingEmailVerification(null);
+    await syncPrefs();
+    setUser(r.user);
+  };
+
+  const resendEmailCode = async () => {
+    const r = await api<{ ok: boolean; message?: string }>("/auth/verify-email/resend", { method: "POST" });
+    return r.message || "Codice inviato.";
   };
 
   const loginGoogle = async () => {
@@ -387,6 +425,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await saveTrust(null);
     setTrustExpiresAt(null);
     await storage.secureRemove(LAST_UNLOCK_KEY);
+    setPendingEmailVerification(null); // V50.z433
     setUser(null);
     setLocked(false);
   };
@@ -416,6 +455,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return (
     <Ctx.Provider value={{
       user, loading, loginEmail, verify2FA, register, loginGoogle, logout, refresh, loginWithSession,
+      verifyEmail, resendEmailCode, pendingEmailVerification, // V50.z433
       locked, setLocked, unlockWithPin, hasPinConfigured: hasPin, isBiometricEnabled: biometricEnabled, markUnlocked,
       trustExpiresAt, isTrustValid: isTrustStillValid,
     }}>

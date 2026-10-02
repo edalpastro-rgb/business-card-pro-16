@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, ActivityIndicator, Alert } from "react-native";
+import { PasswordInput } from "@/src/PasswordInput"; // V50.z433 — occhio mostra/nascondi password
 import { KeyboardAvoidingView } from "react-native-keyboard-controller"; // V50.z374 — behavior "padding" valido su iOS e Android
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -136,7 +137,7 @@ export default function SmtpConfigScreen() {
             <Text style={styles.lbl}>Utente / Email login *</Text>
             <TextInput testID="smtp-user" value={form.username} onChangeText={(t) => setForm({ ...form, username: t })} placeholder="tu@tuodominio.it" placeholderTextColor={HT.muted} style={styles.input} autoCapitalize="none" keyboardType="email-address" />
             <Text style={styles.lbl}>Password {configured ? "(compila solo per cambiare)" : "*"}</Text>
-            <TextInput testID="smtp-pass" value={form.password} onChangeText={(t) => setForm({ ...form, password: t })} placeholder={configured ? "•••••••• (già configurata)" : "Password casella"} placeholderTextColor={HT.muted} style={styles.input} secureTextEntry autoCapitalize="none" />
+            <PasswordInput testID="smtp-pass" value={form.password} onChangeText={(t) => setForm({ ...form, password: t })} placeholder={configured ? "•••••••• (già configurata)" : "Password casella"} placeholderTextColor={HT.muted} style={styles.input} />
           </View>
 
           <View style={styles.card}>

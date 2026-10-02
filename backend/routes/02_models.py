@@ -8,6 +8,8 @@ class RegisterInput(BaseModel):
     password: str = Field(min_length=6)
     name: str
     product: Optional[Literal["advisor", "lite"]] = None  # V50.z323 — Axon Core: app di provenienza (default advisor)
+    last_name: Optional[str] = None  # V50.z433 — Cognome (campo separato nel modulo)
+    promo_code: Optional[str] = None  # V50.z433 — codice promozionale (stesso sistema Master/landing: promo_codes + AMICO-)
 
 
 class DeviceIn(BaseModel):
@@ -54,6 +56,7 @@ class UserOut(BaseModel):
     areas: List[str] = Field(default_factory=lambda: ["energy", "network"])
     parent_user_id: Optional[str] = None
     product: str = "advisor"  # V50.z323 — Axon Core: advisor | lite
+    email_verified: Optional[bool] = None  # V50.z433 — False = account da attivare con codice email (None = utenti storici/Google)
     avatar_base64: Optional[str] = None
     two_factor_enabled: bool = False
     additional_emails: List[str] = Field(default_factory=list)  # V38H

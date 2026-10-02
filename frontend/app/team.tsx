@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Modal } from "react-native";
+import { PasswordInput } from "@/src/PasswordInput"; // V50.z433 — occhio mostra/nascondi password
 import { KScrollView, KModalBody } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -252,7 +253,7 @@ export default function TeamScreen() {
             <Text style={styles.lbl}>Email</Text>
             <TextInput testID="invite-email" value={form.email} onChangeText={(t) => setForm({ ...form, email: t })} style={styles.input} placeholder="anna@email.it" placeholderTextColor={HT.muted} autoCapitalize="none" keyboardType="email-address" />
             <Text style={styles.lbl}>Password iniziale</Text>
-            <TextInput testID="invite-password" value={form.password} onChangeText={(t) => setForm({ ...form, password: t })} style={styles.input} placeholder="Almeno 6 caratteri" placeholderTextColor={HT.muted} secureTextEntry />
+            <PasswordInput testID="invite-password" value={form.password} onChangeText={(t) => setForm({ ...form, password: t })} style={styles.input} placeholder="Almeno 6 caratteri" placeholderTextColor={HT.muted} />
             <Text style={styles.lbl}>Aree assegnate</Text>
             <View style={styles.rowChips}>
               <Pressable testID="invite-area-e" onPress={() => setForm({ ...form, energy: !form.energy })} style={[styles.chip, form.energy && { backgroundColor: theme.color.energy, borderColor: theme.color.energy }]}>

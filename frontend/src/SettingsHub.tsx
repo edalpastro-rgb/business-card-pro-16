@@ -3,6 +3,7 @@
 // sono raggiungibili da AxonOS Center → «Assistente & Header tabella» (`/impostazioni?section=axon`).
 import React, { useState } from "react";
 import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator } from "react-native";
+import { PasswordInput } from "@/src/PasswordInput"; // V50.z433 — occhio mostra/nascondi password
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
@@ -76,7 +77,7 @@ export function ChangePasswordCard() {
         <Ionicons name="key" size={18} color="#DC2626" /><Text style={styles.cardTitle}>Cambio password</Text>
       </View>
       {[["Password attuale", cur, setCur, "chpwd-current"], ["Nuova password (min 8)", nw, setNw, "chpwd-new"], ["Conferma nuova password", cf, setCf, "chpwd-confirm"]].map(([ph, v, set, tid]) => (
-        <TextInput key={tid as string} value={v as string} onChangeText={set as any} placeholder={ph as string} placeholderTextColor={HT.muted} secureTextEntry autoCapitalize="none" style={styles.input} testID={tid as string} />
+        <PasswordInput key={tid as string} value={v as string} onChangeText={set as any} placeholder={ph as string} placeholderTextColor={HT.muted} style={styles.input} testID={tid as string} />
       ))}
       <Pressable onPress={submit} disabled={busy || !cur || !nw || !cf} style={[styles.btn, (busy || !cur || !nw || !cf) && { opacity: 0.5 }]} testID="chpwd-submit">
         {busy ? <ActivityIndicator color="#FFF" size="small" /> : <Ionicons name="checkmark" size={16} color="#FFF" />}
@@ -110,7 +111,7 @@ export function ChangeEmailCard() {
       </View>
       <Text style={styles.rowSub} testID="chemail-current">Attuale: {user?.email || "—"}</Text>
       <TextInput value={email} onChangeText={setEmail} placeholder="Nuova email" placeholderTextColor={HT.muted} autoCapitalize="none" keyboardType="email-address" autoComplete="email" style={styles.input} testID="chemail-new" />
-      <TextInput value={pwd} onChangeText={setPwd} placeholder="Password attuale (per conferma)" placeholderTextColor={HT.muted} secureTextEntry autoCapitalize="none" style={styles.input} testID="chemail-password" />
+      <PasswordInput value={pwd} onChangeText={setPwd} placeholder="Password attuale (per conferma)" placeholderTextColor={HT.muted} style={styles.input} testID="chemail-password" />
       <Pressable onPress={submit} disabled={busy || !valid || !pwd} style={[styles.btn, { backgroundColor: HT.violet }, (busy || !valid || !pwd) && { opacity: 0.5 }]} testID="chemail-submit">
         {busy ? <ActivityIndicator color="#FFF" size="small" /> : <Ionicons name="checkmark" size={16} color="#FFF" />}
         <Text style={styles.btnTxt}>Aggiorna email</Text>

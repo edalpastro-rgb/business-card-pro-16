@@ -12,10 +12,15 @@ async def register(body: RegisterInput):
     if existing:
         raise HTTPException(status_code=400, detail="Email già registrata")
     user_id = f"user_{uuid.uuid4().hex[:12]}"
+    first_name = (body.name or "").strip()
+    last_name = (body.last_name or "").strip()
+    full_name = " ".join(x for x in [first_name, last_name] if x) or body.email.split("@")[0]
     doc = {
         "user_id": user_id,
         "email": body.email.lower(),
-        "name": body.name,
+        "name": full_name,
+        "first_name": first_name or None,  # V50.z433
+        "last_name": last_name or None,
         "password_hash": hash_password(body.password),
         "role": "owner",
         "areas": ["energy", "network"],
@@ -24,6 +29,7 @@ async def register(body: RegisterInput):
         "subscription_status": "trial",  # V50.z329 — prova gratuita di TRIAL_DAYS giorni per ogni nuovo iscritto (promo/referral la estendono)
         "trial_expires_at": utcnow() + timedelta(days=TRIAL_DAYS),
         "created_at": utcnow(),
+        "email_verified": False,  # V50.z433 — attivazione con codice a 6 cifre via email
     }
     await db.users.insert_one(doc)
     # Init default settings
@@ -31,6 +37,20 @@ async def register(body: RegisterInput):
         "user_id": user_id,
         **SettingsModel().model_dump(),
     })
+    # V50.z433 — Codice promozionale inserito nel modulo: STESSO sistema di /promo/redeem (codici del Master + codici amico
+    # AMICO-/referral della landing). Un codice non valido NON blocca la registrazione: viene riportato in `promo`.
+    promo: Optional[Dict[str, Any]] = None
+    promo_code = (body.promo_code or "").strip()
+    if promo_code:
+        _redeem = globals().get("promo_redeem")
+        try:
+            res = await _redeem(PromoRedeemIn(code=promo_code), user=doc) if _redeem else None  # noqa: F821
+            promo = {"ok": True, "code": promo_code.upper(), "message": (res or {}).get("message") or "Codice applicato."}
+        except HTTPException as exc:
+            promo = {"ok": False, "code": promo_code.upper(), "message": str(exc.detail)}
+        except Exception as exc:  # noqa: BLE001
+            logging.getLogger("auth").warning("promo at register failed: %s", exc)
+            promo = {"ok": False, "code": promo_code.upper(), "message": "Codice non applicato: potrai inserirlo nelle impostazioni."}
     # V50.z336 — notifica interna al Master (emanuele@) per ogni nuova iscrizione in prova
     _hook = globals().get("_email_on_register")
     if _hook:
@@ -39,7 +59,166 @@ async def register(body: RegisterInput):
         except Exception as exc:  # noqa: BLE001
             logging.getLogger("auth").warning("email hook failed: %s", exc)
     token = create_jwt(user_id)
-    return {"token": token, "user": UserOut(**{k: doc.get(k) for k in ["user_id", "email", "name", "picture", "role", "areas", "parent_user_id", "product"]}).model_dump()}
+    # V50.z433 — invio codice di verifica email (l'account si attiva con POST /auth/verify-email)
+    try:
+        await _email_verify_send(doc)
+    except Exception as exc:  # noqa: BLE001
+        logging.getLogger("auth").warning("verify email send failed: %s", exc)
+    return {"token": token, "user": UserOut(**{k: doc.get(k) for k in ["user_id", "email", "name", "picture", "role", "areas", "parent_user_id", "product", "email_verified"]}).model_dump(), "promo": promo, "requires_email_verification": True}
+
+
+# ── V50.z433 — Verifica email alla registrazione (codice a 6 cifre, 30 min, max 6 tentativi) ──
+_EMAILVERIFY_TTL_MIN = 30
+_EMAILVERIFY_MAX_ATTEMPTS = 6
+
+
+async def _email_verify_send(user: dict) -> None:
+    code = f"{secrets.randbelow(1_000_000):06d}"
+    now = utcnow()
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"email_verify": {
+        "code_hash": hash_password(code), "expires_at": now + timedelta(minutes=_EMAILVERIFY_TTL_MIN), "attempts": 0, "sent_at": now,
+    }}})
+    first = (user.get("first_name") or (user.get("name") or "").split(" ")[0] or "ciao")
+    html = (
+        f"<p>Ciao {first},</p><p>benvenuto in AdvisorOS! Per attivare il tuo account inserisci nell'app questo codice di conferma:</p>"
+        f"<p style=\"font-size:30px;font-weight:800;letter-spacing:8px;margin:18px 0\">{code}</p>"
+        f"<p>Il codice vale <b>{_EMAILVERIFY_TTL_MIN} minuti</b>. Se non ti sei registrato tu, ignora questa email.</p>"
+    )
+    _send = globals().get("axon_send_email")
+    if _send:
+        await _send("help", user["email"], "AdvisorOS · Codice di conferma email", html, tag="email_verify")
+
+
+class EmailVerifyIn(BaseModel):
+    code: str = Field(pattern=r"^\d{6}$")
+
+
+@api_router.post("/auth/verify-email")
+async def verify_email(body: EmailVerifyIn, user=Depends(get_current_user)):
+    fresh = await db.users.find_one({"user_id": user["user_id"]})
+    if not fresh:
+        raise HTTPException(status_code=404, detail="Utente non trovato")
+    if fresh.get("email_verified") is not False:
+        strip_id(fresh); fresh.pop("password_hash", None)
+        return {"ok": True, "already": True, "user": UserOut(**fresh).model_dump()}
+    ev = fresh.get("email_verify") or {}
+    exp = ev.get("expires_at")
+    if isinstance(exp, datetime) and exp.tzinfo is None:
+        exp = exp.replace(tzinfo=timezone.utc)
+    if not ev or not exp or exp < utcnow():
+        raise HTTPException(status_code=400, detail="Codice scaduto: richiedi un nuovo codice.")
+    if int(ev.get("attempts") or 0) >= _EMAILVERIFY_MAX_ATTEMPTS:
+        raise HTTPException(status_code=400, detail="Troppi tentativi: richiedi un nuovo codice.")
+    if not verify_password(body.code, ev["code_hash"]):
+        await db.users.update_one({"user_id": user["user_id"]}, {"$inc": {"email_verify.attempts": 1}})
+        left = _EMAILVERIFY_MAX_ATTEMPTS - int(ev.get("attempts") or 0) - 1
+        raise HTTPException(status_code=400, detail=f"Codice errato. Tentativi rimasti: {max(left, 0)}.")
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"email_verified": True, "email_verified_at": utcnow()}, "$unset": {"email_verify": ""}})
+    fresh["email_verified"] = True
+    strip_id(fresh); fresh.pop("password_hash", None); fresh.pop("email_verify", None)
+    return {"ok": True, "user": UserOut(**fresh).model_dump()}
+
+
+@api_router.post("/auth/verify-email/resend")
+async def verify_email_resend(user=Depends(get_current_user)):
+    fresh = await db.users.find_one({"user_id": user["user_id"]})
+    if not fresh or fresh.get("email_verified") is not False:
+        return {"ok": True, "already": True}
+    sent_at = (fresh.get("email_verify") or {}).get("sent_at")
+    if isinstance(sent_at, datetime) and sent_at.tzinfo is None:
+        sent_at = sent_at.replace(tzinfo=timezone.utc)
+    if sent_at and (utcnow() - sent_at).total_seconds() < 45:
+        raise HTTPException(status_code=429, detail="Attendi qualche secondo prima di richiedere un nuovo codice.")
+    await _email_verify_send(fresh)
+    return {"ok": True, "message": f"Nuovo codice inviato a {fresh['email']}."}
+
+
+# ── V50.z433 — Recupero password (codice a 6 cifre via email, nessun deep link richiesto) ──
+# Flusso: POST /auth/password-reset/request {email} → sempre 202 + reset_id (anti-enumerazione: per email sconosciute
+# un reset_id casuale che non validerà mai); email con codice 6 cifre (bcrypt hash su DB, 15 min, max 6 tentativi).
+# POST /auth/password-reset/confirm {reset_id, code, new_password} → cambia password_hash, consuma il record (atomico).
+_PWRESET_TTL_MIN = 15
+_PWRESET_MAX_ATTEMPTS = 6
+_pwreset_rate: Dict[str, list] = {}  # chiave (email|ip) → timestamp richieste (processo singolo VPS)
+
+
+def _pwreset_allow(key: str, limit: int, window_s: int) -> bool:
+    now_ts = time.time()
+    arr = [t for t in _pwreset_rate.get(key, []) if now_ts - t < window_s]
+    _pwreset_rate[key] = arr
+    if len(arr) >= limit:
+        return False
+    arr.append(now_ts)
+    return True
+
+
+class PasswordResetRequestIn(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetConfirmIn(BaseModel):
+    reset_id: str = Field(min_length=8, max_length=64)
+    code: str = Field(pattern=r"^\d{6}$")
+    new_password: str = Field(min_length=6, max_length=128)
+
+
+@api_router.post("/auth/password-reset/request", status_code=202)
+async def password_reset_request(body: PasswordResetRequestIn, request: Request):
+    email = str(body.email).strip().lower()
+    ip = request.client.host if request.client else "?"
+    generic = {"ok": True, "message": "Se l'email è registrata riceverai un codice a 6 cifre valido 15 minuti.", "reset_id": secrets.token_urlsafe(16), "ttl_minutes": _PWRESET_TTL_MIN}
+    if not (_pwreset_allow(f"ip:{ip}", 10, 3600) and _pwreset_allow(f"em:{email}", 3, 3600)):
+        return generic
+    user = await db.users.find_one({"email": email}, {"user_id": 1, "email": 1, "name": 1, "password_hash": 1})
+    if not user or not user.get("password_hash"):
+        hash_password("timing-only-value")  # tempo di risposta simile a quello di un account esistente
+        return generic
+    code = f"{secrets.randbelow(1_000_000):06d}"
+    reset_id = secrets.token_urlsafe(16)
+    now = utcnow()
+    await db.password_reset_tokens.delete_many({"user_id": user["user_id"]})
+    await db.password_reset_tokens.insert_one({
+        "reset_id": reset_id, "user_id": user["user_id"], "code_hash": hash_password(code),
+        "created_at": now, "expires_at": now + timedelta(minutes=_PWRESET_TTL_MIN), "used_at": None, "attempts": 0,
+    })
+    first = (user.get("name") or "").split(" ")[0] or "ciao"
+    html = (
+        f"<p>Ciao {first},</p><p>hai chiesto di reimpostare la password di AdvisorOS. Inserisci nell'app questo codice:</p>"
+        f"<p style=\"font-size:30px;font-weight:800;letter-spacing:8px;margin:18px 0\">{code}</p>"
+        f"<p>Il codice vale <b>{_PWRESET_TTL_MIN} minuti</b> e può essere usato una sola volta.</p>"
+        "<p>Se non sei stato tu, ignora questa email: la tua password resta invariata.</p>"
+    )
+    _send = globals().get("axon_send_email")
+    try:
+        if _send:
+            await _send("help", user["email"], "AdvisorOS · Codice per reimpostare la password", html, tag="password_reset")
+    except Exception as exc:  # noqa: BLE001 — mai rivelare al chiamante se l'invio è fallito
+        logging.getLogger("auth").warning("password reset email failed: %s", exc)
+    generic["reset_id"] = reset_id
+    return generic
+
+
+@api_router.post("/auth/password-reset/confirm")
+async def password_reset_confirm(body: PasswordResetConfirmIn):
+    bad = HTTPException(status_code=400, detail="Codice non valido o scaduto. Richiedi un nuovo codice.")
+    now = utcnow()
+    rec = await db.password_reset_tokens.find_one({"reset_id": body.reset_id, "used_at": None, "expires_at": {"$gt": now}})
+    if not rec or int(rec.get("attempts") or 0) >= _PWRESET_MAX_ATTEMPTS:
+        raise bad
+    if not verify_password(body.code, rec["code_hash"]):
+        await db.password_reset_tokens.update_one({"reset_id": body.reset_id, "used_at": None}, {"$inc": {"attempts": 1}})
+        left = _PWRESET_MAX_ATTEMPTS - int(rec.get("attempts") or 0) - 1
+        raise HTTPException(status_code=400, detail=f"Codice errato. Tentativi rimasti: {max(left, 0)}." if left > 0 else "Troppi tentativi: richiedi un nuovo codice.")
+    claimed = await db.password_reset_tokens.find_one_and_update(
+        {"reset_id": body.reset_id, "used_at": None, "expires_at": {"$gt": now}},
+        {"$set": {"used_at": now}},
+    )
+    if not claimed:
+        raise bad
+    r = await db.users.update_one({"user_id": rec["user_id"]}, {"$set": {"password_hash": hash_password(body.new_password), "password_changed_at": now}})
+    if r.matched_count != 1:
+        raise bad
+    return {"ok": True, "message": "Password aggiornata. Ora puoi accedere con la nuova password."}
 
 
 @api_router.post("/auth/login")
@@ -54,6 +233,14 @@ async def login(body: LoginInput, request: Request):
             "requires_2fa": True,
             "temp_token": create_temp_2fa_token(user["user_id"]),
         }
+
+    # V50.z433 — account non ancora attivato (email non verificata): token emesso ma l'app mostra la schermata del codice
+    if user.get("email_verified") is False:
+        try:
+            await _email_verify_send(user)
+        except Exception as exc:  # noqa: BLE001
+            logging.getLogger("auth").warning("verify email resend at login failed: %s", exc)
+        return {"requires_email_verification": True, "token": create_jwt(user["user_id"]), "email": user["email"]}
 
     dev = await _device_register_login(user, body.device, request)  # V50.z293
     token = create_jwt(user["user_id"], dev.get("device_id") if dev else None)

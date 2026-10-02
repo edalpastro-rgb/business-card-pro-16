@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, TextInput, Pressable, ActivityIndicator, Alert, ScrollView } from "react-native";
+import { PasswordInput } from "@/src/PasswordInput"; // V50.z433 — occhio mostra/nascondi password
 import { KeyboardAvoidingView } from "react-native-keyboard-controller"; // V50.z374 — behavior "padding" valido su iOS e Android
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -89,7 +90,7 @@ export default function InvitePublicScreen() {
             <Text style={styles.lbl}>Email</Text>
             <TextInput testID="reg-email" value={email} onChangeText={setEmail} placeholder="tu@email.it" placeholderTextColor={HT.muted} style={styles.input} autoCapitalize="none" keyboardType="email-address" />
             <Text style={styles.lbl}>Password</Text>
-            <TextInput testID="reg-password" value={password} onChangeText={setPassword} placeholder="Almeno 6 caratteri" placeholderTextColor={HT.muted} style={styles.input} secureTextEntry />
+            <PasswordInput testID="reg-password" value={password} onChangeText={setPassword} placeholder="Almeno 6 caratteri" placeholderTextColor={HT.muted} style={styles.input} />
             <Pressable testID="reg-submit" onPress={submit} disabled={busy} style={styles.btn}>
               {busy ? <ActivityIndicator color="#FFF" /> : <Text style={styles.btnTxt}>Registrati e accedi</Text>}
             </Pressable>

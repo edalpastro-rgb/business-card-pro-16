@@ -529,3 +529,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z432 — Fix «Invalid file format» trascrizione Android: preset M4A/AAC esplicito (LOW_QUALITY produceva .3gp AMR) in AssistantChat/useNativeBargeIn; /ai/transcribe rileva il formato dai magic bytes, converte in WAV 16k con ffmpeg (imageio-ffmpeg) i formati non Whisper e riprova in WAV su errore formato. Test locale: 3gp → 200, m4a → 200."
+
+  - agent: "main"
+    message: "V50.z433 — Modulo registrazione (Cognome, Conferma email, Conferma password, Codice promozionale = stesso sistema promo_redeem), link Recupera password → /auth/forgot-password (codice 6 cifre via email, /auth/password-reset/request|confirm), PasswordInput con occhio su tutti i campi password, verifica email alla registrazione (/auth/verify-email, /auth/verify-email/resend; login bloccato finché email_verified=False). Test API + UI web OK."
