@@ -532,3 +532,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z433 — Modulo registrazione (Cognome, Conferma email, Conferma password, Codice promozionale = stesso sistema promo_redeem), link Recupera password → /auth/forgot-password (codice 6 cifre via email, /auth/password-reset/request|confirm), PasswordInput con occhio su tutti i campi password, verifica email alla registrazione (/auth/verify-email, /auth/verify-email/resend; login bloccato finché email_verified=False). Test API + UI web OK."
+
+  - agent: "main"
+    message: "V50.z434 — Fort Knox registrazione (axon_register_security.py: challenge+PoW+honeypot+rate limit+disposable+Turnstile opz., privacy obbligatoria, newsletter) + Email di benvenuto configurabile (admin/welcome-email) inviata dopo verify-email. Master screens /admin/register-guard e /admin/welcome-email. Test API + UI web OK."

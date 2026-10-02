@@ -42,6 +42,12 @@ const LAST_UNLOCK_KEY = "app_last_unlock_v1";
 // App lock triggers after this idle interval (in minutes) when trust is still valid
 const APP_LOCK_IDLE_MINUTES = 5;
 
+// V50.z434 — extra registrazione: cognome, promo, consensi, anti-bot (challenge/PoW/Turnstile/honeypot)
+export type RegisterExtra = {
+  lastName?: string; promoCode?: string; privacyAccepted?: boolean; newsletter?: boolean;
+  challengeId?: string; powNonce?: string; turnstileToken?: string | null; hp?: string;
+};
+
 export type LoginResult =
   | { requires_2fa: true; temp_token: string }
   | { requires_2fa: false; requires_email_verification: true; email: string } // V50.z433
@@ -52,7 +58,7 @@ type AuthCtx = {
   loading: boolean;
   loginEmail: (email: string, password: string) => Promise<LoginResult>;
   verify2FA: (tempToken: string, code: string) => Promise<void>;
-  register: (email: string, password: string, name: string, extra?: { lastName?: string; promoCode?: string }) => Promise<{ promo: { ok: boolean; code: string; message: string } | null; requiresEmailVerification: boolean }>;
+  register: (email: string, password: string, name: string, extra?: RegisterExtra) => Promise<{ promo: { ok: boolean; code: string; message: string } | null; requiresEmailVerification: boolean }>;
   /** V50.z433 — attivazione account con codice a 6 cifre ricevuto via email */
   verifyEmail: (code: string) => Promise<void>;
   resendEmailCode: () => Promise<string>;
@@ -321,10 +327,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // V50.z433 — Cognome + codice promozionale opzionale (stesso sistema promo del Master/landing); l'account resta da attivare
   // finché l'utente non inserisce il codice ricevuto via email (verifyEmail): token salvato, `user` impostato solo dopo.
-  const register = async (email: string, password: string, name: string, extra?: { lastName?: string; promoCode?: string }) => {
+  const register = async (email: string, password: string, name: string, extra?: RegisterExtra) => {
     const r = await api<{ token: string; user: User; promo?: { ok: boolean; code: string; message: string } | null; requires_email_verification?: boolean }>("/auth/register", {
       method: "POST",
-      body: { email, password, name, product: "advisor", last_name: extra?.lastName || undefined, promo_code: extra?.promoCode || undefined }, // V50.z323 — Axon Core: questa app è AdvisorOS
+      body: {
+        email, password, name, product: "advisor", // V50.z323 — Axon Core: questa app è AdvisorOS
+        last_name: extra?.lastName || undefined, promo_code: extra?.promoCode || undefined,
+        privacy_accepted: !!extra?.privacyAccepted, newsletter: !!extra?.newsletter,
+        challenge_id: extra?.challengeId, pow_nonce: extra?.powNonce, turnstile_token: extra?.turnstileToken || undefined, hp: extra?.hp || "",
+      },
     });
     await setToken(r.token);
     const iso = new Date(Date.now() + 24 * 3600 * 1000).toISOString();

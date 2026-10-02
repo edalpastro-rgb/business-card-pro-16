@@ -923,6 +923,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z434 | Giu 2026 | **Fort Knox registrazione** (challenge monouso, PoW, honeypot, rate limit IP/email, email usa-e-getta, Turnstile opzionale, privacy+newsletter) + **Email di benvenuto** configurabile dal Master (segnaposto, promo, prova) |
 | V50.z433 | Giu 2026 | **Registrazione** (Cognome, conferma email/password, codice promo = sistema Master/landing), **Recupera password** (codice 6 cifre), **occhio password** ovunque (`PasswordInput`), **verifica email** alla registrazione (`/auth/verify-email`) |
 | V50.z432 | Giu 2026 | **Trascrizione Android**: preset M4A/AAC forzato (LOW_QUALITY = .3gp AMR rifiutato da Whisper); server: sniff magic bytes + conversione WAV ffmpeg + retry |
 | V50.z431 | Giu 2026 | **Unico punto backend**: `EXPO_PUBLIC_API_BASE_URL` (priorità) in `.env`, `BACKEND_URL` in `src/api.ts`, 20 file migrati a `import { BACKEND_URL } from "@/src/api"` |

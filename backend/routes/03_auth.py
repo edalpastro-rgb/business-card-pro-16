@@ -7,10 +7,15 @@ TRIAL_DAYS = 14  # V50.z329 — giorni di prova gratuita alla registrazione
 
 
 @api_router.post("/auth/register")
-async def register(body: RegisterInput):
+async def register(body: RegisterInput, request: Request):
     existing = await db.users.find_one({"email": body.email.lower()})
     if existing:
         raise HTTPException(status_code=400, detail="Email già registrata")
+    # V50.z434 — «Fort Knox»: rate limiting, honeypot, proof-of-work, Turnstile, email usa-e-getta, privacy obbligatoria
+    _guard = globals().get("_register_guard_check")
+    if _guard:
+        await _guard(body, request)
+    guard_meta = getattr(body, "_guard_meta", None) or {}
     user_id = f"user_{uuid.uuid4().hex[:12]}"
     first_name = (body.name or "").strip()
     last_name = (body.last_name or "").strip()
@@ -30,6 +35,11 @@ async def register(body: RegisterInput):
         "trial_expires_at": utcnow() + timedelta(days=TRIAL_DAYS),
         "created_at": utcnow(),
         "email_verified": False,  # V50.z433 — attivazione con codice a 6 cifre via email
+        # V50.z434 — consensi + metadati anti-bot
+        "privacy_accepted_at": utcnow() if body.privacy_accepted else None,
+        "newsletter_opt_in": bool(body.newsletter),
+        "register_ip": guard_meta.get("register_ip"),
+        "email_normalized": guard_meta.get("email_normalized") or body.email.lower(),
     }
     await db.users.insert_one(doc)
     # Init default settings
@@ -115,6 +125,13 @@ async def verify_email(body: EmailVerifyIn, user=Depends(get_current_user)):
         raise HTTPException(status_code=400, detail=f"Codice errato. Tentativi rimasti: {max(left, 0)}.")
     await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"email_verified": True, "email_verified_at": utcnow()}, "$unset": {"email_verify": ""}})
     fresh["email_verified"] = True
+    # V50.z434 — email di benvenuto configurabile dal Master (dopo l'attivazione)
+    _welcome = globals().get("_welcome_email_send")
+    if _welcome and not fresh.get("welcome_email_sent_at"):
+        try:
+            await _welcome(fresh)
+        except Exception as exc:  # noqa: BLE001
+            logging.getLogger("auth").warning("welcome email failed: %s", exc)
     strip_id(fresh); fresh.pop("password_hash", None); fresh.pop("email_verify", None)
     return {"ok": True, "user": UserOut(**fresh).model_dump()}
 

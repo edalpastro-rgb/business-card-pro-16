@@ -122,6 +122,7 @@ MODULES = [
     "contact_import_folder.py",  # V50.z424 — Import cliente da cartella documenti (visura → anagrafica, allegati compressi, cartelle preservate)
     "axon_landing_ref.py",
     "user_prefs_sync.py",  # V50.z428 — GET/PUT /me/prefs: preferenze utente (PIN, tema, widget sidebar…) legate all account
+    "axon_register_security.py",  # V50.z434 — «Fort Knox» registrazione (rate limit, honeypot, PoW, Turnstile, email usa-e-getta) + Email di benvenuto configurabile (Master)
     "pkg_delivery.py",  # V50.z424 — consegna pacchetti VPS, attivo SOLO se AXON_PKG_DOWNLOAD_KEY è nell .env (dev); in produzione risponde 404  # V50.z422 — Condividi Landing Page: GET /me/landing-link (ref = codice agente) + GET /public/advisor/{ref} → nome
     "37_app_startup_scheduler.py",
 ]

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { View, Text, TextInput, Pressable, StyleSheet, Platform, ScrollView, ActivityIndicator, useWindowDimensions, Image } from "react-native";
+import { View, Text, TextInput, Pressable, StyleSheet, Platform, ScrollView, ActivityIndicator, useWindowDimensions, Image, Linking } from "react-native";
 import { PasswordInput } from "@/src/PasswordInput"; // V50.z433 — occhio mostra/nascondi password
 import { KeyboardAvoidingView } from "react-native-keyboard-controller"; // V50.z374 — behavior "padding" valido su iOS e Android
 import { LinearGradient } from "expo-linear-gradient";
@@ -10,6 +10,9 @@ import { PENDING_REFERRAL_KEY } from "@/src/PromoCodeField"; // V50.z322 — lin
 import { QuickUnlockCard, maybeOfferQuickUnlock } from "@/src/quickUnlock/QuickUnlockCard"; // V50.z187 — accesso rapido (isolato)
 import { useAuth } from "@/src/auth";
 import { notify } from "@/src/utils/notify"; // V50.z433
+import { api } from "@/src/api";
+import { solvePow } from "@/src/utils/pow"; // V50.z434 — proof-of-work anti-bot
+import { TurnstileWidget } from "@/src/TurnstileWidget"; // V50.z434 — Cloudflare Turnstile (se configurato dal Master)
 import { theme } from "@/src/theme";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
@@ -42,6 +45,19 @@ export default function LoginScreen() {
   const [name, setName] = useState("");
   const [lastName, setLastName] = useState(""); // V50.z433
   const [promoCode, setPromoCode] = useState(""); // V50.z433
+  // V50.z434 — «Fort Knox»: challenge anti-bot (PoW + tempo minimo + Turnstile opzionale), honeypot, consensi
+  type Challenge = { challenge_id: string; prefix: string; difficulty: number; min_fill_ms: number; turnstile_site_key: string; privacy_url: string };
+  const [challenge, setChallenge] = useState<Challenge | null>(null);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [hp, setHp] = useState(""); // honeypot: campo invisibile, i bot lo compilano
+  const [privacyOk, setPrivacyOk] = useState(false);
+  const [newsletter, setNewsletter] = useState(false);
+  const [securing, setSecuring] = useState(false);
+  const loadChallenge = async () => {
+    try { setChallenge(await api<Challenge>("/auth/register/challenge")); setTurnstileToken(null); } catch { setChallenge(null); }
+  };
+  useEffect(() => { if (mode === "register") void loadChallenge(); }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
+  const privacyUrl = challenge?.privacy_url || "https://advisoros.it/privacy";
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   // V29.j — Logo AdvisorOS reso direttamente sullo sfondo blu, senza card bianca.
@@ -84,7 +100,24 @@ export default function LoginScreen() {
         if (email.trim().toLowerCase() !== emailConfirm.trim().toLowerCase()) throw new Error("Le due email non coincidono");
         if (password.length < 6) throw new Error("La password deve avere almeno 6 caratteri");
         if (password !== passwordConfirm) throw new Error("Le due password non coincidono");
-        const { promo, requiresEmailVerification } = await register(email.trim(), password, name.trim(), { lastName: lastName.trim(), promoCode: promoCode.trim().toUpperCase() || undefined });
+        if (!privacyOk) throw new Error("Devi accettare l'informativa privacy");
+        if (challenge?.turnstile_site_key && !turnstileToken) throw new Error("Completa la verifica anti-bot");
+        let ch = challenge;
+        if (!ch) { ch = await api<Challenge>("/auth/register/challenge"); setChallenge(ch); }
+        setSecuring(true);
+        const powNonce = await solvePow(ch.prefix, ch.difficulty);
+        setSecuring(false);
+        let result;
+        try {
+          result = await register(email.trim(), password, name.trim(), {
+            lastName: lastName.trim(), promoCode: promoCode.trim().toUpperCase() || undefined,
+            privacyAccepted: privacyOk, newsletter, challengeId: ch.challenge_id, powNonce, turnstileToken, hp,
+          });
+        } catch (e) {
+          void loadChallenge(); // la challenge è monouso: nuova challenge per il prossimo tentativo
+          throw e;
+        }
+        const { promo, requiresEmailVerification } = result;
         if (promo) {
           if (promo.ok) AsyncStorage.removeItem(PENDING_REFERRAL_KEY).catch(() => {});
           setTimeout(() => notify(promo.ok ? "Codice promozionale applicato" : "Codice promozionale non applicato", promo.message), 600);
@@ -100,6 +133,7 @@ export default function LoginScreen() {
     } catch (e: any) {
       setErr(e.message || "Errore");
     } finally {
+      setSecuring(false);
       setBusy(false);
     }
   };
@@ -357,6 +391,27 @@ export default function LoginScreen() {
               />
             </View>
           )}
+          {mode === "register" && (
+            <>
+              {/* V50.z434 — honeypot: invisibile agli umani (0×0, non focalizzabile), compilato dai bot */}
+              <View style={styles.hpWrap} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+                <TextInput value={hp} onChangeText={setHp} style={styles.hpInput} tabIndex={-1 as any} autoComplete="off" testID="auth-hp-input" />
+              </View>
+              {challenge?.turnstile_site_key ? <TurnstileWidget siteKey={challenge.turnstile_site_key} onToken={setTurnstileToken} /> : null}
+              <Pressable testID="auth-privacy-check" onPress={() => setPrivacyOk((v) => !v)} style={styles.checkRow} accessibilityRole="checkbox" accessibilityState={{ checked: privacyOk }}>
+                <Ionicons name={privacyOk ? "checkbox" : "square-outline"} size={24} color={privacyOk ? HT.brand : HT.muted} />
+                <Text style={styles.checkTxt}>
+                  Ho letto e accetto l&apos;
+                  <Text testID="auth-privacy-link" style={styles.checkLink} onPress={() => Linking.openURL(privacyUrl).catch(() => {})}>informativa privacy</Text>
+                  {" "}<Text style={styles.required}>*</Text>
+                </Text>
+              </Pressable>
+              <Pressable testID="auth-newsletter-check" onPress={() => setNewsletter((v) => !v)} style={styles.checkRow} accessibilityRole="checkbox" accessibilityState={{ checked: newsletter }}>
+                <Ionicons name={newsletter ? "checkbox" : "square-outline"} size={24} color={newsletter ? HT.brand : HT.muted} />
+                <Text style={styles.checkTxt}>Iscrivimi alla newsletter con novità e consigli (facoltativo)</Text>
+              </Pressable>
+            </>
+          )}
           {mode === "login" && (
             <Pressable testID="auth-forgot-link" onPress={() => router.push({ pathname: "/auth/forgot-password", params: email.trim() ? { email: email.trim() } : {} } as any)} style={styles.forgotBtn} hitSlop={8}>
               <Text style={styles.linkBtnTxt}>Recupera password</Text>
@@ -366,7 +421,7 @@ export default function LoginScreen() {
           {err && <Text style={styles.err} testID="auth-error">{err}</Text>}
 
           <Pressable testID="auth-submit-button" onPress={doAuth} style={styles.primaryBtn} disabled={busy}>
-            {busy ? <ActivityIndicator color="#FFF" /> : <Text style={styles.primaryBtnText}>{mode === "login" ? "Accedi" : "Crea account"}</Text>}
+            {busy ? (securing ? <Text style={styles.primaryBtnText}>Verifica di sicurezza…</Text> : <ActivityIndicator color="#FFF" />) : <Text style={styles.primaryBtnText}>{mode === "login" ? "Accedi" : "Crea account"}</Text>}
           </Pressable>
 
           <View style={styles.divider}>
@@ -446,6 +501,13 @@ const styles = StyleSheet.create({
   inputErr: { borderColor: HT.danger }, // V50.z433
   optional: { color: HT.muted, fontWeight: "400" },
   forgotBtn: { alignSelf: "flex-end", paddingVertical: 4 },
+  // V50.z434
+  hpWrap: { height: 0, width: 0, overflow: "hidden", opacity: 0 },
+  hpInput: { height: 0, width: 0, padding: 0, margin: 0 },
+  checkRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, minHeight: 44, paddingVertical: 6 },
+  checkTxt: { flex: 1, color: HT.text2, fontSize: 13, lineHeight: 19 },
+  checkLink: { color: HT.brand, fontWeight: "700", textDecorationLine: "underline" },
+  required: { color: HT.danger, fontWeight: "800" },
   primaryBtn: { backgroundColor: HT.brand, borderRadius: theme.radius.md, paddingVertical: 14, alignItems: "center", marginTop: 6 },
   primaryBtnText: { color: "#FFF", fontWeight: "700", fontSize: 16 },
   divider: { flexDirection: "row", alignItems: "center", gap: 10, marginVertical: 10 },

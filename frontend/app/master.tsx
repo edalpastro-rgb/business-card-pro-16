@@ -957,6 +957,8 @@ function SettingsHubSection({
       items: [
         { icon: "people-outline", label: "Elenco Clienti + Tier", hint: "Paganti/Test/AxonOS + storico utilizzo + broadcast", onPress: () => onGoto("/admin/customers"), superAdminOnly: true, testID: "hub-admin-customers" },
         { icon: "pricetags", label: "Codici Promozionali", hint: "Crea codici (settimane/mesi gratis, premium, crediti), scadenza, max utilizzi, chi li ha usati", onPress: () => onGoto("/admin/promo-codes"), superAdminOnly: true, testID: "hub-admin-promo" },
+        { icon: "shield-half", label: "Protezione registrazione", hint: "Anti-bot «Fort Knox»: rate limit, honeypot, proof-of-work, Turnstile, email usa-e-getta, URL privacy, tentativi bloccati", onPress: () => onGoto("/admin/register-guard"), superAdminOnly: true, testID: "hub-admin-register-guard" },
+        { icon: "mail-unread-outline", label: "Email di benvenuto", hint: "Oggetto e testo con segnaposto, codice promo incluso, link privacy/app, invio di prova", onPress: () => onGoto("/admin/welcome-email"), superAdminOnly: true, testID: "hub-admin-welcome-email" },
       ],
     },
     {
