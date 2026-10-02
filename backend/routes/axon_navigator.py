@@ -329,12 +329,20 @@ _RX_CRM_WORDS = _nav_re.compile(
 )
 
 
+_RX_INFO_TOPIC = _nav_re.compile(
+    r"\b(borsa|borse|mercat[oi]|piazza affari|ftse|mib|nasdaq|dow jones|s&p|wall street|azion[ei]|titol[oi]|obbligazion\w*|btp|spread|bitcoin|crypto|ethereum|"
+    r"cambio|euro ?dollaro|dollaro|sterlina|oro|petrolio|brent|inflazione|bce|fed|tassi|quotazion\w*|notizi\w*|news|cronaca|politica|governo|elezion\w*|"
+    r"sciopero|traffico|incidente|terremoto|allerta|partita|serie a|champions|campionato|risultat[oi]|classifica|olimpiadi|formula 1|motogp|"
+    r"prezzo|prezzi|costa|costano|offerte|sconti|uscita|lancio|film|concerto|evento|festival|sondagg\w*)\b", _nav_re.I)
+_RX_INFO_TIME = _nav_re.compile(r"\b(oggi|ieri|stamattina|stasera|adesso|ora|attual\w*|ultim[aeio]\w*|in tempo reale|live|aggiornat\w*|com'?[èe] andat[ao]|come (è|e') andat[ao]|cosa (è )?success[oa]|che (è )?success[oa]|novità|recent\w*|questa settimana|questo mese|\d{4})\b", _nav_re.I)
+
+
 def _nav_is_info_query(msg: str) -> bool:
     """Domanda informativa / di ricerca generale (NON navigazione, NON dato del CRM)."""
     t = (msg or "").strip()
     if not t or _RX_NAV_EXPLICIT.search(t):
         return False
-    if not _RX_INFO_GENERAL.search(t):
+    if not _RX_INFO_GENERAL.search(t) and not (_RX_INFO_TOPIC.search(t) and (_RX_INFO_TIME.search(t) or t.rstrip().endswith("?"))):
         return False
     # «numero di telefono di Mario Rossi» con Mario Rossi nel CRM → lo decide l'AI con i dati CRM (PRIORITÀ CRM), ma la ricerca
     # web resta disponibile come fallback: qui basta che non sia una domanda SOLO interna (agenda, pratiche, PUN…)

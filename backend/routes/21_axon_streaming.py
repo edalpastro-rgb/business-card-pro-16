@@ -101,6 +101,9 @@ def _is_query_cacheable(msg: str, has_attachments: bool, has_history: bool) -> b
     # If any skip-token is present → bypass cache
     if any(t in _CACHE_SKIP_TOKENS for t in tokens):
         return False
+    _info = globals().get("_nav_is_info_query"); _time = globals().get("_RX_INFO_TIME")  # V50.z443 — fatti attuali: mai dalla cache
+    if _info and _time and _info(msg) and _time.search(msg):
+        return False
     return True
 
 
@@ -356,8 +359,12 @@ async def _prepare_assistant_prompt(
         if not _needs_tavily:
             return None
         try:
-            return await _tavily_search(msg, general=not _needs_energy)
-        except Exception:
+            res = await _tavily_search(msg, general=not _needs_energy)
+            if not res:
+                logger.warning("[tavily] nessun risultato/ricerca non eseguita per «%s» (chiave mancante o errore: vedi log [tavily])", (msg or "")[:80])
+            return res
+        except Exception as exc:  # noqa: BLE001
+            logger.error("[tavily] eccezione per «%s»: %s", (msg or "")[:80], exc)
             return None
 
     # V50.kb — Ricerca automatica nella Knowledge Base personale (pagine web salvate dall'utente).
@@ -470,6 +477,9 @@ async def _prepare_assistant_prompt(
         )
 
     web_section = ""
+    if _needs_tavily and not used_web_search and not _rag_covers_query:  # V50.z444 — ricerca necessaria ma fallita/assente: Axon NON deve attingere alla memoria
+        web_section = ("\n\nRICERCA WEB AGGIORNATA: NON DISPONIBILE per questa domanda (servizio di ricerca non configurato o nessun risultato). "
+                       "Per fatti attuali (borsa, prezzi, notizie, sport, eventi) rispondi ESATTAMENTE «Non ho dati aggiornati su questo.» e fermati.\n")
     if web_search_ctx and used_web_search:
         web_section = (
             "\n\nRICERCA WEB AGGIORNATA (dati reali dal mercato energetico italiano):\n"
@@ -764,10 +774,16 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     web_search_ctx: Optional[dict] = None
     used_web_search = False
     _needs_energy = _detect_energy_query(msg)
-    if _needs_energy or _axon_wants_general_web(user, msg):  # noqa: F821 — V50.z440 axon_persona.py
-        web_search_ctx = await _tavily_search(msg, general=not _needs_energy)
+    _needs_tavily = _needs_energy or _axon_wants_general_web(user, msg)  # noqa: F821 — V50.z440 axon_persona.py
+    if _needs_tavily:
+        try:
+            web_search_ctx = await _tavily_search(msg, general=not _needs_energy)
+        except Exception as exc:  # noqa: BLE001
+            logger.error("[tavily] eccezione (non-stream) per «%s»: %s", (msg or "")[:80], exc); web_search_ctx = None
         if web_search_ctx and (web_search_ctx.get("answer") or web_search_ctx.get("results")):
             used_web_search = True
+        else:
+            logger.warning("[tavily] nessun risultato/ricerca non eseguita (non-stream) per «%s»", (msg or "")[:80])
 
     # V38T — Load persistent memories for this user
     memories = await _load_neo_memories(user["user_id"], limit=5)
@@ -849,6 +865,9 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
 
     # V38T — Inject web-search results when energy topic detected
     web_section = ""
+    if _needs_tavily and not used_web_search:  # V50.z444 — vedi sopra (percorso non-stream)
+        web_section = ("\n\nRICERCA WEB AGGIORNATA: NON DISPONIBILE per questa domanda (servizio di ricerca non configurato o nessun risultato). "
+                       "Per fatti attuali (borsa, prezzi, notizie, sport, eventi) rispondi ESATTAMENTE «Non ho dati aggiornati su questo.» e fermati.\n")
     if web_search_ctx and used_web_search:
         web_section = (
             "\n\nRICERCA WEB AGGIORNATA (dati reali dal mercato energetico italiano):\n"

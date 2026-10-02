@@ -120,7 +120,30 @@ async def axon_persona_set(body: PersonaIn, user=Depends(get_current_user)):
     return {"ok": True, "persona": body.persona, "collaborators_updated": r.modified_count}
 
 
+@api_router.get("/axon/web-search/status")
+async def axon_web_search_status(q: str = "com'è andata la borsa italiana oggi", user=Depends(get_current_user)):
+    """V50.z443 — verifica che la ricerca web generale sia attiva: chiave presente + query di prova (Tavily senza filtro domini)."""
+    key_present = bool(os.environ.get("TAVILY_API_KEY"))
+    out = {"tavily_key_present": key_present, "query": q, "is_info_query": bool(globals().get("_nav_is_info_query") and _nav_is_info_query(q)),  # noqa: F821
+           "would_search": _axon_wants_general_web(user, q)}
+    if key_present:
+        try:
+            res = await _tavily_search(q, max_results=3, general=True)  # noqa: F821
+            out["ok"] = bool(res and (res.get("answer") or res.get("results")))
+            out["answer_preview"] = ((res or {}).get("answer") or "")[:300]
+            out["sources"] = [r.get("url") for r in ((res or {}).get("results") or [])[:3]]
+        except Exception as exc:  # noqa: BLE001
+            out["ok"] = False; out["error"] = str(exc)[:200]
+    else:
+        out["ok"] = False; out["error"] = "TAVILY_API_KEY mancante nel .env del server: ricerca web disattivata"
+    return out
+
+
 async def _axon_persona_startup():
+    if not os.environ.get("TAVILY_API_KEY"):
+        logger.error("[web-search] TAVILY_API_KEY MANCANTE: Axon non può cercare online (domande informative → «Non ho dati aggiornati su questo»)")
+    else:
+        logger.info("[web-search] Tavily attivo (ricerca generale per domande informative, tutti i tenant)")
     """Startup: i Super Master (flag super_admin / email in env) senza persona esplicita → axon_persona=personal, propagata al tenant."""
     try:
         emails = list(_axon_super_master_emails())

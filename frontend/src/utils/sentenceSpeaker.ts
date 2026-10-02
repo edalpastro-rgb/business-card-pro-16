@@ -48,6 +48,7 @@ export function cleanForSpeech(raw: string): string {
     .join(" ")
     .replace(/\[\[(NAV|ACTION|CONFIGURA):[^\]]*\]\]/g, "") // V50.z259 — marker deep link non si leggono
     .replace(/https?:\/\/\S+/g, "")
+    .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}]/gu, "") // V50.z443 — emoji mai lette dal TTS
     .replace(/[*_`#>]+/g, "")
     .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
     .replace(/\s{2,}/g, " ")
@@ -167,7 +168,7 @@ export class SentenceSpeaker {
     // Prima frase "eager": finché non abbiamo ancora messo nulla in coda,
     // appena ci sono ≥ 60 caratteri tagliamo all'ultima virgola/punto e virgola
     // così la voce parte entro pochi secondi anche con frasi lunghe.
-    if (!final && this.queue.length === 0 && !this.started && this.buffer.length >= 40) { // V50.z412 — 60 → 40: la voce parte prima
+    if (false && !final && this.queue.length === 0 && !this.started && this.buffer.length >= 40) { // V50.z443 — DISATTIVATO: la voce parte solo a frase completa (niente spezzoni alla virgola)
       const cut = Math.max(this.buffer.lastIndexOf(", "), this.buffer.lastIndexOf("; "));
       if (cut >= MIN_SENTENCE) {
         this.enqueue(this.buffer.slice(0, cut + 1));

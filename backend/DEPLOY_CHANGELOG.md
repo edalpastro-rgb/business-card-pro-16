@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-02 | D2026.10.02-2212 | Voce: nessun filler parlato, parte solo con la risposta pronta; ricerca web Tavily per domande su fatti attuali (borsa, prezzi, notizie) per tutti i tenant, errori mai silenziosi + endpoint /axon/web-search/status; regola assoluta anti-invenzione «Non ho dati aggiornati su questo» |
 | 2026-10-02 | D2026.10.02-2153 | Navigatore Axon riscritto: domande informative o di ricerca generale → ricerca web e risposta diretta (tutti i tenant); link NAV e sezioni del menu CRM solo quando l'utente chiede esplicitamente di aprire una sezione dell'app |
 | 2026-10-02 | D2026.10.02-2124 | ROLLBACK: annullato il fix modalità vocale (V50.z441); stato identico a D2026.10.02 «Persona Axon per tenant» (Super Master = assistente personale) |
 | 2026-10-02 | D2026.10.02-2033 | Persona Axon per tenant: il Super Master (Emanuele) riceve il prompt completo dell'assistente personale (nessuna domanda fuori contesto, ricerca web generale per numeri di telefono/indirizzi/orari); gli altri tenant restano AdvisorOS CRM; API GET/PUT /axon/core/persona |

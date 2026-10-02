@@ -449,8 +449,9 @@ async def _tavily_search(query: str, max_results: int = 5, country: Optional[str
     la stessa risposta senza chiamare Tavily. Es. 'PUN agosto 2026' e 'Costo
     PUN mese di agosto 2026' condividono la stessa cache hit.
     """
-    key = os.environ.get("TAVILY_API_KEY")
+    key = (os.environ.get("TAVILY_API_KEY") or "").strip()
     if not key:
+        logger.error("[tavily] TAVILY_API_KEY mancante/vuota nel .env → ricerca web NON eseguita per «%s»", (query or "")[:80])  # V50.z444 — mai silenzioso
         return None
 
     global _TAVILY_CACHE  # noqa: PLW0603
@@ -526,8 +527,10 @@ async def _tavily_search(query: str, max_results: int = 5, country: Optional[str
             r = await hx.post(
                 "https://api.tavily.com/search",
                 json=payload,
-                headers={"Content-Type": "application/json"},
+                headers={"Content-Type": "application/json", "Authorization": f"Bearer {key}"},  # V50.z444 — auth anche via header (api_key nel body è legacy)
             )
+            if r.status_code >= 400:
+                logger.error("[tavily] HTTP %s per «%s»: %s", r.status_code, (query or "")[:80], (r.text or "")[:200])
             r.raise_for_status()
             data = r.json()
             result = {

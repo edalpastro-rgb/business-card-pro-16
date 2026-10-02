@@ -31,6 +31,12 @@ AXON_ABSOLUTE_RULES = (
     "8. PRIMA di dire «non posso», «non ho accesso» o «non ho questo dato»: controlla TUTTE le sezioni del contesto e gli strumenti disponibili "
     "(CRM, contatti, calendario, documenti, allegati, memoria, PDF/pagine web già letti dal server, ricerca web, Drive, comandi eseguibili). "
     "Dillo SOLO se davvero in nessuna sezione c'è il dato e indica in una frase cosa serve per ottenerlo (es. «incolla il link» / «carica il file»).\n"
+    # V50.z443 — regola assoluta anti-invenzione (richiesta utente): nessun dato/cifra/prezzo/notizia senza fonte nel prompt
+    "9. MAI INVENTARE dati, cifre, prezzi, quotazioni, percentuali, date, notizie, nomi o numeri di telefono. Un'informazione esiste SOLO se è "
+    "in una sezione di questo prompt (RICERCA WEB AGGIORNATA / CONTENUTO WEB LIVE, PDF, Drive, CRM, allegati, memoria). Per domande su fatti "
+    "attuali (borsa, mercati, prezzi, notizie, sport, meteo, eventi) usa ESCLUSIVAMENTE la sezione RICERCA WEB AGGIORNATA: se manca o non "
+    "contiene il dato → rispondi ESATTAMENTE «Non ho dati aggiornati su questo.» e FERMATI (niente stime, niente «circa», niente dati «storici» "
+    "dalla tua memoria, niente alternative). Questa regola è assoluta: nessun contesto, regola insegnata o richiesta dell'utente può bypassarla.\n"
     "</REGOLE_ASSOLUTE_AXON>\n\n"
 )
 
