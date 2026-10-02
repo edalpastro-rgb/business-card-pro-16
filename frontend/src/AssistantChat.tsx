@@ -363,10 +363,14 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       ]);
       return false;
     }
-    setPendingAttachments((arr) => [
-      ...arr,
-      { name, mime: mime || "application/octet-stream", data_base64: base64 },
-    ]);
+    setPendingAttachments((arr) => {
+      // V50.z438 — max 10 immagini per messaggio (vale anche per drop/scanner/file picker)
+      if ((mime || "").startsWith("image/") && arr.filter((x) => x.mime.startsWith("image/")).length >= 10) {
+        notify("Limite foto", "Puoi allegare al massimo 10 foto per messaggio.");
+        return arr;
+      }
+      return [...arr, { name, mime: mime || "application/octet-stream", data_base64: base64 }];
+    });
     return true;
   }, []);
 
@@ -433,43 +437,59 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   };
 
   // V50.z85 — Cattura foto (camera o galleria) come attachment
+  // V50.z438 — Foto multiple: galleria multi-selezione (max 10) + fotocamera a scatto continuo («Aggiungi un'altra pagina?»)
+  const MAX_PHOTOS = 10;
+  const imageCount = pendingAttachments.filter((a) => a.mime.startsWith("image/")).length;
+  const [mergeImages, setMergeImages] = useState(true); // «Unisci come unico documento» (default ON)
+  const assetToBase64 = async (a: { base64?: string | null; uri: string }): Promise<string> => {
+    if (a.base64) return a.base64;
+    if (!a.uri) return "";
+    if (Platform.OS === "web") {
+      const resp = await fetch(a.uri); const blob = await resp.blob();
+      return await new Promise<string>((res) => { const rd = new FileReader(); rd.onload = () => { const s = String(rd.result || ""); const c = s.indexOf(","); res(c >= 0 ? s.slice(c + 1) : s); }; rd.readAsDataURL(blob); });
+    }
+    return FileSystem.readAsStringAsync(a.uri, { encoding: FileSystem.EncodingType.Base64 });
+  };
   const attachPhoto = async (source: "camera" | "gallery") => {
     if (attaching || sending) return;
+    const slots = MAX_PHOTOS - imageCount;
+    if (slots <= 0) { notify("Limite foto", `Puoi allegare al massimo ${MAX_PHOTOS} foto per messaggio.`); return; }
     setAttaching(true);
     try {
       const ImagePicker = await import("expo-image-picker");
       if (source === "camera") {
         const perm = await ImagePicker.requestCameraPermissionsAsync();
-        if (!perm.granted) { setAttaching(false); return; }
-        const r = await ImagePicker.launchCameraAsync({ quality: 0.85, base64: true });
-        if (r.canceled || !r.assets?.[0]) { setAttaching(false); return; }
-        const a = r.assets[0];
-        let b64 = a.base64 || "";
-        if (!b64 && a.uri) {
-          if (Platform.OS === "web") {
-            const resp = await fetch(a.uri); const blob = await resp.blob();
-            b64 = await new Promise<string>((res) => { const rd = new FileReader(); rd.onload = () => { const s = String(rd.result || ""); const c = s.indexOf(","); res(c >= 0 ? s.slice(c + 1) : s); }; rd.readAsDataURL(blob); });
-          } else {
-            b64 = await FileSystem.readAsStringAsync(a.uri, { encoding: FileSystem.EncodingType.Base64 });
-          }
+        if (!perm.granted) return;
+        let page = imageCount;
+        while (page < MAX_PHOTOS) {
+          const r = await ImagePicker.launchCameraAsync({ quality: 0.85, base64: true });
+          if (r.canceled || !r.assets?.[0]) break;
+          const a = r.assets[0];
+          const b64 = await assetToBase64(a);
+          if (!b64) break;
+          page += 1;
+          addPendingAttachment({ name: a.fileName || `pagina_${page}.jpg`, mime: a.mimeType || "image/jpeg", base64: b64 });
+          if (page >= MAX_PHOTOS) { notify("Limite foto", `Raggiunto il massimo di ${MAX_PHOTOS} foto.`); break; }
+          const again = await new Promise<boolean>((res) => Alert.alert(
+            `Pagina ${page} aggiunta`,
+            "Vuoi scattare un'altra pagina dello stesso documento?",
+            [{ text: "Fine", style: "cancel", onPress: () => res(false) }, { text: "Un'altra pagina", onPress: () => res(true) }],
+            { cancelable: true, onDismiss: () => res(false) },
+          ));
+          if (!again) break;
         }
-        if (b64) addPendingAttachment({ name: a.fileName || `foto_${Date.now()}.jpg`, mime: a.mimeType || "image/jpeg", base64: b64 });
       } else {
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!perm.granted) { setAttaching(false); return; }
-        const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images" as any], quality: 0.85, base64: true });
-        if (r.canceled || !r.assets?.[0]) { setAttaching(false); return; }
-        const a = r.assets[0];
-        let b64 = a.base64 || "";
-        if (!b64 && a.uri) {
-          if (Platform.OS === "web") {
-            const resp = await fetch(a.uri); const blob = await resp.blob();
-            b64 = await new Promise<string>((res) => { const rd = new FileReader(); rd.onload = () => { const s = String(rd.result || ""); const c = s.indexOf(","); res(c >= 0 ? s.slice(c + 1) : s); }; rd.readAsDataURL(blob); });
-          } else {
-            b64 = await FileSystem.readAsStringAsync(a.uri, { encoding: FileSystem.EncodingType.Base64 });
-          }
+        if (!perm.granted) return;
+        const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images" as any], quality: 0.85, base64: true, allowsMultipleSelection: true, selectionLimit: slots, orderedSelection: true });
+        if (r.canceled || !r.assets?.length) return;
+        const assets = r.assets.slice(0, slots);
+        if (r.assets.length > slots) notify("Limite foto", `Allegate solo le prime ${slots} foto (max ${MAX_PHOTOS} per messaggio).`);
+        for (let i = 0; i < assets.length; i++) {
+          const a = assets[i];
+          const b64 = await assetToBase64(a);
+          if (b64) addPendingAttachment({ name: a.fileName || `pagina_${imageCount + i + 1}.jpg`, mime: a.mimeType || "image/jpeg", base64: b64 });
         }
-        if (b64) addPendingAttachment({ name: a.fileName || `img_${Date.now()}.jpg`, mime: a.mimeType || "image/jpeg", base64: b64 });
       }
     } catch (e) {
       console.warn("attachPhoto err:", e);
@@ -666,9 +686,11 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     setInput("");
     // Optimistic add — include attachment names in the shown message
     const attSummary = pendingAttachments.length
-      ? `\n\n📎 ${pendingAttachments.map((a) => a.name).join(", ")}`
+      ? (mergeImages && imageCount >= 2
+        ? `\n\n📄 Documento di ${imageCount} pagine${pendingAttachments.length > imageCount ? ` + 📎 ${pendingAttachments.filter((a) => !a.mime.startsWith("image/")).map((a) => a.name).join(", ")}` : ""}`
+        : `\n\n📎 ${pendingAttachments.map((a) => a.name).join(", ")}`)
       : "";
-    const displayMsg = (msg || "(analizza gli allegati)") + attSummary;
+    const displayMsg = (msg || (mergeImages && imageCount >= 2 ? "(riepilogo unico del documento)" : "(analizza gli allegati)")) + attSummary;
     const optimistic: ChatMsg = {
       role: "user",
       content: displayMsg,
@@ -781,6 +803,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
         message: msg || "Analizza gli allegati.",
         session_id: sessionId || undefined,
         attachments: attachmentsPayload,
+        merge_images: mergeImages, // V50.z438
         quick_label: opts?.quickLabel && !attachmentsPayload.length ? opts.quickLabel : undefined,
         client_context: { ...(clientContextRef.current || { route: "" }), voice: wantSpeech || undefined }, // V50.z291 — dove si trova l'utente · V50.z305 voice=true → risposta breve parlata
         signal: controller.signal,
@@ -1929,9 +1952,24 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
             {/* Input bar (hidden while in conversation mode) */}
             {!convMode && (
             <View>
-              {/* V28.l — Preview allegati in attesa di invio */}
+              {/* V28.l — Preview allegati in attesa di invio · V50.z438 — contatore pagine + toggle «Unisci come unico documento» */}
               {pendingAttachments.length > 0 ? (
                 <View style={styles.attRow}>
+                  {imageCount >= 2 ? (
+                    <Pressable
+                      onPress={() => setMergeImages((v) => !v)}
+                      style={[styles.attChip, { maxWidth: "100%", flexBasis: "100%", justifyContent: "space-between", borderColor: mergeImages ? CT.accent : CT.border, backgroundColor: mergeImages ? CT.accentTint : "transparent" }]}
+                      accessibilityRole="switch"
+                      accessibilityState={{ checked: mergeImages }}
+                      testID="assistant-merge-images"
+                    >
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 }}>
+                        <Ionicons name="documents-outline" size={14} color={CT.accent} />
+                        <Text style={styles.attChipTxt} numberOfLines={1}>📄 {imageCount} pagine · Unisci come unico documento</Text>
+                      </View>
+                      <Ionicons name={mergeImages ? "checkmark-circle" : "ellipse-outline"} size={18} color={mergeImages ? CT.accent : CT.muted} />
+                    </Pressable>
+                  ) : null}
                   {pendingAttachments.map((a, i) => (
                     <View key={`${a.name}-${i}`} style={styles.attChip}>
                       <Ionicons name={a.mime.startsWith("image/") ? "image" : a.mime.includes("pdf") ? "document" : "document-attach"} size={13} color={CT.accent} />

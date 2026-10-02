@@ -142,8 +142,8 @@ async def _aid_extract(pending_id: str, user: dict, section: str, files: List[st
 _aid_orig_build_attachments = _build_attachments_section_advanced
 
 
-async def _build_attachments_section_advanced(msg: str, attachments: List) -> str:  # noqa: F811
-    section = await _aid_orig_build_attachments(msg, attachments)
+async def _build_attachments_section_advanced(msg: str, attachments: List, **kw) -> str:  # noqa: F811
+    section = await _aid_orig_build_attachments(msg, attachments, **kw)  # V50.z438 — inoltra merge_images
     user = _AID_USER.get()
     if not user or not attachments or not section:
         return section

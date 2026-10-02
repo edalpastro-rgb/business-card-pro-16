@@ -269,8 +269,7 @@ async def _prepare_assistant_prompt(
     if not msg and body.attachments:
         # V50.z437 — Bug B: allegato (foto/documento) inviato SENZA testo → prima 400 «Messaggio vuoto» e l'app ripiegava su una
         # risposta non pertinente. Ora la richiesta implicita è «analizza l'allegato».
-        names = ", ".join((a.name or "allegato") for a in body.attachments[:5])
-        msg = f"Analizza l'allegato ({names}) e descrivi in modo preciso cosa contiene: testo, dati, importi, nomi, date e tutto ciò che è utile."
+        msg = _implicit_attachment_prompt(body.attachments, body.merge_images is not False)  # V50.z438 — foto multiple → unico documento
     if not msg:
         raise HTTPException(status_code=400, detail="Messaggio vuoto")
     if len(msg) > 4000:
@@ -338,7 +337,7 @@ async def _prepare_assistant_prompt(
             return []
 
     async def _safe_attachments():
-        return await _build_attachments_section_advanced(msg, body.attachments or [])
+        return await _build_attachments_section_advanced(msg, body.attachments or [], merge_images=body.merge_images is not False)
 
     async def _safe_teach_section():
         if _simple:
@@ -690,8 +689,7 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     if not msg and body.attachments:
         # V50.z437 — Bug B: allegato (foto/documento) inviato SENZA testo → prima 400 «Messaggio vuoto» e l'app ripiegava su una
         # risposta non pertinente. Ora la richiesta implicita è «analizza l'allegato».
-        names = ", ".join((a.name or "allegato") for a in body.attachments[:5])
-        msg = f"Analizza l'allegato ({names}) e descrivi in modo preciso cosa contiene: testo, dati, importi, nomi, date e tutto ciò che è utile."
+        msg = _implicit_attachment_prompt(body.attachments, body.merge_images is not False)  # V50.z438 — foto multiple → unico documento
     if not msg:
         raise HTTPException(status_code=400, detail="Messaggio vuoto")
     if len(msg) > 4000:
@@ -773,7 +771,7 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     memories = await _load_neo_memories(user["user_id"], limit=5)
 
     # V28.l — Extract text from any attachments (unified helper V50.z90)
-    attachments_section = await _build_attachments_section_advanced(msg, body.attachments or [])
+    attachments_section = await _build_attachments_section_advanced(msg, body.attachments or [], merge_images=body.merge_images is not False)
 
     # V29.k — FIX REGRESSIONE: base di conoscenza "Insegna ad Axon" (regole + file estratti).
     # Prima gli allegati alle regole (PDF GME, Optima, ecc.) non venivano letti nella chat.

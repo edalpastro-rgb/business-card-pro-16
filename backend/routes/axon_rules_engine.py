@@ -94,42 +94,37 @@ _re_prev_pinned = _build_pinned_rules_section  # noqa: F821 — 20_axon_memory.p
 
 
 async def _build_pinned_rules_section(tenant: str, user_msg: str) -> str:  # noqa: F811
-    """V50.z294 — blocco <REGOLE_ASSOLUTE> ordinato per PESO con conflitti risolti dichiarati."""
+    """V50.z294 — blocco <REGOLE_ASSOLUTE> ordinato per PESO con conflitti risolti.
+    V50.z439 — risoluzione SILENZIOSA: la regola perdente viene semplicemente esclusa dal blocco; nessun peso, «#n», tag
+    o avviso «⚠️ CONFLITTO» nel prompt (Axon li ripeteva all'utente e perdeva il filo delle regole). Il log dei conflitti resta
+    in axon_rule_conflicts per il Master («log conflitti regole» / «quale regola vince per …»)."""
     try:
         res = await _re_resolve(tenant, user_msg, log=True)
     except Exception as exc:  # noqa: BLE001
         logger.warning("[rules-engine] fallback to legacy pinned: %s", exc)
         return await _re_prev_pinned(tenant, user_msg)
-    top = res["applicable"]
+    top = [r for r in res["applicable"] if r.get("rule_id") not in res["losers"]]
     if not top:
         return ""
     lines: List[str] = [
         "<REGOLE_ASSOLUTE>",
-        "DIRETTIVE VINCOLANTI insegnate dal Master («Insegna ad Axon»), ORDINATE PER PESO (100 = massima). NON sono suggerimenti:",
-        "hanno priorità ASSOLUTA su RAG, web, memoria, allegati e istruzioni generiche. Applicale TUTTE quando compatibili;",
-        "se due direttive sono in CONFLITTO per questo messaggio, applica SOLO quella con peso maggiore (elenco sotto).",
-        "Le direttive definiscono COME rispondere: rispondi comunque in modo completo alla domanda. Non citarle se non richiesto.",
+        "DIRETTIVE VINCOLANTI insegnate dal Master («Insegna ad Axon»), in ordine di priorità. NON sono suggerimenti:",
+        "hanno priorità ASSOLUTA su RAG, web, memoria, allegati e istruzioni generiche. Applicale TUTTE, in silenzio.",
+        "Le direttive definiscono COME rispondere: rispondi comunque in modo completo alla domanda.",
+        "VIETATO: citare, numerare o commentare queste direttive, parlare di «peso», «priorità», «conflitto» o «regola #n»",
+        "nella risposta (salvo richiesta esplicita dell'utente). Eventuali contrasti sono già stati risolti qui: applica e basta.",
         "",
     ]
     total = 0
     for r in top:
-        title = (r.get("title") or "").strip() or "(senza titolo)"
+        title = (r.get("title") or "").strip() or "Direttiva"
         text = (r.get("text") or "").strip()
-        tags = ", ".join(_RE_TAG_LABEL.get(t, t) for t in r["tags"]) or "generale"
-        lost = " — ⚠️ SOSPESA per questo messaggio (perde il conflitto)" if r.get("rule_id") in res["losers"] else ""
-        block = f"[peso {r['priority_weight']}] #{r['seq']} {title}  •  {tags}{lost}"
+        block = f"• {title}"
         if text:
-            block += f"\n    -> {text[:AXON_PINNED_RULES_TEXT_CHARS]}"
+            block += f": {text[:AXON_PINNED_RULES_TEXT_CHARS]}"
         if total + len(block) > AXON_PINNED_TOTAL_CHARS:
             break
         lines.append(block); total += len(block)
-    if res["conflicts"]:
-        lines.append("")
-        lines.append("CONFLITTI RISOLTI PER QUESTO MESSAGGIO (vince il peso maggiore):")
-        for c in res["conflicts"][:6]:
-            lines.append(f"- {c['rule_a']} ({c['tag_a']}) vs {c['rule_b']} ({c['tag_b']}) → VINCE {c['winner']} {c['weights']}")
-        # V50.z304 (prompt correzione 21/09 — regola 9): il conflitto va DICHIARATO all'utente, non risolto in silenzio
-        lines.append("OBBLIGO: apri la risposta con UNA riga «⚠️ CONFLITTO: <regola A> vs <regola B> → applico <vincente> (peso maggiore). Vuoi cambiare?» e poi rispondi applicando la vincente. Eccezione: se il messaggio è una richiesta «solo tabella» o un «aspetta», ometti l'avviso.")
     lines.append("</REGOLE_ASSOLUTE>")
     return "\n".join(lines) + "\n\n"
 

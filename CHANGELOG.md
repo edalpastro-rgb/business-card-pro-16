@@ -138,6 +138,10 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   (view-shot nativo / canvas web). Cache client 30s + `invalidateTableBrandHeader()` al salvataggio.
 - Allegati: upload file/foto/scanner dalla chat (V50.z85), drag-and-drop desktop (v2.v), processing avanzato allegati (V50.z90),
   anteprima allegati in-app (V50.z24).
+- **Foto multiple → unico documento** (V50.z438): galleria multi-selezione e fotocamera a scatto continuo («Un'altra pagina?»), max 10 foto/messaggio;
+  toggle «Unisci come unico documento» (default ON, testID `assistant-merge-images`) → `merge_images` nel body di `/assistant/chat`;
+  backend `_extract_multi_image_document` = UNA sola chiamata Gemini vision con tutte le pagine → trascrizione + RIEPILOGO UNICO
+  (`_build_attachments_section_advanced(merge_images=)`, prompt implicito `_implicit_attachment_prompt`, cap allegati 5 → 10).
 - Feedback 👍/👎 self-learning + few-shot dinamico (v41), "Salva come regola" / "Salva nei file Master" a fine risposta (v2.y, V38T),
   regole auto-estratte da chat notturne (v43), memoria persistente Axon riscritta (V50.z51, endpoint `/assistant/memory`).
   **V50.z129 — cattura immediata impegni**: se la risposta di Axon contiene "da ora in avanti / d'ora in poi / da adesso / da questo

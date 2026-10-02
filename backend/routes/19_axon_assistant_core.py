@@ -783,6 +783,58 @@ async def _extract_attachment_text(att: "AssistantAttachmentIn") -> str:
     return f"[File {att.name} — tipo {mime or 'sconosciuto'} non supportato per estrazione testo]"
 
 
+# V50.z438 — Foto multiple → UNICO documento
+_MAX_CHAT_ATTACHMENTS = 10
+
+
+def _is_image_attachment(att) -> bool:
+    mime = (getattr(att, "mime", "") or "").lower()
+    name = (getattr(att, "name", "") or "").lower()
+    return mime.startswith("image/") or name.endswith((".png", ".jpg", ".jpeg", ".webp", ".heic"))
+
+
+def _implicit_attachment_prompt(attachments: List, merge_images: bool = True) -> str:
+    """Richiesta implicita quando l'utente invia allegati SENZA testo (Bug B + foto multiple)."""
+    atts = list(attachments or [])[:_MAX_CHAT_ATTACHMENTS]
+    images = [a for a in atts if _is_image_attachment(a)]
+    if merge_images and len(images) >= 2 and len(images) == len(atts):
+        return (
+            f"Le {len(images)} foto allegate sono pagine dello STESSO documento. Leggile insieme, in ordine, e crea UN UNICO riepilogo "
+            "del documento: tipo di documento, intestatario/controparti, dati chiave (importi, date, codici, POD/PDR), punti salienti. "
+            "Non descrivere le foto una per una."
+        )
+    names = ", ".join((a.name or "allegato") for a in atts[:5])
+    return f"Analizza l'allegato ({names}) e descrivi in modo preciso cosa contiene: testo, dati, importi, nomi, date e tutto ciò che è utile."
+
+
+async def _extract_multi_image_document(images: List) -> str:
+    """UNA sola chiamata vision con tutte le foto come pagine dello stesso documento → trascrizione/riepilogo unificato."""
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
+        key = os.environ.get("EMERGENT_LLM_KEY")
+        if not key:
+            return f"[{len(images)} immagini — LLM vision non configurato]"
+        names = ", ".join((a.name or f"pagina {i+1}") for i, a in enumerate(images))
+        chat = LlmChat(
+            api_key=key, session_id=f"attach_multi_{uuid.uuid4().hex[:8]}",
+            system_message=(
+                "Sei un lettore di documenti italiano. Ricevi PIÙ FOTO che sono PAGINE DELLO STESSO DOCUMENTO (in ordine). "
+                "Trattale come un unico documento: trascrivi il testo rilevante pagina per pagina (OCR fedele, tabelle in Markdown), "
+                "poi produci una sezione finale 'RIEPILOGO UNICO DEL DOCUMENTO' con tipo documento, intestatario/controparti, "
+                "dati chiave (importi, date, codici, POD/PDR, scadenze) e punti salienti. Non descrivere le foto separatamente."
+            ),
+        ).with_model("gemini", "gemini-2.5-flash")
+        msg = UserMessage(
+            text=f"Documento composto da {len(images)} pagine/foto ({names}). Leggile tutte insieme e produci trascrizione + RIEPILOGO UNICO.",
+            file_contents=[ImageContent(image_base64=a.data_base64) for a in images],
+        )
+        resp = await chat.send_message(msg)
+        return (str(resp) or "").strip() or f"[{len(images)} immagini — nessun contenuto estratto]"
+    except Exception as exc:
+        logger.warning("[att-multi-image] failed (%d images): %s", len(images), exc)
+        return f"[Documento multipagina ({len(images)} foto) — analisi non disponibile: {exc}]"
+
+
 # =========================
 # V50.z90 — Attachment/URL processing avanzato per chat AxonOS
 #   1) Auto-fetch URL nel messaggio via Tavily Extract
@@ -1016,14 +1068,16 @@ async def _build_kb_section(user_id: str, msg: str) -> str:
     )
 
 
-async def _build_attachments_section_advanced(msg: str, attachments: List) -> str:
+async def _build_attachments_section_advanced(msg: str, attachments: List, merge_images: bool = True) -> str:
     """Costruisce la sezione ALLEGATI arricchita:
     - Auto-fetch URL trovate nel messaggio
     - Riassunto automatico per file > 10k caratteri
     - Tag CONFRONTO se 2+ file tabellari (CSV/XLSX)
+    - V50.z438 — 2+ immagini con merge_images → UNA sola analisi vision come documento multipagina
     """
     parts: List[str] = []
     tabular_names: List[str] = []
+    merged_doc_pages = 0
 
     # --- 1) URL auto-fetch (max 2 URL per messaggio) ---
     url_matches = _URL_RE.findall(msg or "")[:2]
@@ -1044,7 +1098,16 @@ async def _build_attachments_section_advanced(msg: str, attachments: List) -> st
             parts.append(f"PAGINA {u_clean}: non raggiungibile o senza testo leggibile (sito protetto/dinamico). Dillo all'utente in una frase e chiedi di incollare il testo o caricare il file.")
 
     # --- 2) Attachments con riassunto per file grandi ---
-    for att in (attachments or [])[:5]:
+    atts = list(attachments or [])[:_MAX_CHAT_ATTACHMENTS]
+    # V50.z438 — Foto multiple = pagine dello stesso documento → una sola chiamata vision, un solo testo
+    images = [a for a in atts if _is_image_attachment(a)]
+    if merge_images and len(images) >= 2:
+        merged_doc_pages = len(images)
+        merged = await _extract_multi_image_document(images)
+        names = ", ".join((a.name or "foto") for a in images)
+        parts.append(f"--- DOCUMENTO MULTIPAGINA ({merged_doc_pages} foto: {names}) · analizzato come UN UNICO documento ---\n{merged[:30000]}")
+        atts = [a for a in atts if not _is_image_attachment(a)]
+    for att in atts:
         try:
             extracted = await _extract_attachment_text(att)
         except Exception as exc:
@@ -1070,6 +1133,12 @@ async def _build_attachments_section_advanced(msg: str, attachments: List) -> st
         return ""
 
     header = "\n\nALLEGATI / LINK CARICATI DALL'UTENTE (analizzali come CONTESTO PRINCIPALE della domanda):\n"
+    if merged_doc_pages >= 2:
+        header += (
+            f"\n📄 DOCUMENTO UNICO: le {merged_doc_pages} foto allegate sono PAGINE DELLO STESSO DOCUMENTO. "
+            "Produci UN SOLO riepilogo coerente del documento (non una descrizione per ogni foto); se l'utente ha fatto una domanda, "
+            "rispondi usando l'intero documento.\n"
+        )
     footer = (
         "\n\nQuando rispondi, cita esplicitamente il contenuto rilevante (numeri, clausole, valori, date, nomi) "
         "e menziona il nome del file/URL da cui provengono."

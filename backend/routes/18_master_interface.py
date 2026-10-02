@@ -98,6 +98,9 @@ class AssistantChatIn(BaseModel):
     # V28.l — Attachments (PDF, Excel, images, txt/csv, ...) inviati con il messaggio.
     # Axon estrae il testo e lo include nel prompt come "contesto allegato".
     attachments: List[AssistantAttachmentIn] = Field(default_factory=list)
+    # V50.z438 — Foto multiple: se True (default) 2+ immagini sono pagine dello STESSO documento → una sola analisi vision
+    # e un unico riepilogo. False = ogni immagine analizzata separatamente.
+    merge_images: Optional[bool] = True
     no_cache: Optional[bool] = False  # V50.z260 — stress test: salta la cache semantica
     # V50.z291 — posizione attuale dell'utente nell'app (route + parametri + titolo schermata) → Axon sa dove si trova
     client_context: Optional[Dict[str, Any]] = None

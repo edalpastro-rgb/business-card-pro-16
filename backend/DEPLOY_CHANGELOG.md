@@ -6,6 +6,8 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-02 | D2026.10.02-2000 | Fix prompt Axon: regole «Insegna ad Axon» applicate in silenzio — rimosso l'obbligo di dichiarare «⚠️ CONFLITTO #a vs #b (peso)»; la regola perdente viene esclusa dal prompt, niente pesi/#numeri visibili; upgrade_vps.sh con ROLLBACK, DIAG e 5 backup |
+| 2026-10-02 | D2026.10.02-1719 | Foto multiple in chat Axon: selezione multipla dalla galleria, scatto continuo pagina dopo pagina (max 10), interruttore «Unisci come unico documento» → un solo riepilogo del documento invece di una descrizione per foto |
 | 2026-10-02 | D2026.10.02-1659 | Fix voce/velocità TTS applicate (tts-1-hd per velocità diversa da 1.0) e analisi immagini allegate senza testo |
 | 2026-10-02 | D2026.10.02-1355 | Ruolo Consulente: permessi centralizzati can(user, azione), blocco API rotte di amministrazione, impostazioni ridotte, Team e inviti con Consulente |
 | 2026-10-02 | D2026.10.02-1129 | Fort Knox registrazione (anti-bot: PoW, honeypot, rate limit, Turnstile) + email di benvenuto configurabile dal Master |

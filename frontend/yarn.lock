@@ -1455,16 +1455,6 @@
   resolved "https://registry.npmjs.org/@nolyfill/is-core-module/-/is-core-module-1.0.39.tgz"
   integrity sha512-nn5ozdjYQpUCZlWGuxcJY/KpxkWQs4DcbMCmKojjyrYDEAGy4Ce19NN4v5MduafTwJlbKc99UA8YhSVqq9yPZA==
 
-"@picovoice/porcupine-react-native@4.0.0":
-  version "4.0.0"
-  resolved "https://registry.yarnpkg.com/@picovoice/porcupine-react-native/-/porcupine-react-native-4.0.0.tgz#8ef32301b597b9e004060bba9ce6779f75317594"
-  integrity sha512-YQ4F5wyYGEI95XhCFcvDjR0y54jXJeRuLejXOL6eXksVkw8GY1Ozy45tIbHKSh4xOCdcAjZWRTZFvsOgTiM+EA==
-
-"@picovoice/react-native-voice-processor@1.2.3":
-  version "1.2.3"
-  resolved "https://registry.yarnpkg.com/@picovoice/react-native-voice-processor/-/react-native-voice-processor-1.2.3.tgz#f07a2b526922bba1c2b542bbcd842897aab4c241"
-  integrity sha512-GFnuKXWIOrDTPumcFkwfGaGUt2X1Vq31cU0sM4CZ9o/SomZQxJml12nr8d4uxjG03Z/eouWGN/0AcxZPdqihlw==
-
 "@radix-ui/primitive@1.1.3":
   version "1.1.3"
   resolved "https://registry.npmjs.org/@radix-ui/primitive/-/primitive-1.1.3.tgz"
@@ -5928,18 +5918,6 @@ onetime@^2.0.0:
   integrity sha512-oyyPpiMaKARvvcgip+JV+7zci5L8D1W9RZIz2l1o08AM3pfspitVWnPt3mzHcBPp12oYMTy0pqrFs/C+m3EwsQ==
   dependencies:
     mimic-fn "^1.0.0"
-
-onnxruntime-common@1.24.3:
-  version "1.24.3"
-  resolved "https://registry.yarnpkg.com/onnxruntime-common/-/onnxruntime-common-1.24.3.tgz#fb93319a2d041fc9fe2a209167ba6ef2f1a47fee"
-  integrity sha512-GeuPZO6U/LBJXvwdaqHbuUmoXiEdeCjWi/EG7Y1HNnDwJYuk6WUbNXpF6luSUY8yASul3cmUlLGrCCL1ZgVXqA==
-
-onnxruntime-react-native@1.24.3:
-  version "1.24.3"
-  resolved "https://registry.yarnpkg.com/onnxruntime-react-native/-/onnxruntime-react-native-1.24.3.tgz#732890f94dcbea8b52b86c1ee8be49f4fc4445a3"
-  integrity sha512-vMxFcnO1YDtT6auv719Zk0Zj/EXujqeEzSjTe5W7A915qaRrM4pRfXlI4ye/ExOwcTan7NYVZ/wpLX+YBU2aWQ==
-  dependencies:
-    onnxruntime-common "1.24.3"
 
 open@^7.0.3:
   version "7.4.2"

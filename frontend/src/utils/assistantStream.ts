@@ -36,6 +36,7 @@ export type StreamAssistantChatArgs = {
   message: string;
   session_id?: string;
   attachments?: { name: string; mime: string; data_base64: string }[];
+  merge_images?: boolean; // V50.z438 — foto multiple = pagine dello stesso documento (default true lato backend)
   // V50.z126 — etichetta azione rapida (il backend arricchisce il prompt e salva in cache)
   quick_label?: string;
   // V50.z291 — posizione attuale nell'app (route, parametri, titolo) → Axon sa dove si trova l'utente
@@ -159,6 +160,7 @@ export async function streamAssistantChat(
         message: args.message,
         session_id: args.session_id,
         attachments: args.attachments || [],
+        merge_images: args.merge_images,
         quick_label: args.quick_label || undefined,
         client_context: args.client_context || undefined,
       }),
@@ -266,6 +268,7 @@ export async function streamAssistantChat(
       message: args.message,
       session_id: args.session_id,
       attachments: args.attachments || [],
+      merge_images: args.merge_images,
       quick_label: args.quick_label || undefined,
       client_context: args.client_context || undefined,
     }));
