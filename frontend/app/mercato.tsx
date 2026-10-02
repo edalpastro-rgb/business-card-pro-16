@@ -9,6 +9,7 @@ import { notify } from "@/src/utils/notify";
 import { HT } from "@/src/homeTheme";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { useAuth } from "@/src/auth";
+import { useRole } from "@/src/useRole"; // V50.z436 — permessi centralizzati
 import { LabHeader, labStyles as L } from "@/src/axonlab/LabHeader";
 import { AreraPanel } from "@/src/market/AreraPanel";
 
@@ -22,7 +23,7 @@ const fmt = (v: number | null | undefined) => (v == null ? "—" : v >= 10 ? v.t
 
 export default function Mercato() {
   const { user } = useAuth();
-  const isMaster = (user as any)?.role === "owner";
+  const { isMaster } = useRole();
   const pagePad = usePageBottomPadding();
   const [commodity, setCommodity] = useState<"luce" | "gas" | "telco">("luce");
   const [segment, setSegment] = useState<string | null>(null);

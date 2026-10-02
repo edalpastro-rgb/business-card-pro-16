@@ -7,6 +7,8 @@ import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { SettingsGroupButton, SettingsLinkRows, ChangePasswordCard, ChangeEmailCard, SECTION_META, type SettingsSection } from "@/src/SettingsHub"; // V50.z249 · V50.z405 cambio email
 import { api, BACKEND_URL } from "@/src/api";
 import { useAuth } from "@/src/auth";
+import { useRole } from "@/src/useRole"; // V50.z436 — permessi centralizzati
+import { ConsultantSettings } from "@/src/ConsultantSettings";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { theme } from "@/src/theme";
 import { AreasManager } from "@/src/AreasManager";
@@ -95,7 +97,7 @@ function ImpostazioniScreen() {
   }, [params.section]); // eslint-disable-line react-hooks/exhaustive-deps
   const openSection = (k: SettingsSection) => setSec(k);
   const backToHub = () => setSec(null);
-  const isOwner = !user?.parent_user_id;
+  const { isMaster: isOwner, isConsultant } = useRole(); // V50.z436 — prima: !parent_user_id (non controllava il ruolo)
   const pagePad = usePageBottomPadding();
   const { isDesktop, width: winW } = useResponsive();
   const deskPadX = isDesktop ? Math.max(16, (Math.min(winW - SIDEBAR_W, CONTENT_MAX_W) - 860) / 2) : 16; // V50.z409
@@ -433,6 +435,7 @@ function ImpostazioniScreen() {
     finally { setSaving(false); setTimeout(() => setOk(false), 2000); }
   };
 
+  if (isConsultant) return <ConsultantSettings />; // V50.z436 — consulente: solo nome Axon, voce, ascolto costante
   if (!s) return (
     <SafeAreaView style={styles.root} edges={["top"]}>
       <ActivityIndicator style={{ marginTop: 40 }} color={HT.brand} />

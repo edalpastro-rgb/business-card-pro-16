@@ -13,6 +13,7 @@ MODULES = [
     "01d_kokoro_tts.py",  # V50.z347 — TTS locale Kokoro-82M (onnxruntime) + fallback OpenAI; axon_tts_generate usato da /assistant/tts e /ai/tts  # V50.z345 — compressione automatica PDF post-upload (PyMuPDF via heavy_call)
     "01c_field_crypto.py",  # V50.z217 — cifratura trasparente a livello di campo di master_profiles (CF, data di nascita, indirizzi, telefono): proxy su db.master_profiles + migrazione all'avvio
     "02_models.py",
+    "axon_rbac.py",  # V50.z436 — ruolo consultant + can(user, azione) + middleware blocco rotte admin
     "03_auth.py",
     "04_settings_dashboard.py",
     "05_push_object_storage.py",

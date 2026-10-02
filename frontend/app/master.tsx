@@ -8,6 +8,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useFocusEffect } from "expo-router";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
+import { useRole } from "@/src/useRole"; // V50.z436
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { openInAppLink } from "@/src/utils/openInAppLink";
@@ -46,6 +47,8 @@ export default function MasterRoute() {
 function MasterScreen() {
   const router = useRouter();
   const { user, logout, refresh } = useAuth();
+  const roleInfo = useRole(); // V50.z436 — il Pannello Master non è accessibile a chi non ha `master_panel` (consulente/collaboratore)
+  useEffect(() => { if (user && !roleInfo.can("master_panel") && !roleInfo.isSubMaster) router.replace("/(tabs)/home" as any); }, [user, roleInfo]);
   const [promoteOpen, setPromoteOpen] = useState(false);
   const [wakeOpen, setWakeOpen] = useState(false); // V50.z401
   const [banner, setBanner] = useState<Banner>(null); // kept only for optional title/body from random-banner

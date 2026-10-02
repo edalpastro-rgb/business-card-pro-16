@@ -20,6 +20,7 @@ import { deviceTtsAvailable, deviceTtsSpeak } from "@/src/utils/deviceTts"; // V
 import { SentenceSpeaker, cleanForSpeech } from "@/src/utils/sentenceSpeaker";
 import { acquireAudio } from "@/src/utils/audioMutex"; // V50.z385 — una sola voce alla volta
 import { useAuth } from "@/src/auth";
+import { useRole } from "@/src/useRole"; // V50.z436 — permessi centralizzati
 import { SaveConfirmModal, suggestFileName } from "@/src/SaveConfirmModal";
 import { pickCommonFile } from "@/src/utils/filePicker";
 import { GoogleDrivePickerModal } from "@/src/GoogleDrivePickerModal";
@@ -105,7 +106,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   }, [pathname, globalParams]);
   const insets = useInsetsSafe(); // V50.z165 — fallback bottom dentro Modal // V29.ao — safe area insets per non finire sotto la gesture bar
   // V28.y — Only the Master can save rules/URLs to Insegna ad Axon
-  const isMaster = !user?.parent_user_id && (user?.role || "member") === "owner";
+  const { isMaster } = useRole();
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   // V50.z39 — Fix ricorrente: TextInput coperto dalla tastiera Android nel Modal.
   // KeyboardAvoidingView non funziona correttamente dentro Modal transparent

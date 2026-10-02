@@ -7,6 +7,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { openInAppLink } from "@/src/utils/openInAppLink";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
+import { useRole } from "@/src/useRole"; // V50.z436 — permessi centralizzati
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { InAppWebViewer } from "@/src/InAppWebViewer";
@@ -20,7 +21,7 @@ const ICONS = ["🔗","🔍","📊","📰","🏦","💼","⚡","🔥","📞","�
 export default function MyWebScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const isMaster = user?.role === "owner" && !user?.parent_user_id;
+  const { isMaster } = useRole();
   const [items, setItems] = useState<Link[]>([]);
   const bottomPad = useBottomSheetPadding();
   const pagePad = usePageBottomPadding();

@@ -81,6 +81,7 @@ async def create_invite(body: InviteIn, user=Depends(get_current_user)):
         "member": "member",
         "admin": "admin",
         "owner": "owner",
+        "consultant": "consultant",  # V50.z436
     }
     invite_role = role_map.get((body.role or "").lower(), "member") if body.role else None
     tid = tenant_id(user)
@@ -218,8 +219,8 @@ async def register_via_invite(token: str, body: InviteRegisterIn):
     creator_id = inv.get("created_by")
     # V27 — Optional override: assign under an existing team member instead of directly under master
     assign_parent_override = inv.get("assign_parent_user_id")
-    if invite_role == "member":
-        role = "member"
+    if invite_role in ("member", "consultant"):  # V50.z436 — consultant: stesso albero del member, solo operativo
+        role = invite_role
         parent_user_id = assign_parent_override or creator_id
     elif invite_role == "admin":
         role = "admin"

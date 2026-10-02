@@ -26,6 +26,7 @@ import { shareDataUri } from "@/src/share";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
 import { useAuth } from "@/src/auth";
+import { useRole } from "@/src/useRole"; // V50.z436 — permessi centralizzati
 import { tryParseChart, type ChartSpec } from "@/src/ChatChartExport";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
@@ -370,7 +371,7 @@ async function _saveToAxonKnowledge_DEPRECATED(_table: ParsedTable, _filename: s
 
 export function ChatTableExport({ table, assistantColor = "#8B5CF6" }: { table: ParsedTable; assistantColor?: string }) {
   const { user } = useAuth();
-  const isMaster = !user?.parent_user_id && (user?.role || "member") === "owner";
+  const { isMaster } = useRole();
   const safeBottom = useSafeBottom(); // V29.aq
   const insets = useInsetsSafe(); // V50.z165 — fallback bottom dentro Modal
   const [open, setOpen] = useState(false);

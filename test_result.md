@@ -535,3 +535,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z434 — Fort Knox registrazione (axon_register_security.py: challenge+PoW+honeypot+rate limit+disposable+Turnstile opz., privacy obbligatoria, newsletter) + Email di benvenuto configurabile (admin/welcome-email) inviata dopo verify-email. Master screens /admin/register-guard e /admin/welcome-email. Test API + UI web OK."
+
+  - agent: "main"
+    message: "V50.z436 — Ruolo consultant: backend axon_rbac.py (can/require_can/is_consultant + middleware deny-list 403 per rotte admin, /me/permissions), team+inviti accettano consultant, /user-settings filtrato; frontend useRole() centralizzato (sostituiti isMaster inline in 7 file), ConsultantSettings ridotte, master.tsx redirect, team/invite UI. Test API + UI OK. Credenziali consultant in test_credentials.md."

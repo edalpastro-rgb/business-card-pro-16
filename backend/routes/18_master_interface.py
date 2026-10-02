@@ -593,6 +593,8 @@ async def get_user_settings(user=Depends(get_current_user)):
 @api_router.put("/user-settings")
 async def update_user_settings(body: UserSettingsIn, user=Depends(get_current_user)):
     updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    if is_consultant(user):  # V50.z436 — consultant: solo nome con cui Axon si rivolge, voce, lingua (niente TTS avanzato/tema tenant)
+        updates = {k: v for k, v in updates.items() if k in ("assistant_name", "assistant_voice", "assistant_language", "theme", "accent_color")}
     if not updates:
         return {"ok": True}
     if "assistant_tts_engine" in updates and updates["assistant_tts_engine"] not in ("local", "cloud", "device"):

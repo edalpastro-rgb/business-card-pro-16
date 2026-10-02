@@ -8,6 +8,7 @@ import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
 import { useAuth } from "@/src/auth";
+import { useRole } from "@/src/useRole"; // V50.z436 — permessi centralizzati
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Dev = { device_id: string; type: string; type_label: string; name: string; platform?: string; status: string; last_seen_at?: string; last_login_at?: string; last_ip?: string; is_current?: boolean; user_id: string; user_name?: string; user_email?: string };
@@ -20,7 +21,7 @@ const fmt = (s?: string) => (s ? new Date(s).toLocaleString("it-IT", { day: "2-d
 export default function DevicesScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const isMaster = !!user && !user.parent_user_id;
+  const { isMaster } = useRole();
   const [mine, setMine] = useState<Dev[]>([]);
   const [team, setTeam] = useState<Dev[]>([]);
   const [log, setLog] = useState<Log[]>([]);

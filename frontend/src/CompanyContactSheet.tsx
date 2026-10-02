@@ -20,6 +20,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
+import { useRole } from "@/src/useRole"; // V50.z436 — permessi centralizzati
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 import { pickCommonFile } from "@/src/utils/filePicker";
 import { FileViewer } from "@/src/FileViewer";
@@ -77,7 +78,7 @@ const C = {
 export function CompanyContactSheet({ visible, onClose }: Props) {
   const { user } = useAuth();
   const bottomPad = useBottomSheetPadding();
-  const isMaster = user?.role === "owner" && !user?.parent_user_id;
+  const { isMaster } = useRole();
 
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<CompanyContactData>({});

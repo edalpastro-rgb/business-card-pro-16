@@ -13,10 +13,11 @@ import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 type IconName = keyof typeof Ionicons.glyphMap;
 
-type Role = "basic" | "manager" | "master_figlio";
+type Role = "basic" | "consultant" | "manager" | "master_figlio";
 
 const ROLES: { id: Role; label: string; icon: IconName; color: string; desc: string }[] = [
   { id: "basic", label: "Basic", icon: "person", color: "#0891B2", desc: "Collaboratore: vede solo i propri contatti" },
+  { id: "consultant", label: "Consulente", icon: "briefcase", color: "#7C3AED", desc: "Solo operativo: propri clienti, agenda, pratiche, documenti, Axon e scanner. Nessuna configurazione" },
   { id: "manager", label: "Manager", icon: "people", color: "#F59E0B", desc: "Responsabile: vede il proprio gruppo" },
   { id: "master_figlio", label: "Master figlio", icon: "star", color: "#7C3AED", desc: "Sotto-master: gestisce il proprio sotto-team" },
 ];

@@ -174,7 +174,8 @@ export default function TeamScreen() {
   };
 
   const toggleAdmin = async (m: Member) => {
-    const nextRole = m.role === "admin" ? "member" : "admin";
+    // V50.z436 — ciclo ruoli: Collaboratore → Consulente → Manager → Collaboratore
+    const nextRole = m.role === "member" ? "consultant" : m.role === "consultant" ? "admin" : "member";
     try {
       await api(`/team/${m.user_id}/role`, { method: "PUT", body: { role: nextRole } });
       load();
@@ -209,6 +210,12 @@ export default function TeamScreen() {
                       <View style={styles.adminBadge}>
                         <Ionicons name="star" size={10} color="#FFF" />
                         <Text style={styles.adminBadgeTxt}>Admin</Text>
+                      </View>
+                    )}
+                    {m.role === "consultant" && ( // V50.z436
+                      <View style={[styles.adminBadge, { backgroundColor: "#7C3AED" }]} testID={`member-consultant-badge-${m.user_id}`}>
+                        <Ionicons name="briefcase" size={10} color="#FFF" />
+                        <Text style={styles.adminBadgeTxt}>Consulente</Text>
                       </View>
                     )}
                   </View>

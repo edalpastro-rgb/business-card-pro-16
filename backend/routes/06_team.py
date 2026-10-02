@@ -169,7 +169,7 @@ async def delete_member(member_id: str, user=Depends(get_current_user)):
 
 
 class RoleInput(BaseModel):
-    role: Literal["admin", "member", "owner"]
+    role: Literal["admin", "member", "owner", "consultant"]  # V50.z436 — consultant
 
 
 @api_router.put("/team/{member_id}/role")

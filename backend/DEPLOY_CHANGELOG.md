@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-02 | D2026.10.02-1355 | Ruolo Consulente: permessi centralizzati can(user, azione), blocco API rotte di amministrazione, impostazioni ridotte, Team e inviti con Consulente |
 | 2026-10-02 | D2026.10.02-1129 | Fort Knox registrazione (anti-bot: PoW, honeypot, rate limit, Turnstile) + email di benvenuto configurabile dal Master |
 | 2026-10-02 | D2026.10.02-1109 | Registrazione con Cognome, conferma email/password e codice promozionale; recupero password con codice via email; occhio mostra/nascondi password; verifica email alla registrazione |
 | 2026-10-02 | D2026.10.02 | Fix trascrizione vocale Android (Invalid file format): formato M4A forzato + conversione WAV lato server; indirizzo backend centralizzato EXPO_PUBLIC_API_BASE_URL |
