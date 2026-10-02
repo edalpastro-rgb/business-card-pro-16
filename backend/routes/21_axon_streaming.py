@@ -361,7 +361,7 @@ async def _prepare_assistant_prompt(
         if not _needs_tavily:
             return None
         try:
-            res = await _tavily_search(msg, general=not _needs_energy)
+            res = await _tavily_search_smart(msg, _needs_energy)
             if not res:
                 logger.warning("[tavily] nessun risultato/ricerca non eseguita per «%s» (chiave mancante o errore: vedi log [tavily])", (msg or "")[:80])
             return res
@@ -780,7 +780,7 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     logger.info("[web-search] (non-stream) «%s» → energy=%s tavily=%s", (msg or "")[:70], _needs_energy, "SI" if _needs_tavily else "NO")  # V50.z445
     if _needs_tavily:
         try:
-            web_search_ctx = await _tavily_search(msg, general=not _needs_energy)
+            web_search_ctx = await _tavily_search_smart(msg, _needs_energy)
         except Exception as exc:  # noqa: BLE001
             logger.error("[tavily] eccezione (non-stream) per «%s»: %s", (msg or "")[:80], exc); web_search_ctx = None
         if web_search_ctx and (web_search_ctx.get("answer") or web_search_ctx.get("results")):

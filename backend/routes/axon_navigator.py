@@ -323,17 +323,18 @@ _RX_INFO_GENERAL = _nav_re.compile(
 )
 _RX_CRM_WORDS = _nav_re.compile(
     r"\b(client\w*|contatt\w*|appuntament\w*|agenda|calendario|ritelefonat\w*|richiam\w*|pratic\w*|contratt\w*|bollett\w*|fattur\w*|pod|pdr|"
-    r"offert\w*|preventiv\w*|visit\w*|giro|team|collaborator\w*|master|scadenz\w*|promemoria|sveglia|timer|nota|note|memoria|ricordati|ricordami|"
-    r"pun\b|arera|tariff\w*|listin\w*|kwh|mwh|energia|luce|gas)\b",
+    r"offert\w*|preventiv\w*|visit\w*|giro|team|collaborator\w*|master|scadenz\w*|"
+    r"promemoria|sveglia|timer|nota|note|memoria|ricordati|ricordami)\b",
     _nav_re.I,
-)
+)  # V50.z446 — tolti pun/arera/tariffe/energia/luce/gas: sono fatti di MERCATO (→ informativi), non dati interni del CRM
 
 
 _RX_INFO_TOPIC = _nav_re.compile(
     r"\b(borsa|borse|mercat[oi]|piazza affari|ftse|mib|nasdaq|dow jones|s&p|wall street|azion[ei]|titol[oi]|obbligazion\w*|btp|spread|bitcoin|crypto|ethereum|"
     r"cambio|euro ?dollaro|dollaro|sterlina|oro|petrolio|brent|inflazione|bce|fed|tassi|quotazion\w*|notizi\w*|news|cronaca|politica|governo|elezion\w*|"
     r"sciopero|traffico|incidente|terremoto|allerta|partita|serie a|champions|campionato|risultat[oi]|classifica|olimpiadi|formula 1|motogp|"
-    r"prezzo|prezzi|costa|costano|offerte|sconti|uscita|lancio|film|concerto|evento|festival|sondagg\w*)\b", _nav_re.I)
+    r"prezzo|prezzi|costa|costano|offerte|sconti|uscita|lancio|film|concerto|evento|festival|sondagg\w*|"
+    r"pun|ipex|gme|mgp|arera|energia elettrica|borsa (dell'|dell’|del |di )?(energia|gas)|mercato (elettrico|energetico|del gas|dell'energia)|prezzo (unico nazionale|dell'energia|del gas)|kwh|mwh|smc)\b", _nav_re.I)  # V50.z446
 _RX_INFO_TIME = _nav_re.compile(r"\b(oggi|ieri|stamattina|stasera|adesso|ora|attual\w*|ultim[aeio]\w*|in tempo reale|live|aggiornat\w*|com'?[èe] andat[ao]|come (è|e') andat[ao]|cosa (è )?success[oa]|che (è )?success[oa]|novità|recent\w*|questa settimana|questo mese|\d{4})\b", _nav_re.I)
 
 

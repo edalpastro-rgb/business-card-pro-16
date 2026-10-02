@@ -7330,3 +7330,9 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 - Tracciamento decisione: `[web-search] «msg» → energy=… info=… persona=… tavily=SI/NO` a ogni messaggio (stream e non-stream); `[tavily] OK «msg» general=… → N risultati`.
 - `_nav_is_info_query`: gli argomenti «fatti attuali» (`_RX_INFO_TOPIC`: borsa, Piazza Affari, mercati, bitcoin, notizie, sport, prezzi…) sono informativi anche senza «oggi/?» (es. «Andamento Piazza Affari», «come va la borsa») → Tavily + mai cache semantica.
 - Verifica: stream «com'è andata la borsa oggi?» → log `tavily=SI` + `[tavily] OK → 5 risultati`, web=True.
+
+## V50.z446 (Giu 2026) — «borsa dell'energia» riconosciuta: energy=True + info=True → Tavily doppio
+- `_ENERGY_KEYWORDS` (19): + borsa dell'energia/energia/del gas, energia elettrica, prezzo dell'energia/gas, mercato energetico/dell'energia, prezzo unico nazionale, zonale, mercato del giorno prima.
+- `axon_navigator._RX_CRM_WORDS`: tolti pun/arera/tariffe/energia/luce/gas (erano trattati come «solo CRM» → info=False); `_RX_INFO_TOPIC` + pun/ipex/gme/mgp/arera/energia elettrica/borsa dell'energia/mercato elettrico/kwh/mwh/smc.
+- `_tavily_search_smart(query, energy)` (19): energia + domanda informativa → ricerca istituzionale (ARERA/GME…) E generale in parallelo, risultati uniti (max 8); usata nei due percorsi di 21.
+- Test: «Axon, com'è andata la borsa dell'energia elettrica in Italia oggi?» → log energy=True info=True tavily=SI, 2×`[tavily] OK`, risposta con prezzo del giorno (216,17 €/MWh, Trading Economics) + nota onesta su GME.

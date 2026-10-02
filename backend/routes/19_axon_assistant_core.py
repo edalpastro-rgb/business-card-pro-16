@@ -406,6 +406,10 @@ _ENERGY_KEYWORDS = [
     # Wholesale energy market
     "pun", "gme", "mgp", "gse", "mercato elettrico", "mercato del gas",
     "psv", "ttf", "ipex", "spot", "borsa elettrica",
+    # V50.z446 — «borsa dell'energia (elettrica)», «borsa energia», «borsa del gas», «energia elettrica», «prezzo dell'energia», «mercato energetico»
+    "borsa dell'energia", "borsa dell’energia", "borsa energia", "borsa del gas", "borsa gas", "energia elettrica", "prezzo dell'energia",
+    "prezzo dell’energia", "prezzo energia", "prezzo del gas", "prezzo gas", "mercato energetico", "mercato dell'energia", "mercato dell’energia",
+    "mercato energia", "prezzo unico nazionale", "zonale", "prezzi zonali", "mgp", "mercato del giorno prima",
     # Regulator + specifics
     "arera", "delibera", "delibere", "autorità energia",
     "oneri di sistema", "oneri generali", "componente asos", "arim",
@@ -789,6 +793,32 @@ async def _extract_attachment_text(att: "AssistantAttachmentIn") -> str:
             return f"[Immagine {att.name} — analisi non disponibile: {exc}]"
 
     return f"[File {att.name} — tipo {mime or 'sconosciuto'} non supportato per estrazione testo]"
+
+
+async def _tavily_search_smart(query: str, energy: bool) -> Optional[dict]:
+    """V50.z446 — energia + fatto attuale («borsa dell'energia oggi», «PUN di oggi»): fonti istituzionali (ARERA/GME) E web generale
+    (quotidiani/portali con il dato del giorno) in parallelo, risultati uniti (istituzionali prima). Altrimenti una sola ricerca."""
+    _info = globals().get("_nav_is_info_query")
+    if not energy:
+        return await _tavily_search(query, general=True)
+    if not (_info and _info(query)):
+        return await _tavily_search(query)
+    inst, gen = await asyncio.gather(_tavily_search(query), _tavily_search(query, general=True), return_exceptions=True)
+    inst = inst if isinstance(inst, dict) else None
+    gen = gen if isinstance(gen, dict) else None
+    if not inst:
+        return gen
+    if not gen:
+        return inst
+    seen, merged = set(), []
+    for r in (inst.get("results") or []) + (gen.get("results") or []):
+        u = (r.get("url") or "").split("#")[0]
+        if u and u not in seen:
+            seen.add(u); merged.append(r)
+    out = dict(inst); out["results"] = merged[:8]
+    if gen.get("answer"):
+        out["answer"] = ((inst.get("answer") or "") + "\n" + gen["answer"]).strip()
+    return out
 
 
 # V50.z438 — Foto multiple → UNICO documento
