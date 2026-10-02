@@ -441,7 +441,7 @@ def _detect_energy_query(text: str) -> bool:
     return False
 
 
-async def _tavily_search(query: str, max_results: int = 5, country: Optional[str] = None) -> Optional[dict]:
+async def _tavily_search(query: str, max_results: int = 5, country: Optional[str] = None, general: bool = False) -> Optional[dict]:
     """V38T — Query the Tavily search API. Returns a compact answer block or None.
 
     V50.z36 — Cache in-memory 15 min per query identiche.
@@ -461,7 +461,7 @@ async def _tavily_search(query: str, max_results: int = 5, country: Optional[str
     q_norm = (query or "").strip().lower()
     if not q_norm:
         return None
-    cache_key = f"{q_norm}|{max_results}|{country or ''}"
+    cache_key = f"{q_norm}|{max_results}|{country or ''}{'|g' if general else ''}"  # V50.z440 — ricerca generale separata
     now_ts = datetime.utcnow()
 
     # Fast path: exact match
@@ -513,12 +513,13 @@ async def _tavily_search(query: str, max_results: int = 5, country: Optional[str
             "include_answer": True,
             "include_raw_content": False,
             "max_results": max_results,
-            "include_domains": [
+        }
+        if not general:  # V50.z440 — persona «assistente personale»: ricerca web su tutto il web, non solo fonti energia
+            payload["include_domains"] = [
                 "arera.it", "mercatoelettrico.org", "gse.it",
                 "gme.it", "snam.it", "terna.it", "acquirente-unico.it",
                 "borsaitaliana.it", "governo.it", "gazzettaufficiale.it",
-            ],
-        }
+            ]
         if country:
             payload["country"] = country
         async with httpx.AsyncClient(timeout=15) as hx:

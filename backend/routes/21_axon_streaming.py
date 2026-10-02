@@ -350,12 +350,13 @@ async def _prepare_assistant_prompt(
 
     # V50.z33 — Tavily nel gather principale (prima era sequenziale dopo).
     # Se non è una query energy, ritorna None subito (nessuna latenza).
-    _needs_tavily = _detect_energy_query(msg)
+    _needs_energy = _detect_energy_query(msg)
+    _needs_tavily = _needs_energy or _axon_wants_general_web(user, msg)  # noqa: F821 — V50.z440 axon_persona.py
     async def _safe_tavily():
         if not _needs_tavily:
             return None
         try:
-            return await _tavily_search(msg)
+            return await _tavily_search(msg, general=not _needs_energy)
         except Exception:
             return None
 
@@ -717,7 +718,7 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     # queries: no attachments, no prior history, no live-data tokens.
     cache_eligible = _is_query_cacheable(msg, bool(body.attachments), bool(history))
     if cache_eligible:
-        cached = await _semantic_cache_lookup(msg, tenant=tenant_id(user), product=_user_product(user))  # noqa: F821 — V50.z327
+        cached = await _semantic_cache_lookup(msg, tenant=tenant_id(user), product=_axon_cache_product(user))  # noqa: F821 — V50.z327
         if cached:
             # Persist both user & assistant messages for continuity
             now = utcnow()
@@ -762,8 +763,9 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     # V38T — Detect energy market intent and prefetch data via Tavily
     web_search_ctx: Optional[dict] = None
     used_web_search = False
-    if _detect_energy_query(msg):
-        web_search_ctx = await _tavily_search(msg)
+    _needs_energy = _detect_energy_query(msg)
+    if _needs_energy or _axon_wants_general_web(user, msg):  # noqa: F821 — V50.z440 axon_persona.py
+        web_search_ctx = await _tavily_search(msg, general=not _needs_energy)
         if web_search_ctx and (web_search_ctx.get("answer") or web_search_ctx.get("results")):
             used_web_search = True
 
@@ -1097,7 +1099,7 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
                 web_sources=web_sources_out,
                 assistant_name=assistant_name,
                 tenant=tenant_id(user),
-                product=_user_product(user),  # noqa: F821 — V50.z327
+                product=_axon_cache_product(user),  # noqa: F821 — V50.z327
             ))
         except Exception:
             pass
