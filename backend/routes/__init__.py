@@ -117,6 +117,7 @@ MODULES = [
     "axon_voiceprint.py",  # V50.z372 — Sistema vocale Blocchi 2-3: impronta vocale SpeechBrain ECAPA (proprietario + voci secondarie con permessi); usato a runtime da viola_wake e 12 (vp_verify_for_user, vp_permission_denied)
     "axon_collaborator.py",  # V50.z419 — Axon collaboratore: regole di registro, «copiami la conversazione», briefing spontaneo + livello iniziativa (prima dell'honesty rule)
     "axon_persona.py",  # V50.z440 — persona Axon per tenant: «personal» (Super Master / Lite / scelta Master) vs «crm»; avvolge _axon_core_identity e _axon_product_section (DOPO axon_core, 36)
+    "axon_shared_learning.py",  # V50.z447 — apprendimento comportamentale cross-tenant (dopo axon_persona: usa _axon_is_super_master)
     "axon_honesty_rule.py",  # V50.z386 — REGOLA PERMANENTE: «Non lo so, verifica con Emmy o con Neo.» — ULTIMO wrapper di _prepare_assistant_prompt (testa+coda del prompt, non sovrascrivibile)
     "audio_transcripts.py",  # V50.z389 — FUNZIONALITÀ 4: trascrizione (Whisper, segmenti) + pulizia LLM di OGNI audio caricato, bozza→conferma→pubblicazione sola lettura (usa _cgym_llm, _upl_whisper_path, MC_FFMPEG)
     "wake_samples.py",  # V50.z390 — Raccolta pubblica campioni audio wake-word «Axon» (/public/wake-samples, pronuncia TTS) + pannello Super Master (stats, export.zip)
