@@ -336,15 +336,35 @@ def _nav_position_section(ctx: Optional[dict]) -> str:
             "(4) se segnala un bug, riferiscilo a questa schermata e route nella descrizione del problema.")
 
 
+# V50.z441 — UNICA regola voce (prima: 3 varianti diverse, Lite senza regola). In TESTA e in CODA al prompt: vince su tutto.
+AXON_VOICE_RULE = (
+    "🔊 REGOLA ASSOLUTA (peso 100) — MODALITÀ VOCE: l'utente ha PARLATO e la risposta verrà LETTA ad alta voce. "
+    "Rispondi come al telefono, in MASSIMO 2-3 frasi brevi (≤ 45 parole): PRIMA la risposta diretta al punto, POI al massimo UNA sola "
+    "informazione aggiuntiva e solo se indispensabile. Poi STOP. "
+    "VIETATO: emoji, tabelle, elenchi, titoli, grassetti, link, premesse, avvisi o disclaimer non richiesti, domande di follow-up non richieste "
+    "(«vuoi che…?», «posso aiutarti con…?»), ripetere la domanda, presentarti. "
+    "RICHIESTA DI UN DATO (numero di telefono, indirizzo, orario, importo, data, codice): di' SOLO il dato, es. «Il numero è 0424 34882.»; "
+    "se qualcosa non puoi farla (es. chiamare, inviare) dillo in UNA sola frase e basta. "
+    "Se servirebbe una tabella (PUN, listini, storici): solo i 2-3 numeri chiave in una frase. "
+    "Questa regola prevale su qualsiasi altra regola di formato o lunghezza (anche quelle insegnate dal Master) finché l'utente parla a voce.\n\n"
+)
+
+
+def _nav_voice_ctx(body, user) -> bool:
+    ctx = getattr(body, "client_context", None) or (body.get("client_context") if isinstance(body, dict) else None) or (user.get("_client_ctx") if isinstance(user, dict) else None)
+    return bool(isinstance(ctx, dict) and ctx.get("voice"))
+
+
 async def _prepare_assistant_prompt(user: dict, body) -> dict:  # noqa: F811
     prep = await _nav_prev_prepare(user, body)
     if _user_product(user) == "lite":  # noqa: F821 — V50.z329: niente mappa schermate/guardia off-topic AdvisorOS per Lite
+        if _nav_voice_ctx(body, user) and isinstance(prep, dict) and isinstance(prep.get("system_message"), str):  # V50.z441
+            prep["system_message"] = AXON_VOICE_RULE + prep["system_message"] + "\n\n" + AXON_VOICE_RULE
         return prep
     if isinstance(prep, dict) and prep.get("query_class") == "simple":  # V50.z413 — domanda semplice: niente navigatore (~10k caratteri)
         try:
-            ctx = getattr(body, "client_context", None) or (body.get("client_context") if isinstance(body, dict) else None)
-            if isinstance(ctx, dict) and ctx.get("voice") and isinstance(prep.get("system_message"), str):
-                prep["system_message"] = ("🔊 MODALITÀ VOCE: risposta letta ad alta voce → massimo 2 frasi brevi, niente tabelle/elenchi/emoji.\n\n") + prep["system_message"]
+            if _nav_voice_ctx(body, user) and isinstance(prep.get("system_message"), str):
+                prep["system_message"] = AXON_VOICE_RULE + prep["system_message"] + "\n\n" + AXON_VOICE_RULE  # V50.z441
             await db.axon_prompt_size.update_one({"_id": "last"}, {"$set": {"total": len(prep.get("system_message") or ""), "navigator": 0, "query_class": "simple", "at": utcnow()}}, upsert=True)
         except Exception:  # noqa: BLE001
             pass
@@ -354,12 +374,7 @@ async def _prepare_assistant_prompt(user: dict, body) -> dict:  # noqa: F811
         section = _nav_prompt_section(user, msg)
         ctx = getattr(body, "client_context", None) or (body.get("client_context") if isinstance(body, dict) else None) or (user.get("_client_ctx") if isinstance(user, dict) else None)
         section += _nav_position_section(ctx)
-        voice_block = ""
-        if isinstance(ctx, dict) and ctx.get("voice"):  # V50.z305 — VOCE BREVE (in TESTA al prompt: vince su regole/tabelle PUN)
-            voice_block = ("🔊 REGOLA ASSOLUTA PESO 100 — MODALITÀ VOCE: l'utente ha PARLATO e la risposta verrà LETTA ad alta voce. "
-                           "Rispondi come al telefono: massimo 3 frasi brevi (≤ 60 parole totali), linguaggio naturale. VIETATO: tabelle Markdown, elenchi, titoli #, grassetti, emoji, link. "
-                           "Se la risposta avrebbe bisogno di una tabella (PUN, listini, storici): di' a voce solo i 2-3 numeri chiave in una frase e chiudi con «Vuoi la tabella completa in chat?». "
-                           "Questa regola prevale su qualsiasi altra regola di formato (anche quelle insegnate dal Master) finché l'utente parla a voce.\n\n")
+        voice_block = AXON_VOICE_RULE if (isinstance(ctx, dict) and ctx.get("voice")) else ""  # V50.z305 / V50.z441 — VOCE BREVE in testa e in coda
         pro = await _nav_proactive_hints(user)
         if pro:
             section += "\n\nSUGGERIMENTO PROATTIVO (menzionalo solo se pertinente alla conversazione, con il suo marker): " + pro[0]["text"] + " " + _nav(pro[0]["route"], pro[0]["label"])
