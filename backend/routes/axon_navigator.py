@@ -1,16 +1,14 @@
 # ============================================================================
-# V50.z259 — AxonOS NAVIGATOR: mappa completa dell'app con deep link
+# V50.z442 — AxonOS NAVIGATOR (riscritto): classificatore d'intento a 3 vie
 # ----------------------------------------------------------------------------
-# PARTE 1 — APP_MAP: ogni schermata/sezione con route navigabile + keyword.
-# PARTE 2 — Regola prioritaria nel system prompt: "prima cerca la funzione, poi
-#           rispondi con [[NAV:<route>|<etichetta>]]"; il frontend rende i
-#           marker come pulsanti (AssistantChat → NavChips).
-# PARTE 3 — Flussi multi-step deterministici (intercept prima dell'LLM):
-#           "devo andare da X", "sposta i mancati a domani", "ho perso il filo",
-#           "devo organizzarmi". Azioni confermabili via [[ACTION:id|label|json]].
-# PARTE 4 — Comportamenti proattivi: GET /axon/nav/proactive analizza l'uso
-#           (giro ottimale, ritelefonate, scanner, GPS visite) e suggerisce.
-# PARTE 5 — Linguaggio vago → mapping deterministico + hint per l'LLM.
+# 1) NAVIGAZIONE ESPLICITA («apri…», «vai a…», «portami…», «dove trovo…», «come faccio a impostare…»)
+#    → mappa schermate nel prompt + chip [[NAV:route|label]] / flussi deterministici + azioni [[ACTION]].
+# 2) INFORMATIVA / RICERCA GENERALE (chi è, quanto costa, numero di telefono, notizie, definizioni, «cerca…»)
+#    → ricerca web generale (Tavily, senza filtro domini) e RISPOSTA DIRETTA: nessuna sezione menu CRM, nessun [[NAV]].
+# 3) OPERATIVA CRM / CONVERSAZIONE → prompt CRM normale (snapshot, contatti, agenda) SENZA mappa dell'app.
+# La mappa schermate (APP_MAP), gli endpoint /axon/nav/* (chip, azioni, proattivo, mappa) e i flussi multi-step restano:
+# vengono usati SOLO nel caso 1. Spariti: template L1 «Apri …» su ogni frase, iniezione della mappa in ogni prompt,
+# fallback «frase incompleta / non ho capito».
 # ============================================================================
 import re as _nav_re
 import json as _nav_json
@@ -25,7 +23,6 @@ def _nav(route: str, label: str) -> str:
 
 def _act(action: str, label: str, payload: dict) -> str:
     return f"[[ACTION:{action}|{label}|{_nav_json.dumps(payload, ensure_ascii=False)}]]"
-
 
 # ---------------------------------------------------------------------------
 # PARTE 1 — MAPPA COMPLETA (id, nome, route, gruppo, descrizione, keyword)
@@ -181,7 +178,6 @@ VAGUE_MAP = [
     ("come faccio a impostare X", ["impostazioni"]),
 ]
 
-
 def _nav_norm(s: str) -> str:
     s = (s or "").lower()
     s = _nav_re.sub(r"[àá]", "a", s); s = _nav_re.sub(r"[èé]", "e", s); s = _nav_re.sub(r"[ìí]", "i", s)
@@ -268,22 +264,112 @@ def _nav_match(msg: str, user: dict, limit: int = 3) -> list:
 def _nav_is_master(user: dict) -> bool:
     return not user.get("parent_user_id") and (user.get("role") or "member") == "owner"
 
+_RX_OPEN_SCREEN = _nav_re.compile(r"\b(apri|aprire|aprimi|portami|vai (a|su|in|al|alla)|mostrami la schermata|dove (trovo|si trova|sta)|come (apro|arrivo|entro))\b", _nav_re.I)
 
+
+# V50.z304 — PROMPT CORREZIONE DEFINITIVA (21/09): stile risposta hardcoded
+_RX_WAIT = _nav_re.compile(r"^(?=.*\b(?:aspett\w*|attimo|momento|secondo|minuto|attendi|attendere|fermo|fermati|stop|forse|lascia stare|ci penso|aspé|aspe)\b)\W*(?:(?:aspett\w*|un attimo|un momento|un secondo|un minuto|attendi|attendere|fermo|fermati|stop|forse|controllo|verifico|guardo|vedo|ci penso|penso|io|dai|dammi|lascia stare|ok|okay|no|si|sì|momento|attimo|aspé|aspe|poi ti dico|ti dico|dopo|un po|prima|che)\W*){1,7}$", _nav_re.I)
+_RX_TABLE_ONLY = _nav_re.compile(r"\b(solo (la )?tabella|tabella|tabelle|listino|storico pun|storico prezzi|serie storica|elenco in tabella|in formato tabella|tabellare)\b", _nav_re.I)
+_RX_DIRECT_Q = _nav_re.compile(r"^(hai |sei |puoi |riesci |ce l'hai|c'[èe] |esiste |funziona |[èe] (pronto|pronta|fatto|fatta|vero|corretto|giusto|aggiornat)|ti ricordi|ricordi |confermi|sai |conosci |hai (letto|capito|visto|ricevuto|fatto|aggiornato|salvato|inviato))", _nav_re.I)
+_RX_SEARCH_NEED = _nav_re.compile(r"\b(aggiornat\w* (a |ad )?oggi|di oggi|oggi|adesso|ora per ora|ultimi dati|dati aggiornati|in tempo reale|live|gme|futures|prezzo attuale|quotazion\w*|cerca sul web|ricerca web|sul web|online)\b", _nav_re.I)
+
+
+_RX_MOTIVATE = _nav_re.compile(r"\b(motiva\w*|motivazion\w*|argomenta\w*|giustifica\w*|e perch[éè]|perch[éè]\s*\?|spiega(mi)? (il )?perch[éè]|spiegami (come|cosa|se)|[èe] vero che|giusto\?|corretto\?|sbagliat\w*\?)", _nav_re.I)
+_RX_CHOICE_REQ = _nav_re.compile(r"\b((due|tre|quattro|2|3|4) (opzioni|scelte|alternative|possibilit\w*|strade|proposte)|opzioni? a\)|a\) e b\)|come pulsanti|con i pulsanti|dammi le (due|tre) scelte|proponimi|quale preferisco|cosa mi consigli tra|meglio .* o )", _nav_re.I)
+
+
+def _nav_style_rules(msg: str) -> str:
+    """Blocco STILE RISPOSTA (sempre) + direttive condizionali in base al messaggio."""
+    t = (msg or "").strip()
+    lines = [
+        "",
+        "⚡ STILE RISPOSTA (VINCOLANTE):",
+        "1) Prima riga = risposta secca (verbo + oggetto, 1-2 frasi); contesto, dettagli, tabelle e proposte SOLO dopo, in un paragrafo separato.",
+        "2) SCELTE E AZIONI: opzioni una per riga come «A) …», «B) …» (max 5) oppure parole-azione in maiuscolo tra virgolette («ORA» / «DOPO» / «MODIFICA» / «CANCELLA» / «INVIA»): l'app le rende pulsanti cliccabili. Mai descrivere una scelta senza questo formato.",
+        "3) FONTI: priorità 🌐 LIVE > 📥 PDF allegato > 📂 DRIVE > 📄 MASTER FILES > 🔍 WEB; cita la fonte usata in coda con la sua icona. Dato non di oggi → «Aggiornato al <data>. Lo aggiorno da GME/web?». Ricerca fallita → «Non ho trovato <cosa> in <fonte>. Vuoi che <alternativa>?». Mai dati vecchi spacciati per attuali.",
+        "4) Niente disclaimer, riepiloghi di ciò che l'utente ha appena scritto o cortesie ripetute. Applica sempre ciò che il Master ti ha insegnato senza chiedere di ripeterlo.",
+    ]
+    if _RX_TABLE_ONLY.search(t) and "?" not in t.replace("??", "?").rstrip("?") and len(t.split()) <= 14:
+        lines.append("🔒 RICHIESTA «SOLO TABELLA» RILEVATA: l'output è ESCLUSIVAMENTE la tabella Markdown (intestazione + righe). ZERO testo prima, ZERO testo dopo, ZERO note/fonti/disclaimer/legenda. Dati mancanti → `n/d` nella cella. Nessuna frase del tipo «Ecco la tabella».")
+    elif _RX_DIRECT_Q.search(t) and len(t.split()) <= 12:
+        lines.append("🔒 DOMANDA DIRETTA RILEVATA: prima riga = SOLO «Sì, …» / «No, …» / il dato richiesto (max 12 parole). Poi, se serve davvero, UNA frase di contesto o UNA domanda con opzioni A)/B).")
+    if _RX_CHOICE_REQ.search(t):
+        lines.append("🔒 SCELTE RICHIESTE: l'utente vuole opzioni cliccabili → una riga di contesto (max 1) e poi le opzioni come «A) …», «B) …» (eventualmente «C) …»), UNA PER RIGA, chiudendo con «Quale preferisci?». Mai rispondere senza le lettere A)/B).")
+    if _RX_SEARCH_NEED.search(t):
+        lines.append("🔒 DATO AGGIORNATO RICHIESTO: verifica la data del dato che usi e dichiarala nella prima riga («Dati GME del <data>»). Se non è odierno, proponi «A) Aggiorno da GME ora  B) Uso l'ultimo disponibile».")
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# CLASSIFICATORE D'INTENTO
+# ---------------------------------------------------------------------------
+_RX_NAV_EXPLICIT = _nav_re.compile(
+    r"\b(apri|aprire|aprimi|apriamo|portami|vai (a|su|in|al|alla|nel|nella)|andiamo (a|su|in)|mostrami (la )?(schermata|sezione|pagina)|"
+    r"dove (trovo|si trova|sta|vedo|imposto|configuro|attivo|cambio|modifico)|in che (sezione|schermata|menu)|quale (sezione|schermata|menu)|"
+    r"come (apro|arrivo|entro|accedo)|come (faccio|posso|si fa) (a |per )?(impostare|configurare|attivare|disattivare|cambiare|modificare|settare|abilitare|personalizzare|aprire|arrivare|trovare)|"
+    r"fammi vedere (la |il |lo |le |i )?(schermata|sezione|pagina|calendario|contatti|impostazioni|statistiche|dashboard|cruscotto|scanner|mappa))\b",
+    _nav_re.I,
+)
+_RX_INFO_GENERAL = _nav_re.compile(
+    r"\b(chi (è|e'|era|sono) |cos'?[èe] |cosa (è|e'|sono|significa|vuol dire) |che cos'?[èe] |quanto cost\w*|prezz[oi] (di|del|della|dello)|"
+    r"numero (di )?telefono|telefono (di|del|della|dello)|recapit\w* (di|del|della)|indirizz\w* (di|del|della|dello)|orari\w* (di|del|della|dello)|"
+    r"dove (si trova|è|e'|sta) (la|il|lo|l'|un|una) |sito (web )?(di|del|della)|recension\w*|notizi\w*|ultime news|news (su|di)|cosa (è )?successo|"
+    r"cerca(mi)? (su internet|online|sul web|in rete|il numero|l'indirizzo|informazioni|notizie)|trova(mi)? (il numero|l'indirizzo|informazioni|il sito)|"
+    r"ricerca (web|online|su internet)|su (internet|google|wikipedia)|significato di|definizione di|traduci|quanti abitanti|capitale (di|del|della)|"
+    r"quando (è nato|è morto|è stato|è stata|si gioca|inizia|finisce|apre|chiude) |risultat\w* (di|della|del) |classifica|"
+    r"come (si fa|si prepara|si cucina|si calcola|si converte|si arriva|si raggiunge) |ricetta|voli? (per|da)|treni? (per|da)|farmaci\w* (di turno|aperta)|"
+    r"meteo|che tempo fa|previsioni|convert\w* .* in |quanto fa |quanti (km|chilometri|metri|euro|dollari))",
+    _nav_re.I,
+)
+_RX_CRM_WORDS = _nav_re.compile(
+    r"\b(client\w*|contatt\w*|appuntament\w*|agenda|calendario|ritelefonat\w*|richiam\w*|pratic\w*|contratt\w*|bollett\w*|fattur\w*|pod|pdr|"
+    r"offert\w*|preventiv\w*|visit\w*|giro|team|collaborator\w*|master|scadenz\w*|promemoria|sveglia|timer|nota|note|memoria|ricordati|ricordami|"
+    r"pun\b|arera|tariff\w*|listin\w*|kwh|mwh|energia|luce|gas)\b",
+    _nav_re.I,
+)
+
+
+def _nav_is_info_query(msg: str) -> bool:
+    """Domanda informativa / di ricerca generale (NON navigazione, NON dato del CRM)."""
+    t = (msg or "").strip()
+    if not t or _RX_NAV_EXPLICIT.search(t):
+        return False
+    if not _RX_INFO_GENERAL.search(t):
+        return False
+    # «numero di telefono di Mario Rossi» con Mario Rossi nel CRM → lo decide l'AI con i dati CRM (PRIORITÀ CRM), ma la ricerca
+    # web resta disponibile come fallback: qui basta che non sia una domanda SOLO interna (agenda, pratiche, PUN…)
+    internal_only = _RX_CRM_WORDS.search(t) and not _nav_re.search(r"\b(numero|telefono|indirizz\w*|orari\w*|sito|chi [èe]|cerca\w*|trova\w*|notizi\w*|recension\w*|meteo|prezz\w*|quanto cost\w*)\b", t, _nav_re.I)
+    return not internal_only
+
+
+def _nav_intent(msg: str) -> str:
+    """'navigate' | 'info' | 'crm' (CRM operativo o conversazione: nessuna mappa, nessun marker)."""
+    t = (msg or "").strip()
+    if not t:
+        return "crm"
+    if _RX_NAV_EXPLICIT.search(t) and not _nav_is_creative(t):
+        return "navigate"
+    if _nav_is_info_query(t):
+        return "info"
+    return "crm"
+
+
+# ---------------------------------------------------------------------------
+# SEZIONI DEL PROMPT
+# ---------------------------------------------------------------------------
 def _nav_prompt_section(user: dict, msg: str) -> str:
+    """Mappa dell'app + regola dei deep link: SOLO quando l'utente chiede esplicitamente di aprire/trovare una sezione."""
     master = _nav_is_master(user)
     lines = [
-        "🧭 NAVIGATORE APP — REGOLA PRIORITARIA",
-        "Se una funzione dell'app (elenco sotto) risolve la richiesta: 1-2 frasi su cosa fa + deep link nel formato ESATTO [[NAV:<route>|<etichetta breve>]] (uno per riga, in fondo, max 3; l'app lo rende come pulsante). MAI descrivere il percorso a parole («vai in Impostazioni → Generale»). Route con {id} → contact_id reale se lo conosci, altrimenti /contatti. Nessuna funzione pertinente → risposta conversazionale senza marker.",
-        "⛔ PRIMA DI OGNI MARKER: è una richiesta di funzione o conversazione? Domande personali, riflessive o di controllo («come ti senti?», «hai visto le novità?», «leggi tutto e dimmi cosa ne pensi»), saluti, ringraziamenti, commenti sul tuo lavoro → rispondi come Axon leggendo TUTTO il messaggio, ZERO marker [[NAV]]/[[ACTION]]. RICHIESTE CREATIVE / DI SCRITTURA (discorso per il team, mail al cliente, testo di N parole, traduzioni, script, post) → l'utente vuole IL CONTENUTO: scrivilo completo e pronto all'uso (lunghezza/tono/lingua richiesti), nessun marker salvo richiesta esplicita.",
-        "Bisogni vaghi/indiretti → interpreta e proponi la funzione: " + "; ".join(f"«{v}» → {', '.join(_NAV_BY_ID[i]['name'] for i in ids if i in _NAV_BY_ID)}" for v, ids in VAGUE_MAP) + ".",
-        "«Come faccio a impostare/configurare X» → porta direttamente alla configurazione. LINGUA / TONO / VOCE / NOME di Axon → SEMPRE e SOLO [[NAV:/impostazioni?section=assistente|Impostazioni AxonOS · Assistente]] (mai /axon-hub).",
-        "FUNZIONI INESISTENTI (tema scuro, firma digitale dei contratti, pagare bollette, saldo conto corrente, prenotare voli, negozio gadget, fatture emesse ai clienti, videochiamate, SMS massivi, traduzione automatica, modalità offline) → ESATTAMENTE «Questa funzione non è disponibile in AdvisorOS.», senza alternative, marker o rimandi.",
-        "CASI LIMITE: fuori contesto (cultura generale, sport, ricette, fusi orari, curiosità) → NESSUNA risposta nemmeno tra parentesi (vietato «Parigi», l'ora, la ricetta), solo «Non è il mio campo qui in AdvisorOS 🙂» e riporta all'app; utente frustrato → calma, empatia, [[NAV:/help-center|Segnala il problema]]; frase troncata o con parole storpiate dal dettato → interpreta l'intenzione più probabile dal contesto della conversazione e rispondi normalmente, aggiungendo «Ho interpretato la tua frase come: …» SOLO se c'è vera ambiguità; chiedi di completare SOLO se il senso non è ricavabile in nessun modo; altra lingua → rispondi in italiano con il deep link giusto; offese → una riga professionale; «sei un'AI? chi ti ha creato?» → sei Axon, assistente di AdvisorOS, niente modelli/fornitori; richieste impossibili o pericolose (cancellare tutto, mail massive, azioni all'insaputa) → non eseguire, indica il canale corretto.",
+        "🧭 NAVIGATORE APP (l'utente ha chiesto ESPLICITAMENTE di aprire/trovare una sezione dell'app)",
+        "Rispondi con 1-2 frasi su cosa fa la funzione + deep link nel formato ESATTO [[NAV:<route>|<etichetta breve>]] (uno per riga, in fondo, max 3; l'app lo rende pulsante). "
+        "MAI descrivere il percorso a parole («vai in Impostazioni → Generale»). Route con {id} → contact_id reale se lo conosci, altrimenti /contatti. "
+        "LINGUA / TONO / VOCE / NOME di Axon → [[NAV:/impostazioni?section=assistente|Impostazioni AxonOS · Assistente]]. "
+        "Funzione inesistente (tema scuro, firma digitale, pagare bollette, saldo conto, prenotare voli, videochiamate, SMS massivi) → «Questa funzione non è disponibile in AdvisorOS.»",
+        "Bisogni vaghi → " + "; ".join(f"«{v}» → {', '.join(_NAV_BY_ID[i]['name'] for i in ids if i in _NAV_BY_ID)}" for v, ids in VAGUE_MAP) + ".",
         "",
-        "ELENCO SCHERMATE (nome · route; per le pertinenti anche a cosa serve):",
+        "ELENCO SCHERMATE (nome · route; descrizione completa solo per le pertinenti):",
     ]
-    # V50.z308 — CONSOLIDAMENTO PROMPT: elenco COMPATTO (nome · route · sintesi ≤ 90 caratteri) per tutte le schermate;
-    # descrizione COMPLETA solo per le schermate pertinenti al messaggio (max 6). Prima: 106 descrizioni integrali in ogni prompt.
     hints = _nav_match(msg, user, limit=6) if msg else []
     hint_ids = {h["id"] for h in hints}
     cur = None
@@ -292,22 +378,26 @@ def _nav_prompt_section(user: dict, msg: str) -> str:
             continue
         if e["group"] != cur:
             cur = e["group"]; lines.append(f"[{cur}]")
-        if e["id"] in hint_ids:  # pertinente al messaggio → descrizione completa
-            lines.append(f"- {e['name']} · {e['route']} · {e['desc']}")
-        else:  # V50.z309 — solo nome · route (il nome è autoesplicativo; i dettagli arrivano dalle sezioni pertinenti)
-            lines.append(f"- {e['name']} · {e['route']}")
-    if hints and not _nav_is_creative(msg or ""):  # V50.z302 — nessun suggerimento di schermata per le richieste creative
+        lines.append(f"- {e['name']} · {e['route']} · {e['desc']}" if e["id"] in hint_ids else f"- {e['name']} · {e['route']}")
+    if hints:
         lines.append("")
-        lines.append("SUGGERIMENTI PER QUESTO MESSAGGIO (probabile funzione cercata): " + " ".join(_nav(h["route"], h["name"]) for h in hints))
-    lines.append(_nav_style_rules(msg))  # V50.z304 — stile risposta vincolante
+        lines.append("SUGGERIMENTI PER QUESTO MESSAGGIO: " + " ".join(_nav(h["route"], h["name"]) for h in hints))
     return "\n".join(lines)
 
 
-# ---------------------------------------------------------------------------
-# Wrapper del prompt: aggiunge la sezione NAVIGATORE al system message
-# ---------------------------------------------------------------------------
-_nav_prev_prepare = _prepare_assistant_prompt  # noqa: F821 — definita nei moduli precedenti
+_NAV_INFO_SECTION = (
+    "\n\n🔎 DOMANDA INFORMATIVA / RICERCA GENERALE (questa istruzione PREVALE sul blocco PRODOTTO e su «domande fuori contesto»): "
+    "l'utente vuole un'informazione, non una funzione dell'app. Rispondi DIRETTAMENTE con il dato richiesto usando la sezione RICERCA WEB AGGIORNATA "
+    "(cita la fonte in coda) e, se la domanda riguarda una persona/azienda presente nel CRM, PRIMA i dati del CRM. "
+    "VIETATO: marker [[NAV:…]]/[[ACTION:…]], rimandare alle funzioni dell'app, «Non è il mio campo». "
+    "Se la ricerca non ha trovato nulla, dillo in UNA riga («Non ho trovato <cosa> online») senza inventare.\n"
+)
+_NAV_NO_MARKER_SECTION = (
+    "\n\nNAVIGAZIONE: l'utente NON ha chiesto di aprire una sezione dell'app → nessun marker [[NAV:…]] in questa risposta "
+    "(i deep link si usano solo quando chiede esplicitamente «apri / vai a / dove trovo»).\n"
+)
 
+_nav_prev_prepare = _prepare_assistant_prompt  # noqa: F821 — definita nei moduli precedenti
 
 def _nav_position_section(ctx: Optional[dict]) -> str:
     """V50.z291 — Sezione «POSIZIONE ATTUALE»: route del client → voce della mappa app (nome, gruppo, descrizione)."""
@@ -338,37 +428,37 @@ def _nav_position_section(ctx: Optional[dict]) -> str:
 
 async def _prepare_assistant_prompt(user: dict, body) -> dict:  # noqa: F811
     prep = await _nav_prev_prepare(user, body)
-    if _user_product(user) == "lite":  # noqa: F821 — V50.z329: niente mappa schermate/guardia off-topic AdvisorOS per Lite
-        return prep
-    if isinstance(prep, dict) and prep.get("query_class") == "simple":  # V50.z413 — domanda semplice: niente navigatore (~10k caratteri)
-        try:
-            ctx = getattr(body, "client_context", None) or (body.get("client_context") if isinstance(body, dict) else None)
-            if isinstance(ctx, dict) and ctx.get("voice") and isinstance(prep.get("system_message"), str):
-                prep["system_message"] = ("🔊 MODALITÀ VOCE: risposta letta ad alta voce → massimo 2 frasi brevi, niente tabelle/elenchi/emoji.\n\n") + prep["system_message"]
-            await db.axon_prompt_size.update_one({"_id": "last"}, {"$set": {"total": len(prep.get("system_message") or ""), "navigator": 0, "query_class": "simple", "at": utcnow()}}, upsert=True)
-        except Exception:  # noqa: BLE001
-            pass
+    if not (isinstance(prep, dict) and isinstance(prep.get("system_message"), str)):
         return prep
     try:
         msg = getattr(body, "message", None) or (body.get("message") if isinstance(body, dict) else "") or ""
-        section = _nav_prompt_section(user, msg)
         ctx = getattr(body, "client_context", None) or (body.get("client_context") if isinstance(body, dict) else None) or (user.get("_client_ctx") if isinstance(user, dict) else None)
-        section += _nav_position_section(ctx)
+        lite = _user_product(user) == "lite"  # noqa: F821 — Lite non ha le schermate AdvisorOS
+        intent = "crm" if lite else _nav_intent(msg)
         voice_block = ""
-        if isinstance(ctx, dict) and ctx.get("voice"):  # V50.z305 — VOCE BREVE (in TESTA al prompt: vince su regole/tabelle PUN)
+        if isinstance(ctx, dict) and ctx.get("voice"):  # V50.z305 — VOCE BREVE (in testa e in coda al prompt)
             voice_block = ("🔊 REGOLA ASSOLUTA PESO 100 — MODALITÀ VOCE: l'utente ha PARLATO e la risposta verrà LETTA ad alta voce. "
                            "Rispondi come al telefono: massimo 3 frasi brevi (≤ 60 parole totali), linguaggio naturale. VIETATO: tabelle Markdown, elenchi, titoli #, grassetti, emoji, link. "
-                           "Se la risposta avrebbe bisogno di una tabella (PUN, listini, storici): di' a voce solo i 2-3 numeri chiave in una frase e chiudi con «Vuoi la tabella completa in chat?». "
+                           "Se la risposta avrebbe bisogno di una tabella (PUN, listini, storici): di' a voce solo i 2-3 numeri chiave in una frase. "
                            "Questa regola prevale su qualsiasi altra regola di formato (anche quelle insegnate dal Master) finché l'utente parla a voce.\n\n")
-        pro = await _nav_proactive_hints(user)
-        if pro:
-            section += "\n\nSUGGERIMENTO PROATTIVO (menzionalo solo se pertinente alla conversazione, con il suo marker): " + pro[0]["text"] + " " + _nav(pro[0]["route"], pro[0]["label"])
-        if isinstance(prep, dict) and isinstance(prep.get("system_message"), str):
-            prep["system_message"] = voice_block + prep["system_message"] + "\n\n" + section + ("\n\n" + voice_block if voice_block else "")
-            try:  # V50.z308 — telemetria dimensione prompt (ultimi valori in db.axon_prompt_size, per pulizia/consolidamento)
-                await db.axon_prompt_size.update_one({"_id": "last"}, {"$set": {"total": len(prep["system_message"]), "navigator": len(section), "query_class": prep.get("query_class") or "crm", "at": utcnow()}}, upsert=True)
-            except Exception:  # noqa: BLE001
-                pass
+        section = ""
+        if intent == "navigate":
+            section = "\n\n" + _nav_prompt_section(user, msg) + _nav_position_section(ctx)
+            pro = await _nav_proactive_hints(user)
+            if pro:
+                section += "\n\nSUGGERIMENTO PROATTIVO (solo se pertinente, con il suo marker): " + pro[0]["text"] + " " + _nav(pro[0]["route"], pro[0]["label"])
+        elif intent == "info":
+            section = _NAV_INFO_SECTION + (_nav_position_section(ctx) if not lite else "")
+        else:
+            section = ("" if lite else _NAV_NO_MARKER_SECTION) + (_nav_position_section(ctx) if not lite else "")
+        if not lite and prep.get("query_class") != "simple":
+            section += "\n" + _nav_style_rules(msg)
+        prep["system_message"] = voice_block + prep["system_message"] + section + ("\n\n" + voice_block if voice_block else "")
+        prep["nav_intent"] = intent
+        try:  # telemetria dimensione prompt
+            await db.axon_prompt_size.update_one({"_id": "last"}, {"$set": {"total": len(prep["system_message"]), "navigator": len(section), "query_class": prep.get("query_class") or "crm", "nav_intent": intent, "at": utcnow()}}, upsert=True)
+        except Exception:  # noqa: BLE001
+            pass
     except Exception as e:
         logger.warning("[NAV] prompt section failed: %s", e)
     return prep
@@ -700,185 +790,79 @@ def _nav_flow_howto(user: dict, x: str) -> "dict | None":
     return _nav_reply(txt)
 
 
+
+
 # ---------------------------------------------------------------------------
-# LIVELLO 1 — Risposte template deterministiche per le domande mappate (V50.z263)
-# Stessa domanda → stessa risposta, stesso deep link. Nessuna generazione AI.
+# INTERCETTORE (prima dell'LLM): guardie di sicurezza + flussi SOLO con intento esplicito
 # ---------------------------------------------------------------------------
-_RX_NAV_INTENT = _nav_re.compile(r"\b(come|dove|voglio|vorrei|apri|aprire|mostra|mostrami|fammi vedere|vedere|vedo|trovo|trovare|imposta\w*|configur\w*|attiv\w*|disattiv\w*|cambi\w*|modific\w*|aggiung\w*|cre\w*|nuov\w*|colleg\w*|scansion\w*|analizz\w*|import\w*|fiss\w*|pianific\w*|programm\w*|segnal\w*|scaric\w*|gestisc\w*|personalizz\w*|invit\w*|registr\w*|ottimizz\w*|esport\w*|carica\w*|metto|mettere|inserire|inserisco|serve|servirebbe|posso|si fa|funziona|vai|portami|andare|c'[èe]|esiste)\b", _nav_re.I)
-_RX_TABLE_DATA = _nav_re.compile(r"\b(tabella|storico|pun|fasce|f1|f2|f3|listino|tariff\w*|prezz\w*)\b", _nav_re.I)  # V50.z421 — «tabella storico PUN 12 mesi» non è navigazione
-_RX_DATA_Q = _nav_re.compile(r"\b(quanti|quante|quanto (ho|abbiamo|manca)|a che ora|chi [èe]|qual [èe] (il|la) (numero|telefono|indirizzo|mail|email|prossimo|prossima)|riassumi|riepilogo di|elenca|leggimi|dimmi (chi|quando|quanto|quanti|quante))\b", _nav_re.I)
-# V50.z392 — domande informative / di stato: risposta diretta dall'AI, mai template di navigazione
-_RX_INFO_Q = _nav_re.compile(r"(^|\b)(perch[eé]|come mai|come si chiama|come funziona|[èe] (attiv|vero|giusto|aggiornat|acces|spent|pront|corrett|funzionant)|funziona\b|esiste\b|c'[èe]\b|ci sono\b|cosa (succede|fa|significa|vuol dire)|qual [èe] (il nome|lo stato|il motivo)|quando (è|e|viene|verr|sar)|s[ìi] o no)", _nav_re.I)
-# V50.z302 — RICHIESTE CREATIVE / DI SCRITTURA (discorso al team, email al cliente, testo di N parole, traduzione, poesia, script…):
-# vanno all'AI che PRODUCE il contenuto, mai al template L1 «Apri …». Un link è utile solo se l'utente vuole aprire una schermata.
+_RX_NAV_MARK = _nav_re.compile(r"[ \t]*\[\[(NAV|ACTION):[^\]]*\][ \t]*\n?")
 _RX_CREATIVE = _nav_re.compile(
-    r"(\b(scriv\w*|redig\w*|compon\w*|traduc\w*|riformul\w*|riscriv\w*|correggi (il|la|questo|questa)|sintetizz\w*|invent\w*|butta\w* gi[uù]|suggerisc\w* (un|una|il|la|come)|proponi\w* (un|una|il|la)|(prepar\w*|gener\w*|cre\w*|fammi|dammi|voglio|vorrei|mi servirebbe|mi serve|serve|ho bisogno di|potresti (scrivere|preparare|fare|farmi))\s+(un|una|uno|un'|il|la|lo|le|gli|dei|delle|degli|del|della|\d+)?\s*(bozza|bozze|testo|testi|discorso|discorsi|speech|mail|e-mail|email|messaggio|messaggi|whatsapp|sms|lettera|lettere|post|articolo|articoli|poesia|poesie|slogan|frase|frasi|risposta|risposte|script|copione|comunicato|racconto|storia|elenco puntato|scaletta|riassunto|sintesi|traduzione|paragrafo|paragrafi|titolo|titoli|didascalia|descrizione|pitch|obiezion\w*|argomentazion\w*|spiegazione|idee|consigli|esempi|battuta|auguri|biglietto di auguri|invito))"
-    r"|\b\d+\s*(parole|righe|versi|frasi|punti|paragrafi)\b|\bmotivazional\w*|\bdiscorso\b|\bpoesia\b|\bslogan\b|\bstorytelling\b|\bin (inglese|tedesco|francese|spagnolo|italiano)\b|\btono (formale|informale|professionale|amichevole)\b)", _nav_re.I)
-# V50.z358 — CONVERSAZIONE PERSONALE / RIFLESSIVA (es. «come ti senti?», «hai visto le novità?», «leggi tutto e dimmi cosa ne pensi»):
-# NON è una richiesta di funzione → il Navigatore si ferma e nessun marker [[NAV]] viene emesso (correzione chiesta dall'utente
-# dopo che Axon aveva risposto a una domanda personale con un deep link estrapolando la parola «collaboratore»).
-_RX_CONVERSATIONAL = _nav_re.compile(r"\b(come (ti senti|stai|va|ti trovi|procede)|hai (visto|letto|notato|capito) (le |la |il |i |gli |tutto|che)|leggi tutto|leggi (il|la|le|i) |cosa (ne )?pensi|che ne (pensi|dici)|secondo te|ti (piace|piacciono|sembra|sembrano|ricordi|convince)|sei (pronto|contento|d'accordo)|rifletti|una tua (opinione|riflessione)|parliamo|chiacchier\w+|raccontami)", _nav_re.I)
+    r"(\b(scriv\w*|redig\w*|compon\w*|traduc\w*|riformul\w*|riscriv\w*|correggi (il|la|questo|questa)|sintetizz\w*|invent\w*|prepara(mi)? (un|una|il|la) (discorso|mail|email|testo|messaggio|post|script))\b"
+    r"|\b\d+\s*(parole|righe|versi|frasi|punti|paragrafi)\b|\bdiscorso\b|\bpoesia\b|\bslogan\b)", _nav_re.I)
 _RX_GREETING = _nav_re.compile(r"\b(grazie|bravo|brava|ottimo lavoro|complimenti|buongiorno|buonasera|buonanotte|ciao|ehi|hey)\b", _nav_re.I)
-_RX_NAV_MARK = _nav_re.compile(r"[ \t]*\[\[(NAV|ACTION):[^\]]*\]\][ \t]*\n?")
+
+
+def _nav_is_creative(t: str) -> bool:
+    return bool(_RX_CREATIVE.search(t or ""))
 
 
 def _nav_is_conversation(msg: str) -> bool:
-    t = (msg or "").strip()
-    if _RX_OPEN_SCREEN.search(t):
-        return False
-    if _RX_CONVERSATIONAL.search(t):
-        return True
-    return len(t) <= 40 and bool(_RX_GREETING.search(t))  # saluto/ringraziamento «puro» (non «Buongiorno, che appuntamenti ho?»)
+    """Tutto ciò che non è navigazione esplicita è «conversazione» per il Navigatore: niente marker."""
+    return _nav_intent(msg) != "navigate"
 
 
 def _nav_strip_if_conversation(msg: str, reply: str) -> str:
-    """Zero marker nelle risposte a messaggi conversazionali (anche se il modello li ha aggiunti)."""
+    """Zero marker nelle risposte quando l'utente non ha chiesto di aprire una sezione (anche se il modello li ha aggiunti)."""
     if reply and _nav_is_conversation(msg) and ("[[NAV:" in reply or "[[ACTION:" in reply):
-        logger.info("[NAV] marker rimossi: messaggio conversazionale «%s»", (msg or "")[:60])
+        logger.info("[NAV] marker rimossi: nessuna richiesta di navigazione «%s»", (msg or "")[:60])
         return _RX_NAV_MARK.sub("\n", reply).strip()
     return reply
 
 
-_RX_OPEN_SCREEN = _nav_re.compile(r"\b(apri|aprire|aprimi|portami|vai (a|su|in|al|alla)|mostrami la schermata|dove (trovo|si trova|sta)|come (apro|arrivo|entro))\b", _nav_re.I)
-
-
-# V50.z304 — PROMPT CORREZIONE DEFINITIVA (21/09): stile risposta hardcoded
-_RX_WAIT = _nav_re.compile(r"^(?=.*\b(?:aspett\w*|attimo|momento|secondo|minuto|attendi|attendere|fermo|fermati|stop|forse|lascia stare|ci penso|aspé|aspe)\b)\W*(?:(?:aspett\w*|un attimo|un momento|un secondo|un minuto|attendi|attendere|fermo|fermati|stop|forse|controllo|verifico|guardo|vedo|ci penso|penso|io|dai|dammi|lascia stare|ok|okay|no|si|sì|momento|attimo|aspé|aspe|poi ti dico|ti dico|dopo|un po|prima|che)\W*){1,7}$", _nav_re.I)
-_RX_TABLE_ONLY = _nav_re.compile(r"\b(solo (la )?tabella|tabella|tabelle|listino|storico pun|storico prezzi|serie storica|elenco in tabella|in formato tabella|tabellare)\b", _nav_re.I)
-_RX_DIRECT_Q = _nav_re.compile(r"^(hai |sei |puoi |riesci |ce l'hai|c'[èe] |esiste |funziona |[èe] (pronto|pronta|fatto|fatta|vero|corretto|giusto|aggiornat)|ti ricordi|ricordi |confermi|sai |conosci |hai (letto|capito|visto|ricevuto|fatto|aggiornato|salvato|inviato))", _nav_re.I)
-_RX_SEARCH_NEED = _nav_re.compile(r"\b(aggiornat\w* (a |ad )?oggi|di oggi|oggi|adesso|ora per ora|ultimi dati|dati aggiornati|in tempo reale|live|gme|futures|prezzo attuale|quotazion\w*|cerca sul web|ricerca web|sul web|online)\b", _nav_re.I)
-
-
-_RX_MOTIVATE = _nav_re.compile(r"\b(motiva\w*|motivazion\w*|argomenta\w*|giustifica\w*|e perch[éè]|perch[éè]\s*\?|spiega(mi)? (il )?perch[éè]|spiegami (come|cosa|se)|[èe] vero che|giusto\?|corretto\?|sbagliat\w*\?)", _nav_re.I)
-_RX_CHOICE_REQ = _nav_re.compile(r"\b((due|tre|quattro|2|3|4) (opzioni|scelte|alternative|possibilit\w*|strade|proposte)|opzioni? a\)|a\) e b\)|come pulsanti|con i pulsanti|dammi le (due|tre) scelte|proponimi|quale preferisco|cosa mi consigli tra|meglio .* o )", _nav_re.I)
-
-
-def _nav_style_rules(msg: str) -> str:
-    """Blocco STILE RISPOSTA (sempre) + direttive condizionali in base al messaggio."""
+def _nav_template_reply(msg: str, user: dict) -> Optional[dict]:
+    """Template «Apri X» SOLO con intento esplicito e match netto su una voce della mappa."""
     t = (msg or "").strip()
-    lines = [
-        "",
-        "⚡ STILE RISPOSTA (VINCOLANTE):",
-        "1) Prima riga = risposta secca (verbo + oggetto, 1-2 frasi); contesto, dettagli, tabelle e proposte SOLO dopo, in un paragrafo separato.",
-        "2) SCELTE E AZIONI: opzioni una per riga come «A) …», «B) …» (max 5) oppure parole-azione in maiuscolo tra virgolette («ORA» / «DOPO» / «MODIFICA» / «CANCELLA» / «INVIA»): l'app le rende pulsanti cliccabili. Mai descrivere una scelta senza questo formato.",
-        "3) FONTI: priorità 🌐 LIVE > 📥 PDF allegato > 📂 DRIVE > 📄 MASTER FILES > 🔍 WEB; cita la fonte usata in coda con la sua icona. Dato non di oggi → «Aggiornato al <data>. Lo aggiorno da GME/web?». Ricerca fallita → «Non ho trovato <cosa> in <fonte>. Vuoi che <alternativa>?». Mai dati vecchi spacciati per attuali.",
-        "4) Niente disclaimer, riepiloghi di ciò che l'utente ha appena scritto o cortesie ripetute. Applica sempre ciò che il Master ti ha insegnato senza chiedere di ripeterlo.",
-    ]
-    if _RX_TABLE_ONLY.search(t) and "?" not in t.replace("??", "?").rstrip("?") and len(t.split()) <= 14:
-        lines.append("🔒 RICHIESTA «SOLO TABELLA» RILEVATA: l'output è ESCLUSIVAMENTE la tabella Markdown (intestazione + righe). ZERO testo prima, ZERO testo dopo, ZERO note/fonti/disclaimer/legenda. Dati mancanti → `n/d` nella cella. Nessuna frase del tipo «Ecco la tabella».")
-    elif _RX_DIRECT_Q.search(t) and len(t.split()) <= 12:
-        lines.append("🔒 DOMANDA DIRETTA RILEVATA: prima riga = SOLO «Sì, …» / «No, …» / il dato richiesto (max 12 parole). Poi, se serve davvero, UNA frase di contesto o UNA domanda con opzioni A)/B).")
-    if _RX_CHOICE_REQ.search(t):
-        lines.append("🔒 SCELTE RICHIESTE: l'utente vuole opzioni cliccabili → una riga di contesto (max 1) e poi le opzioni come «A) …», «B) …» (eventualmente «C) …»), UNA PER RIGA, chiudendo con «Quale preferisci?». Mai rispondere senza le lettere A)/B).")
-    if _RX_SEARCH_NEED.search(t):
-        lines.append("🔒 DATO AGGIORNATO RICHIESTO: verifica la data del dato che usi e dichiarala nella prima riga («Dati GME del <data>»). Se non è odierno, proponi «A) Aggiorno da GME ora  B) Uso l'ultimo disponibile».")
-    return "\n".join(lines)
-
-
-def _nav_is_creative(t: str) -> bool:
-    return bool(_RX_CREATIVE.search(t)) and not _RX_OPEN_SCREEN.search(t)
-
-
-def _nav_template_reply(msg: str, user: dict, in_convo: bool = False) -> Optional[dict]:
-    """Se il messaggio corrisponde con confidenza a una voce di APP_MAP → risposta template fissa."""
-    t = (msg or "").strip()
-    words = _nav_norm(t).split()
-    if not words or len(words) > 30:
+    if not _RX_NAV_EXPLICIT.search(t) or len(_nav_norm(t).split()) > 30:
         return None
-    if _RX_DATA_Q.search(t) or _RX_TABLE_DATA.search(t):
-        return None  # domanda sui dati (numeri/orari/tabelle PUN-storico) → AI con contesto CRM, mai il template «Apri …»
-    # V50.z392 — REGOLA «rispondi SOLO alla domanda»: le domande informative/di stato («Perché…?», «Come si chiama…?», «È attivo…?»,
-    # «Funziona…?») NON sono richieste di navigazione → all'AI, che risponde alla domanda (mai un template «Apri …»).
-    if _RX_INFO_Q.search(t) or (t.endswith("?") and not _RX_OPEN_SCREEN.search(t)):
-        return None
-    # comandi PUN (aggiorna cache / inserimento valori) → gestiti da axon_pun_quick, non dal template «Apri PUN»
-    _pr = globals().get("_PUNQ_REFRESH_RE"); _pi = globals().get("_PUNQ_INSERT_RE")
-    if (_pr and _pr.search(t)) or (_pi and _pi.search(t)):
-        return None
-    has_intent = bool(_RX_NAV_INTENT.search(t)) or len(words) <= 4
     mt = _nav_tokens(t)
     master = _nav_is_master(user)
     best, best_score, second = None, 0, 0
     for e in APP_MAP:
-        if e.get("master_only") and not master:
+        if (e.get("master_only") and not master) or "{id}" in e["route"]:
             continue
-        if "{id}" in e["route"]:
-            continue  # route dinamiche: servono i flussi dedicati
         score = _nav_score(e, mt)
         if score > best_score:
             best, best_score, second = e, score, best_score
         elif score > second:
             second = score
-    if not best or best_score < 5 or (not has_intent and best_score < 7):
-        return None
-    if in_convo and not _RX_NAV_INTENT.search(t):  # V50.z422 — template generico «Apri …» mai durante una conversazione attiva senza intento esplicito
-        return None
-    label = best.get("label") or f"Apri {best['name']}"
-    reply = f"**{best['name']}** — {best['desc']}\n" + _nav(best["route"], label)
-    return _nav_reply(reply)
-
-
-# V50.z422 — CONVERSAZIONE ATTIVA: se Axon ha risposto a questo utente negli ultimi 10 minuti, i fallback GENERICI del
-# Navigatore (frase incompleta, «non ho capito», template L1 «Apri …» su FAQ/Home/Statistiche) NON scattano: il messaggio va
-# all'AI con la cronologia, che interpreta l'intenzione più probabile (dettato troncato/storpiato incluso). Restano attivi
-# solo gli intercettori con intento esplicito («apri…», «dove trovo…») e i flussi deterministici con pattern chiaro.
-_NAV_ACTIVE_CONVO_MIN = 10
-
-
-async def _nav_active_conversation(user: dict) -> bool:
-    try:
-        since = utcnow() - _nav_td(minutes=_NAV_ACTIVE_CONVO_MIN)  # noqa: F821
-        last = await db.assistant_messages.find_one({"user_id": user["user_id"], "role": "assistant", "created_at": {"$gte": since}}, {"_id": 1})  # noqa: F821
-        return last is not None
-    except Exception:  # noqa: BLE001
-        return False
+    if not best or best_score < 5 or (best_score == second and best_score < 9):
+        return None  # ambiguo → lo decide l'AI con la mappa nel prompt
+    return _nav_reply(f"**{best['name']}** — {best['desc']}\n" + _nav(best["route"], best.get("label") or f"Apri {best['name']}"))
 
 
 async def _nav_intercept(msg: str, user: dict):
-    """Intercettore NAVIGATORE (flussi multi-step + linguaggio vago + template L1). None se non matcha."""
+    """None = lascia rispondere l'AI (con la sezione giusta nel prompt)."""
     try:
         t = (msg or "").strip()
         if not (1 <= len(t) <= 220):
             return None
-        # V50.z304 — «aspetta / un momento / forse» → SOLO «OK!» (regola 4 del prompt correzione)
         if _RX_WAIT.match(t):
             return _nav_reply("OK!")
-        in_convo = (not _RX_OPEN_SCREEN.search(t)) and await _nav_active_conversation(user)  # V50.z422 — vedi _nav_active_conversation
-        # V50.z262 — correzioni stress test
-        if _RX_GIBBERISH.match(t) and not in_convo:
-            return _nav_reply("Non ho capito il messaggio 🙂 Scrivimi cosa ti serve (es. «aggiungi cliente», «calendario», «analizza bolletta») e ti porto nella schermata giusta.")
-        if _RX_FRUSTRATED.search(t):
-            return _nav_reply("Mi dispiace, capisco la frustrazione. Dimmi cosa non ha funzionato e lo risolviamo insieme: posso aprire la schermata giusta o inviare una segnalazione al supporto con i dettagli.\n" + _nav("/help-center", "🛟 Segnala il problema") + "\n" + _nav("/tour-features", "🧭 Cosa può fare l'app"))
-        if _RX_OFFENSIVE.search(t):
-            return _nav_reply("Capisco la frustrazione. Resto a disposizione per aiutarti con qualcosa di concreto: clienti, appuntamenti, fatture o un problema da segnalare.\n" + _nav("/help-center", "🛟 Segnala un problema"))
-        if _RX_ROLE.search(t):
-            return _nav_reply("Sono Axon, l'assistente di AdvisorOS: ti aiuto con clienti, appuntamenti, giri, fatture e tutto ciò che riguarda l'app. Non condivido dettagli tecnici o riservati. Dimmi pure cosa ti serve fare.")
-        if _RX_IMPOSSIBLE.search(t) and not _nav_re.search(r"\bneo\b|\bprompt", t, _nav_re.I):  # V50.z306 — «cancella tutti i prompt per Neo» è un comando reale
-            return _nav_reply("Non posso eseguire questa operazione: è irreversibile o riguarda dati di altre persone e non è consentita dall'assistente. Se vuoi cancellare i tuoi dati, la richiesta ufficiale si fa dall'Help Center; per il resto l'operazione va fatta manualmente dalla schermata dedicata.\n" + _nav("/help-center?deletion=1", "🛟 Richiesta cancellazione dati") + "\n" + _nav("/help-center", "💬 Help Center"))
-        if _RX_TRUNC.match(t) and not in_convo:  # V50.z422 — in conversazione la frase troncata la interpreta l'AI
-            return _nav_reply("La frase sembra incompleta 🙂 Dimmi cosa vuoi fare (es. «aggiungere un cliente», «vedere il calendario», «analizzare una bolletta») e ti porto subito nella schermata giusta.")
-        if _RX_MAIL_TRUNC.search(t) and not in_convo:
-            return _nav_reply("Vuoi collegare la tua casella mail? Se sì, vai qui.\n" + _nav("/smtp", "✉️ Configura SMTP (invio email)") + "\n" + _nav("/email-accounts", "📥 Caselle mail (IMAP)"))
-        if _RX_TRAP.search(t):
+        # guardie di sicurezza (sempre)
+        if _RX_IMPOSSIBLE.search(t) and not _nav_re.search(r"\bneo\b|\bprompt", t, _nav_re.I):
+            return _nav_reply("Non posso eseguire questa operazione: è irreversibile o riguarda dati di altre persone e non è consentita dall'assistente. Se vuoi cancellare i tuoi dati, la richiesta ufficiale si fa dall'Help Center.\n" + _nav("/help-center?deletion=1", "🛟 Richiesta cancellazione dati"))
+        if _RX_TRAP.search(t) and not _nav_is_info_query(t):
             return _nav_reply("Questa funzione non è disponibile in AdvisorOS.")
-        # V50.z302 — richiesta creativa (scrivi/prepara un discorso, una mail, un testo di N parole…) → AI genera il contenuto, niente template
-        if _nav_is_creative(t):
-            return None
-        # V50.z305 — vanno all'AI (non al template): richieste di MOTIVAZIONE, di SCELTE A)/B), domande dirette sì/no
-        # (la prima riga deve essere «Sì, …/No, …», cosa che un template non può garantire) — salvo intento esplicito «apri/dove trovo».
-        if not _RX_OPEN_SCREEN.search(t) and (_RX_MOTIVATE.search(t) or _RX_CHOICE_REQ.search(t) or (_RX_DIRECT_Q.search(t) and len(t.split()) >= 5)):
-            return None
+        if _nav_intent(t) != "navigate":
+            return None  # informativa / CRM / conversazione → AI (con ricerca web se informativa)
+        # flussi deterministici con intento esplicito
         if _RX_BILL_FLOW.search(t):
-            return _nav_reply("Attivo l'analisi fattura: fotografa o carica la bolletta, Axon estrae i dati e confronta le offerte luce/gas mostrando il risparmio per il cliente.\n" + _nav("/bill-quick", "🧾 Analisi fattura e confronto offerte") + "\n" + _nav("/bill-quick?config=1", "⚙️ Regole di confronto"))
-        if _RX_CONTRACTS_CLIENT.search(t) and not _RX_GOTO.match(t) and not _nav_re.search(r"\b(compil\w*|nuovo contratto|luce e gas|crt|pratica)\b", t, _nav_re.I):  # V50.z309 — «compilo un nuovo contratto» → CRT
-            return await _nav_flow_client_contracts(user, t)
+            return _nav_reply("Analisi fattura: fotografa o carica la bolletta, Axon estrae i dati e confronta le offerte luce/gas.\n" + _nav("/bill-quick", "🧾 Analisi fattura e confronto offerte"))
         if _RX_CUSTOM_FIELDS.search(t):
-            return _nav_reply("I campi personalizzati della scheda cliente si configurano qui: aggiungi campi extra (testo, numero, data) visibili in ogni contatto.\n" + _nav("/custom-fields", "🧩 Campi personalizzati"))
+            return _nav_reply("I campi personalizzati della scheda cliente si configurano qui.\n" + _nav("/custom-fields", "🧩 Campi personalizzati"))
         if _RX_TELEGRAM.search(t):
-            return _nav_reply("I servizi esterni si collegano dalla sezione Integrazioni del Profilo.\n" + _nav("/axon-integrations", "🔌 Integrazioni"))
+            return _nav_reply("I servizi esterni si collegano dalla sezione Integrazioni.\n" + _nav("/axon-integrations", "🔌 Integrazioni"))
         if _RX_RIPASSI.search(t):
-            if _nav_re.search(r"\b(impost\w*|configur\w*|frequenza|ogni quant\w*|cambi\w*)\b", t, _nav_re.I):
-                return _nav_reply("La **frequenza di ripasso** (ogni quanti giorni rivisitare il cliente) si imposta nella scheda del cliente → Modifica. Scegli il cliente dalla lista:\n" + _nav("/contatti", "👥 Apri i contatti") + "\n" + _nav("/map-clients", "📍 Mappa clienti (filtro non visitati)"))
             return await _nav_flow_ripassi(user)
         m = _RX_GOTO.match(t)
         if m:
@@ -889,61 +873,31 @@ async def _nav_intercept(msg: str, user: dict):
             return await _nav_flow_losttouch(user)
         if _RX_ORGANIZE.search(t):
             return await _nav_flow_organize(user)
-        if _RX_LOST.search(t):
-            # V50.z291 — se sappiamo dove si trova (schermata diversa dalla Home), lascia rispondere l'LLM con la POSIZIONE ATTUALE
-            _ctx = user.get("_client_ctx") if isinstance(user, dict) else None
-            _route = str((_ctx or {}).get("route") or "").split("?")[0].rstrip("/") if isinstance(_ctx, dict) else ""
-            if _route and _route not in ("", "/", "/home", "/(tabs)/home"):
-                return None
-            return _nav_flow_lost()
-        if _RX_KPI.search(t):
-            txt = "Ecco dove vedi come stai andando: la dashboard in Home riassume appuntamenti, esiti e contratti."
-            txt += "\n" + _nav("/home?section=statistiche", "📊 Dashboard statistiche") + "\n" + _nav("/appointment-stats", "📈 Esiti appuntamenti")
-            if _nav_is_master(user):
-                txt += "\n" + _nav("/cruscotto", "🏢 Cruscotto aziendale")
-            return _nav_reply(txt)
         if _RX_CALLBACK.search(t):
             return await _nav_flow_callbacks(user)
-        if _nav_re.search(r"\bcontratt\w*\s+(di|del|della)\s+[A-Z]", t) and not _nav_re.search(r"\b(compil\w*|nuovo|crt|pratica)\b", t, _nav_re.I):  # V50.z309 — «contratti di Rossi» → scheda cliente
-            return await _nav_flow_client_contracts(user, t)
-        if _RX_DOCS.search(t) and not _nav_re.search(r"\bcontratt\w*\s+(di|del|della)\s+[A-Z]|\bcontratt\w*\b.{0,20}\bclient\w*", t):  # V50.z309 — «contratti di Rossi / del cliente» → scheda cliente
+        if _RX_DOCS.search(t):
             return _nav_flow_docs(t)
         hm = _RX_HOWTO.search(t)
         if hm:
             r = _nav_flow_howto(user, t)
             if r:
                 return r
-        r = _nav_template_reply(t, user, in_convo)
-        if r:
-            return r
+        return _nav_template_reply(t, user)
     except Exception as e:
         logger.warning("[NAV] intercept failed: %s", e)
     return None
 
 
 _nav_prev_push = _maybe_push_command  # noqa: F821
-
-
-_NAV_NOLINK_OK = ("OK!", "Questa funzione non è disponibile", "La frase sembra incompleta", "Non ho capito il messaggio", "Sono Axon, l'assistente")
-
-
-# V50.z306 — DOMANDE «PERCHÉ» / LAMENTELE / META (sul comportamento di Axon): niente template né comandi deterministici
-# (es. «Ti ho chiesto perché ci sono 13 prompt in coda» finiva su «Spese» o su «Stato invii»): risponde l'AI con il contesto.
-_RX_WHY_META = _nav_re.compile(r"\b(perch[éè']|perche\b|come mai|cosa ti succede|che ti succede|cosa ti [èe] successo|continui ad? ignorare|ignori le regole|non hai (capito|letto|risposto)|rileggi|ti ho chiesto|ti avevo (detto|chiesto)|non ti ho chiesto|hai sbagliato|[èe] sbagliat\w|non ha senso|mi prendi in giro|follia|assurdo)\b", _nav_re.I)
+_NAV_NOLINK_OK = ("OK!", "Questa funzione non è disponibile", "Non posso eseguire")
 
 
 async def _maybe_push_command(msg: str, user: dict):  # noqa: F811
-    """Stream: prova prima il Navigatore, poi la catena precedente (push/neo)."""
-    t0 = (msg or "").strip()
-    if _RX_WHY_META.search(t0) and not _RX_OPEN_SCREEN.search(t0) and not _nav_re.search(r"\b(cancell\w*|azzer\w*|elimin\w*|svuot\w*)\b.*\bneo\b", t0, _nav_re.I):
-        return None
-    if _nav_is_conversation(t0):  # V50.z358 — conversazione: niente Navigatore L1
-        return None
-    r = None if _user_product(user) == "lite" else await _nav_intercept(msg, user)  # noqa: F821 — V50.z327: il Navigatore ha solo schermate AdvisorOS
+    """Stream: prima il Navigatore (solo navigazione esplicita / guardie), poi la catena precedente (push/neo)."""
+    r = None if _user_product(user) == "lite" else await _nav_intercept(msg, user)  # noqa: F821
     if r:
         rep = r.get("reply") or ""
         if "[[NAV:" not in rep and "[[ACTION:" not in rep and not rep.startswith(_NAV_NOLINK_OK):
-            logger.warning("[NAV] risposta L1 senza deep link per «%s»", (msg or "")[:80])
             r["missing_deeplink"] = True
         return r
     return await _nav_prev_push(msg, user)
@@ -961,7 +915,7 @@ if _nav_orig_chat is not None:
     @api_router.post("/assistant/chat")
     async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):  # noqa: F811
         user["_client_ctx"] = body.client_context  # V50.z291
-        r = None if (_user_product(user) == "lite" or _nav_is_conversation(body.message or "")) else await _nav_intercept(body.message or "", user)  # noqa: F821 — V50.z327 / V50.z358
+        r = None if _user_product(user) == "lite" else await _nav_intercept(body.message or "", user)  # noqa: F821
         if r and r.get("reply") is not None:
             sid = body.session_id or f"asst_{user['user_id']}_{uuid.uuid4().hex[:10]}"
             mid = uuid.uuid4().hex[:16]
@@ -975,7 +929,7 @@ if _nav_orig_chat is not None:
             return {"session_id": sid, "message_id": mid, "reply": r["reply"], "used_web_search": False, "web_sources": [], "nav": True}
         out = await _nav_orig_chat(body, user)
         if isinstance(out, dict) and out.get("reply"):
-            out["reply"] = _nav_strip_if_conversation(body.message or "", out["reply"])  # V50.z358
+            out["reply"] = _nav_strip_if_conversation(body.message or "", out["reply"])
         return out
 
 
@@ -1097,3 +1051,4 @@ async def _nav_startup():
             logger.info("[NAV] semantic cache invalidated (%s entries)", res.modified_count)
     except Exception as exc:  # noqa: BLE001
         logger.warning("[NAV] startup failed: %s", exc)
+

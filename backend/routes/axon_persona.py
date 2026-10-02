@@ -87,13 +87,15 @@ _PERSONAL_LOOKUP_RX = re.compile(
 
 
 def _axon_wants_general_web(user: dict, msg: str) -> bool:
-    """True se l'utente ha persona «personal» e il messaggio è una richiesta di ricerca/lookup (→ Tavily senza filtro domini)."""
+    """True → Tavily senza filtro domini. V50.z442: per TUTTI i tenant quando la domanda è informativa/di ricerca generale
+    (classificatore del Navigatore `_nav_is_info_query`); la persona «personal» usa anche il lookup più ampio."""
     try:
-        if _axon_persona(user) != "personal":
+        if not msg or _detect_energy_query(msg):  # noqa: F821 — già gestita con le fonti energia
             return False
-        if _detect_energy_query(msg):  # noqa: F821 — già gestita con le fonti energia
-            return False
-        return bool(msg) and bool(_PERSONAL_LOOKUP_RX.search(msg))
+        _info = globals().get("_nav_is_info_query")
+        if _info and _info(msg):
+            return True
+        return _axon_persona(user) == "personal" and bool(_PERSONAL_LOOKUP_RX.search(msg))
     except Exception:
         return False
 
