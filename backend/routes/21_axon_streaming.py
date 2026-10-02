@@ -101,8 +101,8 @@ def _is_query_cacheable(msg: str, has_attachments: bool, has_history: bool) -> b
     # If any skip-token is present → bypass cache
     if any(t in _CACHE_SKIP_TOKENS for t in tokens):
         return False
-    _info = globals().get("_nav_is_info_query"); _time = globals().get("_RX_INFO_TIME")  # V50.z443 — fatti attuali: mai dalla cache
-    if _info and _time and _info(msg) and _time.search(msg):
+    _info = globals().get("_nav_is_info_query"); _topic = globals().get("_RX_INFO_TOPIC"); _time = globals().get("_RX_INFO_TIME")  # V50.z443/z445 — fatti attuali: MAI dalla cache
+    if _info and _info(msg) and ((_time and _time.search(msg)) or (_topic and _topic.search(msg))):
         return False
     return True
 
@@ -355,6 +355,8 @@ async def _prepare_assistant_prompt(
     # Se non è una query energy, ritorna None subito (nessuna latenza).
     _needs_energy = _detect_energy_query(msg)
     _needs_tavily = _needs_energy or _axon_wants_general_web(user, msg)  # noqa: F821 — V50.z440 axon_persona.py
+    logger.info("[web-search] «%s» → energy=%s info=%s persona=%s tavily=%s", (msg or "")[:70], _needs_energy,  # V50.z445 — decisione sempre tracciata
+                bool(globals().get("_nav_is_info_query") and _nav_is_info_query(msg)), _axon_persona(user), "SI" if _needs_tavily else "NO")  # noqa: F821
     async def _safe_tavily():
         if not _needs_tavily:
             return None
@@ -775,6 +777,7 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     used_web_search = False
     _needs_energy = _detect_energy_query(msg)
     _needs_tavily = _needs_energy or _axon_wants_general_web(user, msg)  # noqa: F821 — V50.z440 axon_persona.py
+    logger.info("[web-search] (non-stream) «%s» → energy=%s tavily=%s", (msg or "")[:70], _needs_energy, "SI" if _needs_tavily else "NO")  # V50.z445
     if _needs_tavily:
         try:
             web_search_ctx = await _tavily_search(msg, general=not _needs_energy)

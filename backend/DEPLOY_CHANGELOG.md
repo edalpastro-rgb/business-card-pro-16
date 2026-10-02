@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-02 | D2026.10.02-2325 | Fix: i log applicativi del backend (compresi [tavily]/[web-search]) erano soppressi da un handler di logging registrato prima di basicConfig — ora visibili in docker logs; decisione ricerca web tracciata a ogni messaggio; borsa/mercati/notizie sempre online e mai da cache |
 | 2026-10-02 | D2026.10.02-2212 | Voce: nessun filler parlato, parte solo con la risposta pronta; ricerca web Tavily per domande su fatti attuali (borsa, prezzi, notizie) per tutti i tenant, errori mai silenziosi + endpoint /axon/web-search/status; regola assoluta anti-invenzione «Non ho dati aggiornati su questo» |
 | 2026-10-02 | D2026.10.02-2153 | Navigatore Axon riscritto: domande informative o di ricerca generale → ricerca web e risposta diretta (tutti i tenant); link NAV e sezioni del menu CRM solo quando l'utente chiede esplicitamente di aprire una sezione dell'app |
 | 2026-10-02 | D2026.10.02-2124 | ROLLBACK: annullato il fix modalità vocale (V50.z441); stato identico a D2026.10.02 «Persona Axon per tenant» (Super Master = assistente personale) |

@@ -532,6 +532,10 @@ async def _tavily_search(query: str, max_results: int = 5, country: Optional[str
             if r.status_code >= 400:
                 logger.error("[tavily] HTTP %s per «%s»: %s", r.status_code, (query or "")[:80], (r.text or "")[:200])
             r.raise_for_status()
+            try:
+                logger.info("[tavily] OK «%s» general=%s → %d risultati", (query or "")[:70], general, len((r.json() or {}).get("results") or []))  # V50.z445
+            except Exception:  # noqa: BLE001
+                pass
             data = r.json()
             result = {
                 "answer": data.get("answer") or "",

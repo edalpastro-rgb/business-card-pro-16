@@ -11,7 +11,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-logging.basicConfig(level=logging.INFO)
+# V50.z445 — BUG: `logging.basicConfig` non fa NULLA se il root logger ha già un handler, e axon_system_awareness.py aggiunge
+# `_AxsLogHandler` al root PRIMA di questo modulo → nessuno StreamHandler, root a WARNING: tutti i log applicativi
+# (INFO/WARNING/ERROR di `logger`, inclusi [tavily]/[web-search]) sparivano da stdout/docker logs. Ora handler e livello espliciti.
+_root_logger = logging.getLogger()
+if not any(type(h) is logging.StreamHandler for h in _root_logger.handlers):
+    _sh = logging.StreamHandler()
+    _sh.setFormatter(logging.Formatter("%(levelname)s:%(name)s:%(message)s"))
+    _root_logger.addHandler(_sh)
+_root_logger.setLevel(logging.INFO)
+logging.getLogger("httpx").setLevel(logging.WARNING)  # meno rumore: le chiamate HTTP le logga già [tavily]/[web-search]
 logger = logging.getLogger(__name__)
 
 

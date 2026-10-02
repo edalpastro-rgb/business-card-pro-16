@@ -342,7 +342,8 @@ def _nav_is_info_query(msg: str) -> bool:
     t = (msg or "").strip()
     if not t or _RX_NAV_EXPLICIT.search(t):
         return False
-    if not _RX_INFO_GENERAL.search(t) and not (_RX_INFO_TOPIC.search(t) and (_RX_INFO_TIME.search(t) or t.rstrip().endswith("?"))):
+    # V50.z445 — argomenti «fatti attuali» (borsa, mercati, notizie, sport, prezzi…) sono informativi ANCHE senza «oggi/ieri» o «?»
+    if not _RX_INFO_GENERAL.search(t) and not _RX_INFO_TOPIC.search(t):
         return False
     # «numero di telefono di Mario Rossi» con Mario Rossi nel CRM → lo decide l'AI con i dati CRM (PRIORITÀ CRM), ma la ricerca
     # web resta disponibile come fallback: qui basta che non sia una domanda SOLO interna (agenda, pratiche, PUN…)
