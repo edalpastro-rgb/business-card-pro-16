@@ -526,3 +526,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z430 — 14 bug critici (vedi PRD): login Google tablet via pagina ponte GET /api/auth/app-return + listener deep link globale; FAB Axon apre sempre la chat (rimosso redirect Help Center); tema: File.create prima di write; webview: stelline → chat, segnalibro → salvataggio, FAB locale; voce nativa: auto-stop silenzio 2 s con intervallo su recorder.getStatus() (root cause latenza 60 s), preset LOW_QUALITY; testo/voce esclusivi (textOnly/forceSpeak); prompt regole 6-8 (brevità, zero output tecnico, verifica strumenti); URL fetch diretto fallback (HTML/PDF). Test: pytest 4/4 + web OK (iteration_430.json)."
+
+  - agent: "main"
+    message: "V50.z432 — Fix «Invalid file format» trascrizione Android: preset M4A/AAC esplicito (LOW_QUALITY produceva .3gp AMR) in AssistantChat/useNativeBargeIn; /ai/transcribe rileva il formato dai magic bytes, converte in WAV 16k con ffmpeg (imageio-ffmpeg) i formati non Whisper e riprova in WAV su errore formato. Test locale: 3gp → 200, m4a → 200."

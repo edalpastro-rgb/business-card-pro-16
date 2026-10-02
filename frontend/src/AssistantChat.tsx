@@ -1451,8 +1451,18 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   // ovunque; su native usiamo `expo-audio` (useAudioRecorder), su web
   // manteniamo MediaRecorder.
   // V50.u — Abilita metering per rilevare silenzio e stoppare automaticamente
-  // V50.z430 — Bug 7/8/9: preset leggero (upload 4× più piccolo → trascrizione più rapida) + metering attivo.
-  const nativeRecorder = useAudioRecorder({ ...RecordingPresets.LOW_QUALITY, isMeteringEnabled: true });
+  // V50.z430/z432 — Bug 7/8/9 + «Invalid file format»: preset personalizzato = contenitore M4A/AAC su TUTTI i dispositivi
+  // (RecordingPresets.LOW_QUALITY su Android produce .3gp AMR-NB, formato NON accettato da Whisper). Mono 16 kHz 48 kbps
+  // → upload leggero, trascrizione rapida; metering attivo per l'auto-stop sul silenzio.
+  const nativeRecorder = useAudioRecorder({
+    ...RecordingPresets.HIGH_QUALITY,
+    extension: ".m4a",
+    sampleRate: 16000,
+    numberOfChannels: 1,
+    bitRate: 48000,
+    android: { ...RecordingPresets.HIGH_QUALITY.android, extension: ".m4a", outputFormat: "mpeg4", audioEncoder: "aac" },
+    isMeteringEnabled: true,
+  });
   const nativeUriRef = useRef<string | null>(null);
   // V50.z430 — Auto-stop su silenzio: PRIMA era un useEffect dipendente da `useAudioRecorderState().metering`, che su
   // Android spesso non cambia valore (o resta undefined) → l'effetto non rieseguiva, il microfono restava aperto fino al
@@ -1579,7 +1589,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
           if (!b64 || b64.length < 500) { setTranscribing(false); return; }
           const r = await api<{ transcript: string }>("/ai/transcribe", {
             method: "POST",
-            body: { audio_base64: b64, mime: "audio/m4a" },
+            body: { audio_base64: b64, mime: /\.3gp$/i.test(uri) ? "audio/3gpp" : "audio/m4a" }, // V50.z432 — mime reale (il server rileva comunque il formato)
           });
           const t = (r?.transcript || "").trim();
           if (t) await send(t, { forceSpeak: true }); // V50.z430 — Bug 10: dettato → risposta parlata

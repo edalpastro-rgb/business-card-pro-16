@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-02 | D2026.10.02 | Fix trascrizione vocale Android (Invalid file format): formato M4A forzato + conversione WAV lato server; indirizzo backend centralizzato EXPO_PUBLIC_API_BASE_URL |
 | 2026-10-01 | D2026.10.01-1827 | Fix login Google su tablet/APK (pagina di ritorno con bottone Apri AdvisorOS); FAB Axon apre sempre la chat (anche nel browser interno, stelline → chat); chat vocale: stop automatico dopo 2 s di silenzio e risposta in pochi secondi; testo e voce esclusivi; Axon: risposte max 3-4 righe, nessun output tecnico, verifica strumenti prima di dire non posso, lettura di qualsiasi URL pubblica (HTML e PDF) |
 | 2026-10-01 | D2026.10.01-1717 | Preferenze utente salvate sul server e ripristinate al login (PIN aree critiche, blocco app, tema, widget menu laterale, impostazioni personali, tour/intro visti): sopravvivono a reinstallazione APK, aggiornamenti e cambio dispositivo |
 | 2026-10-01 | D2026.10.01-1417 | Fix definitivo cambio tema (lettura tema al boot da file, non più da SecureStore) e menu bottom unico a livello radice su tutte le schermate (stesso comportamento della Help Center) |

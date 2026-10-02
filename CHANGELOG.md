@@ -923,6 +923,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z432 | Giu 2026 | **Trascrizione Android**: preset M4A/AAC forzato (LOW_QUALITY = .3gp AMR rifiutato da Whisper); server: sniff magic bytes + conversione WAV ffmpeg + retry |
 | V50.z431 | Giu 2026 | **Unico punto backend**: `EXPO_PUBLIC_API_BASE_URL` (priorità) in `.env`, `BACKEND_URL` in `src/api.ts`, 20 file migrati a `import { BACKEND_URL } from "@/src/api"` |
 | V50.z430 | Giu 2026 | **14 bug critici**: login Google tablet/APK via pagina ponte `GET /api/auth/app-return` (bottone «Apri AdvisorOS» se Chrome blocca il deep link) + listener deep link globale; FAB Axon apre SEMPRE la chat (rimosso redirect Help Center al primo avvio); tema: creazione esplicita del file di preferenza (`File.create`) prima della scrittura; browser interno: stelline → chat Axon, segnalibro → salvataggio, FAB locale nel Modal; chat vocale nativa: auto-stop silenzio 2 s con intervallo su `recorder.getStatus()` (prima l'effetto su metering non rieseguiva → mic aperto 60 s = latenza 60 s), preset LOW_QUALITY, max 45 s; testo ↔ voce esclusivi (`send({textOnly})` / mic → `forceSpeak`); prefs sync anche `app_lock_bio_v1`/`personal_space_bio_enabled_v1`; prompt Axon regole 6-8 (max 3-4 righe, zero output tecnico, verifica strumenti prima di «non posso»); URL on-demand: Tavily → fallback `_direct_fetch_url` (HTML BeautifulSoup / PDF) con messaggio chiaro se irraggiungibile |
 

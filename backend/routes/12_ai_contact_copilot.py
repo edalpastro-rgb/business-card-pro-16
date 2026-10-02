@@ -249,6 +249,64 @@ async def ai_contact_from_url(body: AIUrlIn, user=Depends(get_current_user)):
     return {"contact": parsed, "source_url": url}
 
 
+# V50.z432 — Rilevamento formato audio dai magic bytes + normalizzazione WAV via ffmpeg (imageio-ffmpeg)
+_WHISPER_OK_EXTS = {".m4a", ".mp3", ".wav", ".webm", ".ogg", ".flac", ".mp4", ".mpeg", ".mpga", ".oga"}
+
+
+def _sniff_audio_ext(data: bytes, mime: str) -> str:
+    head = data[:16]
+    if head[4:8] == b"ftyp":
+        brand = head[8:12]
+        return ".3gp" if brand.startswith(b"3gp") else ".m4a"
+    if head[:4] == b"RIFF" and data[8:12] == b"WAVE":
+        return ".wav"
+    if head[:4] == b"\x1a\x45\xdf\xa3":
+        return ".webm"
+    if head[:4] == b"OggS":
+        return ".ogg"
+    if head[:4] == b"fLaC":
+        return ".flac"
+    if head[:3] == b"ID3" or (head[0] == 0xFF and (head[1] & 0xE0) == 0xE0):
+        return ".mp3"
+    if head[:5] == b"#!AMR":
+        return ".amr"
+    # fallback sul mime dichiarato dal client
+    if "webm" in mime:
+        return ".webm"
+    if "m4a" in mime or "mp4" in mime or "aac" in mime:
+        return ".m4a"
+    if "wav" in mime:
+        return ".wav"
+    if "ogg" in mime:
+        return ".ogg"
+    if "mp3" in mime or "mpeg" in mime:
+        return ".mp3"
+    return ".bin"
+
+
+async def _audio_to_wav16k(data: bytes) -> Optional[bytes]:
+    """Converte qualsiasi audio in WAV PCM 16 kHz mono con ffmpeg (stdin → stdout). None se ffmpeg manca o fallisce."""
+    try:
+        import imageio_ffmpeg
+        ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        return None
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            ffmpeg, "-hide_banner", "-loglevel", "error", "-i", "pipe:0",
+            "-ac", "1", "-ar", "16000", "-f", "wav", "pipe:1",
+            stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        out, err = await asyncio.wait_for(proc.communicate(data), timeout=40)
+        if proc.returncode != 0 or len(out) < 1024:
+            logger.warning(f"[transcribe] ffmpeg conversione fallita: {err[:200]!r}")
+            return None
+        return out
+    except Exception as exc:
+        logger.warning(f"[transcribe] ffmpeg non disponibile: {exc}")
+        return None
+
+
 @api_router.post("/ai/transcribe")
 async def ai_transcribe(body: AIVoiceIn, user=Depends(get_current_user)):
     """Transcribe audio to text via OpenAI Whisper (Italian language).
@@ -270,16 +328,15 @@ async def ai_transcribe(body: AIVoiceIn, user=Depends(get_current_user)):
         raise HTTPException(status_code=413, detail="Audio troppo grande (max 25 MB)")
     import tempfile
     mime = (body.mime or "").lower()
-    if "webm" in mime:
-        ext = ".webm"
-    elif "m4a" in mime or "mp4" in mime or "aac" in mime:
-        ext = ".m4a"
-    elif "wav" in mime:
-        ext = ".wav"
-    elif "ogg" in mime:
-        ext = ".webm"  # litellm expects webm/ogg family
-    else:
-        ext = ".mp3"
+    # V50.z432 — il formato REALE si decide dai magic bytes (Android può produrre .3gp/AMR anche se il client dice m4a);
+    # i formati non supportati da Whisper (3gp/AMR/sconosciuti) vengono convertiti in WAV 16 kHz mono con ffmpeg.
+    ext = _sniff_audio_ext(audio_bytes, mime)
+    if ext not in _WHISPER_OK_EXTS:
+        converted = await _audio_to_wav16k(audio_bytes)
+        if converted:
+            audio_bytes, ext = converted, ".wav"
+        else:
+            raise HTTPException(status_code=415, detail="Formato audio non supportato dal dispositivo: riprova o aggiorna l'app.")
     with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
         tmp.write(audio_bytes)
         path = tmp.name
@@ -287,13 +344,20 @@ async def ai_transcribe(body: AIVoiceIn, user=Depends(get_current_user)):
     try:
         from emergentintegrations.llm.openai.speech_to_text import OpenAISpeechToText
         stt = OpenAISpeechToText(api_key=key)
-        with open(path, "rb") as _fh:
-            result = await stt.transcribe(
-                file=_fh,
-                model="whisper-1",
-                language="it",
-                response_format="text",
-            )
+        try:
+            with open(path, "rb") as _fh:
+                result = await stt.transcribe(file=_fh, model="whisper-1", language="it", response_format="text")
+        except Exception as first_err:
+            # V50.z432 — ultimo tentativo: normalizza in WAV e riprova (copre container m4a «strani» di alcuni Android)
+            if ext == ".wav" or "format" not in str(first_err).lower():
+                raise
+            converted = await _audio_to_wav16k(audio_bytes)
+            if not converted:
+                raise
+            with open(path, "wb") as _fw:
+                _fw.write(converted)
+            with open(path, "rb") as _fh:
+                result = await stt.transcribe(file=_fh, model="whisper-1", language="it", response_format="text")
         # response can be a plain string when response_format=text, or an object with .text
         if isinstance(result, str):
             transcript = result.strip()

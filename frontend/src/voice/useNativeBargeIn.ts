@@ -56,7 +56,8 @@ function echoRatio(transcript: string, spoken: string): number {
 
 export function useNativeBargeIn(opts: NativeBargeInOpts): void {
   const enabled = Platform.OS !== "web";
-  const recorder = useAudioRecorder({ ...RecordingPresets.LOW_QUALITY, isMeteringEnabled: true });
+  // V50.z432 — LOW_QUALITY su Android produce .3gp/AMR (rifiutato da Whisper): forziamo M4A/AAC mono 16 kHz
+  const recorder = useAudioRecorder({ ...RecordingPresets.HIGH_QUALITY, sampleRate: 16000, numberOfChannels: 1, bitRate: 48000, android: { ...RecordingPresets.HIGH_QUALITY.android, extension: ".m4a", outputFormat: "mpeg4", audioEncoder: "aac" }, isMeteringEnabled: true });
   const state = useAudioRecorderState(recorder, POLL_MS);
   const optsRef = useRef(opts); optsRef.current = opts;
   const listening = useRef(false);
