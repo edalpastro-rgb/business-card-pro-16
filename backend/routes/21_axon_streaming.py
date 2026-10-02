@@ -716,7 +716,7 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
 
     # V40 — Semantic cache lookup (fast path). Only for cacheable knowledge
     # queries: no attachments, no prior history, no live-data tokens.
-    cache_eligible = _is_query_cacheable(msg, bool(body.attachments), bool(history)) and not body.no_cache  # V50.z441 — no_cache anche qui
+    cache_eligible = _is_query_cacheable(msg, bool(body.attachments), bool(history))
     if cache_eligible:
         cached = await _semantic_cache_lookup(msg, tenant=tenant_id(user), product=_axon_cache_product(user))  # noqa: F821 — V50.z327
         if cached:
@@ -1005,8 +1005,6 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     except Exception:
         pass
     system_message += _axon_product_section(user)  # V50.z323 — Axon Core: cosa esiste/non esiste nel prodotto dell'utente
-    if isinstance(body.client_context, dict) and body.client_context.get("voice") and globals().get("AXON_VOICE_RULE"):  # V50.z441 — regola voce anche sul percorso non-stream
-        system_message = AXON_VOICE_RULE + system_message + "\n\n" + AXON_VOICE_RULE  # noqa: F821 — axon_navigator.py
 
     # V50.z360 — «Stato sistema» + CHANGELOG dinamico anche nel percorso NON-stream (ViolaWake): stessa sezione dello stream.
     try:

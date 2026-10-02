@@ -72,11 +72,7 @@ def _axon_product_section(user: dict) -> str:  # noqa: F811
 def _axon_cache_product(user: dict) -> str:
     """Chiave prodotto per la cache semantica: la persona «personal» ha risposte diverse → cache separata (advisor:personal)."""
     prod = _user_product(user)  # noqa: F821
-    key = prod if (prod == "lite" or _axon_persona(user) != "personal") else f"{prod}:personal"
-    ctx = user.get("_client_ctx") if isinstance(user, dict) else None
-    if isinstance(ctx, dict) and ctx.get("voice"):  # V50.z441 — le risposte vocali (2-3 frasi) non si mischiano con quelle testuali
-        key += ":voice"
-    return key
+    return prod if (prod == "lite" or _axon_persona(user) != "personal") else f"{prod}:personal"
 
 
 # ---- ricerca web generale per richieste da assistente personale --------------------------------------------------------

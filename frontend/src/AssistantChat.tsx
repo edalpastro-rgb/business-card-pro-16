@@ -793,8 +793,10 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       // di typing; il server invia lo stesso ack come primo evento SSE (stage "ack").
       setProgressText("Ci sto pensando…");
       prog.start({ message: msg, attachmentNames: attachmentsPayload.map((a) => a.name) });
-      // V50.z441 — RIMOSSO l'ack vocale «Ci sto pensando» (V50.z392): la voce partiva, si interrompeva e ripartiva con la
-      // risposta vera. Ora la voce inizia direttamente con la prima frase della risposta; l'attesa resta solo visiva (bolla).
+      // V50.z392 — REGOLA «entro 2 secondi»: in modalità voce, se il primo delta non arriva entro 1,8 s Axon DICE
+      // «Ci sto pensando…» (frase brevissima, poi la risposta prosegue in coda nello stesso speaker). Mai silenzio.
+      let voiceAckTimer: ReturnType<typeof setTimeout> | null = speaker ? setTimeout(() => { if (speaker && speaker.fedLength === 0) speaker.feed("Ci sto pensando. "); voiceAckTimer = null; }, 1800) : null;
+      let gotDelta = false;
       // V40 — Streaming path via SSE. Append delta chunks to the last message
       // in real time. Falls back to a regular POST if streaming fails.
       const streamResult = await streamAssistantChat({
@@ -831,6 +833,8 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
         onDelta: (chunk) => {
           armWatchdog();
           prog.onFirstDelta();
+          if (voiceAckTimer) { clearTimeout(voiceAckTimer); voiceAckTimer = null; }
+          gotDelta = true;
           speaker?.feed(chunk);
           setMessages((prev) => {
             if (!prev.length) return prev;
@@ -868,7 +872,10 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       // stream non ha prodotto delta, es. risposta non-stream). onSpoken viene
       // chiamato dal SentenceSpeaker alla fine dell'ultimo audio.
       const finalReply = streamResult.reply;
+      if (voiceAckTimer) { clearTimeout(voiceAckTimer); voiceAckTimer = null; }
       if (speaker) {
+        // V50.z392 — se è stato detto solo l'ack «Ci sto pensando» (nessun delta), la risposta finale va comunque letta
+        if (finalReply && !gotDelta && speaker.fedLength > 0) speaker.feed(finalReply);
         if (finalReply) speaker.finishWith(finalReply);
         else speaker.stop();
       } else if (opts?.onSpoken) {
