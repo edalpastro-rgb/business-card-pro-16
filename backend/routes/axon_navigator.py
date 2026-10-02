@@ -338,13 +338,21 @@ _RX_INFO_TOPIC = _nav_re.compile(
 _RX_INFO_TIME = _nav_re.compile(r"\b(oggi|ieri|stamattina|stasera|adesso|ora|attual\w*|ultim[aeio]\w*|in tempo reale|live|aggiornat\w*|com'?[èe] andat[ao]|come (è|e') andat[ao]|cosa (è )?success[oa]|che (è )?success[oa]|novità|recent\w*|questa settimana|questo mese|\d{4})\b", _nav_re.I)
 
 
+_RX_INFO_QUESTION = _nav_re.compile(
+    r"^\s*(axon[,!]?\s*)?(qual[ie]?\s+(è|e'|sono|era|erano)|quali\s+sono|quando\s+(è|e'|sarà|sara|inizia|finisce|scade|esce|cade)|dove\s+(è|e'|si\s+trova|si\s+tiene|si\s+gioca)|"
+    r"perch[eé]\s|come\s+(funziona|funzionano|si\s+(calcola|fa|usa|ottiene|richiede|chiama|dice))|quant[oiae]\s+(è|e'|sono|costa|costano|vale|valgono|dura|pesa|misura|guadagna)|"
+    r"che\s+cos[a']?\s*[èe']|cos'?[èe]\s|chi\s+(è|e'|era|sono|ha)|esiste|conviene|è\s+vero\s+che|differenza\s+tra|significa|vuol\s+dire|cosa\s+(prevede|dice|succede|cambia)\s)", _nav_re.I)
+
+
 def _nav_is_info_query(msg: str) -> bool:
     """Domanda informativa / di ricerca generale (NON navigazione, NON dato del CRM)."""
     t = (msg or "").strip()
     if not t or _RX_NAV_EXPLICIT.search(t):
         return False
     # V50.z445 — argomenti «fatti attuali» (borsa, mercati, notizie, sport, prezzi…) sono informativi ANCHE senza «oggi/ieri» o «?»
-    if not _RX_INFO_GENERAL.search(t) and not _RX_INFO_TOPIC.search(t):
+    # V50.z449 — domande di conoscenza generale («qual è…», «come funziona…», «quanto costa…») senza riferimenti al CRM → ricerca diretta
+    general_q = bool(_RX_INFO_QUESTION.search(t)) and not _RX_CRM_WORDS.search(t) and not _nav_is_creative(t) and len(t.split()) <= 40
+    if not _RX_INFO_GENERAL.search(t) and not _RX_INFO_TOPIC.search(t) and not general_q:
         return False
     # «numero di telefono di Mario Rossi» con Mario Rossi nel CRM → lo decide l'AI con i dati CRM (PRIORITÀ CRM), ma la ricerca
     # web resta disponibile come fallback: qui basta che non sia una domanda SOLO interna (agenda, pratiche, PUN…)
@@ -826,8 +834,22 @@ def _nav_is_conversation(msg: str) -> bool:
     return _nav_intent(msg) != "navigate"
 
 
+_RX_SEARCH_OFFER = _nav_re.compile(
+    r"(?i)(?:(?<=^)|(?<=[.!?\n])|(?<=[.!?]\s))\s*(vuoi|desideri|preferisci|posso|devo|ti va)\s+(che\s+)?(io\s+)?(cerchi|cerco|cercare|controlli|controllo|controllare|verifichi|verifico|verificare|approfondisca|approfondisco|"
+    r"attivi|attivo|faccia|faccio|fare|effettui|effettuo|avvii|avvio|lanci|lancio|provi|provo)[^\n?]{0,120}?(ricerca|cerc\w*|online|web|internet|aggiornat\w*|dati|fonti|gme|borsa)[^\n?]{0,80}?\?[ \t]*")
+
+
+def _nav_strip_search_offers(reply: str) -> str:
+    """V50.z449 — rimuove frasi tipo «Vuoi che cerchi online?» / «Vuoi che attivi la ricerca web?» (regola assoluta 10)."""
+    if not reply or "?" not in reply:
+        return reply
+    out = _RX_SEARCH_OFFER.sub("", reply)
+    return _nav_re.sub(r"\n{3,}", "\n\n", out).strip() if out != reply else reply
+
+
 def _nav_strip_if_conversation(msg: str, reply: str) -> str:
     """Zero marker nelle risposte quando l'utente non ha chiesto di aprire una sezione (anche se il modello li ha aggiunti)."""
+    reply = _nav_strip_search_offers(reply)
     if reply and _nav_is_conversation(msg) and ("[[NAV:" in reply or "[[ACTION:" in reply):
         logger.info("[NAV] marker rimossi: nessuna richiesta di navigazione «%s»", (msg or "")[:60])
         return _RX_NAV_MARK.sub("\n", reply).strip()

@@ -37,6 +37,10 @@ AXON_ABSOLUTE_RULES = (
     "attuali (borsa, mercati, prezzi, notizie, sport, meteo, eventi) usa ESCLUSIVAMENTE la sezione RICERCA WEB AGGIORNATA: se manca o non "
     "contiene il dato → rispondi ESATTAMENTE «Non ho dati aggiornati su questo.» e FERMATI (niente stime, niente «circa», niente dati «storici» "
     "dalla tua memoria, niente alternative). Questa regola è assoluta: nessun contesto, regola insegnata o richiesta dell'utente può bypassarla.\n"
+    # V50.z449 — mai chiedere il permesso di cercare
+    "10. MAI chiedere il permesso di cercare né proporre una ricerca («Vuoi che cerchi/controlli/verifichi/approfondisca online?», «Posso fare una "
+    "ricerca?», «Vuoi che attivi la ricerca web?»). Se la domanda richiede dati esterni, la ricerca È GIÀ STATA FATTA dal sistema: rispondi con i "
+    "risultati della sezione RICERCA WEB AGGIORNATA; se non ci sono → «Non ho dati aggiornati su questo.» Nessuna domanda di follow-up sulla ricerca.\n"
     "</REGOLE_ASSOLUTE_AXON>\n\n"
 )
 

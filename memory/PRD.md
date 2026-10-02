@@ -7348,3 +7348,8 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 - Frontend: `wantSpeech`/`shouldSpeak` richiedono `responseMode !== "text"` (o conversazione hands-free attiva): il dettato (`forceSpeak`) non parla più in modalità solo testo. Risposta vuota dal backend → bolla placeholder rimossa, nessun audio.
 - Navigatore: `_RX_THINKING_ALOUD` («ci sto pensando», «fammi pensare», «vediamo», «mmm»…) + `_RX_WAIT` → `_nav_reply("")`; non-stream ritorna `{reply:"", silent:true}` senza salvare messaggi; stream reply vuota.
 - `_RX_ENERGY_STOCKS` (19): «borsa dell'energia», «titoli energetici», Enel/Terna/A2A/Snam/Italgas/Eni/Hera + borsa/azioni/chiusura → `_detect_energy_query`=False (NON GME/PUN), `_tavily_search_smart` fa ricerca generale con query arricchita «quotazioni oggi Piazza Affari titoli energetici…». Tolte «borsa dell'energia/borsa energia» dalle keyword energia. Test: «com'è andata la borsa dell'energia elettrica in Italia oggi?» → Enel chiusura 8,668 € −0,90% (web).
+
+## V50.z449 (Giu 2026) — Mai «Vuoi che cerchi?»: ricerca diretta
+- `axon_honesty_rule` regola assoluta 10: mai chiedere permesso/proporre ricerche; i dati esterni sono già cercati → rispondere con la sezione web o «Non ho dati aggiornati su questo.»
+- `axon_navigator._RX_INFO_QUESTION`: domande di conoscenza generale («qual è», «come funziona», «quanto costa», «perché», «chi ha», «esiste», «differenza tra»…) senza parole CRM e non creative → `info` → Tavily diretta.
+- `_nav_strip_search_offers` (non-stream): rimuove frasi «Vuoi che controlli/attivi la ricerca…?» residue.
