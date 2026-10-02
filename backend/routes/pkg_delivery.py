@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse as _PdFileResponse
 _PD_DIR = next((d for d in (_pd_os.path.abspath(_pd_os.path.join(_pd_os.path.dirname(_pd_os.path.abspath(__file__)), "..", "deploy", "axon-core")),
                               _pd_os.path.abspath(_pd_os.path.join(_pd_os.path.dirname(_pd_os.path.abspath(__file__)), "..", "..", "deploy", "axon-core")),
                               "/app/deploy/axon-core") if _pd_os.path.isdir(d)), "/app/deploy/axon-core")  # __file__ = server.py (moduli exec'd)
-_PD_FILES = {"axon-core-pkg": "axon-core-pkg.tgz", "axon-web-pkg": "axon-web-pkg.tgz"}
+_PD_FILES = {"axon-core-pkg": "axon-core-pkg.tgz", "axon-web-pkg": "axon-web-pkg.tgz", "upgrade-vps": "scripts/upgrade_vps.sh"}  # V50.z435
 
 
 @api_router.get("/pkg/{name}")  # noqa: F821

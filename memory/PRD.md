@@ -1,3 +1,10 @@
+> 🚀 **REGOLA PERMANENTE (richiesta utente, V50.z435)**: alla FINE di OGNI sessione di lavoro che tocca backend o web, rigenerare i pacchetti
+> (`bash deploy/axon-core/scripts/build_package.sh "<descrizione>"` → `mv -f /app/axon-core-pkg.tgz deploy/axon-core/` e
+> `bash deploy/axon-core/scripts/build_web_package.sh`) e fornire SEMPRE, senza che l'utente lo chieda, i comandi esatti per aggiornare il VPS
+> `core.axonos.cloud` (80.211.27.80): `ssh root@80.211.27.80 'SRC_URL=<EXPO_PACKAGER_PROXY_URL di frontend/.env> KEY=<AXON_PKG_DOWNLOAD_KEY di backend/.env> bash /opt/axon-core/upgrade_vps.sh'`
+> (alla prima volta copiare lo script: `scp deploy/axon-core/scripts/upgrade_vps.sh root@80.211.27.80:/opt/axon-core/`). Pacchetti scaricabili da
+> `GET /api/pkg/axon-core-pkg?key=…` e `/api/pkg/axon-web-pkg?key=…` (attivi solo in dev, `pkg_delivery.py`). I pacchetti sono cumulativi: basta l'ultimo.
+
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
 ## ⚠️ ISTRUZIONE PERMANENTE PER NEO (agente di sviluppo) — V50.z239 «Prompt per Neo»
