@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-02 | D2026.10.02-2124 | ROLLBACK: annullato il fix modalità vocale (V50.z441); stato identico a D2026.10.02 «Persona Axon per tenant» (Super Master = assistente personale) |
 | 2026-10-02 | D2026.10.02-2033 | Persona Axon per tenant: il Super Master (Emanuele) riceve il prompt completo dell'assistente personale (nessuna domanda fuori contesto, ricerca web generale per numeri di telefono/indirizzi/orari); gli altri tenant restano AdvisorOS CRM; API GET/PUT /axon/core/persona |
 | 2026-10-02 | D2026.10.02-2000 | Fix prompt Axon: regole «Insegna ad Axon» applicate in silenzio — rimosso l'obbligo di dichiarare «⚠️ CONFLITTO #a vs #b (peso)»; la regola perdente viene esclusa dal prompt, niente pesi/#numeri visibili; upgrade_vps.sh con ROLLBACK, DIAG e 5 backup |
 | 2026-10-02 | D2026.10.02-1719 | Foto multiple in chat Axon: selezione multipla dalla galleria, scatto continuo pagina dopo pagina (max 10), interruttore «Unisci come unico documento» → un solo riepilogo del documento invece di una descrizione per foto |

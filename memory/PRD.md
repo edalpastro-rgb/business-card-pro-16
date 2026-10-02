@@ -7306,3 +7306,6 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 - API `GET/PUT /axon/core/persona` (Master; propaga ai collaboratori). Startup `_axon_persona_startup`: Super Master senza persona esplicita → `personal` su tutto il tenant.
 - Test `backend/tests/test_axon_persona.py`: personal → numero farmacia trovato via web (11 s); crm → «Non ho i dati…» (3 s). PASS.
 - VPS: se il `.env` del VPS non ha le email Super Master, impostare a mano `db.users.updateOne({email}, {$set:{axon_persona:"personal"}})` (comando mongosh fornito all'utente).
+
+## ROLLBACK (Giu 2026) — annullato V50.z441 (fix modalità vocale) su richiesta utente
+- `git revert 6a1aadd` → codice identico a b9b265c (V50.z440 persona Super Master). Il filler vocale «Ci sto pensando», le 3 regole voce precedenti e la cache senza suffisso `:voice` sono tornati. Pacchetti VPS rigenerati dallo stato ripristinato. Sul VPS: `ROLLBACK=last bash upgrade_vps.sh` (backup fatto prima dell'ultimo upgrade) oppure upgrade con il pacchetto rigenerato (equivalente).
