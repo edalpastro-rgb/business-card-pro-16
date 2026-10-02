@@ -204,7 +204,7 @@ export class SentenceSpeaker {
       this.inflight += 1;
       item.audio = api<{ audio_base64: string; mime: string }>("/assistant/tts", {
         method: "POST",
-        body: { text: item.text, voice: this.voice },
+        body: { text: item.text, voice: this.voice, speed: this.rate || 1 }, // V50.z437 — Bug A: velocità anche nel parlato frase-per-frase
       })
         .then((r) => (r?.audio_base64 ? { b64: r.audio_base64, mime: r.mime || "audio/mpeg" } : null))
         .catch(() => null)

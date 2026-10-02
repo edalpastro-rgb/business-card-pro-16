@@ -266,6 +266,11 @@ async def _prepare_assistant_prompt(
     Returns a dict with system_message, user_prompt, session_id, assistant_name,
     used_web_search, web_sources, history_len, msg, has_attachments."""
     msg = (body.message or "").strip()
+    if not msg and body.attachments:
+        # V50.z437 — Bug B: allegato (foto/documento) inviato SENZA testo → prima 400 «Messaggio vuoto» e l'app ripiegava su una
+        # risposta non pertinente. Ora la richiesta implicita è «analizza l'allegato».
+        names = ", ".join((a.name or "allegato") for a in body.attachments[:5])
+        msg = f"Analizza l'allegato ({names}) e descrivi in modo preciso cosa contiene: testo, dati, importi, nomi, date e tutto ciò che è utile."
     if not msg:
         raise HTTPException(status_code=400, detail="Messaggio vuoto")
     if len(msg) > 4000:
@@ -682,6 +687,11 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     Fetches user's CRM snapshot and answers questions in Italian.
     """
     msg = (body.message or "").strip()
+    if not msg and body.attachments:
+        # V50.z437 — Bug B: allegato (foto/documento) inviato SENZA testo → prima 400 «Messaggio vuoto» e l'app ripiegava su una
+        # risposta non pertinente. Ora la richiesta implicita è «analizza l'allegato».
+        names = ", ".join((a.name or "allegato") for a in body.attachments[:5])
+        msg = f"Analizza l'allegato ({names}) e descrivi in modo preciso cosa contiene: testo, dati, importi, nomi, date e tutto ciò che è utile."
     if not msg:
         raise HTTPException(status_code=400, detail="Messaggio vuoto")
     if len(msg) > 4000:

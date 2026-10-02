@@ -164,6 +164,13 @@ def _openai_tts_sync(key: str, text: str, voice: str, speed: float, lang: str) -
     pace = "leggermente più veloce del normale" if speed > 1.1 else ("leggermente più lento del normale" if speed < 0.9 else "naturale")
     instructions = (f"Leggi il testo esattamente così com'è, in {lang_name}, con pronuncia e intonazione da madrelingua {lang_name}. "
                     f"Non tradurre, non aggiungere nulla. Ritmo {pace}, tono professionale e cordiale.")
+    # V50.z437 — Bug A: gpt-4o-mini-tts IGNORA il parametro `speed` (solo l'istruzione testuale, poco affidabile) → la velocità
+    # scelta nelle impostazioni (es. 1.25x) non veniva mai applicata. Con velocità ≠ 1.0 si usa tts-1-hd, che applica `speed`
+    # esattamente; a 1.0 resta gpt-4o-mini-tts (pronuncia italiana migliore). La voce (es. fable) è passata in entrambi i casi.
+    if abs(speed - 1.0) >= 0.05:
+        base["speed"] = speed
+        r = speech(model="openai/tts-1-hd", **base)
+        return r.content if hasattr(r, "content") else (r.read() if hasattr(r, "read") else bytes(r))
     try:
         r = speech(model="openai/gpt-4o-mini-tts", instructions=instructions, **base)
     except Exception as exc:  # noqa: BLE001 — modello non disponibile sul proxy → tts-1 classico

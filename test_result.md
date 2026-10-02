@@ -538,3 +538,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z436 — Ruolo consultant: backend axon_rbac.py (can/require_can/is_consultant + middleware deny-list 403 per rotte admin, /me/permissions), team+inviti accettano consultant, /user-settings filtrato; frontend useRole() centralizzato (sostituiti isMaster inline in 7 file), ConsultantSettings ridotte, master.tsx redirect, team/invite UI. Test API + UI OK. Credenziali consultant in test_credentials.md."
+
+  - agent: "main"
+    message: "V50.z437 — Bug A: TTS velocità (gpt-4o-mini-tts ignora speed → tts-1-hd quando ≠1.0; client invia speed). Bug B: allegato senza testo → messaggio implicito 'Analizza l'allegato' (prima 400 Messaggio vuoto). Test API OK."

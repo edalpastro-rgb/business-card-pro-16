@@ -1020,7 +1020,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       }
       const r = await api<{ audio_base64: string; mime: string }>("/assistant/tts", {
         method: "POST",
-        body: { text, voice: assistantVoice },
+        body: { text, voice: assistantVoice, speed: ttsRateRef.current || 1 }, // V50.z437 — Bug A: velocità scelta nelle impostazioni
       });
       if (!r?.audio_base64) { setPlayingIdx(null); if (onEnded) onEnded(); return; }
       let ended = false;
