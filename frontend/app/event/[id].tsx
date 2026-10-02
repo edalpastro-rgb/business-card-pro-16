@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Pressable, ActivityIndicator, Image, ScrollView
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { api } from "@/src/api";
+import { api, BACKEND_URL } from "@/src/api";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { FileViewer } from "@/src/FileViewer";
@@ -74,7 +74,7 @@ function EventScreen() {
 
   const sharePublicLink = async () => {
     if (!ev?.public_token) return;
-    const url = `${process.env.EXPO_PUBLIC_BACKEND_URL || ""}/api/public/event-banners/${ev.public_token}`.replace(/\/+$/g, (m) => m).replace(/(https?:\/\/[^/]+)\/api/, "$1/api");
+    const url = `${BACKEND_URL || ""}/api/public/event-banners/${ev.public_token}`.replace(/\/+$/g, (m) => m).replace(/(https?:\/\/[^/]+)\/api/, "$1/api");
     try {
       if (Platform.OS === "web") {
         const nav: any = (globalThis as any).navigator;

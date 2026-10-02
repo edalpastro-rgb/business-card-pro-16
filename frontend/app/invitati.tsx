@@ -5,7 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Clipboard from "expo-clipboard";
-import { api } from "@/src/api";
+import { api, BACKEND_URL } from "@/src/api";
 import { theme } from "@/src/theme";
 import Constants from "expo-constants";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
@@ -17,7 +17,7 @@ type Invite = { invite_token: string; trial_days: number; note: string; created_
 function getPublicOrigin(): string {
   // Best-effort: use current origin on web, otherwise leave placeholder
   if (Platform.OS === "web" && typeof window !== "undefined") return window.location.origin;
-  const backend = (Constants.expoConfig?.extra as any)?.backendUrl || process.env.EXPO_PUBLIC_BACKEND_URL || "";
+  const backend = (Constants.expoConfig?.extra as any)?.backendUrl || BACKEND_URL || "";
   // Backend URL like https://business-card-pro-16.preview.emergentagent.com — used to derive public app URL
   return backend || "https://tuoapp.it";
 }

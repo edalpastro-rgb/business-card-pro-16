@@ -7,7 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useAudioRecorder, RecordingPresets } from "expo-audio";
-import { api } from "@/src/api";
+import { api, BACKEND_URL } from "@/src/api";
 import { getMicPermission, requestMicPermission, openAppSettings, startRecording, stopRecording, playBase64, stopPlayback, getLiveLevelDb, type MicPermissionState } from "@/src/corporate-gym/voice";
 import { notify } from "@/src/utils/notify";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -167,7 +167,7 @@ export default function WakeTrainingScreen() {
   const nextWord = () => { if (wordIdx + 1 < WORDS.length) setWordIdx(wordIdx + 1); else nextEnv(); };
   const playPron = async () => {
     setPlayingPron(true);
-    try { const r = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/public/wake-samples/pronunciation`); const buf = await r.arrayBuffer(); let bin = ""; const bytes = new Uint8Array(buf); for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]); await playBase64(btoa(bin), "audio/mpeg"); }
+    try { const r = await fetch(`${BACKEND_URL}/api/public/wake-samples/pronunciation`); const buf = await r.arrayBuffer(); let bin = ""; const bytes = new Uint8Array(buf); for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]); await playBase64(btoa(bin), "audio/mpeg"); }
     catch { notify("Audio pronuncia non disponibile in questo momento"); } finally { setPlayingPron(false); }
   };
 

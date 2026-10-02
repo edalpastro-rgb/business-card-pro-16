@@ -11,7 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import * as FileSystem from "expo-file-system/legacy";
-import { api, getAuthHeader } from "@/src/api";
+import { api, getAuthHeader, BACKEND_URL } from "@/src/api";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
@@ -305,7 +305,7 @@ function CombinedInbox() {
 
   const downloadAttachment = async (m: CombinedMessage, filename: string) => {
     try {
-      const backend = process.env.EXPO_PUBLIC_BACKEND_URL || "";
+      const backend = BACKEND_URL || "";
       const url = `${backend}/api/mail/accounts/${m.account_id}/messages/${encodeURIComponent(m.uid)}/attachments/${encodeURIComponent(filename)}`;
       const auth = await getAuthHeader();
       const resp = await fetch(url, { headers: auth });
@@ -873,7 +873,7 @@ function MessagesModal({ account, onClose }: { account: MailAccount; onClose: ()
 
   const downloadAttachment = async (uid: string, filename: string, contentType?: string) => {
     try {
-      const backend = process.env.EXPO_PUBLIC_BACKEND_URL || "";
+      const backend = BACKEND_URL || "";
       const url = `${backend}/api/mail/accounts/${account.account_id}/messages/${encodeURIComponent(uid)}/attachments/${encodeURIComponent(filename)}`;
       const auth = await getAuthHeader();
       if (Platform.OS === "web") {

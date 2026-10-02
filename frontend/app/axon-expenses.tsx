@@ -8,7 +8,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
-import { api, getToken } from "@/src/api";
+import { api, getToken, BACKEND_URL } from "@/src/api";
 import { notify } from "@/src/utils/notify";
 import { ExpenseStatsTab, ExpenseArchiveTab } from "@/src/ExpenseHistory"; // V50.z229 — storico spese
 import Constants from "expo-constants";
@@ -21,7 +21,7 @@ type Statement = { report_id: string; bank?: string | null; period?: string | nu
 
 const COLOR: Record<Sphere, string> = { business: "#2563EB", home: "#059669" };
 const ICON: Record<Sphere, string> = { business: "🔵", home: "🟢" };
-const backendUrl = () => (process.env.EXPO_PUBLIC_BACKEND_URL || (Constants.expoConfig?.extra as any)?.backendUrl || "").replace(/\/$/, "");
+const backendUrl = () => (BACKEND_URL || (Constants.expoConfig?.extra as any)?.backendUrl || "").replace(/\/$/, "");
 
 async function pickFile(camera: boolean): Promise<{ data_base64: string; mime: string; name: string } | null> {
   if (camera) {

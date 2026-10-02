@@ -7,7 +7,7 @@ import { View, Text, StyleSheet, Pressable, ActivityIndicator, Linking, Platform
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { api, getToken } from "@/src/api";
+import { api, getToken, BACKEND_URL } from "@/src/api";
 import { notify } from "@/src/utils/notify";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { KScrollView } from "@/src/ui/keyboard";
@@ -56,7 +56,7 @@ export default function WakeSamplesAdmin() {
     try {
       const token = await getToken();
       const qs = new URLSearchParams({ ...q, token: token || "" }).toString();
-      const url = `${process.env.EXPO_PUBLIC_BACKEND_URL}/api/wake-samples/export.zip?${qs}`;
+      const url = `${BACKEND_URL}/api/wake-samples/export.zip?${qs}`;
       if (Platform.OS === "web") { const a = document.createElement("a"); a.href = url; a.download = "axon-wake-samples.zip"; a.click(); } else await Linking.openURL(url);
     } catch (e: any) { notify(e?.message || "Download non riuscito"); } finally { setBusy(null); }
   };

@@ -11,7 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
-import { api } from "@/src/api";
+import { api, BACKEND_URL } from "@/src/api";
 import { theme } from "@/src/theme";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
@@ -99,8 +99,8 @@ export default function OutlookScreen() {
       // Redirect URI del backend (definito dal server) — WebBrowser aprirà una
       // sessione di autenticazione. Al callback, il backend redirige a
       // /outlook/callback?ok=1 che questa app gestisce.
-      const returnUrl = process.env.EXPO_PUBLIC_BACKEND_URL
-        ? `${process.env.EXPO_PUBLIC_BACKEND_URL}/outlook/callback`
+      const returnUrl = BACKEND_URL
+        ? `${BACKEND_URL}/outlook/callback`
         : (Platform.OS === "web" ? window.location.origin + "/outlook/callback" : "axon://outlook/callback");
       const result = await WebBrowser.openAuthSessionAsync(r.authorization_url, returnUrl);
       if (result.type === "success" || result.type === "dismiss") {

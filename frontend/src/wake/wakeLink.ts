@@ -2,8 +2,9 @@
 import { Platform, Share } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { notify } from "@/src/utils/notify";
+import { BACKEND_URL } from "@/src/api"; // V50.z431 — unico punto che definisce l'indirizzo del backend
 
-export const WAKE_TRAINING_URL = `${process.env.EXPO_PUBLIC_BACKEND_URL}/wake-training`;
+export const WAKE_TRAINING_URL = `${BACKEND_URL}/wake-training`;
 
 export async function shareWakeTrainingLink() {
   try {

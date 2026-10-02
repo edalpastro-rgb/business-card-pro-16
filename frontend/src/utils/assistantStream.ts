@@ -5,10 +5,10 @@
 // Web (uses ReadableStream reader). Falls back to a full-buffer parse
 // when a streaming reader is unavailable, so the UX still works.
 
-import { getToken } from "@/src/api";
+import { getToken, BACKEND_URL } from "@/src/api";
 import type { Alarm } from "@/src/alarmNotifs";
 
-const BASE = process.env.EXPO_PUBLIC_BACKEND_URL as string;
+const BASE = BACKEND_URL as string;
 
 export type StreamMeta = {
   session_id?: string;

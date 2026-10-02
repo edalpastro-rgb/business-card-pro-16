@@ -8,7 +8,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system/legacy";
-import { api, getAuthHeader } from "@/src/api";
+import { api, getAuthHeader, BACKEND_URL } from "@/src/api";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type MailAtt = {
@@ -53,7 +53,7 @@ export function ContactMailAttachmentsSection({ contactId }: { contactId: string
 
   const openPreview = async (a: MailAtt) => {
     try {
-      const backend = process.env.EXPO_PUBLIC_BACKEND_URL || "";
+      const backend = BACKEND_URL || "";
       const url = `${backend}/api/contacts/${contactId}/mail-attachments/${a.attachment_id}/download`;
       const auth = await getAuthHeader();
       if (Platform.OS === "web") {

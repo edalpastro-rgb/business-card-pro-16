@@ -10,10 +10,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
 import Constants from "expo-constants";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { BACKEND_URL } from "@/src/api"; // V50.z431 — unico punto che definisce l'indirizzo del backend
 
 // Ricava base URL backend (usa lo stesso approccio di src/api.ts ma senza auth)
 const BACKEND = (
-  process.env.EXPO_PUBLIC_BACKEND_URL ||
+  BACKEND_URL ||
   (Constants?.expoConfig?.extra as any)?.EXPO_PUBLIC_BACKEND_URL ||
   ""
 ).replace(/\/$/, "");

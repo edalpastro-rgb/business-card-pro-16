@@ -5,7 +5,7 @@ import { View, Text, StyleSheet, Pressable, ActivityIndicator, Share, Platform, 
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import Constants from "expo-constants";
-import { api } from "@/src/api";
+import { api, BACKEND_URL } from "@/src/api";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 
@@ -22,7 +22,7 @@ type Me = {
 
 function publicOrigin(): string {
   if (Platform.OS === "web" && typeof window !== "undefined") return window.location.origin;
-  return (Constants.expoConfig?.extra as any)?.backendUrl || process.env.EXPO_PUBLIC_BACKEND_URL || "";
+  return (Constants.expoConfig?.extra as any)?.backendUrl || BACKEND_URL || "";
 }
 
 export function ReferralCard({ showFriends = true }: { showFriends?: boolean }) {

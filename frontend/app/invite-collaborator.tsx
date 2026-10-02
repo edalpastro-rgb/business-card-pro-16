@@ -6,7 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import QRCode from "react-native-qrcode-svg";
 import * as Clipboard from "expo-clipboard";
-import { api } from "@/src/api";
+import { api, BACKEND_URL } from "@/src/api";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
@@ -104,7 +104,7 @@ export default function InviteCollaboratorScreen() {
     } catch (e: any) { notify("Errore", e?.message || ""); } finally { setGenerating(false); }
   };
 
-  const inviteUrl = invite ? `${process.env.EXPO_PUBLIC_BACKEND_URL || ""}/invite/${invite.invite_token}`.replace("/api/invite", "/invite") : "";
+  const inviteUrl = invite ? `${BACKEND_URL || ""}/invite/${invite.invite_token}`.replace("/api/invite", "/invite") : "";
 
   const copy = async () => {
     if (!inviteUrl) return;

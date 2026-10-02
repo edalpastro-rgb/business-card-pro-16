@@ -7,7 +7,7 @@ import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { api } from "@/src/api";
+import { api, BACKEND_URL } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
@@ -20,7 +20,7 @@ type PlansResp = { plans: Plan[]; state: SubscriptionState; is_owner: boolean; s
 
 function originUrl(): string {
   if (Platform.OS === "web" && typeof window !== "undefined") return window.location.origin;
-  return (process.env.EXPO_PUBLIC_BACKEND_URL || "").replace(/\/$/, "");
+  return (BACKEND_URL || "").replace(/\/$/, "");
 }
 
 export default function PaywallScreen() {

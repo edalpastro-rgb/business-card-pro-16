@@ -4,7 +4,7 @@ import { notify } from "@/src/utils/notify";
 import { Platform } from "react-native";
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
-import { api, getToken, setToken, clearToken } from "@/src/api";
+import { api, getToken, setToken, clearToken, BACKEND_URL } from "@/src/api";
 import { storage } from "@/src/utils/storage";
 import { installPrefsSync, restorePrefsFromServer, disablePrefsSync, flush as flushPrefs } from "@/src/utils/prefsSync";
 // V50.z428 — preferenze (PIN, tema, widget sidebar, impostazioni…) specchiate sul server e ripristinate al login
@@ -319,7 +319,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // (l'env di deploy può contenere domini diversi, es. auth.emergent.host → "not found"); redirect per piattaforma;
     // su Android il callback può arrivare da result.url, dal listener `url` o da getInitialURL (dismiss ≠ annullato).
     const AUTH_BASE = "https://auth.emergentagent.com";
-    const DEPLOY_BASE = (process.env.EXPO_PUBLIC_BACKEND_URL || "").replace(/\/+$/, ""); // V50.z373 — nessun host fisso: origine del sito o env di deploy
+    const DEPLOY_BASE = (BACKEND_URL || "").replace(/\/+$/, ""); // V50.z373 — nessun host fisso: origine del sito o env di deploy
     let redirectUrl: string;
     // V50.z430 — Bug 1 (tablet/APK): Chrome Custom Tabs può bloccare il redirect automatico verso «frontend://» (pagina bianca
     // su emergentagent.com). Il redirect passa da una pagina https del backend (/api/auth/app-return) che riapre l'app con il

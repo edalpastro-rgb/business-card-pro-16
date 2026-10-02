@@ -5,9 +5,9 @@ import { View, Text, StyleSheet, Pressable, ActivityIndicator, Platform, Alert }
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import Constants from "expo-constants";
-import { api, getToken } from "@/src/api";
+import { api, getToken, BACKEND_URL } from "@/src/api";
 
-const backendUrl = () => (process.env.EXPO_PUBLIC_BACKEND_URL || (Constants.expoConfig?.extra as any)?.backendUrl || "").replace(/\/$/, "");
+const backendUrl = () => (BACKEND_URL || (Constants.expoConfig?.extra as any)?.backendUrl || "").replace(/\/$/, "");
 import { notify } from "@/src/utils/notify";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 

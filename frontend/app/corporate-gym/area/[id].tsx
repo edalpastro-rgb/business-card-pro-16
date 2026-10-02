@@ -7,7 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import * as FileSystem from "expo-file-system/legacy";
-import { getToken } from "@/src/api"; // V50.z387
+import { getToken, BACKEND_URL } from "@/src/api"; // V50.z387
 import { notify } from "@/src/utils/notify";
 import { pickCommonFile } from "@/src/utils/filePicker";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
@@ -71,7 +71,7 @@ export default function CgymAreaScreen() {
 
   // V50.z400 — STESSO visualizzatore PDF interno dei manuali (nessun PDF esce dall'app) e stesso download (Download / «Salva in…»).
   const openMaterial = async (m: CgaMaterial, download: boolean) => {
-    const rawUrl = `${process.env.EXPO_PUBLIC_BACKEND_URL}/api/cgym/areas/${id}/materials/${m.material_id}/content?raw=1`;
+    const rawUrl = `${BACKEND_URL}/api/cgym/areas/${id}/materials/${m.material_id}/content?raw=1`;
     if (!download) {
       if (Platform.OS === "web") { setBusy(m.material_id); }
       else { const token = await getToken(); openPdfInApp(router, rawUrl, m.name, { authToken: token, downloadUrl: `${rawUrl}&download=1`, mime: m.mime }); return; }
@@ -114,7 +114,7 @@ export default function CgymAreaScreen() {
         created = await cgaApi.addReference(String(id), form);
       } else {
         const token = await getToken();
-        const up = await FileSystem.uploadAsync(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/cgym/areas/${id}/references`, a.uri, {
+        const up = await FileSystem.uploadAsync(`${BACKEND_URL}/api/cgym/areas/${id}/references`, a.uri, {
           httpMethod: "POST", uploadType: FileSystem.FileSystemUploadType.MULTIPART, fieldName: "file",
           mimeType: a.mimeType || "audio/m4a", parameters: { title: a.name || "Trattativa reale" },
           headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -168,7 +168,7 @@ export default function CgymAreaScreen() {
         s = await cgaApi.fromRecordingUpload(form);
       } else {
         const token = await getToken();
-        const up = await FileSystem.uploadAsync(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/cgym/live/from-recording/upload`, a.uri, {
+        const up = await FileSystem.uploadAsync(`${BACKEND_URL}/api/cgym/live/from-recording/upload`, a.uri, {
           httpMethod: "POST", uploadType: FileSystem.FileSystemUploadType.MULTIPART, fieldName: "file",
           mimeType: a.mimeType || "audio/m4a", parameters: { area_id: String(id), title: a.name || "Registrazione", training_level: level },
           headers: token ? { Authorization: `Bearer ${token}` } : {},

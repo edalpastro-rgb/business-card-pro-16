@@ -5,7 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { SettingsGroupButton, SettingsLinkRows, ChangePasswordCard, ChangeEmailCard, SECTION_META, type SettingsSection } from "@/src/SettingsHub"; // V50.z249 · V50.z405 cambio email
-import { api } from "@/src/api";
+import { api, BACKEND_URL } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { theme } from "@/src/theme";
@@ -360,7 +360,7 @@ function ImpostazioniScreen() {
 
   const publicCardUrl = useCallback(() => {
     if (!master?.business_card?.card_id) return "";
-    const backend = process.env.EXPO_PUBLIC_BACKEND_URL || "";
+    const backend = BACKEND_URL || "";
     const slug = master.business_card.slug;
     if (slug) return `${backend}/api/bc/${slug}`;
     return `${backend}/api/master/business-card/public/${master.business_card.card_id}`;
