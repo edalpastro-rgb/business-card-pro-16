@@ -741,7 +741,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
               qa_from_cache: !!qa.from_cache,
             },
           ]);
-          const shouldSpeak = !opts?.textOnly && (opts?.forceSpeak || responseMode === "voice" || responseMode === "both");
+          const shouldSpeak = !opts?.textOnly && (responseMode !== "text" || convModeRef.current) && (opts?.forceSpeak || responseMode === "voice" || responseMode === "both"); // V50.z448 — mai TTS in «solo testo» (salvo conversazione hands-free)
           if (shouldSpeak) {
             void speakReply(qa.reply, undefined, opts?.onSpoken);
           } else if (opts?.onSpoken) {
@@ -768,7 +768,8 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     // V50.z112 — Voce in streaming: le frasi vengono sintetizzate e riprodotte
     // man mano che arrivano i delta (prima frase entro pochi secondi), senza
     // attendere la fine della risposta. Testo e voce procedono in parallelo.
-    const wantSpeech = !opts?.textOnly && !!(opts?.forceSpeak || responseMode === "voice" || responseMode === "both");
+    // V50.z448 — Modalità «solo testo» = NESSUN TTS, nemmeno dopo un dettato (forceSpeak); eccezione: conversazione hands-free attiva.
+    const wantSpeech = !opts?.textOnly && (responseMode !== "text" || convModeRef.current) && !!(opts?.forceSpeak || responseMode === "voice" || responseMode === "both");
     let speaker: SentenceSpeaker | null = null;
     if (wantSpeech) {
       if (cleanupAudioRef.current) { cleanupAudioRef.current(); cleanupAudioRef.current = null; }
@@ -868,6 +869,11 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       // stream non ha prodotto delta, es. risposta non-stream). onSpoken viene
       // chiamato dal SentenceSpeaker alla fine dell'ultimo audio.
       const finalReply = streamResult.reply;
+      if (!finalReply.trim()) {  // V50.z448 — risposta volutamente vuota (es. utente: «ci sto pensando») → rimuovi la bolla placeholder
+        setMessages((prev) => (prev.length && prev[prev.length - 1].role === "assistant" && !(prev[prev.length - 1].content || "").trim() ? prev.slice(0, -1) : prev));
+        if (speaker) { speaker.stop(); speaker = null; }
+        if (opts?.onSpoken) opts.onSpoken();
+      }
       if (speaker) {
         if (finalReply) speaker.finishWith(finalReply);
         else speaker.stop();

@@ -407,7 +407,7 @@ _ENERGY_KEYWORDS = [
     "pun", "gme", "mgp", "gse", "mercato elettrico", "mercato del gas",
     "psv", "ttf", "ipex", "spot", "borsa elettrica",
     # V50.z446 — «borsa dell'energia (elettrica)», «borsa energia», «borsa del gas», «energia elettrica», «prezzo dell'energia», «mercato energetico»
-    "borsa dell'energia", "borsa dell’energia", "borsa energia", "borsa del gas", "borsa gas", "energia elettrica", "prezzo dell'energia",
+    "borsa del gas", "borsa gas", "energia elettrica", "prezzo dell'energia",
     "prezzo dell’energia", "prezzo energia", "prezzo del gas", "prezzo gas", "mercato energetico", "mercato dell'energia", "mercato dell’energia",
     "mercato energia", "prezzo unico nazionale", "zonale", "prezzi zonali", "mgp", "mercato del giorno prima",
     # Regulator + specifics
@@ -423,13 +423,30 @@ _ENERGY_KEYWORDS = [
 ]
 
 
+# V50.z448 — «borsa dell'energia» / «titoli energetici» = QUOTAZIONI AZIONARIE a Piazza Affari (Enel, Terna, A2A, Snam, Italgas, Eni, Hera…),
+# NON il mercato elettrico GME/PUN: niente fonti istituzionali energia, ricerca generale con query arricchita.
+_RX_ENERGY_STOCKS = re.compile(
+    r"borsa\s+(dell'|dell’|dell |della |del |di |sull'|sull’)?\s*energia|titol[oi]\s+energetic\w*|azion[ei]\s+(energetic\w*|enel|terna|a2a|snam|italgas|eni|hera|erg)\b|"
+    r"\b(enel|terna|a2a|snam|italgas|hera|erg)\b.*\b(borsa|azion\w*|titol\w*|quotazion\w*|chiusura|rialzo|ribasso)\b|"
+    r"\b(borsa|azion\w*|titol\w*|quotazion\w*|chiusura|rialzo|ribasso)\b.*\b(enel|terna|a2a|snam|italgas|hera|erg)\b|"
+    r"(comparto|settore|titoli)\s+(energia|energetico|utilities|utility)", re.I)
+_ENERGY_STOCKS_QUERY = "quotazioni oggi Piazza Affari titoli energetici Enel Terna A2A Snam Italgas Eni Hera chiusura rialzo ribasso"
+
+
+def _is_energy_stocks_query(text: str) -> bool:
+    return bool(text) and bool(_RX_ENERGY_STOCKS.search(text))
+
+
 def _detect_energy_query(text: str) -> bool:
     """True when the message mentions Italian energy market data that
     warrants a live Tavily search (PUN, ARERA delibere, tariffs, oneri…).
 
     V38T-fix — Use word-boundary regex so "appuntamento" doesn't match "pun".
+    V50.z448 — «borsa dell'energia» (titoli azionari) NON è mercato elettrico → False (va in ricerca generale finanziaria).
     """
     if not text:
+        return False
+    if _is_energy_stocks_query(text):
         return False
     lower = text.lower()
     import re as _re
@@ -799,6 +816,8 @@ async def _tavily_search_smart(query: str, energy: bool) -> Optional[dict]:
     """V50.z446 — energia + fatto attuale («borsa dell'energia oggi», «PUN di oggi»): fonti istituzionali (ARERA/GME) E web generale
     (quotidiani/portali con il dato del giorno) in parallelo, risultati uniti (istituzionali prima). Altrimenti una sola ricerca."""
     _info = globals().get("_nav_is_info_query")
+    if _is_energy_stocks_query(query):  # V50.z448 — borsa dell'energia = azioni energetiche Piazza Affari
+        return await _tavily_search(f"{query} — {_ENERGY_STOCKS_QUERY}", general=True)
     if not energy:
         return await _tavily_search(query, general=True)
     if not (_info and _info(query)):

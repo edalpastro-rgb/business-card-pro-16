@@ -334,7 +334,7 @@ _RX_INFO_TOPIC = _nav_re.compile(
     r"cambio|euro ?dollaro|dollaro|sterlina|oro|petrolio|brent|inflazione|bce|fed|tassi|quotazion\w*|notizi\w*|news|cronaca|politica|governo|elezion\w*|"
     r"sciopero|traffico|incidente|terremoto|allerta|partita|serie a|champions|campionato|risultat[oi]|classifica|olimpiadi|formula 1|motogp|"
     r"prezzo|prezzi|costa|costano|offerte|sconti|uscita|lancio|film|concerto|evento|festival|sondagg\w*|"
-    r"pun|ipex|gme|mgp|arera|energia elettrica|borsa (dell'|dell’|del |di )?(energia|gas)|mercato (elettrico|energetico|del gas|dell'energia)|prezzo (unico nazionale|dell'energia|del gas)|kwh|mwh|smc)\b", _nav_re.I)  # V50.z446
+    r"pun|ipex|gme|mgp|arera|energia elettrica|borsa (dell'|dell’|del |di )?(energia|gas)|enel|terna|a2a|snam|italgas|hera|titoli energetici|mercato (elettrico|energetico|del gas|dell'energia)|prezzo (unico nazionale|dell'energia|del gas)|kwh|mwh|smc)\b", _nav_re.I)  # V50.z446
 _RX_INFO_TIME = _nav_re.compile(r"\b(oggi|ieri|stamattina|stasera|adesso|ora|attual\w*|ultim[aeio]\w*|in tempo reale|live|aggiornat\w*|com'?[èe] andat[ao]|come (è|e') andat[ao]|cosa (è )?success[oa]|che (è )?success[oa]|novità|recent\w*|questa settimana|questo mese|\d{4})\b", _nav_re.I)
 
 
@@ -812,6 +812,11 @@ _RX_CREATIVE = _nav_re.compile(
 _RX_GREETING = _nav_re.compile(r"\b(grazie|bravo|brava|ottimo lavoro|complimenti|buongiorno|buonasera|buonanotte|ciao|ehi|hey)\b", _nav_re.I)
 
 
+_RX_THINKING_ALOUD = _nav_re.compile(
+    r"^\s*(axon[,!]?\s*)?(ci sto pensando|sto pensando|fammi pensare|lasciami pensare|ci penso|ci devo pensare|devo pensarci|un attimo che penso|"
+    r"sto riflettendo|mi sto organizzando|sto guardando|sto leggendo|sto controllando|vediamo|dunque|allora|mmm+|ehm+|uhm+)[\s.!…,]*$", _nav_re.I)
+
+
 def _nav_is_creative(t: str) -> bool:
     return bool(_RX_CREATIVE.search(t or ""))
 
@@ -856,8 +861,8 @@ async def _nav_intercept(msg: str, user: dict):
         t = (msg or "").strip()
         if not (1 <= len(t) <= 220):
             return None
-        if _RX_WAIT.match(t):
-            return _nav_reply("OK!")
+        if _RX_WAIT.match(t) or _RX_THINKING_ALOUD.match(t):  # V50.z448 — «aspetta» / «ci sto pensando»: non è una domanda → NESSUNA risposta
+            return _nav_reply("")
         # guardie di sicurezza (sempre)
         if _RX_IMPOSSIBLE.search(t) and not _nav_re.search(r"\bneo\b|\bprompt", t, _nav_re.I):
             return _nav_reply("Non posso eseguire questa operazione: è irreversibile o riguarda dati di altre persone e non è consentita dall'assistente. Se vuoi cancellare i tuoi dati, la richiesta ufficiale si fa dall'Help Center.\n" + _nav("/help-center?deletion=1", "🛟 Richiesta cancellazione dati"))
@@ -926,6 +931,8 @@ if _nav_orig_chat is not None:
     async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):  # noqa: F811
         user["_client_ctx"] = body.client_context  # V50.z291
         r = None if _user_product(user) == "lite" else await _nav_intercept(body.message or "", user)  # noqa: F821
+        if r and r.get("reply") == "":  # V50.z448 — silenzio voluto (utente sta pensando): nessun messaggio salvato, nessuna bolla
+            return {"session_id": body.session_id or "", "message_id": "", "reply": "", "used_web_search": False, "web_sources": [], "nav": True, "silent": True}
         if r and r.get("reply") is not None:
             sid = body.session_id or f"asst_{user['user_id']}_{uuid.uuid4().hex[:10]}"
             mid = uuid.uuid4().hex[:16]
