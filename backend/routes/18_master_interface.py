@@ -110,6 +110,7 @@ class AssistantTTSIn(BaseModel):
     text: str
     voice: Optional[str] = None
     speed: Optional[float] = None  # V50.z284 — override velocità (0.5–2.0); default = user_settings.assistant_speech_rate
+    force: bool = False  # V50.z455 — solo test voce nelle Impostazioni: bypassa il blocco server «Solo testo»
 
 
 @api_router.post("/contracts")

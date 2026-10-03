@@ -398,6 +398,53 @@ async def _get_assistant_name(user: dict) -> str:
     return name or "Neo"
 
 
+# ============================================================
+# V50.z455 — FIX SERVER-SIDE (richiesta utente)
+#  1) «Solo testo» = NESSUN audio generato dal backend: ogni sintesi vocale (axon_tts_generate → /assistant/tts, /ai/tts,
+#     Viola/voice-copilot, Corporate Gym) legge user_settings.assistant_response_mode e, se "text", NON produce audio.
+#     Il frontend riceve audio_base64 vuoto + muted=true (nessuna eccezione → nessun fallback alla voce di sistema).
+#  2) Richiesta di un NUMERO DI TELEFONO → la risposta è SOLO il numero (niente fonti, link, chip, testo di contorno).
+# ============================================================
+_RX_PHONE_REQUEST = _wx_re.compile(
+    r"\b(numero (di |del |della |dello |dell')?(telefono|cellulare|fisso|verde|tel\.?)|telefono|cellulare|recapito telefonico|"
+    r"(come|dove) (lo |la |li |le )?(chiamo|contatto|telefono|raggiungo)|(a )?che numero|chiamare|telefonare)\b", _wx_re.I)
+_RX_PHONE_NUMBER = _wx_re.compile(r"(?:(?:\+|00)39[\s.\-]?)?(?:0\d{1,3}|3\d{2}|80[03])[\s.\-]?\d{2,4}(?:[\s.\-]?\d{2,4}){1,2}\b")
+
+
+async def _axon_text_only_mode(user: dict) -> bool:
+    """True se l'utente ha scelto «Solo testo» (default): il backend non deve produrre audio."""
+    try:
+        s = await db.user_settings.find_one({"user_id": user["user_id"]}, {"assistant_response_mode": 1}) or {}
+    except Exception:  # noqa: BLE001 — in dubbio, silenzio
+        return True
+    return (s.get("assistant_response_mode") or "text") == "text"
+
+
+def _axon_is_phone_request(msg: str) -> bool:
+    return bool(msg) and bool(_RX_PHONE_REQUEST.search(msg))
+
+
+def _axon_phone_only_reply(msg: str, reply: str) -> Optional[str]:
+    """Se l'utente ha chiesto un numero di telefono e la risposta ne contiene almeno uno → restituisce SOLO il numero
+    (o i numeri, uno per riga, max 3). None se non applicabile (nessun numero trovato → la risposta resta com'è)."""
+    if not _axon_is_phone_request(msg):
+        return None
+    txt = _wx_re.sub(r"\*\*|__|`", "", reply or "")
+    out: List[str] = []
+    for m in _RX_PHONE_NUMBER.finditer(txt):
+        raw = m.group(0).strip()
+        digits = _wx_re.sub(r"\D", "", raw)
+        if len(digits) < 6 or len(digits) > 13:
+            continue
+        if any(_wx_re.sub(r"\D", "", o) == digits for o in out):
+            continue
+        out.append(raw)
+        if len(out) >= 3:
+            break
+    return "\n".join(out) if out else None
+
+
+
 
 # ============================================================
 # V38T — Neo web-search (Tavily) + persistent memory

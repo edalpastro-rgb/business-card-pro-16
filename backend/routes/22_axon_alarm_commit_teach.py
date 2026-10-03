@@ -863,7 +863,7 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
             chat = chat.with_params(max_tokens=int(prep["max_tokens"]))
 
         collected: List[str] = []
-        _bare = bool(prep.get("data_request"))  # V50.z453 — dato secco: bufferizza e mostra SOLO il dato (niente fonte/link/chip)
+        _bare = bool(prep.get("data_request")) or _axon_is_phone_request(msg)  # noqa: F821 — V50.z453 — dato secco: bufferizza e mostra SOLO il dato (niente fonte/link/chip); V50.z455 anche per richieste di numero di telefono
         try:
             async for ev in chat.stream_message(UserMessage(text=prep["user_prompt"])):
                 if isinstance(ev, TextDelta):
@@ -878,7 +878,14 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
             yield sse("error", {"error": f"Errore LLM: {e}"})
             return
         if _bare:
-            _clean = _nav_bare_datum("".join(collected))  # noqa: F821 — axon_navigator.py
+            _full = "".join(collected)
+            _phone = _axon_phone_only_reply(msg, _full)  # noqa: F821 — V50.z455: numero di telefono → SOLO il numero
+            if _phone:
+                _clean = _phone
+            elif prep.get("data_request"):
+                _clean = _nav_bare_datum(_full)  # noqa: F821 — axon_navigator.py
+            else:
+                _clean = _full
             collected = [_clean]
             used_web_search = False
             web_sources = []

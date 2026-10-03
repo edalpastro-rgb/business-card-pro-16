@@ -51,7 +51,7 @@ export function TtsEngineCard() {
         if (!canDevice) { notify("Axon", "Voce di sistema non disponibile su questo dispositivo."); return; }
         await new Promise<void>((res) => { stopRef.current = deviceTtsSpeak(SAMPLE, { onDone: res, force: true }); });
       } else {
-        const r = await api<{ audio_base64: string; mime: string }>("/assistant/tts", { forceTts: true, method: "POST", body: { text: SAMPLE } });
+        const r = await api<{ audio_base64: string; mime: string }>("/assistant/tts", { forceTts: true, method: "POST", body: { text: SAMPLE, force: true } }); // V50.z455 — force: bypassa anche il blocco server «Solo testo» (solo test voce)
         if (!r?.audio_base64) return;
         if (Platform.OS === "web") {
           await new Promise<void>((res) => {

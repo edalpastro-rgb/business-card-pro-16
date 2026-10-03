@@ -1001,7 +1001,10 @@ if _nav_orig_chat is not None:
         out = await _nav_orig_chat(body, user)
         if isinstance(out, dict) and out.get("reply"):
             out["reply"] = _nav_strip_if_conversation(body.message or "", out["reply"])
-            if _RX_DATA_REQUEST.search(body.message or "") and not _nav_is_creative(body.message or ""):  # V50.z453 — solo il dato
+            _phone = _axon_phone_only_reply(body.message or "", out["reply"])  # noqa: F821 — V50.z455: numero di telefono → SOLO il numero
+            if _phone:
+                out["reply"] = _phone; out["web_sources"] = []; out["used_web_search"] = False
+            elif _RX_DATA_REQUEST.search(body.message or "") and not _nav_is_creative(body.message or ""):  # V50.z453 — solo il dato
                 out["reply"] = _nav_bare_datum(out["reply"]); out["web_sources"] = []; out["used_web_search"] = False
         return out
 

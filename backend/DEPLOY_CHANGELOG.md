@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-03 | D2026.10.03-1152 | Fix server-side: «Solo testo» blocca la sintesi vocale nel backend (axon_tts_generate → /assistant/tts, /ai/tts, Viola, Corporate Gym: audio_base64 vuoto, muted=true; force solo per il test voce); richiesta di un numero di telefono → risposta = SOLO il numero (niente fonti, link, chip o testo di contorno), sia in streaming sia nella chat classica |
 | 2026-10-03 | D2026.10.03-1119 | TTS: controllo isTtsMode() in ogni punto di riproduzione audio (API tts, speaker, player, tasto play, Viola, roleplay) — Solo testo = zero audio senza eccezioni; nuovo tasto «Chiama» accanto ai numeri di telefono trovati |
 | 2026-10-03 | D2026.10.03-1106 | Solo testo = kill-switch TTS globale (zero audio da qualsiasi percorso); richiesta di un dato → mostrato solo il dato, senza fonte, link o pulsanti |
 | 2026-10-03 | D2026.10.03-1051 | 4 bug critici: zero TTS in modalità testo; microfono mai automatico fuori da conversazione/Viola; una sola ricerca web per richiesta; risposte minimaliste (dato secco → solo il dato, tetto token) |

@@ -193,11 +193,16 @@ async def openai_tts(text: str, voice_key: Optional[str], speed: float, lang: st
     return {"audio_base64": base64.b64encode(audio).decode("ascii"), "mime": "audio/mpeg", "voice": vk, "engine": "openai", "lang": lang}
 
 
-async def axon_tts_generate(user: dict, text: str, voice: Optional[str] = None, speed: Optional[float] = None) -> Dict[str, Any]:
-    """Punto unico TTS: legge impostazioni utente (voce, lingua, velocità, motore) → Kokoro locale o OpenAI con fallback."""
+async def axon_tts_generate(user: dict, text: str, voice: Optional[str] = None, speed: Optional[float] = None, force: bool = False) -> Dict[str, Any]:
+    """Punto unico TTS: legge impostazioni utente (voce, lingua, velocità, motore) → Kokoro locale o OpenAI con fallback.
+    V50.z455 — «Solo testo» (assistant_response_mode == "text") → NESSUN audio generato dal server (audio_base64 vuoto, muted=true),
+    qualunque sia il chiamante (/assistant/tts, /ai/tts, Viola, Corporate Gym). `force=True` solo per il test voce nelle Impostazioni."""
     text = (text or "").strip()
     if not text:
         raise HTTPException(status_code=400, detail="Testo mancante")
+    if not force and await _axon_text_only_mode(user):  # noqa: F821 — 19_axon_assistant_core.py
+        return {"audio_base64": "", "mime": "audio/mpeg", "voice": (voice or "").lower() or None, "engine": "none", "muted": True,
+                "reason": "assistant_response_mode=text"}
     s = await db.user_settings.find_one({"user_id": user["user_id"]}, {"assistant_voice": 1, "assistant_speech_rate": 1, "assistant_language": 1, "assistant_tts_engine": 1}) or {}
     vk = (voice or "").strip().lower() or (s.get("assistant_voice") or "sara").lower()
     if vk not in OPENAI_VOICES and vk not in KOKORO_APP_VOICES:

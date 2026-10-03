@@ -268,7 +268,7 @@ async def save_neo_response_to_master(body: SaveNeoResponseIn, user=Depends(get_
 @api_router.post("/assistant/tts")
 async def assistant_tts(body: AssistantTTSIn, user=Depends(get_current_user)):
     """V50.z347 — TTS unificato: Kokoro locale (default) o OpenAI cloud secondo user_settings.assistant_tts_engine, con fallback."""
-    return await axon_tts_generate(user, body.text, body.voice, body.speed)
+    return await axon_tts_generate(user, body.text, body.voice, body.speed, force=bool(body.force))
 
 
 # =========================

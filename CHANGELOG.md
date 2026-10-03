@@ -927,6 +927,8 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z455 | Giu 2026 | **Fix server-side**: «Solo testo» blocca il TTS nel backend (`axon_tts_generate` → audio_base64 vuoto, `muted:true`, su /assistant/tts, /ai/tts, Viola, Corporate Gym; `force` solo test voce) · richiesta di **numero di telefono** → risposta = solo il numero (streaming + chat classica) |
+
 | V50.z437 | Giu 2026 | **TTS**: velocità applicata (tts-1-hd se ≠1.0, `speed` inviato dal client) · **Allegati**: immagine senza testo → analisi vision (prima 400) |
 | V50.z436 | Giu 2026 | **Ruolo Consulente**: `axon_rbac.py` (`can(user, azione)`, middleware 403 su rotte admin), `useRole()` frontend, impostazioni ridotte, Team/inviti con «Consulente» |
 | V50.z434 | Giu 2026 | **Fort Knox registrazione** (challenge monouso, PoW, honeypot, rate limit IP/email, email usa-e-getta, Turnstile opzionale, privacy+newsletter) + **Email di benvenuto** configurabile dal Master (segnaposto, promo, prova) |
