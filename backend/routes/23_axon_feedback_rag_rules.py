@@ -89,6 +89,26 @@ async def assistant_feedback(body: AssistantFeedbackIn, user=Depends(get_current
         upsert=True,
     )
 
+    # V50.z451 — LOG append-only di ogni voto (coppia domanda-risposta + voto): mai sovrascritto, a differenza dell'upsert sopra
+    try:
+        await db.axon_feedback_log.insert_one({
+            "log_id": uuid.uuid4().hex, "user_id": user["user_id"], "tenant_id": tenant_id(user), "message_id": mid, "session_id": session_id,
+            "question": question_text[:2000], "reply": reply_text[:5000], "rating": body.rating, "reason": reason, "comment": comment, "created_at": now,
+        })
+        logger.info("[axon-feedback] %s msg=%s tenant=%s q=«%s» reason=%s", "👍" if body.rating == "up" else "👎", mid, tenant_id(user)[:8], question_text[:60].replace("\n", " "), reason or "-")
+        # 👎 con motivo/commento → correzione per l'apprendimento comportamentale condiviso (anonimizzata dal modulo)
+        if body.rating == "down" and (reason or comment) and "_asl_anonymize" in globals():
+            corr_text = " — ".join(x for x in (reason, comment) if x)
+            await db.axon_behavior_corrections.update_one(
+                {"message_id": mid, "source": "thumbs_down"},
+                {"$setOnInsert": {"correction_id": f"corr_{uuid.uuid4().hex[:12]}", "tenant_id": tenant_id(user), "tenant_hash": _asl_hash_tenant(tenant_id(user)),  # noqa: F821
+                                  "created_at": now, "source": "thumbs_down", "message_id": mid},
+                 "$set": {"user_question": _asl_anonymize(question_text)[:600], "axon_reply": _asl_anonymize(reply_text)[:900],  # noqa: F821
+                          "user_correction": _asl_anonymize("Risposta giudicata sbagliata (👎): " + corr_text)[:400], "status": "pending"}},  # noqa: F821
+                upsert=True)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[axon-feedback] log failed: %s", exc)
+
     # Side-effect: on 👎, invalidate any matching semantic-cache entry so this
     # answer isn't served again to anyone. Only invalidate if it looks like a
     # semantic-cache candidate (short-cut by matching question tokens).

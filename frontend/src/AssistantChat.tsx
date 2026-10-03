@@ -632,6 +632,10 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
         return;
       }
       // rating === "down" → open modal to collect reason + comment
+      // V50.z451 — il voto 👎 viene registrato SUBITO (coppia domanda-risposta nel log), il modal aggiunge solo motivo/commento
+      if (!wasSameRating) {
+        api("/assistant/feedback", { method: "POST", body: { message_id: m.message_id, rating: "down" } }).catch(() => {});
+      }
       setFeedbackReason("");
       setFeedbackComment("");
       setFeedbackDown({ msgIndex: idx, message_id: m.message_id });

@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-03 | D2026.10.03-1032 | Voti 👍/👎 sulle risposte di Axon: coppia domanda-risposta + voto registrata nel log append-only axon_feedback_log (e nei log server); 👎 con motivo alimenta l'apprendimento comportamentale |
 | 2026-10-03 | D2026.10.03-1021 | Verifica Neo: endpoint GET /axon/shared-learning/status (modulo caricato, task 30 min vivo, ultimo/prossimo giro) |
 | 2026-10-03 | D2026.10.03 | Axon non chiede più «Vuoi che cerchi?»: se servono dati esterni cerca subito e risponde con i risultati; domande di conoscenza generale → ricerca web diretta |
 | 2026-10-02 | D2026.10.02-2353 | Solo testo = nessun TTS (anche dopo dettato); «ci sto pensando» dell'utente = nessuna risposta; «borsa dell'energia» = quotazioni titoli energetici Piazza Affari (Enel, Terna, A2A, Snam, Italgas), non GME/PUN |

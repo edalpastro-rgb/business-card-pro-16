@@ -7357,3 +7357,7 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 ## V50.z450 (Giu 2026) — Verifica Neo: stato apprendimento condiviso
 - `GET /axon/shared-learning/status` (Super Master): module_loaded, job_scheduled (task asyncio vivo, nome `axon_shared_learning_job`), job_error, interval_min, started_at/last_run/next_run, runs, last_result, pending_corrections, active_behaviors. `_ASL_STATE` aggiornato dal loop.
 - Verificato in dev: modulo in `routes/__init__.py` (pos. 120, dopo axon_persona), log `[shared-learning] attivo`, status → job_scheduled=true, primo giro dopo 120 s poi ogni 30 min.
+
+## V50.z451 (Giu 2026) — Log voti 👍/👎 (prompt per Neo)
+- Frontend: il 👎 viene inviato SUBITO alla pressione (prima del modal motivo/commento); il modal poi aggiorna motivo/commento. Nessuna modifica visibile.
+- Backend `23_axon_feedback_rag_rules.assistant_feedback`: oltre all'upsert in `assistant_feedback`, nuovo log append-only `axon_feedback_log` (log_id, user/tenant, message_id, session_id, question, reply, rating, reason, comment, created_at) + riga di log `[axon-feedback] 👍/👎 msg=… q=«…»`; 👎 con motivo/commento → `axon_behavior_corrections` (source thumbs_down, anonimizzata) per l'apprendimento condiviso.
