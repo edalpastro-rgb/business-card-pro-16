@@ -1,3 +1,4 @@
+import { isTtsMode } from "@/src/utils/ttsGate"; // V50.z454
 // Corporate Gym — utilità audio isolate per il role-play vocale.
 // Registrazione: web → MediaRecorder; native → expo-audio (AudioRecorder passato dal componente).
 // Riproduzione: web → <audio>; native → expo-audio createAudioPlayer (fine tramite playbackStatusUpdate).
@@ -150,6 +151,7 @@ export function stopPlayback() {
 
 /** Riproduce un audio base64 e risolve quando finisce (o dopo stop). */
 export function playBase64(b64: string, mime = "audio/mpeg"): Promise<void> {
+  if (!isTtsMode()) return Promise.resolve(); // V50.z454 — «Solo testo»: zero audio sintetizzato
   stopPlayback();
   const uri = `data:${mime};base64,${b64}`;
   return new Promise<void>((resolve) => {

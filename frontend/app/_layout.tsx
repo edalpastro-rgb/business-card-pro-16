@@ -1,4 +1,6 @@
 import "@/src/polyfills"; // MUST be first — TextEncoder/TextDecoder polyfill for Hermes (xlsx e altre libs legacy)
+import { loadTtsMuted } from "@/src/utils/ttsGate"; // V50.z454 — stato «Solo testo» pronto prima di qualsiasi audio
+void loadTtsMuted();
 import { Stack, useRouter, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import * as Notifications from "expo-notifications";

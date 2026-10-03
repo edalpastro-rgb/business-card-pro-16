@@ -7,6 +7,10 @@ let muted = false;
 let loaded = false;
 
 export function isTtsMuted(): boolean { return muted; }
+/** true = la sintesi vocale è consentita (modalità voce/entrambi). false = «Solo testo»: NESSUN audio, nessuna eccezione. */
+export function isTtsMode(): boolean { return !muted; }
+/** Sincronizza il gate dalla modalità risposta salvata nelle impostazioni ("text" | "voice" | "both"). */
+export function syncTtsModeFromSetting(mode: string | undefined | null): void { setTtsMuted((mode || "text") === "text"); }
 
 export function setTtsMuted(v: boolean): void {
   muted = v; loaded = true;

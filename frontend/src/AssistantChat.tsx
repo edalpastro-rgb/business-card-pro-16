@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useViolaWakeOptional } from "@/src/violawake/ViolaWakeProvider"; // V50.z452 — gate microfono automatico
-import { setTtsMuted, loadTtsMuted } from "@/src/utils/ttsGate"; // V50.z453
+import { syncTtsModeFromSetting, loadTtsMuted, isTtsMode } from "@/src/utils/ttsGate"; // V50.z453/z454
 import { DeviceEventEmitter, // V50.z315 — prompt vocale ViolaWake a chat già aperta
   View, Text, Pressable, Modal, TextInput, ScrollView, ActivityIndicator, Keyboard, Platform, Image, Alert } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller"; // V50.z374 — behavior "padding" valido su iOS e Android
@@ -203,7 +203,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const [recDuration, setRecDuration] = useState(0);
   const [responseMode, setResponseMode] = useState<ResponseMode>("text");
   const responseModeRef = useRef<ResponseMode>("text"); responseModeRef.current = responseMode; // V50.z452 — leggibile dai callback
-  useEffect(() => { setTtsMuted(responseMode === "text"); }, [responseMode]); // V50.z453 — kill-switch globale TTS
+  useEffect(() => { syncTtsModeFromSetting(responseMode); }, [responseMode]); // V50.z453/z454 — kill-switch globale TTS
   // V28.o — Quick actions personalizzabili (mostrate nell'empty state della chat).
   // `null` = non ancora caricate; array vuoto = utente ha esplicitamente rimosso tutte le azioni.
   const [quickActions, setQuickActions] = useState<{ id: string; label: string; prompt: string }[] | null>(null);  const [assistantVoice, setAssistantVoice] = useState<string>("nova");
@@ -750,7 +750,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
               qa_from_cache: !!qa.from_cache,
             },
           ]);
-          const shouldSpeak = !opts?.textOnly && (responseMode !== "text" || convModeRef.current) && (opts?.forceSpeak || responseMode === "voice" || responseMode === "both"); // V50.z448 — mai TTS in «solo testo» (salvo conversazione hands-free)
+          const shouldSpeak = isTtsMode() && !opts?.textOnly && (responseMode !== "text" || convModeRef.current) && (opts?.forceSpeak || responseMode === "voice" || responseMode === "both"); // V50.z454 // V50.z448 — mai TTS in «solo testo» (salvo conversazione hands-free)
           if (shouldSpeak) {
             void speakReply(qa.reply, undefined, opts?.onSpoken);
           } else if (opts?.onSpoken) {
@@ -778,7 +778,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     // man mano che arrivano i delta (prima frase entro pochi secondi), senza
     // attendere la fine della risposta. Testo e voce procedono in parallelo.
     // V50.z448 — Modalità «solo testo» = NESSUN TTS, nemmeno dopo un dettato (forceSpeak); eccezione: conversazione hands-free attiva.
-    const wantSpeech = !opts?.textOnly && (responseMode !== "text" || convModeRef.current) && !!(opts?.forceSpeak || responseMode === "voice" || responseMode === "both");
+    const wantSpeech = isTtsMode() && !opts?.textOnly && (responseMode !== "text" || convModeRef.current) && !!(opts?.forceSpeak || responseMode === "voice" || responseMode === "both"); // V50.z454 — isTtsMode() esplicito
     let speaker: SentenceSpeaker | null = null;
     if (wantSpeech) {
       if (cleanupAudioRef.current) { cleanupAudioRef.current(); cleanupAudioRef.current = null; }
@@ -1037,6 +1037,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     return out || raw;
   };
   const speakReply = async (text: string, forceIdx?: number, onEnded?: () => void) => {
+    if (!isTtsMode()) { try { onEnded?.(); } catch {} return; } // V50.z454 — «Solo testo»: zero audio, nemmeno dal tasto play
     text = speakableText(text);
     try {
       // Stop any previous playback

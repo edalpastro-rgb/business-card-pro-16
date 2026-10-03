@@ -1,3 +1,4 @@
+import { isTtsMode } from "@/src/utils/ttsGate"; // V50.z454
 import { storage } from "@/src/utils/storage";
 import { emitDeviceSuspended } from "@/src/device"; // V50.z293
 import { emitSubscriptionExpired } from "@/src/paywallEvents"; // V50.z330
@@ -31,6 +32,8 @@ export type ApiOptions = {
   query?: Record<string, string | number | boolean | undefined>;
   // V29.n — Consente al chiamante di passare un AbortSignal per interrompere la richiesta in corso.
   signal?: AbortSignal;
+  // V50.z454 — solo per il test voce nelle Impostazioni: bypassa il blocco TTS di «Solo testo»
+  forceTts?: boolean;
 };
 
 /** V50.z317 — FastAPI 422 restituisce `detail` come lista di oggetti → testo leggibile (evita «[object Object]»). */
@@ -45,6 +48,10 @@ function detailToText(d: unknown, fallback: string): string {
 }
 
 export async function api<T = any>(path: string, opts: ApiOptions = {}): Promise<T> {
+  // V50.z454 — «Solo testo»: NESSUNA sintesi vocale server, da qualsiasi schermata (chat, Viola, tour, attivazione, voce…)
+  if (path.startsWith("/assistant/tts") && !isTtsMode() && !opts.forceTts) {
+    throw new Error("TTS disattivato: modalità Solo testo");
+  }
   const token = await getToken();
   const q = opts.query
     ? "?" +

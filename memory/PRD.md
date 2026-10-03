@@ -4,6 +4,8 @@
 > `core.axonos.cloud` (80.211.27.80): `ssh root@80.211.27.80 'SRC_URL=<EXPO_PACKAGER_PROXY_URL di frontend/.env> KEY=<AXON_PKG_DOWNLOAD_KEY di backend/.env> bash /opt/axon-core/upgrade_vps.sh'`
 > (alla prima volta copiare lo script: `scp deploy/axon-core/scripts/upgrade_vps.sh root@80.211.27.80:/opt/axon-core/`). Pacchetti scaricabili da
 > `GET /api/pkg/axon-core-pkg?key=…` e `/api/pkg/axon-web-pkg?key=…` (attivi solo in dev, `pkg_delivery.py`). I pacchetti sono cumulativi: basta l'ultimo.
+> **Rafforzata dall'utente (2026-10-03)**: DOPO OGNI SINGOLO FIX (non solo a fine sessione) ricostruire SEMPRE entrambi i pacchetti e VERIFICARE che contengano
+> le modifiche (md5 sorgente vs `tar -O` per il backend; `grep` di stringhe nuove nel bundle `entry-*.js` per la web) PRIMA di considerare il lavoro finito.
 
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
 
@@ -7371,3 +7373,7 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 ## V50.z453 (Giu 2026) — Kill-switch TTS globale + dato secco «nudo»
 - `utils/ttsGate.ts`: `isTtsMuted/setTtsMuted/loadTtsMuted` (persistito in AsyncStorage). Gate dentro `playAudioBase64`, `deviceTtsSpeak`, `SentenceSpeaker.feed/finishWith`; `AssistantChat` sincronizza con `responseMode==="text"` e carica lo stato prima delle impostazioni; ViolaWake carica il gate prima di parlare. `force:true` solo per il test voce in Impostazioni (TtsEngineCard).
 - Backend: `prep["data_request"]` → stream (22) bufferizza i delta e emette un solo delta pulito via `_nav_bare_datum` (via marker, grassetti, righe Fonte/🌐/http, max 2 righe), `web_sources=[]`, `used_web_search=False`; stesso trattamento nel non-stream (navigator). Test: «Numero della Pizzeria Da Gigetto» → «0187 66879» senza fonte/link.
+
+## V50.z454 (Giu 2026) — isTtsMode() ovunque + tasto «Chiama»
+- `ttsGate.isTtsMode()` (= !muted), `syncTtsModeFromSetting(mode)`. Gate aggiunto: `api()` blocca ogni POST `/assistant/tts` quando !isTtsMode (tranne `forceTts` del test voce), `speakReply` (anche tasto play), `corporate-gym/voice.playBase64`, oltre a playAudioBase64/deviceTtsSpeak/SentenceSpeaker. `app/_layout.tsx` carica il gate all'avvio; `impostazioni.tsx` sincronizza al caricamento e al cambio modalità. NOTA: su APK vecchio il filler «Ci sto pensando» parlato esiste ancora → serve nuova build.
+- `src/CallChips.tsx`: `extractPhoneNumbers` (fissi 0xxx, mobili 3xx, 800/803, +39/0039; esclude date/importi/POD/IBAN) + chip «Chiama» (`tel:` via Linking, testID `call-chip-<num>`) renderizzato in `ChatBubbles` sotto ogni risposta assistente completata.

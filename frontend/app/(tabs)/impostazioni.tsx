@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { syncTtsModeFromSetting } from "@/src/utils/ttsGate"; // V50.z454
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Image, Share, Platform, Linking } from "react-native";
 import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo attivo sempre visibile
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -330,6 +331,7 @@ function ImpostazioniScreen() {
         const us = await api<{ assistant_name?: string; assistant_response_mode?: string; assistant_voice?: string }>("/user-settings");
         if (us?.assistant_name) setAssistantName(us.assistant_name);
         if (us?.assistant_response_mode) setAssistantMode(us.assistant_response_mode as any);
+        syncTtsModeFromSetting(us?.assistant_response_mode); // V50.z454 — gate TTS globale
         if (us?.assistant_voice) setAssistantVoice(us.assistant_voice);
       } catch {}
     })();
@@ -403,6 +405,7 @@ function ImpostazioniScreen() {
   const saveAssistantMode = async (m: "text" | "voice" | "both") => {
     setAssistantMode(m);
     try {
+      syncTtsModeFromSetting(m); // V50.z454 — «Solo testo» → zero audio immediato, prima ancora del salvataggio
       await api("/user-settings", { method: "PUT", body: { assistant_response_mode: m } });
     } catch {}
   };
