@@ -248,13 +248,20 @@ async def _asl_process_pending(limit: int = 20) -> dict:
     return out
 
 
+_ASL_STATE: dict = {"task": None, "started_at": None, "last_run": None, "next_run": None, "runs": 0, "last_result": None}
+
+
 async def _asl_job_loop():
+    _ASL_STATE["next_run"] = utcnow() + timedelta(seconds=120)
     await asyncio.sleep(120)
     while True:
         try:
-            await _asl_process_pending()
+            _ASL_STATE["last_result"] = await _asl_process_pending()
         except Exception as exc:  # noqa: BLE001
             logger.warning("[shared-learning] job loop error: %s", exc)
+            _ASL_STATE["last_result"] = {"error": str(exc)[:200]}
+        _ASL_STATE["last_run"] = utcnow(); _ASL_STATE["runs"] += 1
+        _ASL_STATE["next_run"] = utcnow() + timedelta(seconds=_ASL_JOB_INTERVAL_SEC)
         await asyncio.sleep(_ASL_JOB_INTERVAL_SEC)
 
 
@@ -270,6 +277,20 @@ class SharedBehaviorPatch(BaseModel):
     status: Optional[Literal["active", "candidate", "rejected"]] = None
     rule: Optional[str] = None
     category: Optional[str] = None
+
+
+@api_router.get("/axon/shared-learning/status")
+async def asl_status(user=Depends(get_current_user)):
+    """V50.z450 — verifica operativa: modulo caricato, task dei 30 min vivo, ultimo/prossimo giro."""
+    _asl_require_super_master(user)
+    t = _ASL_STATE.get("task")
+    iso = lambda d: d.isoformat() if d else None  # noqa: E731
+    return {"module_loaded": True, "job_scheduled": bool(t) and not t.done(), "job_task_done": bool(t) and t.done(),
+            "job_error": (str(t.exception())[:200] if (t and t.done() and not t.cancelled() and t.exception()) else None),
+            "interval_min": _ASL_JOB_INTERVAL_SEC // 60, "started_at": iso(_ASL_STATE.get("started_at")), "last_run": iso(_ASL_STATE.get("last_run")),
+            "next_run": iso(_ASL_STATE.get("next_run")), "runs": _ASL_STATE.get("runs"), "last_result": _ASL_STATE.get("last_result"),
+            "pending_corrections": await db.axon_behavior_corrections.count_documents({"status": "pending"}),
+            "active_behaviors": await db.axon_shared_behaviors.count_documents({"status": "active"})}
 
 
 @api_router.get("/axon/shared-learning")
@@ -342,7 +363,8 @@ async def _asl_startup():
         await db.axon_behavior_corrections.create_index("correction_id", unique=True)
         await db.axon_shared_behaviors.create_index("behavior_id", unique=True)
         await db.axon_shared_behaviors.create_index([("status", 1), ("support_count", -1)])
-        asyncio.create_task(_asl_job_loop())
+        _ASL_STATE["task"] = asyncio.create_task(_asl_job_loop(), name="axon_shared_learning_job")
+        _ASL_STATE["started_at"] = utcnow()
         logger.info("[shared-learning] attivo: job ogni %d min, auto-active conf≥%.2f o ≥%d tenant", _ASL_JOB_INTERVAL_SEC // 60, _ASL_AUTO_ACTIVE_CONFIDENCE, _ASL_AUTO_ACTIVE_TENANTS)
     except Exception as exc:  # noqa: BLE001
         logger.warning("[shared-learning] startup failed: %s", exc)

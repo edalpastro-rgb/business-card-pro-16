@@ -7353,3 +7353,7 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 - `axon_honesty_rule` regola assoluta 10: mai chiedere permesso/proporre ricerche; i dati esterni sono già cercati → rispondere con la sezione web o «Non ho dati aggiornati su questo.»
 - `axon_navigator._RX_INFO_QUESTION`: domande di conoscenza generale («qual è», «come funziona», «quanto costa», «perché», «chi ha», «esiste», «differenza tra»…) senza parole CRM e non creative → `info` → Tavily diretta.
 - `_nav_strip_search_offers` (non-stream): rimuove frasi «Vuoi che controlli/attivi la ricerca…?» residue.
+
+## V50.z450 (Giu 2026) — Verifica Neo: stato apprendimento condiviso
+- `GET /axon/shared-learning/status` (Super Master): module_loaded, job_scheduled (task asyncio vivo, nome `axon_shared_learning_job`), job_error, interval_min, started_at/last_run/next_run, runs, last_result, pending_corrections, active_behaviors. `_ASL_STATE` aggiornato dal loop.
+- Verificato in dev: modulo in `routes/__init__.py` (pos. 120, dopo axon_persona), log `[shared-learning] attivo`, status → job_scheduled=true, primo giro dopo 120 s poi ogni 30 min.
