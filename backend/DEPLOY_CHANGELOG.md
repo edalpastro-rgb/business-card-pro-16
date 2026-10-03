@@ -6,6 +6,8 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-03 | D2026.10.03-1106 | Solo testo = kill-switch TTS globale (zero audio da qualsiasi percorso); richiesta di un dato → mostrato solo il dato, senza fonte, link o pulsanti |
+| 2026-10-03 | D2026.10.03-1051 | 4 bug critici: zero TTS in modalità testo; microfono mai automatico fuori da conversazione/Viola; una sola ricerca web per richiesta; risposte minimaliste (dato secco → solo il dato, tetto token) |
 | 2026-10-03 | D2026.10.03-1032 | Voti 👍/👎 sulle risposte di Axon: coppia domanda-risposta + voto registrata nel log append-only axon_feedback_log (e nei log server); 👎 con motivo alimenta l'apprendimento comportamentale |
 | 2026-10-03 | D2026.10.03-1021 | Verifica Neo: endpoint GET /axon/shared-learning/status (modulo caricato, task 30 min vivo, ultimo/prossimo giro) |
 | 2026-10-03 | D2026.10.03 | Axon non chiede più «Vuoi che cerchi?»: se servono dati esterni cerca subito e risponde con i risultati; domande di conoscenza generale → ricerca web diretta |

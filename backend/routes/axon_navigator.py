@@ -344,6 +344,11 @@ _RX_INFO_QUESTION = _nav_re.compile(
     r"che\s+cos[a']?\s*[èe']|cos'?[èe]\s|chi\s+(è|e'|era|sono|ha)|esiste|conviene|è\s+vero\s+che|differenza\s+tra|significa|vuol\s+dire|cosa\s+(prevede|dice|succede|cambia)\s)", _nav_re.I)
 
 
+_RX_DATA_REQUEST = _nav_re.compile(
+    r"\b(numero (di )?(telefono|cellulare|fisso|verde)|telefono|cellulare|recapito|indirizzo( email| mail| pec)?|e-?mail|pec|orari\w*( di apertura)?|"
+    r"partita iva|p\.? ?iva|codice fiscale|iban|pod|pdr|sito web|a che ora|quando (apre|chiude|scade)|data di (nascita|scadenza)|cap\b|prefisso)\b", _nav_re.I)
+
+
 def _nav_is_info_query(msg: str) -> bool:
     """Domanda informativa / di ricerca generale (NON navigazione, NON dato del CRM)."""
     t = (msg or "").strip()
@@ -471,6 +476,15 @@ async def _prepare_assistant_prompt(user: dict, body) -> dict:  # noqa: F811
             section = ("" if lite else _NAV_NO_MARKER_SECTION) + (_nav_position_section(ctx) if not lite else "")
         if not lite and prep.get("query_class") != "simple":
             section += "\n" + _nav_style_rules(msg)
+        # V50.z452 — RISPOSTE MINIMALISTE: richiesta di un dato secco → istruzione + tetto di token; voce → tetto di token
+        is_data_req = bool(_RX_DATA_REQUEST.search(msg)) and not _nav_is_creative(msg)
+        if is_data_req:
+            section += ("\n\n📌 RICHIESTA DI UN DATO: rispondi SOLO con il dato richiesto (es. «Il numero è 0424 123456.»). Se non lo hai → una sola riga "
+                        "(«Non ho trovato il numero di X.»). VIETATO: elenchi, alternative, spiegazioni, «vuoi che…?», premesse, emoji.\n")
+            prep["max_tokens"] = 70
+            prep["data_request"] = True  # V50.z453 — lo stream mostra SOLO il dato: niente fonte/link/chip
+        if voice_block:
+            prep["max_tokens"] = min(prep.get("max_tokens") or 180, 180)
         prep["system_message"] = voice_block + prep["system_message"] + section + ("\n\n" + voice_block if voice_block else "")
         prep["nav_intent"] = intent
         try:  # telemetria dimensione prompt
@@ -839,6 +853,24 @@ _RX_SEARCH_OFFER = _nav_re.compile(
     r"attivi|attivo|faccia|faccio|fare|effettui|effettuo|avvii|avvio|lanci|lancio|provi|provo)[^\n?]{0,120}?(ricerca|cerc\w*|online|web|internet|aggiornat\w*|dati|fonti|gme|borsa)[^\n?]{0,80}?\?[ \t]*")
 
 
+def _nav_bare_datum(reply: str) -> str:
+    """V50.z453 — risposta a una richiesta di dato secco: solo il dato. Via marker, grassetti, righe «Fonte/Fonti/🌐/http», max 2 righe."""
+    txt = _RX_NAV_MARK.sub("\n", reply or "")
+    txt = _nav_re.sub(r"\*\*|__|`", "", txt)
+    lines = []
+    for ln in txt.splitlines():
+        l = ln.strip()
+        if not l:
+            continue
+        if _nav_re.match(r"^(fonte|fonti|source|sources)\b", l, _nav_re.I) or "http://" in l or "https://" in l or l.startswith(("🌐", "📎", "🔗")):
+            continue
+        l = _nav_re.sub(r"\s*\((?:fonte|fonti|source)[^)]*\)\s*$", "", l, flags=_nav_re.I)
+        lines.append(l)
+        if len(lines) >= 2:
+            break
+    return _nav_strip_search_offers("\n".join(lines).strip()) or (reply or "").strip()
+
+
 def _nav_strip_search_offers(reply: str) -> str:
     """V50.z449 — rimuove frasi tipo «Vuoi che cerchi online?» / «Vuoi che attivi la ricerca web?» (regola assoluta 10)."""
     if not reply or "?" not in reply:
@@ -969,6 +1001,8 @@ if _nav_orig_chat is not None:
         out = await _nav_orig_chat(body, user)
         if isinstance(out, dict) and out.get("reply"):
             out["reply"] = _nav_strip_if_conversation(body.message or "", out["reply"])
+            if _RX_DATA_REQUEST.search(body.message or "") and not _nav_is_creative(body.message or ""):  # V50.z453 — solo il dato
+                out["reply"] = _nav_bare_datum(out["reply"]); out["web_sources"] = []; out["used_web_search"] = False
         return out
 
 

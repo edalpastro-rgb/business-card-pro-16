@@ -1051,6 +1051,9 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         session_id=session_id,
         system_message=system_message,
     ).with_model("anthropic", "claude-sonnet-4-5")
+    _rx_data = globals().get("_RX_DATA_REQUEST")  # V50.z452 — dato secco / voce → risposta minimalista (tetto token)
+    if (_rx_data and _rx_data.search(msg or "")) or (isinstance(body.client_context, dict) and body.client_context.get("voice")):
+        chat = chat.with_params(max_tokens=150)
 
     # Replay history so multi-turn works (LlmChat keeps internal state but we start fresh each request)
     # We prepend history summary to the current user message for continuity

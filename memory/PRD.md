@@ -7361,3 +7361,13 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 ## V50.z451 (Giu 2026) — Log voti 👍/👎 (prompt per Neo)
 - Frontend: il 👎 viene inviato SUBITO alla pressione (prima del modal motivo/commento); il modal poi aggiorna motivo/commento. Nessuna modifica visibile.
 - Backend `23_axon_feedback_rag_rules.assistant_feedback`: oltre all'upsert in `assistant_feedback`, nuovo log append-only `axon_feedback_log` (log_id, user/tenant, message_id, session_id, question, reply, rating, reason, comment, created_at) + riga di log `[axon-feedback] 👍/👎 msg=… q=«…»`; 👎 con motivo/commento → `axon_behavior_corrections` (source thumbs_down, anonimizzata) per l'apprendimento condiviso.
+
+## V50.z452 (Giu 2026) — 4 bug critici voce/ricerca/verbosità
+1. Testo-only: `forceSpeak` da ViolaWake/pending voice ignorato se `responseModeRef.current === "text"`; `wantSpeech`/`shouldSpeak` già gated → zero audio in modalità testo (eccezione: conversazione hands-free attiva).
+2. Microfono: `useNativeBargeIn.active` richiede `autoMicAllowed = convMode || viola.settings.enabled` (via `useViolaWakeOptional`) → nessuna attivazione automatica del microfono fuori da conversazione/«Viola».
+3. Una sola ricerca per richiesta: `_tavily_search_smart` non fa più 2 ricerche parallele (energia+info → una ricerca generale con hint GME/PUN/ARERA). Nessuna ricerca web in background dopo la risposta (i task post-reply sono solo memoria/lezioni).
+4. Minimalismo: regola 6 riscritta (dato secco → solo il dato, una riga se non trovato); `_RX_DATA_REQUEST` → istruzione «RICHIESTA DI UN DATO» + `prep["max_tokens"]=70` (voce ≤180) applicato con `LlmChat.with_params(max_tokens=…)` nello stream (22) e nel non-stream (150). Test: «Numero di telefono del Comune di Bassano» → «0424 519111» (2 parole).
+
+## V50.z453 (Giu 2026) — Kill-switch TTS globale + dato secco «nudo»
+- `utils/ttsGate.ts`: `isTtsMuted/setTtsMuted/loadTtsMuted` (persistito in AsyncStorage). Gate dentro `playAudioBase64`, `deviceTtsSpeak`, `SentenceSpeaker.feed/finishWith`; `AssistantChat` sincronizza con `responseMode==="text"` e carica lo stato prima delle impostazioni; ViolaWake carica il gate prima di parlare. `force:true` solo per il test voce in Impostazioni (TtsEngineCard).
+- Backend: `prep["data_request"]` → stream (22) bufferizza i delta e emette un solo delta pulito via `_nav_bare_datum` (via marker, grassetti, righe Fonte/🌐/http, max 2 righe), `web_sources=[]`, `used_web_search=False`; stesso trattamento nel non-stream (navigator). Test: «Numero della Pizzeria Da Gigetto» → «0187 66879» senza fonte/link.

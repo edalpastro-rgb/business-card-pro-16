@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useViolaWakeOptional } from "@/src/violawake/ViolaWakeProvider"; // V50.z452 — gate microfono automatico
+import { setTtsMuted, loadTtsMuted } from "@/src/utils/ttsGate"; // V50.z453
 import { DeviceEventEmitter, // V50.z315 — prompt vocale ViolaWake a chat già aperta
   View, Text, Pressable, Modal, TextInput, ScrollView, ActivityIndicator, Keyboard, Platform, Image, Alert } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller"; // V50.z374 — behavior "padding" valido su iOS e Android
@@ -200,6 +202,8 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const prog = useAxonProgress(); // V50.z194 — bolla intermedia contestuale dopo 3 s senza risposta
   const [recDuration, setRecDuration] = useState(0);
   const [responseMode, setResponseMode] = useState<ResponseMode>("text");
+  const responseModeRef = useRef<ResponseMode>("text"); responseModeRef.current = responseMode; // V50.z452 — leggibile dai callback
+  useEffect(() => { setTtsMuted(responseMode === "text"); }, [responseMode]); // V50.z453 — kill-switch globale TTS
   // V28.o — Quick actions personalizzabili (mostrate nell'empty state della chat).
   // `null` = non ancora caricate; array vuoto = utente ha esplicitamente rimosso tutte le azioni.
   const [quickActions, setQuickActions] = useState<{ id: string; label: string; prompt: string }[] | null>(null);  const [assistantVoice, setAssistantVoice] = useState<string>("nova");
@@ -260,6 +264,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       // V50.y — Al riavvio della chat, RIPRISTINA l'ultima sessione (persistenza).
       // "Chiudi" NON resetta più: la conversazione precedente rimane disponibile.
       // Solo "Nuova chat" (resetSession) svuota la conversazione.
+      await loadTtsMuted(); // V50.z453 — stato «Solo testo» persistito: nessun audio nemmeno prima che arrivino le impostazioni
       const us = await api<{ assistant_name?: string; assistant_response_mode?: string; assistant_voice?: string; assistant_quick_actions?: { id: string; label: string; prompt: string }[] }>("/user-settings").catch(() => ({} as any));
       setAssistantName(us?.assistant_name || "Neo");
       const m = (us?.assistant_response_mode || "text") as ResponseMode;
@@ -303,7 +308,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       // V50.z196 — Blocco 9: prompt in attesa (tap su bubble/notifica proattiva o voce) → inviato appena la chat è aperta
       const pending = consumePendingPrompt();
       const pendingVoice = consumePendingVoice(); // V50.z315 — ViolaWake → risposta parlata
-      if (pending) setTimeout(() => { void sendRef.current?.(pending, pendingVoice ? { forceSpeak: true } : undefined); }, 900);
+      if (pending) setTimeout(() => { void sendRef.current?.(pending, pendingVoice && responseModeRef.current !== "text" ? { forceSpeak: true } : undefined); }, 900);  // V50.z452
       // V50.z430 — Bug 2: il FAB apre SEMPRE direttamente la chat (rimosso il redirect al primo avvio verso /help-center,
       // che chiudeva la chat e faceva restare il pulsante verde lampeggiante). L'Help Center resta raggiungibile dal menu.
     } else {
@@ -943,7 +948,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     const sub = DeviceEventEmitter.addListener(AXON_OPEN_CHAT_EVENT, () => {
       const p = consumePendingPrompt();
       const v = consumePendingVoice();
-      if (p) void sendRef.current?.(p, v ? { forceSpeak: true } : undefined);
+      if (p) void sendRef.current?.(p, v && responseModeRef.current !== "text" ? { forceSpeak: true } : undefined);  // V50.z452
     });
     return () => sub.remove();
   }, [visible]);
@@ -1116,8 +1121,12 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
 
   // V50.z186 — Stop vocale su Android/iOS: mentre Axon parla il microfono resta in ascolto;
   // "stop/basta/fermati" → si ferma subito; una nuova domanda detta sopra la voce → la invia.
+  // V50.z452 — BUG 2: il microfono si attiva automaticamente SOLO in conversazione hands-free o con «Viola» (ascolto continuo) attivo.
+  // In tutti gli altri casi nessuna cattura automatica (nemmeno barge-in mentre Axon parla): voce solo premendo il microfono.
+  const violaCtx = useViolaWakeOptional();
+  const autoMicAllowed = convMode || !!violaCtx?.settings?.enabled;
   useNativeBargeIn({
-    active: Platform.OS !== "web" && visible && playingIdx !== null && !paused && !recording && !transcribing,
+    active: Platform.OS !== "web" && visible && autoMicAllowed && playingIdx !== null && !paused && !recording && !transcribing,
     onInterrupt: () => { if (speakerRef.current) speakerRef.current.pause(); else stopPlayback(); },
     onStop: () => stopPlayback(),
     onFalseAlarm: () => { speakerRef.current?.resume(); },

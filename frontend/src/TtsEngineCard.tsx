@@ -49,7 +49,7 @@ export function TtsEngineCard() {
     try {
       if (e === "device") {
         if (!canDevice) { notify("Axon", "Voce di sistema non disponibile su questo dispositivo."); return; }
-        await new Promise<void>((res) => { stopRef.current = deviceTtsSpeak(SAMPLE, { onDone: res }); });
+        await new Promise<void>((res) => { stopRef.current = deviceTtsSpeak(SAMPLE, { onDone: res, force: true }); });
       } else {
         const r = await api<{ audio_base64: string; mime: string }>("/assistant/tts", { method: "POST", body: { text: SAMPLE } });
         if (!r?.audio_base64) return;
@@ -61,7 +61,7 @@ export function TtsEngineCard() {
             void el.play().catch(() => res());
           });
         } else {
-          await new Promise<void>((res) => { void playAudioBase64(r.audio_base64, r.mime || "audio/mpeg", res).then((st: any) => { stopRef.current = () => { try { (typeof st === "function" ? st : st?.stop)?.(); } catch {} res(); }; }).catch(() => res()); });
+          await new Promise<void>((res) => { void playAudioBase64(r.audio_base64, r.mime || "audio/mpeg", res, { force: true }).then((st: any) => { stopRef.current = () => { try { (typeof st === "function" ? st : st?.stop)?.(); } catch {} res(); }; }).catch(() => res()); });
         }
       }
     } catch (err: any) { notify("Axon", err?.message || "Anteprima non riuscita"); }

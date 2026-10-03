@@ -859,20 +859,30 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
             session_id=session_id,
             system_message=prep["system_message"],
         ).with_model("anthropic", _model_id)
+        if prep.get("max_tokens"):  # V50.z452 — risposte minimaliste (dato secco / voce)
+            chat = chat.with_params(max_tokens=int(prep["max_tokens"]))
 
         collected: List[str] = []
+        _bare = bool(prep.get("data_request"))  # V50.z453 — dato secco: bufferizza e mostra SOLO il dato (niente fonte/link/chip)
         try:
             async for ev in chat.stream_message(UserMessage(text=prep["user_prompt"])):
                 if isinstance(ev, TextDelta):
                     if ev.content:
                         collected.append(ev.content)
-                        yield sse("delta", {"text": ev.content})
+                        if not _bare:
+                            yield sse("delta", {"text": ev.content})
                 elif isinstance(ev, StreamDone):
                     # end handled below
                     break
         except Exception as e:
             yield sse("error", {"error": f"Errore LLM: {e}"})
             return
+        if _bare:
+            _clean = _nav_bare_datum("".join(collected))  # noqa: F821 — axon_navigator.py
+            collected = [_clean]
+            used_web_search = False
+            web_sources = []
+            yield sse("delta", {"text": _clean})
 
         reply_text = ("".join(collected)).strip() or "Non ho ricevuto una risposta. Riprova."
 

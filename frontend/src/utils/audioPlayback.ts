@@ -1,6 +1,7 @@
 // V50.z311 — estratto da AssistantChat.tsx (nessuna modifica logica)
 import { Platform } from "react-native";
-import { acquireAudio } from "@/src/utils/audioMutex"; // V50.z385 — una sola voce alla volta
+import { acquireAudio } from "@/src/utils/audioMutex";
+import { isTtsMuted } from "@/src/utils/ttsGate"; // V50.z453 // V50.z385 — una sola voce alla volta
 
 /**
  * Cross-platform audio player. Uses <audio> on web, expo-audio on native.
@@ -11,8 +12,13 @@ export type AudioStopper = (() => void) & { pause?: () => void; resume?: () => v
 export async function playAudioBase64(
   b64: string,
   mime: string = "audio/mpeg",
-  onEnded?: () => void
+  onEnded?: () => void,
+  opts?: { force?: boolean }
 ): Promise<AudioStopper> {
+  if (isTtsMuted() && !opts?.force) {  // V50.z453 — «Solo testo»: zero audio, qualunque sia il chiamante
+    try { onEnded?.(); } catch {}
+    const noop: AudioStopper = () => {}; noop.pause = () => {}; noop.resume = () => {}; return noop;
+  }
   // V50.z385 — mutex globale: ferma SEMPRE l'audio precedente prima di partire (qualunque percorso lo abbia avviato)
   let hardStop: () => void = () => {};
   const release = acquireAudio(() => hardStop());

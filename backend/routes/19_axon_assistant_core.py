@@ -822,22 +822,8 @@ async def _tavily_search_smart(query: str, energy: bool) -> Optional[dict]:
         return await _tavily_search(query, general=True)
     if not (_info and _info(query)):
         return await _tavily_search(query)
-    inst, gen = await asyncio.gather(_tavily_search(query), _tavily_search(query, general=True), return_exceptions=True)
-    inst = inst if isinstance(inst, dict) else None
-    gen = gen if isinstance(gen, dict) else None
-    if not inst:
-        return gen
-    if not gen:
-        return inst
-    seen, merged = set(), []
-    for r in (inst.get("results") or []) + (gen.get("results") or []):
-        u = (r.get("url") or "").split("#")[0]
-        if u and u not in seen:
-            seen.add(u); merged.append(r)
-    out = dict(inst); out["results"] = merged[:8]
-    if gen.get("answer"):
-        out["answer"] = ((inst.get("answer") or "") + "\n" + gen["answer"]).strip()
-    return out
+    # V50.z452 — UNA SOLA ricerca per richiesta (prima: 2 in parallelo): generale con hint alle fonti istituzionali
+    return await _tavily_search(f"{query} (GME PUN ARERA dati ufficiali oggi)", max_results=6, general=True)
 
 
 # V50.z438 — Foto multiple → UNICO documento

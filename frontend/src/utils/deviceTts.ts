@@ -1,3 +1,4 @@
+import { isTtsMuted } from "@/src/utils/ttsGate"; // V50.z453
 // deviceTts.ts — V50.z412 — Sintesi vocale «del dispositivo» (motore browser: su Android Chrome = Google TTS it-IT).
 // Selezione automatica della voce italiana di qualità più alta: Google it-IT > altre voci it-IT «network/enhanced» > it-IT generica.
 // Nell'app nativa (iOS/Android build) il motore di sistema richiede il modulo `expo-speech`, NON installabile in questo
@@ -55,7 +56,8 @@ export function deviceTtsStop() {
  * Pronuncia `text` con la voce di sistema. Ritorna una funzione di stop. Nessun ritardo artificiale: parte subito.
  * Le chiamate consecutive vengono accodate dal motore stesso (nessuna pausa tra le frasi).
  */
-export function deviceTtsSpeak(text: string, opts: { rate?: number; onStart?: () => void; onDone: () => void }): () => void {
+export function deviceTtsSpeak(text: string, opts: { rate?: number; onStart?: () => void; onDone: () => void; force?: boolean }): () => void {
+  if (isTtsMuted() && !opts.force) { try { opts.onDone(); } catch {} return () => {}; }  // V50.z453 — «Solo testo»: zero audio
   const synth = (window as any).speechSynthesis;
   const u = new (window as any).SpeechSynthesisUtterance(text);
   u.lang = "it-IT";

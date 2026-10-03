@@ -1,3 +1,4 @@
+import { isTtsMuted } from "@/src/utils/ttsGate"; // V50.z453
 /**
  * SentenceSpeaker — TTS incrementale durante lo streaming della risposta.
  *
@@ -86,6 +87,7 @@ export class SentenceSpeaker {
   get fedLength() { return this.fedChars; }
 
   feed(delta: string) {
+    if (isTtsMuted()) return; // V50.z453 — «Solo testo»: zero audio
     if (this.stopped || !delta) return;
     this.fedChars += delta.length;
     this.buffer += delta;
@@ -103,6 +105,7 @@ export class SentenceSpeaker {
 
   /** Fallback: nessun delta ricevuto (es. risposta non-stream) → parla tutto il testo. */
   finishWith(fullText: string) {
+    if (isTtsMuted()) { this.stop(); try { this.handlers.onEnd?.(); } catch {} return; } // V50.z453 — «Solo testo»: zero audio
     if (this.fedChars === 0 && fullText) this.feed(fullText);
     this.flush();
   }

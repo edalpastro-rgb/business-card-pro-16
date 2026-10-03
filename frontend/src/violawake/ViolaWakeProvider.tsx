@@ -3,6 +3,7 @@
 // → routing deterministico backend → trigger proattivo (source=wake_word) con risposta parlata
 //   oppure chat Axon in modalità voce (comandi liberi: agenda, ricerche web, tutto ciò che sa fare Axon).
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { loadTtsMuted } from "@/src/utils/ttsGate"; // V50.z453
 import { AppState, Platform, Linking } from "react-native";
 import * as Haptics from "expo-haptics";
 import { useAuth } from "@/src/auth";
@@ -130,7 +131,7 @@ export function ViolaWakeProvider({ children }: { children: React.ReactNode }) {
       const r = await violaApi.tts(text.slice(0, 600));
       if (r?.audio_base64) {
         await new Promise<void>((resolve) => {
-          playAudioBase64(r.audio_base64, r.mime || "audio/mpeg", () => resolve()).catch(() => resolve());
+          (async () => { await loadTtsMuted(); return playAudioBase64(r.audio_base64, r.mime || "audio/mpeg", () => resolve()); })().catch(() => resolve());  // V50.z453 — rispetta «Solo testo»
         });
       }
     } catch { /* senza audio: resta il testo nella pill */ }
