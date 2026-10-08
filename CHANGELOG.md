@@ -927,6 +927,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z480 | Giu 2026 | **Fix crash web calcolatrice** («pathname is not defined»: `useSafePathname()` anche in CalculatorModal) + **FAB calcolatrice su desktop** spostato nella sidebar (non copre più la card Scadenze). |
 | V50.z479 | Giu 2026 | **Home web a 2 colonne allineate** (Statistiche a destra, colonne stesse altezze) + **«Carica cartella»** (Android + desktop) in tutti gli upload: File contatto, allegati contatto/appuntamento, Master Files (file e fatture), Bollette bulk, Knowledge Base, Corsi (`src/utils/folderPicker.ts`). |
 
 | V50.z477 | Giu 2026 | **Export Cruscotto Beta** per partner/investitori: `GET /admin/beta/export.pdf` (report A4 reportlab: verdetto, 10 metriche, frasi non capite, NPS, programma, diari) e `GET /admin/beta/export.csv` (Excel, `;`); chip «Report PDF» / «Dati CSV» in `/admin/beta` (web download · nativo condivisione). |

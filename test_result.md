@@ -553,3 +553,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z479 — (A) Home web: DesktopGrid alignItems stretch + ultima sezione per colonna flexGrow + prop `assign` (home: [0,1,0,1,1] → Statistiche a destra con Appuntamenti+Scadenze, come da commento). (B) «Carica cartella» ovunque: src/utils/folderPicker.ts (web desktop webkitdirectory · Android Directory.pickDirectoryAsync SAF · iOS/browser mobile nascosto) integrato in contact/[id] (File), contact/new (allegati note/email), appointment/new (allegati), master-files (file + bollette), BillsSection (bulk fatture), KbUploadSourceSheet (sorgente Cartella), courses/new (allegati). tsc: nessun nuovo errore; preview web non loggabile (VPS) → verifica visiva utente."
+
+  - agent: "main"
+    message: "V50.z480 — Crash web «pathname is not defined» (CalculatorFAB): root cause = `pathname` usato in CalculatorModal (riga `if (!mounted || pathname === '/voice-enroll')`) ma definito solo nel componente CalculatorFAB → ReferenceError appena la calcolatrice si apre (il fix z466 aveva reso safe solo il FAB). Ora CalculatorModal chiama useSafePathname(). FAB desktop: default dentro la sidebar sopra utente/Esci (chiave AsyncStorage separata _desktop) → non copre più la card Scadenze. Pacchetti rigenerati."

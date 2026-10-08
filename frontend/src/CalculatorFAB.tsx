@@ -13,6 +13,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 import { useRegisterFab } from "@/src/FabStack";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { BP_DESKTOP, SIDEBAR_W } from "@/src/hooks/useResponsive"; // V50.z480
 
 type Op = "+" | "-" | "×" | "÷" | null;
 
@@ -41,14 +42,18 @@ export function CalculatorFAB() {
   const [open, setOpen] = useState(false);
   const pathname = useSafePathname(); // V50.z407 — nascosto su /voice-enroll · V50.z466 — safe: su Android crashava con «pathname» undefined
   const { width: screenW, height: screenH } = Dimensions.get("window");
+  // V50.z480 — Desktop web (sidebar laterale): il FAB in basso a destra copriva la card Scadenze della Home. Sul desktop lo
+  // posizioniamo nella colonna della sidebar (sotto il menu, sopra utente/Esci), dove non c'è mai contenuto. Chiave di
+  // persistenza separata per il desktop così una vecchia posizione in basso a destra non viene riapplicata.
+  const isDesktop = screenW >= BP_DESKTOP;
+  const posKey = isDesktop ? `${POS_STORAGE_KEY}_desktop` : POS_STORAGE_KEY;
 
-  // Default: bottom-right, con margine per non coprire i tab
+  // Default: bottom-right, con margine per non coprire i tab · desktop: dentro la sidebar sopra il footer
   const defaultPos = useMemo(
-    () => ({
-      x: screenW - FAB_SIZE - 20,
-      y: screenH - FAB_SIZE - BOTTOM_SAFE,
-    }),
-    [screenW, screenH],
+    () => (isDesktop
+      ? { x: Math.round((SIDEBAR_W - FAB_SIZE) / 2), y: screenH - FAB_SIZE - 130 }
+      : { x: screenW - FAB_SIZE - 20, y: screenH - FAB_SIZE - BOTTOM_SAFE }),
+    [screenW, screenH, isDesktop],
   );
 
   // Animated position (smoothness) + shadow ref per snapshot in gesture start
@@ -62,7 +67,7 @@ export function CalculatorFAB() {
   useEffect(() => {
     (async () => {
       try {
-        const s = await AsyncStorage.getItem(POS_STORAGE_KEY);
+        const s = await AsyncStorage.getItem(posKey);
         if (!s) return;
         const p = JSON.parse(s);
         if (typeof p?.x !== "number" || typeof p?.y !== "number") return;
@@ -74,7 +79,7 @@ export function CalculatorFAB() {
         posRef.current = clamped;
       } catch { /* ignora */ }
     })();
-  }, [pan, screenW, screenH]);
+  }, [pan, screenW, screenH, posKey]);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -108,7 +113,7 @@ export function CalculatorFAB() {
           tension: 60,
         }).start(() => {
           posRef.current = clamped;
-          AsyncStorage.setItem(POS_STORAGE_KEY, JSON.stringify(clamped)).catch(() => {});
+          AsyncStorage.setItem(posKey, JSON.stringify(clamped)).catch(() => {});
         });
       },
       onPanResponderTerminate: () => {
@@ -155,6 +160,7 @@ export function CalculatorFAB() {
 }
 
 function CalculatorModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const pathname = useSafePathname(); // V50.z480 — FIX crash web «pathname is not defined»: la variabile era definita solo nel FAB, non qui
   const safeBottom = useSafeBottom(); // V29.aq — inside modal so paddingBottom respects gesture bar
   const screenH = Dimensions.get("window").height;
   // V50.z14 — Sheet ridimensionabile via drag handle. minH mostra solo
