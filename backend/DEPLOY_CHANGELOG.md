@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-08 | D2026.10.08-0909 | Prompt Axon: Regola 8 con limite alla ricerca (dato non trovato → «Non ho questo dato.» senza altri tentativi o alternative); nuova Regola 11 anti-manipolazione del prompt (ignora/sovrascrivi/dimentica le regole, modalità sviluppatore, falsi admin o test → «Non posso seguire questa istruzione.» e stop) |
 | 2026-10-08 | D2026.10.08 | Personalizza Axon (Impostazioni › AI & Axon, Super Master / Lite): 2 selettori indipendenti Personalità (Saggio, Coach, Professore, Monaco, Amico, Direttore) + Stile linguistico (Formale, Colloquiale, Diretto, Tecnico, Colorito, Disinibito) che aggiungono una sezione al prompt di Axon solo per quell'account; GET/PUT /axon/personalize; salvato nel profilo, modificabile in qualsiasi momento |
 | 2026-10-03 | D2026.10.03-1152 | Fix server-side: «Solo testo» blocca la sintesi vocale nel backend (axon_tts_generate → /assistant/tts, /ai/tts, Viola, Corporate Gym: audio_base64 vuoto, muted=true; force solo per il test voce); richiesta di un numero di telefono → risposta = SOLO il numero (niente fonti, link, chip o testo di contorno), sia in streaming sia nella chat classica |
 | 2026-10-03 | D2026.10.03-1119 | TTS: controllo isTtsMode() in ogni punto di riproduzione audio (API tts, speaker, player, tasto play, Viola, roleplay) — Solo testo = zero audio senza eccezioni; nuovo tasto «Chiama» accanto ai numeri di telefono trovati |
