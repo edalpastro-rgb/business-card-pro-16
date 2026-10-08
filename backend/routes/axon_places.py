@@ -1,6 +1,6 @@
 # axon_places.py — V50.z469 — Feature 6/15: Google Places autocomplete indirizzi — modulo ISOLATO
 #
-# La chiave `GOOGLE_PLACES_API_KEY` resta SOLO lato server: l'app chiama questi endpoint (bearer utente) e il backend parla con
+# La chiave `PLACES_API_KEY` (alias legacy `GOOGLE_PLACES_API_KEY`) resta SOLO lato server: l'app chiama questi endpoint (bearer utente) e il backend parla con
 # Google Places API (New). Usato da: anagrafica contatti (`contact/new`), appuntamenti (`appointment/new`), onboarding/anagrafica Master.
 #   GET /places/autocomplete?q=via roma 10 tre&session=<uuid>  → {suggestions:[{place_id, text, main, secondary}], enabled}
 #   GET /places/details?place_id=…&session=<uuid>               → {formatted, street, number, zip, city, province, country, lat, lon}
@@ -9,7 +9,7 @@
 import os as _plc_os
 import time as _plc_time
 
-_PLC_KEY = (_plc_os.environ.get("GOOGLE_PLACES_API_KEY") or "").strip()
+_PLC_KEY = (_plc_os.environ.get("PLACES_API_KEY") or _plc_os.environ.get("GOOGLE_PLACES_API_KEY") or "").strip()  # V50.z471 — sul VPS la chiave si chiama PLACES_API_KEY
 _PLC_AC_URL = "https://places.googleapis.com/v1/places:autocomplete"
 _PLC_DET_URL = "https://places.googleapis.com/v1/places/{pid}"
 _plc_cache: Dict[str, Tuple[float, dict]] = {}  # chiave → (ts, payload) — cache 10 min (stesse digitazioni ripetute)
@@ -59,7 +59,7 @@ def _plc_parse_components(comps: List[dict]) -> dict:
 async def places_autocomplete(q: str = "", session: str = "", user=Depends(get_current_user)):
     q = (q or "").strip()
     if not _PLC_KEY:
-        return {"enabled": False, "suggestions": [], "reason": "GOOGLE_PLACES_API_KEY non configurata"}
+        return {"enabled": False, "suggestions": [], "reason": "PLACES_API_KEY non configurata"}
     if len(q) < 3:
         return {"enabled": True, "suggestions": []}
     ck = f"ac:{q.lower()}"
@@ -93,7 +93,7 @@ async def places_autocomplete(q: str = "", session: str = "", user=Depends(get_c
 @api_router.get("/places/details")
 async def places_details(place_id: str, session: str = "", user=Depends(get_current_user)):
     if not _PLC_KEY:
-        raise HTTPException(status_code=503, detail="GOOGLE_PLACES_API_KEY non configurata")
+        raise HTTPException(status_code=503, detail="PLACES_API_KEY non configurata")
     pid = re.sub(r"[^A-Za-z0-9_\-]", "", place_id or "")[:200]
     if not pid:
         raise HTTPException(status_code=400, detail="place_id mancante")

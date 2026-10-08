@@ -14,6 +14,9 @@ Quando l'utente scrive «Neo, leggi i prompt in coda» (o simili), esegui SUBITO
 `python3 /app/scripts/neo_queue.py list` → `show #N` → esegui il task → `done #N "nota"` (o `reject #N "motivo"`, `read #N`).
 I prompt sono salvati da Axon in `master_files` con `category: "neo_prompts"`, `neo_status: pending|read|done|rejected`, `neo_seq`, `neo_note`. Axon mostra lo stato all'utente con «stato prompt Neo».
 
+## V50.z471 (Giu 2026) — Google Places: variabile `PLACES_API_KEY`
+- Sul VPS la chiave si chiama `PLACES_API_KEY`: `axon_places.py` legge `PLACES_API_KEY` (fallback `GOOGLE_PLACES_API_KEY`); `.env` dev e `.env.example` aggiornati; docker-compose usa `env_file: .env` quindi la variabile arriva al container. Verificato: autocomplete + details rispondono 200 (Places API New ora abilitata). Pacchetto core rigenerato.
+
 ## V50.z470 (Giu 2026) — Fix Android «Scegli cartella» (Importazione clienti)
 - Causa: `app/contact/import-folder.tsx` importa `expo-file-system` (API nuova, modulo nativo `ExpoFileSystem` con `pickDirectoryAsync`) ma la route viene valutata solo alla navigazione → su Android il modulo nasceva ad Activity già RESUMED e il suo ActivityResultLauncher non era registrato («ActivityResultLauncher is registered before calling launch()»). Le altre schermate usano `expo-file-system/legacy` (modulo `ExponentFileSystem`, diverso).
 - Fix (stessa soluzione del Prompt 23.a / V50.z462 per expo-image-picker): `import "expo-file-system"` statico in `app/_layout.tsx` (registrazione all'avvio) + retry singolo dopo 350 ms in `pickMobileFolder` se l'errore è «launcher/register/rejected». Nessun'altra modifica. Pacchetti rigenerati. Verifica solo su build Android.
