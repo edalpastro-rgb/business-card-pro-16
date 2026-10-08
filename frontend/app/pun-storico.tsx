@@ -13,6 +13,7 @@ import { api, BACKEND_URL, getAuthHeader } from "@/src/api";
 import { HT } from "@/src/homeTheme";
 import { notify } from "@/src/utils/notify";
 import { fetchOrgSignature } from "@/src/BrandHeaderImage";
+import { track } from "@/src/utils/beta"; // V50.z474
 
 type Row = { month_key: string; label: string; available: boolean; F1: number | null; F2: number | null; F3: number | null; monorario: number | null; delta_pct: number | null; is_max: string[]; is_min: string[]; kind: "closed" | "partial" | "forecast" | "provisional"; basis?: string; days?: number };
 type History = { months: number; unit: string; rows: Row[]; missing: string[]; cache_updated_at: string | null; source: string };
@@ -57,7 +58,7 @@ export default function PunStoricoScreen() {
     catch (e: any) { notify("Storico PUN", e?.message || "Dati non disponibili"); }
     finally { setLoading(false); setRefreshing(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); track("pun_history"); }, [load]);
 
   const rowsDesc = useMemo(() => (data ? [...data.rows].reverse() : []), [data]); // più recente in alto (mobile-friendly)
 

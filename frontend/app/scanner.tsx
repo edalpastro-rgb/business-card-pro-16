@@ -8,6 +8,7 @@ import { api } from "@/src/api";
 import { DocumentScannerModal } from "@/src/DocumentScannerModal";
 import { ModuleErrorBoundary } from "@/src/shared";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { track } from "@/src/utils/beta"; // V50.z474
 
 /**
  * V50.z50 — Scanner standalone (Utility).
@@ -16,6 +17,7 @@ import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
  * indipendente dall'upload bolletta.
  */
 export default function ScannerRoute() {
+  React.useEffect(() => { track("scanner"); }, []); // V50.z474 — Beta: feature usata
   return (
     <ModuleErrorBoundary moduleName="scanner">
       <ScannerScreen />

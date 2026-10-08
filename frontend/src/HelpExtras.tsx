@@ -22,6 +22,23 @@ export function PreReportNotice() {
   );
 }
 
+/** V50.z474 — Beta sul campo: invito al sondaggio NPS («Dicci la tua»). Evidenziato quando il Master ha attivato un'ondata non ancora risposta. */
+export function BetaNpsCard() {
+  const router = useRouter();
+  const [pending, setPending] = useState(false);
+  React.useEffect(() => { api<{ show: boolean }>("/beta/nps/status").then((r) => setPending(!!r.show)).catch(() => {}); }, []);
+  return (
+    <Pressable onPress={() => router.push("/beta-nps" as any)} style={[s.card, { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 10, borderColor: pending ? HT.brand : HT.border }]} testID="help-nps-card">
+      <View style={{ width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: HT.brandTint }}><Ionicons name="heart-half" size={20} color={HT.brand} /></View>
+      <View style={{ flex: 1 }}>
+        <Text style={s.title}>Dicci la tua{pending ? " · richiesta aperta" : ""}</Text>
+        <Text style={s.sub}>2 minuti: quanto consiglieresti AdvisorOS, cosa ti fa risparmiare tempo, cosa ti fa arrabbiare.</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={HT.muted} />
+    </Pressable>
+  );
+}
+
 export function SuggestionForm() {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);

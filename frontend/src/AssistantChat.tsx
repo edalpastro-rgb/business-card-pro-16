@@ -20,6 +20,7 @@ import { useRouter, usePathname, useGlobalSearchParams } from "expo-router";
 import { api } from "@/src/api";
 import { lookupDeviceContact } from "@/src/utils/deviceContacts"; // V50.z469 — Feature 7: rubrica telefono
 import { vaultContextForMessage } from "@/src/personalVault"; // V50.z469 — Feature 13/14
+import { track } from "@/src/utils/beta"; // V50.z474 — Beta: messaggi dettati
 import { deviceTtsAvailable, deviceTtsSpeak } from "@/src/utils/deviceTts"; // V50.z412
 import { SentenceSpeaker, cleanForSpeech } from "@/src/utils/sentenceSpeaker";
 import { acquireAudio } from "@/src/utils/audioMutex"; // V50.z385 — una sola voce alla volta
@@ -794,6 +795,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     // man mano che arrivano i delta (prima frase entro pochi secondi), senza
     // attendere la fine della risposta. Testo e voce procedono in parallelo.
     // V50.z448 — Modalità «solo testo» = NESSUN TTS, nemmeno dopo un dettato (forceSpeak); eccezione: conversazione hands-free attiva.
+    if (opts?.forceSpeak) track("voice_message"); // V50.z474 — forceSpeak = messaggio arrivato dal dettato/ViolaWake
     const wantSpeech = isTtsMode() && !opts?.textOnly && (responseMode !== "text" || convModeRef.current) && !!(opts?.forceSpeak || responseMode === "voice" || responseMode === "both"); // V50.z454 — isTtsMode() esplicito
     let speaker: SentenceSpeaker | null = null;
     if (wantSpeech) {

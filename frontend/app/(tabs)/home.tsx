@@ -1,10 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { track } from "@/src/utils/beta"; // V50.z474
+let npsInviteShown = false; // V50.z474 — invito NPS mostrato una sola volta per avvio
 import { View, Text, StyleSheet, Pressable, RefreshControl, ActivityIndicator, ScrollView, Image, ImageBackground, Platform, Animated, Easing, Alert, AppState } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect, useRootNavigationState, usePathname, useLocalSearchParams } from "expo-router";
 import Svg, { Circle, G } from "react-native-svg";
 import { api } from "@/src/api";
+import { notify } from "@/src/utils/notify"; // V50.z474
 import { useAuth } from "@/src/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CallActionSheet, CallTarget } from "@/src/CallActionSheet";
@@ -163,6 +166,17 @@ export default function HomeScreen() {
   const homeScrollRef = useRef<ScrollView | null>(null);
   const sectionY = useRef<Record<string, number>>({});
   const onSectionLayout = (key: string) => (e: any) => { sectionY.current[key] = e.nativeEvent.layout.y; };
+  // V50.z474 — Beta sul campo: evento app_open (1/giorno) + invito al sondaggio NPS se il Master ha attivato un'ondata (una volta per avvio)
+  useEffect(() => {
+    track("app_open");
+    if (npsInviteShown) return;
+    npsInviteShown = true;
+    api<{ show: boolean }>("/beta/nps/status").then((r) => {
+      if (!r.show) return;
+      notify("Dicci la tua (2 minuti)", "Il tuo Master ti chiede un parere su AdvisorOS: quanto lo consiglieresti e cosa migliorare.", [{ text: "Più tardi", style: "cancel" }, { text: "Rispondi", onPress: () => router.push("/beta-nps" as any) }]);
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useEffect(() => {
     if (!sectionParam) return;
     if (sectionParam === "comunica") { setCompanySheetOpen(true); return; }

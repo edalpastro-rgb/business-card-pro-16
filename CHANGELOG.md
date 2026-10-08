@@ -927,6 +927,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z474 | Giu 2026 | **Beta sul campo**: sondaggio NPS in-app (`/beta-nps`: 0-10, consiglieresti?, meglio/peggio, fascia prezzo opzionale; invito in Home e card Help) + **Cruscotto Beta** nel Pannello Master (`/admin/beta`: 10 metriche con soglie e verdetto GO/ITERA/RIPENSA, ondate NPS, commenti). Backend `axon_beta.py` (eventi d'uso, NPS, dashboard). Documento `MERCATO_E_BETA.md` scaricabile. |
 | V50.z472 | Giu 2026 | **Report antivirus** (Pannello Master › «Report antivirus», `/admin/upload-guard`): elenco file rifiutati dall'upload guard con data, utente, file, motivo (formato/dimensione/virus/AV offline), MIME dichiarato vs reale, endpoint; stato ClamAV e contatori 30 gg. Backend: log `axon_upload_guard_log` + middleware contesto utente, `GET /admin/upload-guard/rejections`. |
 | V50.z471 | Giu 2026 | **Google Places**: chiave letta da `PLACES_API_KEY` (nome usato sul VPS; alias `GOOGLE_PLACES_API_KEY`), `.env.example` aggiornato; autocomplete/details verificati 200. |
 | V50.z470 | Giu 2026 | **Fix Android «Scegli cartella» (Importazione clienti)**: `import "expo-file-system"` statico in `app/_layout.tsx` (launcher SAF registrato all'avvio, come Prompt 23.a per image-picker) + retry singolo 350 ms in `pickMobileFolder`. |

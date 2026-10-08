@@ -15,7 +15,7 @@ import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { SupportForm } from "@/src/SupportFab";
-import { PreReportNotice, SuggestionForm, SupportContacts } from "@/src/HelpExtras"; // V50.z464 — avviso + consigli + contatti
+import { PreReportNotice, SuggestionForm, SupportContacts, BetaNpsCard } from "@/src/HelpExtras"; // V50.z464 — avviso + consigli + contatti · V50.z474 NPS
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 export default function HelpTabScreen() {
@@ -61,6 +61,7 @@ export default function HelpTabScreen() {
       {/* V50.z464 — 2) Invia un consiglio */}
       <Text style={styles.sectionLabel}>INVIA UN CONSIGLIO</Text>
       <SuggestionForm />
+      <BetaNpsCard />{/* V50.z474 — sondaggio NPS (Beta sul campo) */}
 
       {/* V50.z464 — 3) Contatti di supporto */}
       <Text style={styles.sectionLabel}>CONTATTI DI SUPPORTO</Text>

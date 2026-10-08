@@ -126,6 +126,7 @@ MODULES = [
     "axon_help_links.py",  # V50.z469 — Feature 12: Axon ↔ Libretto (APP_MAP «Guida», prompt chip [[NAV:/libretto?section=id]], «apri il libretto su…», GET /libretto/index); DOPO navigator+omniscience
     "axon_personal_vault.py",  # V50.z469 — Feature 13/14: Spazio Personale Anagrafica (dati SOLO on-device): prompt con client_context.personal_vault per la singola risposta (Super Master)
     "axon_upload_guard.py",  # V50.z469 — Feature 15: whitelist upload per magic bytes (jpg/png/pdf + audio), limiti, antivirus ClamAV (clamd INSTREAM); wrap _put_object_sync/_upl_stream_to_temp/POST /master-files; GET /admin/upload-guard/status
+    "axon_beta.py",  # V50.z474 — Beta sul campo: POST /beta/event, NPS (/beta/nps*), GET /admin/beta/dashboard (10 metriche), POST /admin/beta/nps-wave
     "axon_watchdog.py",  # V50.z469 — Feature 8: watchdog Axon (first-token 10s + retry, event-loop stall → riavvio processo, POST /axon/watchdog/recover, GET /axon/watchdog/status)
     "axon_agent.py",  # V50.z458 — Prompt 19: agenti autonomi multi-step (piano LLM → esecuzione sequenziale verificata → riepilogo; stop+«come procedo?» su errore; chat + voce)
     "axon_emergency.py",  # V50.z460 — Prompt 22: emergenze → ricalcolo agenda (slot liberi, scuse con tono personalità, roadmap, cascata, conferma unica, push prioritaria)
