@@ -1680,6 +1680,12 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     try {
       if (mrRef.current && mrRef.current.state !== "inactive") mrRef.current.stop();
     } catch {}
+    // V50.z478 — Web: rilascia SUBITO il microfono (prima i track venivano fermati solo in onstop → pallino rosso
+    // di Chrome acceso ~2 s dopo il tap). rec.stop() ha già richiesto l'ultimo chunk, quindi nulla va perso.
+    if (streamRef.current) {
+      try { streamRef.current.getTracks().forEach((t) => t.stop()); } catch {}
+      streamRef.current = null;
+    }
   };
   stopRecRef.current = stopRec;
 

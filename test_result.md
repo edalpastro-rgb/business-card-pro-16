@@ -547,3 +547,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z477 — Export Cruscotto Beta: GET /admin/beta/export.csv e /admin/beta/export.pdf (reportlab platypus) in axon_beta.py; chip Report PDF / Dati CSV in app/admin/beta.tsx (web download, nativo downloadAsync+Sharing). pytest tests/test_v50z477_beta_export.py 3/3 + PDF verificato visivamente (2 pagine). Pacchetti VPS rigenerati."
+
+  - agent: "main"
+    message: "V50.z478 — Bug web: dopo tap su stop del mic singolo (AssistantChat.stopRec) i track del getUserMedia venivano chiusi solo in onstop/handleStop → pallino rosso Chrome acceso ~2 s. Ora stopRec su web ferma subito i track dopo rec.stop(). Solo frontend; pacchetti VPS rigenerati."

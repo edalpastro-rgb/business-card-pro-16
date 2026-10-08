@@ -14,6 +14,10 @@ Quando l'utente scrive «Neo, leggi i prompt in coda» (o simili), esegui SUBITO
 `python3 /app/scripts/neo_queue.py list` → `show #N` → esegui il task → `done #N "nota"` (o `reject #N "motivo"`, `read #N`).
 I prompt sono salvati da Axon in `master_files` con `category: "neo_prompts"`, `neo_status: pending|read|done|rejected`, `neo_seq`, `neo_note`. Axon mostra lo stato all'utente con «stato prompt Neo».
 
+## V50.z478 (Giu 2026) — Bug web: stop microfono (dettatura singola) non immediato (~2 s)
+- Causa: in `AssistantChat.tsx` `stopRec()` su web chiamava solo `MediaRecorder.stop()`; i track del `getUserMedia` venivano chiusi solo nel callback `onstop` → `handleStop`, quindi Chrome teneva il mic (pallino rosso) aperto ~2 s. Fix: `stopRec` ferma subito `streamRef` dopo `rec.stop()` (l'ultimo chunk è già richiesto, nessuna perdita). Nessun'altra modifica.
+
+
 ## V50.z477 (Giu 2026) — Export Cruscotto Beta (CSV + PDF) per partner/investitori
 - Backend (`axon_beta.py`, append): `GET /admin/beta/export.csv?days` (CSV `;` UTF-8 BOM, sezioni: metriche, frasi non capite cluster+elenco, NPS commenti, partecipanti, diari) e `GET /admin/beta/export.pdf?days` (reportlab/platypus A4: verdetto colorato, tabella 10 metriche con stato, cluster frasi non capite, NPS, programma 6 settimane, diari; footer con pagina). Riusano `beta_dashboard`/`beta_misunderstood`/`beta_program_admin`. Solo Master (403). Test `tests/test_v50z477_beta_export.py` (3/3).
 - App `app/admin/beta.tsx`: chip «Report PDF» / «Dati CSV (Excel)» sotto i filtri giorni (testID `beta-export-pdf|csv`); web → download browser via fetch+Bearer; nativo → `FileSystem.downloadAsync` in cache + `Sharing.shareAsync`.
