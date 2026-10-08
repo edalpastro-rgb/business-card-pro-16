@@ -9,7 +9,9 @@ CORE_URL="${CORE_URL:-https://core.axonos.cloud}"
 
 if [[ "${1:-}" != "--skip-export" ]]; then
   echo "→ expo export --platform web (EXPO_PUBLIC_BACKEND_URL=$CORE_URL)…"
-  (cd "$ROOT/frontend" && EXPO_PUBLIC_BACKEND_URL="$CORE_URL" CI=1 npx expo export --platform web --output-dir "$DIST")
+  # V50.z482 — --clear: la cache Metro può conservare il modulo .env (indirizzo backend) di un export precedente
+  (cd "$ROOT/frontend" && EXPO_PUBLIC_BACKEND_URL="$CORE_URL" CI=1 npx expo export --platform web --clear --output-dir "$DIST")
+  grep -q "$CORE_URL" "$DIST"/_expo/static/js/web/entry-*.js && ! grep -q 'preview.emergentagent.com",c=s' "$DIST"/_expo/static/js/web/entry-*.js || { echo "ERRORE: il bundle web non punta a $CORE_URL"; exit 1; }
 fi
 test -f "$DIST/index.html" || { echo "ERRORE: $DIST/index.html mancante"; exit 1; }
 

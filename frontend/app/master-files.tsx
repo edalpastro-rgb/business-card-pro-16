@@ -12,7 +12,8 @@ import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { uploadMasterFile } from "@/src/utils/upload"; // V50.z202 — multipart a chunk, niente base64
 import { notify, confirmAsync } from "@/src/utils/notify";
-import { folderPickAvailable, pickFolderFiles, folderFileUploadSource, folderSummary } from "@/src/utils/folderPicker";
+import { folderPickAvailable, folderFileUploadSource } from "@/src/utils/folderPicker";
+import { useFolderImport } from "@/src/FolderImportSheet";
 import { FileViewer } from "@/src/FileViewer";
 import { ShareSheet, type ShareTarget } from "@/src/ShareSheet";
 import { ModuleErrorBoundary } from "@/src/shared";
@@ -222,26 +223,19 @@ function MasterFilesScreen() {
     return true;
   };
 
-  // V50.z479 — «Carica cartella» (Android + desktop): tutti i documenti della cartella nella categoria corrente (file o bollette PDF)
+  // V50.z479/z482 — «Carica cartella» (Android + desktop): anteprima con spunte + barra avanzamento; categoria corrente (file o bollette PDF)
+  const folderCatRef = useRef<MasterCat>("files");
+  const folderImport = useFolderImport({
+    uploadOne: async (f) => {
+      const src = await folderFileUploadSource(f);
+      await uploadWithDupCheck({ uri: "uri" in src ? src.uri : URL.createObjectURL(src.blob), name: f.name, mime: f.mime }, f.size, folderCatRef.current);
+    },
+    onDone: () => load(),
+    title: "Carica cartella",
+  });
   const uploadFolder = async (category: MasterCat) => {
-    let files: Awaited<ReturnType<typeof pickFolderFiles>> = [];
-    try { files = await pickFolderFiles({ extRe: category === "bills" ? /\.pdf$/i : undefined }); }
-    catch (e: any) { notify("Accesso alla cartella non riuscito", e?.message || "Riprova oppure usa «Carica file»."); return; }
-    if (!files.length) { notify("Nessun documento", category === "bills" ? "Nella cartella scelta non ci sono PDF." : "Nella cartella scelta non ci sono documenti supportati."); return; }
-    setBusy(true);
-    let ok = 0, failed = 0;
-    try {
-      for (const f of files) {
-        if (f.size > 50 * 1024 * 1024) { failed++; continue; }
-        try {
-          const src = await folderFileUploadSource(f);
-          await uploadWithDupCheck({ uri: "uri" in src ? src.uri : URL.createObjectURL(src.blob), name: f.name, mime: f.mime }, f.size, category);
-          ok++;
-        } catch { failed++; }
-      }
-      await load();
-      notify("Cartella importata", folderSummary(ok, failed));
-    } finally { setBusy(false); }
+    folderCatRef.current = category;
+    await folderImport.pick();
   };
 
   const uploadFile = async (category: MasterCat) => {
@@ -562,6 +556,7 @@ function MasterFilesScreen() {
         )}
       </View>
 
+      {folderImport.sheet}
       {tab === "scanner" || tab === "files" ? (
         <View style={styles.searchRow}>
           <Ionicons name="search" size={16} color={HT.muted} />

@@ -237,10 +237,11 @@ function StackWithCallBar() {
       {/* V50.z186 — padding dinamico = altezza tastiera (solo Android): il campo attivo resta visibile */}
       <AndroidKeyboardPadding>
         {isDesktop ? (
-          <View style={{ flex: 1, flexDirection: "row" }}>
+          <View style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
             {showSidebar ? <DesktopSidebar /> : null}
-            <View style={{ flex: 1, alignItems: "center" }}>
-              <View style={{ flex: 1, width: "100%", maxWidth: CONTENT_MAX_W }} testID="desktop-content">
+            {/* V50.z482 — minHeight 0 + overflow hidden: la colonna contenuto non può mai superare la finestra → la ScrollView interna scrolla sempre */}
+            <View style={{ flex: 1, alignItems: "center", minHeight: 0, overflow: "hidden" }}>
+              <View style={{ flex: 1, width: "100%", maxWidth: CONTENT_MAX_W, minHeight: 0 }} testID="desktop-content">
                 <Stack screenOptions={{ headerShown: false, animation: "fade" }} />
               </View>
             </View>
@@ -270,7 +271,7 @@ function StackWithCallBar() {
           Il componente resta in `src/SupportFab.tsx` per eventuale riuso. */}
       {/* V50.z5 — Calculator FAB globale: appare in tutte le pagine, anche
           sopra i modali fatture (posizionato accanto al FAB Axon). */}
-      {user && !inTour ? <CalculatorFAB /> : null}
+      {user && !inTour ? <CalculatorFAB root /> : null}
       {user && !inTour ? <PersistentBottomNav /> : null}
       {user && !inTour ? <OnboardingWizard /> : null}
       {/* V50.z15 — Edge Panel Samsung-style: linguetta a destra, shortcut personalizzabili */}

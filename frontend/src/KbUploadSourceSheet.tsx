@@ -11,7 +11,8 @@ import * as DocumentPicker from "expo-document-picker";
 import { HT } from "@/src/homeTheme";
 import { notify } from "@/src/utils/notify";
 import { uriToBase64DataUrl } from "@/src/utils/media";
-import { folderPickAvailable, pickFolderFiles, folderFileDataUrl } from "@/src/utils/folderPicker";
+import { folderPickAvailable, folderFileDataUrl } from "@/src/utils/folderPicker";
+import { useFolderImport } from "@/src/FolderImportSheet";
 import { GoogleDrivePickerModal } from "@/src/GoogleDrivePickerModal";
 import { DropboxPickerModal } from "@/src/DropboxPickerModal";
 
@@ -50,18 +51,13 @@ export function KbUploadSourceSheet({ visible, onClose, onUpload, uploading }: {
     } catch (e: any) { notify("File", e?.message || "Impossibile leggere i file"); }
     finally { setReading(false); }
   };
-  // V50.z479 — «Carica cartella» (Android + desktop): tutti i PDF/TXT/MD/CSV della cartella in coda
-  const fromFolder = async () => {
-    setReading(true);
-    try {
-      const picked = await pickFolderFiles({ extRe: /\.(pdf|txt|md|csv)$/i });
-      if (!picked.length) return;
-      const files: KbPicked[] = [];
-      for (const f of picked) files.push({ name: f.name, mime: f.mime, data_base64: await folderFileDataUrl(f) });
-      add(files);
-    } catch (e: any) { notify("Cartella", e?.message || "Impossibile leggere la cartella"); }
-    finally { setReading(false); }
-  };
+  // V50.z479/z482 — «Carica cartella» (Android + desktop): anteprima con spunte + barra; i file letti vanno in coda
+  const folderImport = useFolderImport({
+    extRe: /\.(pdf|txt|md|csv)$/i,
+    uploadOne: async (f) => { add([{ name: f.name, mime: f.mime, data_base64: await folderFileDataUrl(f) }]); },
+    title: "Cartella → Knowledge Base",
+    emptyHint: "Nella cartella scelta non ci sono PDF, TXT, MD o CSV.",
+  });
   const cloud = (info: KbPicked) => { setDrive(false); setDropbox(false); add([info]); };
 
   const done = async () => { await onUpload(queue); setQueue([]); };
@@ -69,6 +65,7 @@ export function KbUploadSourceSheet({ visible, onClose, onUpload, uploading }: {
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
+      {folderImport.sheet}
       <Pressable style={s.backdrop} onPress={close}>
         <Pressable style={[s.sheet, { paddingBottom: insets.bottom + 14 }]} onPress={() => {}} testID="kb-upload-sheet">
           <View style={s.handle} />
@@ -77,7 +74,7 @@ export function KbUploadSourceSheet({ visible, onClose, onUpload, uploading }: {
 
           <View style={s.sources}>
             <Source icon="phone-portrait-outline" label="Telefono" hint="File manager locale · selezione multipla" onPress={fromDevice} testID="kb-src-device" busy={reading} />
-            {folderPickAvailable() ? <Source icon="folder-open-outline" label="Cartella" hint="Tutti i file di una cartella (e sottocartelle)" onPress={fromFolder} testID="kb-src-folder" busy={reading} /> : null}
+            {folderPickAvailable() ? <Source icon="folder-open-outline" label="Cartella" hint="Tutti i file di una cartella (e sottocartelle)" onPress={folderImport.pick} testID="kb-src-folder" busy={reading} /> : null}
             <Source icon="logo-google" label="Google Drive" hint="Scegli dal tuo Drive" onPress={() => setDrive(true)} testID="kb-src-drive" />
             <Source icon="logo-dropbox" label="Dropbox" hint="Scegli da Dropbox" onPress={() => setDropbox(true)} testID="kb-src-dropbox" />
           </View>

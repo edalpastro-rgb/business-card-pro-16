@@ -11,7 +11,8 @@ import * as DocumentPicker from "expo-document-picker";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
 import { uriToBase64DataUrl } from "@/src/utils/media";
-import { folderPickAvailable, pickFolderFiles, folderFileDataUrl } from "@/src/utils/folderPicker";
+import { folderPickAvailable, folderFileDataUrl } from "@/src/utils/folderPicker";
+import { useFolderImport } from "@/src/FolderImportSheet";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
@@ -44,16 +45,12 @@ export default function NewCourseScreen() {
       setFiles((f) => [...f, ...out]);
     } catch (e: any) { notify("Allegati", e?.message || "Impossibile leggere il file"); }
   };
-  // V50.z479 — «Carica cartella» (Android + desktop)
-  const pickFolder = async () => {
-    try {
-      const picked = await pickFolderFiles({ extRe: /\.(pdf|jpe?g|png|webp|heic|m4a|mp3|wav|aac|ogg|txt|md|csv|xls|xlsx|pptx?)$/i });
-      if (!picked.length) return;
-      const out: F[] = [];
-      for (const f of picked) out.push({ name: f.name, mime: f.mime, data_base64: await folderFileDataUrl(f) });
-      setFiles((l) => [...l, ...out]);
-    } catch (e: any) { notify("Cartella", e?.message || "Impossibile leggere la cartella"); }
-  };
+  // V50.z479/z482 — «Carica cartella» (Android + desktop): anteprima con spunte + barra; i file letti diventano allegati
+  const folderImport = useFolderImport({
+    extRe: /\.(pdf|jpe?g|png|webp|heic|m4a|mp3|wav|aac|ogg|txt|md|csv|xls|xlsx|pptx?)$/i,
+    uploadOne: async (f) => { const data_base64 = await folderFileDataUrl(f); setFiles((l) => [...l, { name: f.name, mime: f.mime, data_base64 }]); },
+    title: "Carica cartella di allegati",
+  });
   const save = async () => {
     if (!title.trim()) { notify("Corso", "Inserisci il titolo"); return; }
     if (!all && sel.length === 0) { notify("Corso", "Scegli almeno un destinatario"); return; }
@@ -114,7 +111,8 @@ export default function NewCourseScreen() {
         <Text style={s.section}>Allegati (PDF, Excel, foto, audio, testo)</Text>
         {files.map((f, i) => <View key={i} style={s.row}><Ionicons name="document" size={18} color="#7C3AED" /><Text style={{ flex: 1, color: HT.text }} numberOfLines={1}>{f.name}</Text><Pressable onPress={() => setFiles((l) => l.filter((_, k) => k !== i))} hitSlop={8}><Ionicons name="close-circle" size={18} color={HT.muted} /></Pressable></View>)}
         <Pressable onPress={pick} style={s.pick} testID="course-add-file"><Ionicons name="attach" size={18} color="#7C3AED" /><Text style={{ color: "#7C3AED", fontWeight: "800" }}>Aggiungi file {Platform.OS === "web" ? "dal computer" : "dal dispositivo"}</Text></Pressable>
-        {folderPickAvailable() ? <Pressable onPress={pickFolder} style={s.pick} testID="course-add-folder"><Ionicons name="folder-open" size={18} color="#7C3AED" /><Text style={{ color: "#7C3AED", fontWeight: "800" }}>Carica cartella</Text></Pressable> : null}
+        {folderPickAvailable() ? <Pressable onPress={folderImport.pick} style={s.pick} testID="course-add-folder"><Ionicons name="folder-open" size={18} color="#7C3AED" /><Text style={{ color: "#7C3AED", fontWeight: "800" }}>Carica cartella</Text></Pressable> : null}
+        {folderImport.sheet}
       </KScrollView>
     </SafeAreaView>
   );

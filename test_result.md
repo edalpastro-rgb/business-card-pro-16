@@ -559,3 +559,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z481 — Warning VPS «No such file or directory: /app/CHANGELOG.md e /app/memory/PRD.md»: build_package.sh ora copia CHANGELOG.md → backend/CHANGELOG.md e memory/PRD.md → backend/memory/PRD.md nel pacchetto; axon_system_awareness.py risolve i percorsi (backend/ → ../ → /app/) e tratta FileNotFoundError come debug (nessun warning). Verificato con tar -tzf."
+
+  - agent: "main"
+    message: "V50.z482 — (1) Home web scroll: non riproducibile in Chromium (dev + export statico, 1366×900/1280×660/1366×768: scrollTop raggiunge il fondo); applicato fix difensivo CSS (minHeight 0 + overflow hidden sui wrapper desktop in _layout, minHeight 0 + overflowY auto su ScrollView Home). (2) src/FolderImportSheet.tsx: useFolderImport() → anteprima file con spunte (Tutti/Nessuno, >max deselezionati) + barra «N di M file» + nome corrente; integrato in contact/[id], contact/new, appointment/new, master-files, BillsSection, KbUploadSourceSheet, courses/new. Verificato e2e su web (contatto › File › Cartella: 3 trovati, 1 escluso, 2 caricati). (3) CalculatorFAB: prop `root` + registro modulo → una sola FAB (prima la schermata contatto ne montava una seconda, visibile ora che il desktop la mette nella sidebar). Test fatti puntando temporaneamente la web al backend locale (.env ripristinato)."

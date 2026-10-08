@@ -8,7 +8,8 @@ import { useLocalSearchParams, useRouter, useFocusEffect, router as expoRouter }
 import { useAudioRecorder, AudioModule, RecordingPresets, createAudioPlayer, type AudioPlayer } from "expo-audio";
 import * as DocumentPicker from "expo-document-picker";
 import { pickCommonFile } from "@/src/utils/filePicker";
-import { folderPickAvailable, pickFolderFiles, folderFileBase64, folderSummary } from "@/src/utils/folderPicker";
+import { folderPickAvailable, folderFileBase64 } from "@/src/utils/folderPicker";
+import { useFolderImport } from "@/src/FolderImportSheet";
 import { notify } from "@/src/utils/notify";
 import { openInAppLink } from "@/src/utils/openInAppLink";
 import * as FileSystem from "expo-file-system/legacy";
@@ -323,6 +324,17 @@ function ContactDetail() {
   };
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
+  // V50.z479/z482 — «Carica cartella» (Android + desktop): anteprima con spunte + barra avanzamento → File del contatto
+  const folderImport = useFolderImport({
+    uploadOne: async (f) => {
+      const b64 = await folderFileBase64(f);
+      await api(`/contacts/${id}/files`, { method: "POST", body: { name: f.name, mime: f.mime, data_base64: b64, size: f.size } });
+    },
+    onDone: () => load(),
+    title: "Carica cartella nei File",
+  });
+
+
   if (!c) return <SafeAreaView style={styles.root}><ActivityIndicator style={{ marginTop: 40 }} color={HT.brand} /></SafeAreaView>;
 
   const color = c.area === "energy" ? theme.color.energy : theme.color.network;
@@ -593,27 +605,6 @@ function ContactDetail() {
         body: { name: asset.name, mime: asset.mimeType || "application/octet-stream", data_base64: b64, size: asset.size || 0 },
       });
       await load();
-    } finally { setBusy(false); }
-  };
-
-  // V50.z479 — «Carica cartella» (Android + desktop): importa tutti i documenti della cartella (e sottocartelle) nei File del contatto
-  const pickFolder = async () => {
-    let files: Awaited<ReturnType<typeof pickFolderFiles>> = [];
-    try { files = await pickFolderFiles(); }
-    catch (e: any) { notify("Accesso alla cartella non riuscito", e?.message || "Riprova oppure usa «Carica»."); return; }
-    if (!files.length) return;
-    setBusy(true);
-    let ok = 0, failed = 0;
-    try {
-      for (const f of files) {
-        try {
-          const b64 = await folderFileBase64(f);
-          await api(`/contacts/${id}/files`, { method: "POST", body: { name: f.name, mime: f.mime, data_base64: b64, size: f.size } });
-          ok++;
-        } catch { failed++; }
-      }
-      await load();
-      notify("Cartella importata", folderSummary(ok, failed));
     } finally { setBusy(false); }
   };
 
@@ -1415,11 +1406,12 @@ function ContactDetail() {
                 <Text style={styles.addFileTxt}>Carica</Text>
               </Pressable>
               {folderPickAvailable() ? (
-                <Pressable testID="file-add-folder-btn" onPress={pickFolder} style={[styles.addFileBtn, { flex: 1 }]} disabled={busy}>
+                <Pressable testID="file-add-folder-btn" onPress={folderImport.pick} style={[styles.addFileBtn, { flex: 1 }]} disabled={busy}>
                   <Ionicons name="folder-open-outline" size={20} color={HT.brand} />
                   <Text style={styles.addFileTxt}>Cartella</Text>
                 </Pressable>
               ) : null}
+              {folderImport.sheet}
               <Pressable testID="file-scan-btn" onPress={() => setScannerOpen(true)} style={[styles.addFileBtn, { flex: 1, borderColor: '#FF6B35' }]} disabled={busy}>
                 <Ionicons name="scan-outline" size={20} color="#FF6B35" />
                 <Text style={[styles.addFileTxt, { color: "#FF6B35" }]}>Scanner</Text>

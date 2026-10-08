@@ -38,9 +38,24 @@ function useSafePathname(): string {
   }
 }
 
-export function CalculatorFAB() {
+// V50.z482 — Una sola FAB per volta: la radice (_layout, prop `root`) ha la precedenza; le schermate che la montano anche loro
+// (contatto, bollette, report, viewer) non renderizzano nulla finché la radice è montata (prima erano due FAB sovrapposte).
+let _calcFabRootMounted = false;
+const _calcFabSubs = new Set<() => void>();
+
+export function CalculatorFAB({ root }: { root?: boolean } = {}) {
   const [open, setOpen] = useState(false);
-  const pathname = useSafePathname(); // V50.z407 — nascosto su /voice-enroll · V50.z466 — safe: su Android crashava con «pathname» undefined
+  const [, forceRender] = useState(0);
+  useEffect(() => {
+    if (root) {
+      _calcFabRootMounted = true; _calcFabSubs.forEach((f) => f());
+      return () => { _calcFabRootMounted = false; _calcFabSubs.forEach((f) => f()); };
+    }
+    const f = () => forceRender((x) => x + 1);
+    _calcFabSubs.add(f);
+    return () => { _calcFabSubs.delete(f); };
+  }, [root]);
+  const isPrimary = !!root || !_calcFabRootMounted;
   const { width: screenW, height: screenH } = Dimensions.get("window");
   // V50.z480 — Desktop web (sidebar laterale): il FAB in basso a destra copriva la card Scadenze della Home. Sul desktop lo
   // posizioniamo nella colonna della sidebar (sotto il menu, sopra utente/Esci), dove non c'è mai contenuto. Chiave di
@@ -61,7 +76,7 @@ export function CalculatorFAB() {
   const posRef = useRef(defaultPos);
   const wasDrag = useRef(false);
 
-  useRegisterFab("calculator", true);
+  useRegisterFab("calculator", isPrimary);
 
   // Carica posizione persistita al mount
   useEffect(() => {
@@ -130,6 +145,8 @@ export function CalculatorFAB() {
     }
     setOpen(true);
   };
+
+  if (!isPrimary) return null;
 
   return (
     <>

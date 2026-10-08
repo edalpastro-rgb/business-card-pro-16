@@ -14,6 +14,12 @@ Quando l'utente scrive «Neo, leggi i prompt in coda» (o simili), esegui SUBITO
 `python3 /app/scripts/neo_queue.py list` → `show #N` → esegui il task → `done #N "nota"` (o `reject #N "motivo"`, `read #N`).
 I prompt sono salvati da Axon in `master_files` con `category: "neo_prompts"`, `neo_status: pending|read|done|rejected`, `neo_seq`, `neo_note`. Axon mostra lo stato all'utente con «stato prompt Neo».
 
+## V50.z482 (Giu 2026) — Home web scroll (fix difensivo) + Anteprima cartella con spunte + Barra avanzamento + FAB calcolatrice unica
+- **Scroll Home web**: non riproducibile in Chromium (dev e export statico, 3 viewport: la ScrollView raggiunge il fondo). Fix difensivo solo CSS: `app/_layout.tsx` wrapper desktop `minHeight: 0` + `overflow: hidden`; `home.tsx` `root/scrollBg` `minHeight: 0` e su web `overflowY: auto`. Se il problema persiste dall'utente: chiedere browser/zoom/screenshot.
+- **`src/FolderImportSheet.tsx`** — `useFolderImport({ uploadOne, onDone, extRe, maxSize, title, emptyHint })` → `{ pick, sheet }`: foglio con anteprima (nome · sottocartella · dimensione, spunte, Tutti/Nessuno, file oltre `maxSize` deselezionati e marcati) e fase upload con barra «N di M file» + nome corrente + %; riepilogo finale. Integrato in tutti i 7 punti «Carica cartella» (testID `folder-import-*`). Verificato e2e su web (contatto › File).
+- **CalculatorFAB**: `<CalculatorFAB root />` in `_layout`; le istanze secondarie (contatto, bollette, report, viewer) non renderizzano finché la radice è montata (registro modulo + re-render via subscribe) → una sola FAB.
+- Nota operativa: per testare la web contro il backend locale si è puntato temporaneamente `EXPO_PUBLIC_API_BASE_URL` al preview (il transformer `.env` di Metro ignora `.env.local` e le variabili di shell) e poi ripristinato `core.axonos.cloud`.
+
 ## V50.z481 (Giu 2026) — Fix warning VPS «No such file or directory: CHANGELOG.md / memory/PRD.md»
 - `deploy/axon-core/scripts/build_package.sh`: copia `CHANGELOG.md` → `backend/CHANGELOG.md` e `memory/PRD.md` → `backend/memory/PRD.md` dentro il pacchetto (nel container il backend è `/app/backend`, `/app/CHANGELOG.md` e `/app/memory` non esistono).
 - `routes/axon_system_awareness.py`: `_axs_find()` prova `backend/…`, `../…`, `/app/…`; `FileNotFoundError` → `logger.debug` (niente warning), così Axon legge le novità anche sul VPS.

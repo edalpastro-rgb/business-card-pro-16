@@ -9,7 +9,8 @@ import * as Sharing from "expo-sharing";
 import { api } from "@/src/api";
 import { notify, confirmAsync } from "@/src/utils/notify";
 import { uriToBase64 } from "@/src/utils/media";
-import { folderPickAvailable, pickFolderFiles, folderFileBase64 } from "@/src/utils/folderPicker";
+import { folderPickAvailable, folderFileBase64 } from "@/src/utils/folderPicker";
+import { useFolderImport } from "@/src/FolderImportSheet";
 import { CalculatorFAB } from "@/src/CalculatorFAB";
 import { VoiceDictationButton } from "@/src/VoiceDictationButton";
 import { BillFieldRow } from "@/src/BillFieldRenderers";
@@ -961,19 +962,14 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
     notify("Upload completato ✅", `${r.count} fatture caricate. L'AI le analizzerà a breve.`);
     await load();
   };
-  // V50.z479 — «Carica cartella» (Android + desktop): tutti i PDF della cartella (e sottocartelle) → stesso bulk-upload
-  const bulkUploadFolder = async () => {
-    try {
-      const files = await pickFolderFiles({ extRe: /\.pdf$/i });
-      if (!files.length) return;
-      setBulkBusy(true);
-      const items: Array<{ bill_type: BillType; pdf_base64: string; pdf_name: string; pdf_mime: string }> = [];
-      for (const f of files) items.push(bulkItem(f.name, await folderFileBase64(f), "application/pdf"));
-      await bulkSend(items);
-    } catch (e: any) {
-      notify("Errore upload cartella", e?.message || "");
-    } finally { setBulkBusy(false); }
-  };
+  // V50.z479/z482 — «Carica cartella» (Android + desktop): anteprima con spunte + barra avanzamento; ogni PDF → bulk-upload
+  const folderImport = useFolderImport({
+    extRe: /\.pdf$/i,
+    uploadOne: async (f) => { await api(`/contacts/${contactId}/bills/bulk-upload`, { method: "POST", body: { bills: [bulkItem(f.name, await folderFileBase64(f), "application/pdf")] } }); },
+    onDone: () => load(),
+    title: "Carica cartella di fatture",
+    emptyHint: "Nella cartella scelta (e sottocartelle) non ci sono PDF.",
+  });
 
   // v2.12 — CTE comparativa: fetch multi-bill comparative HTML report and
   // display it inline via FileViewer. Includes charts + AI supplier verdict.
@@ -1368,13 +1364,14 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
         <Pressable
           testID="bills-bulk-upload-folder-btn"
           disabled={bulkBusy}
-          onPress={bulkUploadFolder}
+          onPress={folderImport.pick}
           style={[styles.reportBtn, { backgroundColor: '#0E7490', marginTop: 8, opacity: bulkBusy ? 0.6 : 1 }]}
         >
           <Ionicons name="folder-open" size={20} color="#FFF" />
           <Text style={styles.reportBtnTxt}>Carica cartella di fatture</Text>
         </Pressable>
       ) : null}
+      {folderImport.sheet}
 
       {/* v2.12 — CTE Comparativa */}
       <Pressable

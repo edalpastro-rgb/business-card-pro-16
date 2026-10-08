@@ -1167,8 +1167,8 @@ function CallbackRow({ cb, color, onOpen, onScript, onEdit, onToggleDone }: { cb
 /* ═══════════════════════ Styles ═══════════════════════ */
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: C.bg },
-  scrollBg: { flex: 1, backgroundColor: C.bg },
+  root: { flex: 1, backgroundColor: C.bg, minHeight: 0 },
+  scrollBg: { flex: 1, backgroundColor: C.bg, minHeight: 0, ...(Platform.OS === "web" ? ({ overflowY: "auto" } as any) : null) }, // V50.z482 — web: scroll sempre attivo anche se un antenato non vincola l'altezza
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   scroll: { paddingHorizontal: 16, paddingTop: 12 },
 
