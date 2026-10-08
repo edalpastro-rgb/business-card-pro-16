@@ -240,3 +240,127 @@ _OMNI_EXTRA_SECTIONS.append((
     "Pannello Master › «Cruscotto Beta» (route app /admin/beta): 10 metriche con soglie (attivazione, giorni attivi, comandi Axon riusciti, voce, tempo appuntamento, stabilità, "
     "dati inseriti, feature usate, NPS, disponibilità a pagare) e verdetto GO/ITERA/RIPENSA; il Master attiva le ondate del sondaggio NPS. Gli utenti rispondono dal tab Help › «Dicci la tua» (route /beta-nps).",
 ))
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# V50.z475 — PROGRAMMA BETA 6 SETTIMANE: missioni della settimana + Diario del venerdì
+#   GET  /beta/program            → {enrolled, week 1-6, start_date, mission{title,tasks[]}, diary_due, diary_done, nps_pending}
+#   POST /beta/diary {week, saved_time, angry, manual} → db.beta_diary (1 per utente/settimana, upsert)
+#   POST /admin/beta/start {start_date?, user_ids?}     → Master: iscrive il tenant (o utenti scelti) al programma; db.beta_program
+#   GET  /admin/beta/program       → Master: iscritti con settimana corrente, diari compilati, ultimi diari
+# Il Diario è «dovuto» da venerdì a domenica della settimana corrente (e resta compilabile sempre dalla card).
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+_BETA_MISSIONS = [
+    {"week": 1, "title": "Parti con i clienti veri", "goal": "Attivazione", "tasks": ["Inserisci 10 clienti reali (anche dalla rubrica o da una cartella)", "Fissa 3 appuntamenti A VOCE con Axon («fissa un appuntamento con Rossi domani alle 10»)", "Completa profilo e anagrafica (checkpoint onboarding)"]},
+    {"week": 2, "title": "Axon in auto", "goal": "Uso quotidiano e voce", "tasks": ["Per 5 giorni chiedi «cosa ho oggi» appena sali in auto", "Usa «chiama…», «numero di…», «sposta l'appuntamento…» almeno una volta al giorno", "Prova la modalità Solo testo in un luogo rumoroso"]},
+    {"week": 3, "title": "Documenti e mercato", "goal": "Feature di settore", "tasks": ["Scansiona 3 bollette o documenti con lo Scanner", "Apri lo Storico PUN davanti a un cliente e scarica il PDF", "Rispondi al sondaggio «Dicci la tua» (2 minuti)"]},
+    {"week": 4, "title": "Imprevisti e chiamate", "goal": "Automazioni avanzate", "tasks": ["Simula un imprevisto: «sono bloccato nel traffico fino alle 11»", "Registra o carica una chiamata e fai estrarre riepilogo e prossimi passi", "Chiedi ad Axon un comando multi-step («chiudi la trattativa e richiamalo tra 30 giorni»)"]},
+    {"week": 5, "title": "Settimana libera", "goal": "Uso spontaneo", "tasks": ["Usa AdvisorOS come se fosse il tuo CRM definitivo", "Segnala dall'Help tutto ciò che hai dovuto fare a mano", "Invita un collega a vedere come lavori con Axon"]},
+    {"week": 6, "title": "Bilancio", "goal": "Valore e prezzo", "tasks": ["Rispondi al sondaggio finale con la domanda sul prezzo", "Scrivi nel Diario cosa ti mancherebbe se domani non avessi più AdvisorOS", "Esporta i tuoi dati (contatti/PDF) per verificare che siano sempre tuoi"]},
+]
+
+
+class BetaDiaryIn(BaseModel):
+    week: int = 1
+    saved_time: Optional[str] = None
+    angry: Optional[str] = None
+    manual: Optional[str] = None
+
+
+class BetaStartIn(BaseModel):
+    start_date: Optional[str] = None  # YYYY-MM-DD (default oggi)
+    user_ids: Optional[List[str]] = None  # default: tutti gli utenti del tenant
+
+
+def _beta_week(start: datetime, now: datetime) -> int:
+    return max(1, min(6, (now.date() - start.date()).days // 7 + 1))
+
+
+async def _beta_enrollment(user: dict) -> Optional[dict]:
+    doc = await db.beta_program.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    if doc:
+        return doc
+    return await db.beta_program.find_one({"tenant_id": tenant_id(user), "user_id": None}, {"_id": 0})
+
+
+@api_router.get("/beta/program")
+async def beta_program(user=Depends(get_current_user)):
+    enr = await _beta_enrollment(user)
+    if not enr or not isinstance(enr.get("start_date"), datetime):
+        return {"enrolled": False}
+    now = utcnow()
+    week = _beta_week(enr["start_date"], now)
+    mission = _BETA_MISSIONS[week - 1]
+    wd = now.weekday()  # 0 = lunedì … 4 = venerdì
+    diary = await db.beta_diary.find_one({"user_id": user["user_id"], "week": week}, {"_id": 0, "at": 1})
+    cfg = await db.beta_config.find_one({"_id": tenant_id(user)}) or {}
+    nps_pending = False
+    if cfg.get("active"):
+        nps_pending = (await db.beta_nps.find_one({"user_id": user["user_id"], "wave": int(cfg.get("wave") or 1)}, {"_id": 1})) is None
+    done_weeks = [d["week"] async for d in db.beta_diary.find({"user_id": user["user_id"]}, {"_id": 0, "week": 1})]
+    return {"enrolled": True, "week": week, "start_date": enr["start_date"].strftime("%Y-%m-%d"), "days_left": max(0, 42 - (now.date() - enr["start_date"].date()).days),
+            "mission": mission, "diary_due": wd >= 4 and diary is None, "diary_done": diary is not None, "diary_weeks_done": sorted(set(done_weeks)), "nps_pending": nps_pending}
+
+
+@api_router.post("/beta/diary")
+async def beta_diary(body: BetaDiaryIn, user=Depends(get_current_user)):
+    vals = {k: (getattr(body, k) or "").strip()[:800] for k in ("saved_time", "angry", "manual")}
+    if not any(vals.values()):
+        raise HTTPException(status_code=400, detail="Scrivi almeno una risposta")
+    week = max(1, min(6, int(body.week or 1)))
+    doc = {"user_id": user["user_id"], "tenant_id": tenant_id(user), "user_email": user.get("email"), "user_name": user.get("name"), "week": week, **vals, "at": utcnow()}
+    await db.beta_diary.update_one({"user_id": user["user_id"], "week": week}, {"$set": doc}, upsert=True)
+    return {"ok": True, "message": "Diario salvato. Grazie: lo leggo venerdì stesso."}
+
+
+@api_router.post("/admin/beta/start")
+async def beta_start(body: BetaStartIn, user=Depends(get_current_user)):
+    if not is_owner(user):
+        raise HTTPException(status_code=403, detail="Solo il Master")
+    try:
+        start = datetime.strptime(body.start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc) if body.start_date else utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Data non valida (AAAA-MM-GG)")
+    tid = tenant_id(user)
+    if body.user_ids:
+        for uid in body.user_ids[:200]:
+            await db.beta_program.update_one({"user_id": uid}, {"$set": {"user_id": uid, "tenant_id": tid, "start_date": start, "by": user["user_id"], "updated_at": utcnow()}}, upsert=True)
+    else:
+        await db.beta_program.update_one({"tenant_id": tid, "user_id": None}, {"$set": {"tenant_id": tid, "user_id": None, "start_date": start, "by": user["user_id"], "updated_at": utcnow()}}, upsert=True)
+    return {"ok": True, "start_date": start.strftime("%Y-%m-%d")}
+
+
+@api_router.delete("/admin/beta/start")
+async def beta_stop(user=Depends(get_current_user)):
+    if not is_owner(user):
+        raise HTTPException(status_code=403, detail="Solo il Master")
+    r = await db.beta_program.delete_many({"tenant_id": tenant_id(user)})
+    return {"ok": True, "removed": r.deleted_count}
+
+
+@api_router.get("/admin/beta/program")
+async def beta_program_admin(user=Depends(get_current_user)):
+    if not is_owner(user):
+        raise HTTPException(status_code=403, detail="Solo il Master")
+    scope = _beta_scope(user)
+    uq: dict = {} if not scope else {"$or": [{"user_id": scope["tenant_id"]}, {"parent_user_id": scope["tenant_id"]}]}
+    users = await db.users.find(uq, {"_id": 0, "user_id": 1, "email": 1, "name": 1, "parent_user_id": 1}).to_list(2000)
+    enrolls = {e.get("user_id") or f"tenant:{e['tenant_id']}": e async for e in db.beta_program.find(scope or {}, {"_id": 0})}
+    now = utcnow()
+    rows = []
+    for u in users:
+        enr = enrolls.get(u["user_id"]) or enrolls.get(f"tenant:{u.get('parent_user_id') or u['user_id']}")
+        if not enr:
+            continue
+        week = _beta_week(enr["start_date"], now)
+        diaries = [d["week"] async for d in db.beta_diary.find({"user_id": u["user_id"]}, {"_id": 0, "week": 1})]
+        last_open = await db.beta_events.find_one({"user_id": u["user_id"], "name": "app_open"}, {"_id": 0, "day": 1}, sort=[("at", -1)])
+        rows.append({"user_id": u["user_id"], "name": u.get("name"), "email": u.get("email"), "week": week, "start_date": enr["start_date"].strftime("%Y-%m-%d"), "diaries_done": sorted(set(diaries)), "last_open": (last_open or {}).get("day")})
+    diaries = await db.beta_diary.find({**({"tenant_id": scope["tenant_id"]} if scope else {})}, {"_id": 0}).sort("at", -1).to_list(60)
+    for d in diaries:
+        if isinstance(d.get("at"), datetime):
+            d["at"] = d["at"].isoformat()
+    tenant_enr = enrolls.get(f"tenant:{tenant_id(user)}")
+    return {"participants": rows, "missions": _BETA_MISSIONS, "diaries": diaries, "tenant_start": tenant_enr["start_date"].strftime("%Y-%m-%d") if tenant_enr else None,
+            "current_week": _beta_week(tenant_enr["start_date"], now) if tenant_enr else None}

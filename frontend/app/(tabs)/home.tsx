@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { track } from "@/src/utils/beta"; // V50.z474
+import { BetaProgramCard } from "@/src/BetaProgramCard"; // V50.z475
 let npsInviteShown = false; // V50.z474 — invito NPS mostrato una sola volta per avvio
 import { View, Text, StyleSheet, Pressable, RefreshControl, ActivityIndicator, ScrollView, Image, ImageBackground, Platform, Animated, Easing, Alert, AppState } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -580,6 +581,7 @@ export default function HomeScreen() {
         {/* V50.z216 — indicatore discreto: file/audio del wizard letti in background (sparisce da solo) */}
         <View style={{ paddingHorizontal: 16, marginBottom: 8 }} onLayout={onSectionLayout("widgets")}><SetupProcessingBadge /></View>
         <DashboardWidgetsSection exclude={APPT_TODAY_WIDGET} />
+        <BetaProgramCard />{/* V50.z475 — Programma Beta: missione della settimana + Diario del venerdì (solo se avviato dal Master) */}
 
         {/* V50.z409 — Desktop: Ritelefonate + Azioni rapide a sinistra, Appuntamenti + Scadenze + Statistiche a destra */}
         <DesktopGrid gap={16}>

@@ -30,3 +30,17 @@ def test_beta_flow():
     assert j["nps_wave"]["responses"] >= 1
     # pulizia: disattiva l'ondata di test
     assert requests.post(f"{BASE}/admin/beta/nps-wave", json={"wave": 1, "active": False, "ask_price": False}, headers=h, timeout=20).json()["ok"]
+
+
+def test_beta_program_and_diary():
+    h = _login()
+    assert requests.post(f"{BASE}/admin/beta/start", json={"start_date": "2026-06-01"}, headers=h, timeout=20).json()["ok"]
+    p = requests.get(f"{BASE}/beta/program", headers=h, timeout=20).json()
+    assert p["enrolled"] and 1 <= p["week"] <= 6 and len(p["mission"]["tasks"]) == 3
+    assert requests.post(f"{BASE}/beta/diary", json={"week": p["week"]}, headers=h, timeout=20).status_code == 400
+    assert requests.post(f"{BASE}/beta/diary", json={"week": p["week"], "manual": "pytest-manual"}, headers=h, timeout=20).json()["ok"]
+    assert requests.get(f"{BASE}/beta/program", headers=h, timeout=20).json()["diary_done"] is True
+    a = requests.get(f"{BASE}/admin/beta/program", headers=h, timeout=30).json()
+    assert a["tenant_start"] == "2026-06-01" and len(a["missions"]) == 6 and any(d["manual"] == "pytest-manual" for d in a["diaries"])
+    assert requests.delete(f"{BASE}/admin/beta/start", headers=h, timeout=20).json()["ok"]
+    assert requests.get(f"{BASE}/beta/program", headers=h, timeout=20).json()["enrolled"] is False

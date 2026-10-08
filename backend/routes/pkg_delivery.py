@@ -11,7 +11,7 @@ _PD_DIR = next((d for d in (_pd_os.path.abspath(_pd_os.path.join(_pd_os.path.dir
                               "/app/deploy/axon-core") if _pd_os.path.isdir(d)), "/app/deploy/axon-core")  # __file__ = server.py (moduli exec'd)
 _PD_FILES = {"axon-core-pkg": "axon-core-pkg.tgz", "axon-web-pkg": "axon-web-pkg.tgz", "upgrade-vps": "scripts/upgrade_vps.sh"}  # V50.z435
 # V50.z473 — documenti strategici scaricabili (stessa chiave): markdown + versione HTML stampabile (→ Salva come PDF dal browser)
-_PD_DOCS = {"mercato-e-beta.md": ("/app/memory/MERCATO_E_BETA.md", "text/markdown; charset=utf-8"), "mercato-e-beta.html": ("/app/memory/MERCATO_E_BETA.html", "text/html; charset=utf-8")}
+_PD_DOCS = {"mercato-e-beta.md": ("/app/memory/MERCATO_E_BETA.md", "text/markdown; charset=utf-8"), "mercato-e-beta.html": ("/app/memory/MERCATO_E_BETA.html", "text/html; charset=utf-8"), "kit-beta.md": ("/app/memory/KIT_BETA.md", "text/markdown; charset=utf-8")}
 
 
 @api_router.get("/pkg/{name}")  # noqa: F821

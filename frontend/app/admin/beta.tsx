@@ -12,6 +12,7 @@ import { notify } from "@/src/utils/notify";
 const C = theme.color;
 const TEAL = "#0F766E";
 type Metric = { key: string; label: string; value: number | null; unit: string; target: number; higher_is_better?: boolean; status: "ok" | "warn" | "ko" | "nd"; detail: string; breakdown?: Record<string, number> };
+type ProgramAdmin = { participants: { user_id: string; name?: string; email?: string; week: number; start_date: string; diaries_done: number[]; last_open?: string | null }[]; missions: { week: number; title: string; goal: string; tasks: string[] }[]; diaries: { user_name?: string; user_email?: string; week: number; saved_time?: string; angry?: string; manual?: string; at?: string | null }[]; tenant_start: string | null; current_week: number | null };
 type Payload = { days: number; users: number; metrics: Metric[]; summary: { ok: number; nd: number; total: number; verdict: string }; nps_wave: { wave: number; active: boolean; ask_price: boolean; responses: number }; comments: { user: string; score: number; best?: string; worst?: string; at: string | null }[]; scope: "all" | "tenant" };
 
 const STATUS = { ok: { color: "#16A34A", icon: "checkmark-circle" as const, label: "obiettivo raggiunto" }, warn: { color: "#D97706", icon: "alert-circle" as const, label: "vicino all'obiettivo" }, ko: { color: "#DC2626", icon: "close-circle" as const, label: "sotto l'obiettivo" }, nd: { color: "#64748B", icon: "help-circle" as const, label: "dati insufficienti" } };
@@ -24,6 +25,11 @@ export default function AdminBeta() {
   const [loading, setLoading] = useState(false);
   const [days, setDays] = useState(42);
   const [saving, setSaving] = useState(false);
+  const [prog, setProg] = useState<ProgramAdmin | null>(null); // V50.z475
+  const loadProg = useCallback(() => { api<ProgramAdmin>("/admin/beta/program").then(setProg).catch(() => {}); }, []);
+  useEffect(() => { loadProg(); }, [loadProg]);
+  const startProgram = async () => { setSaving(true); try { await api("/admin/beta/start", { method: "POST", body: {} }); notify("Programma avviato", "Da oggi i consulenti vedono la missione della settimana 1 in Home e il Diario del venerdì."); loadProg(); } catch (e: any) { notify("Avvio non riuscito", e?.message || "Riprova"); } finally { setSaving(false); } };
+  const stopProgram = () => notify("Chiudere il programma?", "La card Beta sparisce dalla Home dei consulenti; diari e sondaggi restano.", [{ text: "Annulla", style: "cancel" }, { text: "Chiudi", style: "destructive", onPress: async () => { try { await api("/admin/beta/start", { method: "DELETE" }); loadProg(); } catch (e: any) { notify("Errore", e?.message || "Riprova"); } } }]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -93,6 +99,43 @@ export default function AdminBeta() {
             </View>
           );
         })}
+        {/* V50.z475 — Programma 6 settimane: avvio, partecipanti, missioni, diari */}
+        <View style={s.card} testID="beta-program">
+          <View style={s.rowBetween}>
+            <Text style={s.cardTitle}>Programma Beta · 6 settimane</Text>
+            {prog?.tenant_start ? <Text style={[s.chipTxt, { fontSize: 12 }]}>sett. {prog.current_week}/6 · dal {prog.tenant_start}</Text> : null}
+          </View>
+          {!prog?.tenant_start ? (
+            <>
+              <Text style={s.hint}>Avviando il programma, ogni consulente vede in Home la missione della settimana (3 compiti) e il Diario del venerdì (3 domande, 30 secondi). Le missioni portano i tester a provare le funzioni chiave in ordine.</Text>
+              <Pressable onPress={startProgram} disabled={saving} style={[s.addBtn, { alignSelf: "flex-start" }]} testID="beta-start"><Ionicons name="rocket-outline" size={16} color={C.onSurfaceInverse} /><Text style={s.addTxt}> Avvia oggi (settimana 1)</Text></Pressable>
+            </>
+          ) : (
+            <>
+              {prog.participants.map((u) => (
+                <View key={u.user_id} style={[s.rowBetween, { paddingVertical: 6, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.divider }]} testID={`beta-participant-${u.user_id}`}>
+                  <View style={{ flex: 1 }}><Text style={s.lbl}>{u.name || u.email}</Text><Text style={s.hint}>ultimo accesso {u.last_open || "mai"} · diari: {u.diaries_done.length ? u.diaries_done.map((w) => `S${w}`).join(" ") : "nessuno"}</Text></View>
+                  <View style={[s.chip, { minHeight: 30 }]}><Text style={s.chipTxt}>S{u.week}</Text></View>
+                </View>
+              ))}
+              {prog.current_week ? <Text style={s.hint}>Missione corrente: <Text style={{ fontWeight: "800", color: C.onSurface }}>{prog.missions[prog.current_week - 1].title}</Text> — {prog.missions[prog.current_week - 1].tasks.join(" · ")}</Text> : null}
+              <Pressable onPress={stopProgram} style={[s.chip, { alignSelf: "flex-start", borderColor: "#DC2626" }]} testID="beta-stop"><Text style={[s.chipTxt, { color: "#DC2626" }]}>Chiudi programma</Text></Pressable>
+            </>
+          )}
+        </View>
+        {prog?.diaries.length ? (
+          <View style={s.card} testID="beta-diaries">
+            <Text style={s.cardTitle}>Diario del venerdì · ultime voci</Text>
+            {prog.diaries.map((d, i) => (
+              <View key={i} style={{ gap: 2, paddingVertical: 6, borderTopWidth: i ? StyleSheet.hairlineWidth : 0, borderTopColor: C.divider }}>
+                <Text style={s.lbl}>{d.user_name || d.user_email} · settimana {d.week}{d.at ? ` · ${new Date(d.at).toLocaleDateString("it-IT")}` : ""}</Text>
+                {d.saved_time ? <Text style={s.hint}>⏱️ {d.saved_time}</Text> : null}
+                {d.angry ? <Text style={s.hint}>🔥 {d.angry}</Text> : null}
+                {d.manual ? <Text style={s.hint}>✋ {d.manual}</Text> : null}
+              </View>
+            ))}
+          </View>
+        ) : null}
         {data ? (
           <View style={s.card} testID="beta-nps-wave">
             <Text style={s.cardTitle}>Sondaggio NPS in-app</Text>
