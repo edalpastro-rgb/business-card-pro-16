@@ -17,6 +17,8 @@ import { ModuleErrorBoundary } from "@/src/shared";
 
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { acquireMicLease } from "@/src/utils/micLease"; // V50.z483 — pausa wake-word mentre si registra
+let _micRelease: null | (() => void) = null;
 // ---------- Types ----------
 type EventBanner = {
   event_id: string;
@@ -384,7 +386,7 @@ function EventBannersScreen() {
       }
       await AudioModule.setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true });
       await audioRecorder.prepareToRecordAsync();
-      audioRecorder.record();
+      audioRecorder.record(); _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
       setRecording(true);
       setRecordSeconds(0);
       recSecRef.current = setInterval(() => setRecordSeconds((s) => s + 1), 1000);
@@ -396,7 +398,7 @@ function EventBannersScreen() {
   const stopRec = async () => {
     if (recSecRef.current) { clearInterval(recSecRef.current); recSecRef.current = null; }
     try {
-      await audioRecorder.stop();
+      await audioRecorder.stop(); _micRelease?.(); _micRelease = null; // V50.z483
       setRecording(false);
       const uri = audioRecorder.uri;
       if (!uri) return;

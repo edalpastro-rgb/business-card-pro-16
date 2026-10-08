@@ -26,6 +26,8 @@ import { useFolderImport } from "@/src/FolderImportSheet";
 import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 import { AddressAutocomplete } from "@/src/AddressAutocomplete"; // V50.z469 — Google Places
+import { acquireMicLease } from "@/src/utils/micLease"; // V50.z483 — pausa wake-word mentre si registra
+let _micRelease: null | (() => void) = null;
 
 type Attachment = {
   id: string;
@@ -301,7 +303,7 @@ function NewAppointmentScreen() {
       const { granted } = await AudioModule.requestRecordingPermissionsAsync();
       if (!granted) { notify("Permesso microfono negato"); return; }
       await recorder.prepareToRecordAsync();
-      recorder.record();
+      recorder.record(); _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
       setRecording(true);
     } catch (e: any) {
       console.warn("startRec err", e);
@@ -315,7 +317,7 @@ function NewAppointmentScreen() {
         return await stopRecWeb();
       }
       setRecording(false);
-      await recorder.stop();
+      await recorder.stop(); _micRelease?.(); _micRelease = null; // V50.z483
       const uri = recorder.uri;
       if (!uri) return;
       const b64 = await uriToBase64(uri);
@@ -331,7 +333,7 @@ function NewAppointmentScreen() {
       const mr = new MediaRecorder(stream);
       const chunks: Blob[] = [];
       mr.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
-      mr.start();
+      mr.start(); _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
       webRecRef.current = { mr, chunks, stream };
       setRecording(true);
     } catch (e: any) {
@@ -344,7 +346,7 @@ function NewAppointmentScreen() {
     if (!st) { setRecording(false); return; }
     await new Promise<void>((resolve) => {
       st.mr.onstop = () => resolve();
-      st.mr.stop();
+      st.mr.stop(); _micRelease?.(); _micRelease = null; // V50.z483
     });
     st.stream.getTracks().forEach((t) => t.stop());
     setRecording(false);

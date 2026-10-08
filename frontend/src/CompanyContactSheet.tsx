@@ -29,7 +29,7 @@ import { notify } from "@/src/utils/notify";
 import * as FileSystem from "expo-file-system/legacy";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
-type Phone = { id: string; label: string; number: string };
+type Phone = { id: string; label: string; number: string; email?: string }; // V50.z483 — email opzionale per contatto
 
 // V50.z58 — Company Web Links ("Link utili" in Comunica con l'azienda)
 type CompanyLink = { link_id: string; title: string; url: string; icon: string; order?: number };
@@ -177,8 +177,10 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
     [data],
   );
 
+  // V50.z483 — Chiamata diretta: `tel:` apre SOLO il dialer (su Android `tel:` = ACTION_DIAL del telefono; WhatsApp non lo gestisce).
+  // Il tap sulla riga chiama; WhatsApp parte solo dal badge verde dedicato.
   const callNumber = (num: string) => {
-    const clean = (num || "").replace(/\s+/g, "");
+    const clean = (num || "").replace(/[^\d+#*]/g, "");
     if (!clean) return;
     const url = `tel:${clean}`;
     if (Platform.OS === "web") {
@@ -194,9 +196,9 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
     }
   };
 
-  const openMail = (email: string) => {
+  const openMail = (email: string, subject?: string) => {
     if (!email) return;
-    const url = `mailto:${email.trim()}`;
+    const url = `mailto:${email.trim()}${subject ? `?subject=${encodeURIComponent(subject)}` : ""}`;
     if (Platform.OS === "web") {
       try {
         window.location.href = url;
@@ -243,6 +245,7 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
   };
   const [addLabel, setAddLabel] = useState("");
   const [addNumber, setAddNumber] = useState("");
+  const [addEmail, setAddEmail] = useState(""); // V50.z483
 
   const addManualContact = async () => {
     const label = addLabel.trim();
@@ -264,7 +267,7 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
       }
       const body = {
         ...current,
-        communica_azienda_phones: [...existing, { id: genId(), label: label || "Contatto", number }],
+        communica_azienda_phones: [...existing, { id: genId(), label: label || "Contatto", number, email: addEmail.trim() }],
       };
       delete (body as any)._id;
       delete (body as any).user_id;
@@ -276,6 +279,7 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
       });
       setAddLabel("");
       setAddNumber("");
+      setAddEmail("");
       setAddOpen(false);
     } catch (e: any) {
       Alert.alert("Errore", e?.message || "Impossibile aggiungere il contatto.");
@@ -284,7 +288,7 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
     }
   };
 
-  const updateDraftPhone = (id: string, key: "label" | "number", value: string) => {
+  const updateDraftPhone = (id: string, key: "label" | "number" | "email", value: string) => {
     setDraftPhones((prev) =>
       prev.map((p) => (p.id === id ? { ...p, [key]: value } : p)),
     );
@@ -608,6 +612,7 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
           id: p.id || genId(),
           label: (p.label || "").trim(),
           number: (p.number || "").trim(),
+          email: (p.email || "").trim(),
         }))
         .filter((p) => p.number.length > 0);
       // Load current settings so we don't overwrite unrelated fields on PUT.
@@ -755,6 +760,18 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
                           keyboardType="phone-pad"
                           style={[styles.input, { fontSize: 13 }]}
                         />
+                        <Text style={styles.editSubLbl}>Email (opzionale)</Text>
+                        <TextInput
+                          testID={`company-sheet-phone-email-${p.id}`}
+                          value={p.email || ""}
+                          onChangeText={(t) => updateDraftPhone(p.id, "email", t)}
+                          placeholder="Es. assistenza@azienda.it"
+                          placeholderTextColor={C.muted}
+                          keyboardType="email-address"
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                          style={[styles.input, { fontSize: 13 }]}
+                        />
                       </View>
                       <Pressable
                         onPress={() => removeDraftPhone(p.id)}
@@ -866,19 +883,29 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
                         <Text style={styles.rowValueBig} numberOfLines={1}>
                           {p.number}
                         </Text>
+                        {p.email ? <Text style={styles.editSubLbl} numberOfLines={1} testID={`company-sheet-email-${p.id}`}>{p.email}</Text> : null}
                       </View>
                       {isMobileNumber(p.number) ? (
                         <Pressable onPress={() => { setWaFor(waFor?.id === p.id ? null : p); setMailFor(null); }} hitSlop={6} style={[styles.callBadge, { backgroundColor: "#25D366" }]} testID={`company-sheet-wa-${p.id}`}>
                           <Ionicons name="logo-whatsapp" size={16} color="#FFF" />
                         </Pressable>
-                      ) : (
-                        <Pressable onPress={() => { setMailFor(mailFor?.id === p.id ? null : p); setMailTo(data?.communica_azienda_email || ""); setWaFor(null); }} hitSlop={6} style={[styles.callBadge, { backgroundColor: "#2563EB" }]} testID={`company-sheet-mail-${p.id}`}>
-                          <Ionicons name="mail" size={15} color="#FFF" />
-                        </Pressable>
-                      )}
-                      <View style={styles.callBadge}>
+                      ) : null}
+                      {/* V50.z483 — Mail su OGNI contatto: con email del contatto → mailto diretto; altrimenti box con email aziendale/manuale */}
+                      <Pressable
+                        onPress={() => {
+                          const to = (p.email || "").trim();
+                          if (to.includes("@")) { openMail(to, `Richiesta — ${p.label || "contatto"}`); return; }
+                          setMailFor(mailFor?.id === p.id ? null : p); setMailTo(data?.communica_azienda_email || ""); setWaFor(null);
+                        }}
+                        hitSlop={6}
+                        style={[styles.callBadge, { backgroundColor: "#2563EB" }]}
+                        testID={`company-sheet-mail-${p.id}`}
+                      >
+                        <Ionicons name="mail" size={15} color="#FFF" />
+                      </Pressable>
+                      <Pressable onPress={() => callNumber(p.number)} hitSlop={6} style={styles.callBadge} testID={`company-sheet-callbadge-${p.id}`}>
                         <Ionicons name="call" size={14} color="#FFF" />
-                      </View>
+                      </Pressable>
                     </Pressable>
                   ))
                 )}
@@ -940,9 +967,21 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
                       keyboardType="phone-pad"
                       style={[styles.input, { fontSize: 13 }]}
                     />
+                    <Text style={styles.editSubLbl}>Email (opzionale)</Text>
+                    <TextInput
+                      testID="company-sheet-add-contact-email"
+                      value={addEmail}
+                      onChangeText={setAddEmail}
+                      placeholder="Es. assistenza@azienda.it"
+                      placeholderTextColor={C.muted}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      style={[styles.input, { fontSize: 13 }]}
+                    />
                     <View style={styles.actionsRow}>
                       <Pressable
-                        onPress={() => { setAddOpen(false); setAddLabel(""); setAddNumber(""); }}
+                        onPress={() => { setAddOpen(false); setAddLabel(""); setAddNumber(""); setAddEmail(""); }}
                         style={styles.btnGhost}
                         disabled={saving}
                         testID="company-sheet-add-contact-cancel"

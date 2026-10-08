@@ -20,6 +20,8 @@ import { ModuleErrorBoundary } from "@/src/shared";
 
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { acquireMicLease } from "@/src/utils/micLease"; // V50.z483 — pausa wake-word mentre si registra
+let _micRelease: null | (() => void) = null;
 type MasterCat = "notes" | "bills" | "audio" | "files" | "analisi" | "scanner" | "neo_prompts";
 type MasterFile = {
   file_id: string;
@@ -130,7 +132,7 @@ function MasterFilesScreen() {
       }
       await AudioModule.setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true });
       await audioRecorder.prepareToRecordAsync();
-      audioRecorder.record();
+      audioRecorder.record(); _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
       setRecording(true);
       setRecStart(Date.now());
     } catch (e: any) {
@@ -142,7 +144,7 @@ function MasterFilesScreen() {
     if (!recording) return;
     setBusy(true);
     try {
-      await audioRecorder.stop();
+      await audioRecorder.stop(); _micRelease?.(); _micRelease = null; // V50.z483
       const uri = audioRecorder.uri;
       setRecording(false);
       if (!uri) { notify("Registrazione vuota", ""); return; }
@@ -161,7 +163,7 @@ function MasterFilesScreen() {
   const cancelRecording = async () => {
     try {
       if (recording) {
-        try { await audioRecorder.stop(); } catch {}
+        try { await audioRecorder.stop(); } catch {} _micRelease?.(); _micRelease = null; // V50.z483
       }
     } finally {
       setRecording(false);

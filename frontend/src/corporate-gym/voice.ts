@@ -5,6 +5,8 @@ import { isTtsMode } from "@/src/utils/ttsGate"; // V50.z454
 import { Platform, Linking } from "react-native";
 import * as FileSystem from "expo-file-system/legacy";
 import { AudioModule, createAudioPlayer, type AudioRecorder } from "expo-audio";
+import { acquireMicLease } from "@/src/utils/micLease"; // V50.z483 — pausa wake-word mentre si registra
+let _micRelease: null | (() => void) = null;
 
 export type RecordedAudio = { b64: string; mime: string };
 
@@ -99,13 +101,13 @@ export async function startRecording(native: AudioRecorder | null): Promise<void
     webChunks = [];
     webRecorder = mimeType ? new MR(webStream, { mimeType }) : new MR(webStream);
     webRecorder.ondataavailable = (ev: BlobEvent) => { if (ev.data && ev.data.size > 0) webChunks.push(ev.data); };
-    webRecorder.start(250);
+    webRecorder.start(250); _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
     return;
   }
   if (!native) throw new Error("Recorder non disponibile");
   await AudioModule.setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true });
   await native.prepareToRecordAsync({ isMeteringEnabled: true }); // V50.z366 — metering per il tono in tempo reale
-  native.record();
+  native.record(); _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
 }
 
 export async function stopRecording(native: AudioRecorder | null): Promise<RecordedAudio | null> {
@@ -117,7 +119,7 @@ export async function stopRecording(native: AudioRecorder | null): Promise<Recor
       rec.onstop = () => resolve(new Blob(webChunks, { type: rec.mimeType || "audio/webm" }));
       try { rec.stop(); } catch { resolve(new Blob(webChunks, { type: "audio/webm" })); }
     });
-    try { webStream?.getTracks().forEach((t) => t.stop()); } catch {}
+    try { webStream?.getTracks().forEach((t) => t.stop()); } catch {} _micRelease?.(); _micRelease = null; // V50.z483
     webStream = null;
     try { webCtx?.close?.(); } catch {}
     webAnalyser = null; webCtx = null; webBuf = null;
@@ -131,7 +133,7 @@ export async function stopRecording(native: AudioRecorder | null): Promise<Recor
     return b64 ? { b64, mime: blob.type || "audio/webm" } : null;
   }
   if (!native) return null;
-  await native.stop();
+  await native.stop(); _micRelease?.(); _micRelease = null; // V50.z483
   // Torna in modalità riproduzione (altoparlante) per la voce del cliente
   try { await AudioModule.setAudioModeAsync({ playsInSilentMode: true, allowsRecording: false }); } catch {}
   const uri = native.uri;

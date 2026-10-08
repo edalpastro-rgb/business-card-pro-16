@@ -17,6 +17,8 @@ import { openInAppLink } from "@/src/utils/openInAppLink";
 import { ModuleErrorBoundary } from "@/src/shared";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 import { useSafeAreaInsets } from "react-native-safe-area-context"; // V50.z344 — barra input sopra la bottom nav (60px) e la safe area
+import { acquireMicLease } from "@/src/utils/micLease"; // V50.z483 — pausa wake-word mentre si registra
+let _micRelease: null | (() => void) = null;
 
 type Message = {
   message_id: string; channel_id: string; sender_id: string; sender_name: string;
@@ -127,12 +129,12 @@ function ChatDetailScreen() {
     const { granted } = await AudioModule.requestRecordingPermissionsAsync();
     if (!granted) return;
     await recorder.prepareToRecordAsync();
-    recorder.record();
+    recorder.record(); _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
     setRecording(true);
   };
   const stopRec = async () => {
     setRecording(false);
-    await recorder.stop();
+    await recorder.stop(); _micRelease?.(); _micRelease = null; // V50.z483
     const uri = recorder.uri;
     if (!uri) return;
     setBusy(true);

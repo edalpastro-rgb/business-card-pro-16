@@ -10,6 +10,8 @@ import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 import { KModalBody } from "@/src/ui/keyboard"; // V50.z397 — tastiera: campo attivo sempre visibile nelle Modal
+import { acquireMicLease } from "@/src/utils/micLease"; // V50.z483 — pausa wake-word mentre si registra
+let _micRelease: null | (() => void) = null;
 type Contact = { contact_id: string; first_name: string; last_name: string; contact_code?: string; phone?: string };
 type Group = { group_id: string; name: string; color: string; member_count?: number };
 
@@ -129,7 +131,7 @@ export function MasterVoiceRecorder({
         }
         const recorder = nativeRecorder; // V50.z255 — prima: AudioMod.createAudioRecorder(...) → «undefined is not a function»
         await recorder.prepareToRecordAsync();
-        recorder.record();
+        recorder.record(); _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
         nativeRecorderRef.current = recorder;
         durationRef.current = 0; setDuration(0);
         timerRef.current = setInterval(() => {
@@ -158,7 +160,7 @@ export function MasterVoiceRecorder({
       chunksRef.current = [];
       rec.ondataavailable = (ev: BlobEvent) => { if (ev.data && ev.data.size > 0) chunksRef.current.push(ev.data); };
       rec.onstop = () => { void handleStop(rec.mimeType); };
-      rec.start();
+      rec.start(); _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
       durationRef.current = 0; setDuration(0);
       timerRef.current = setInterval(() => {
         durationRef.current += 1; setDuration(durationRef.current);
@@ -176,7 +178,7 @@ export function MasterVoiceRecorder({
     if (Platform.OS !== "web" && nativeRecorderRef.current) {
       (async () => {
         try {
-          await nativeRecorderRef.current.stop();
+          await nativeRecorderRef.current.stop(); _micRelease?.(); _micRelease = null; // V50.z483
           const uri: string | undefined = nativeRecorderRef.current.uri;
           const AudioMod: any = await import("expo-audio");
           const FS: any = await import("expo-file-system/legacy");
@@ -200,7 +202,7 @@ export function MasterVoiceRecorder({
   };
 
   const handleStop = async (mime: string) => {
-    if (streamRef.current) { streamRef.current.getTracks().forEach((t) => t.stop()); streamRef.current = null; }
+    if (streamRef.current) { streamRef.current.getTracks().forEach((t) => t.stop()); streamRef.current = null; } _micRelease?.(); _micRelease = null; // V50.z483
     // V50.r — Native path: audio già letto in globals durante stopRecording
     if (Platform.OS !== "web") {
       const nb64 = (globalThis as any).__lastNativeAudioB64 as string | undefined;

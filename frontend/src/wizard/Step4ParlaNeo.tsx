@@ -11,6 +11,8 @@ import { api, apiUpload } from "@/src/api";
 import type { StepBinder } from "@/src/wizard/Step1Anagrafica";
 import { PrivacyNote } from "@/src/wizard/PrivacyNote"; // V50.z217
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { acquireMicLease } from "@/src/utils/micLease"; // V50.z483 — pausa wake-word mentre si registra
+let _micRelease: null | (() => void) = null;
 
 const PURPLE = "#7C3AED";
 const MAX_FILE = 50 * 1024 * 1024;
@@ -133,7 +135,7 @@ export function Step4ParlaNeo({ bind }: { bind: StepBinder }) {
         }
         await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
         await nativeRecorder.prepareToRecordAsync();
-        nativeRecorder.record();
+        nativeRecorder.record(); _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
         nativeRecording.current = true; tick(); setRec(true);
       } catch (e: any) { setError(e?.message || String(e)); }
       return;
@@ -153,7 +155,7 @@ export function Step4ParlaNeo({ bind }: { bind: StepBinder }) {
         form.append("file", new File([blob], `neo.${m.includes("mp4") ? "m4a" : "webm"}`, { type: m })); form.append("mime", m);
         await sendAudio(form);
       };
-      r.start(); tick(); setRec(true);
+      r.start(); tick(); setRec(true); _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
     } catch (e: any) { setError(e?.name === "NotAllowedError" ? "Permesso microfono negato dal browser." : (e?.message || String(e))); }
   };
   const stopRec = async () => {
@@ -163,7 +165,7 @@ export function Step4ParlaNeo({ bind }: { bind: StepBinder }) {
       try {
         if (!nativeRecording.current) return;
         nativeRecording.current = false;
-        await nativeRecorder.stop();
+        await nativeRecorder.stop(); _micRelease?.(); _micRelease = null; // V50.z483
         await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => {});
         const uri: string | undefined = nativeRecorder.uri || undefined; if (!uri) return;
         if (secRef.current < 1) { setError("Registrazione troppo corta: parla per almeno un secondo."); return; }
@@ -172,7 +174,7 @@ export function Step4ParlaNeo({ bind }: { bind: StepBinder }) {
       } catch (e: any) { setError(e?.message || String(e)); }
       return;
     }
-    try { if (webRec.current && webRec.current.state !== "inactive") webRec.current.stop(); } catch {}
+    try { if (webRec.current && webRec.current.state !== "inactive") webRec.current.stop(); } catch {} _micRelease?.(); _micRelease = null; // V50.z483
   };
 
   // ── Proposte / fatti: un tap

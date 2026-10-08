@@ -27,6 +27,8 @@ import { notify } from "@/src/utils/notify";
 // V50.z186 — stop vocale (barge-in nativo) + audio in background (moduli isolati)
 import { useNativeBargeIn } from "@/src/voice/useNativeBargeIn";
 import { ensureVoiceAudioMode } from "@/src/voice/voiceAudioMode";
+import { acquireMicLease } from "@/src/utils/micLease"; // V50.z483 — pausa wake-word mentre si registra
+let _micRelease: null | (() => void) = null;
 
 type Phase = "idle" | "recording" | "transcribing" | "executing" | "speaking" | "error";
 type HistoryItem = {
@@ -140,7 +142,7 @@ export default function VoiceCopilotScreen() {
     try {
       await ensureVoiceAudioMode({ recording: true }); // V50.z186 — registrazione continua in background
       await recorder.prepareToRecordAsync();
-      recorder.record();
+      recorder.record(); _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
     } catch (e: any) {
       setPhase("error");
       notify("Errore", `Registrazione fallita: ${e?.message || e}`);
@@ -151,7 +153,7 @@ export default function VoiceCopilotScreen() {
     if (phase !== "recording") return;
     setPhase("transcribing");
     try {
-      await recorder.stop();
+      await recorder.stop(); _micRelease?.(); _micRelease = null; // V50.z483
       const uri = recorder.uri;
       if (!uri) throw new Error("Nessun audio registrato");
       // Read as base64 and send to /api/ai/transcribe
@@ -191,6 +193,7 @@ export default function VoiceCopilotScreen() {
     } catch (e: any) {
       const err = e?.response?.data?.detail || e?.message || String(e);
       setPhase("error");
+      notify("Axon Drive", err); // V50.z483 — prima l'errore era solo «parlato»: con TTS muto sembrava che non succedesse nulla
       setHistory(prev => [{
         id: `h-${Date.now()}`,
         transcript: currentTranscript,

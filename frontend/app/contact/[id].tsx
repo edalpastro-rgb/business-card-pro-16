@@ -52,6 +52,8 @@ import { ContactReviewsSection } from "@/src/ContactReviewsSection";
 import { ContactDistanceBadge } from "@/src/ContactDistanceBadge"; // V50.z241 — «📍 X km da te»
 import { useDraft } from "@/src/utils/appStatePersist"; // V50.z242 — BUG-STATE-001: bozza nota
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { acquireMicLease } from "@/src/utils/micLease"; // V50.z483 — pausa wake-word mentre si registra
+let _micRelease: null | (() => void) = null;
 
 type Note = { id: string; kind: "text" | "audio" | "photo" | "video" | "file" | "link"; category?: "general" | "email" | "referral" | null; text?: string; audio_base64?: string; audio_mime?: string; photo_base64?: string; video_base64?: string; video_mime?: string; file_base64?: string; file_name?: string; file_mime?: string; file_size?: number; link_url?: string; link_title?: string; created_at: string; duration_ms?: number };
 type CFile = { id: string; name: string; mime: string; size: number; created_at: string; data_base64?: string };
@@ -480,13 +482,13 @@ function ContactDetail() {
     const { granted } = await AudioModule.requestRecordingPermissionsAsync();
     if (!granted) return;
     await recorder.prepareToRecordAsync();
-    recorder.record();
+    recorder.record(); _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
     setRecording(true);
   };
 
   const stopRecording = async () => {
     setRecording(false);
-    await recorder.stop();
+    await recorder.stop(); _micRelease?.(); _micRelease = null; // V50.z483
     const uri = recorder.uri;
     if (!uri) return;
     setBusy(true);

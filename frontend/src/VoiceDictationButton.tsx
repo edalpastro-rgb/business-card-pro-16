@@ -5,6 +5,8 @@ import { transcribeUpload } from "@/src/utils/upload";
 import { notify } from "@/src/utils/notify";
 import { useAudioRecorder, AudioModule, RecordingPresets } from "expo-audio"; // V50.z247 — dettatura anche su iOS/Android nativi
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { acquireMicLease } from "@/src/utils/micLease"; // V50.z483 — pausa wake-word mentre si registra
+let _micRelease: null | (() => void) = null;
 
 type Props = {
   onTranscript: (text: string) => void;
@@ -52,7 +54,7 @@ export function VoiceDictationButton({ onTranscript, label = "Dettatura", compac
         try { mediaRecorderRef.current.stop(); } catch {}
       }
       if (streamRef.current) {
-        streamRef.current.getTracks().forEach((t) => t.stop());
+        streamRef.current.getTracks().forEach((t) => t.stop()); _micRelease?.(); _micRelease = null; // V50.z483
       }
     };
   }, []);
@@ -78,7 +80,7 @@ export function VoiceDictationButton({ onTranscript, label = "Dettatura", compac
         if (!granted) return;
       }
       await nativeRecorder.prepareToRecordAsync();
-      nativeRecorder.record();
+      nativeRecorder.record(); _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
       nativeRecordingRef.current = true;
       setRecording(true);
       durationRef.current = 0;
@@ -86,7 +88,7 @@ export function VoiceDictationButton({ onTranscript, label = "Dettatura", compac
       timerRef.current = setInterval(() => {
         durationRef.current += 1;
         setDuration(durationRef.current);
-        if (durationRef.current >= 120) stopRecording();
+        if (durationRef.current >= 600) stopRecording(); // V50.z483 — 10 min (relazioni lunghe)
       }, 1000);
     } catch (e: any) {
       const msg = e?.message || "Errore microfono";
@@ -100,7 +102,7 @@ export function VoiceDictationButton({ onTranscript, label = "Dettatura", compac
     nativeRecordingRef.current = false;
     setProcessing(true);
     try {
-      await nativeRecorder.stop();
+      await nativeRecorder.stop(); _micRelease?.(); _micRelease = null; // V50.z483
       const uri = nativeRecorder.uri;
       if (!uri) { setProcessing(false); return; }
       if (durationRef.current < 1) { notify("Registrazione troppo corta", "Parla per almeno 1 secondo."); setProcessing(false); return; }
@@ -144,15 +146,15 @@ export function VoiceDictationButton({ onTranscript, label = "Dettatura", compac
       rec.onstop = () => {
         void handleStop(rec.mimeType);
       };
-      rec.start();
+      rec.start(); _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
       setRecording(true);
       durationRef.current = 0;
       setDuration(0);
       timerRef.current = setInterval(() => {
         durationRef.current += 1;
         setDuration(durationRef.current);
-        // Auto-stop after 120 seconds
-        if (durationRef.current >= 120) {
+        // Auto-stop after 600 seconds (V50.z483 — 10 min)
+        if (durationRef.current >= 600) {
           stopRecording();
         }
       }, 1000);
@@ -186,7 +188,7 @@ export function VoiceDictationButton({ onTranscript, label = "Dettatura", compac
     try {
       // Free the mic
       if (streamRef.current) {
-        streamRef.current.getTracks().forEach((t) => t.stop());
+        streamRef.current.getTracks().forEach((t) => t.stop()); _micRelease?.(); _micRelease = null; // V50.z483
         streamRef.current = null;
       }
       const parts = chunksRef.current;

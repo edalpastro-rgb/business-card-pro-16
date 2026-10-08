@@ -3,6 +3,7 @@
 // → routing deterministico backend → trigger proattivo (source=wake_word) con risposta parlata
 //   oppure chat Axon in modalità voce (comandi liberi: agenda, ricerche web, tutto ciò che sa fare Axon).
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { isMicLeased, onMicLease } from "@/src/utils/micLease"; // V50.z483 — pausa wake-word mentre l'app registra
 import { loadTtsMuted } from "@/src/utils/ttsGate"; // V50.z453
 import { AppState, Platform, Linking } from "react-native";
 import * as Haptics from "expo-haptics";
@@ -284,7 +285,7 @@ export function ViolaWakeProvider({ children }: { children: React.ReactNode }) {
     } finally {
       busyRef.current = false;
       // torna in ascolto della wake-word se ancora attivo — V50.z385: dopo un STT vuoto il riarmo è RITARDATO (cooldown)
-      if (settingsRef.current?.enabled && moduleRef.current?.enabled) {
+      if (settingsRef.current?.enabled && moduleRef.current?.enabled && !isMicLeased()) {
         const delay = rearmDelayRef.current;
         if (delay > 0) {
           if (rearmTimerRef.current) clearTimeout(rearmTimerRef.current);
@@ -301,6 +302,7 @@ export function ViolaWakeProvider({ children }: { children: React.ReactNode }) {
     const perm = await getMicPermission();
     setPermission(perm);
     if (!perm.granted) { setState("no_permission"); return; }
+    if (isMicLeased()) { setState("off"); return; } // V50.z483 — un registratore dell'app ha il microfono: riparte al rilascio
     if (engineRef.current) { setState("listening"); return; }
     setState("starting");
     setError(null);
@@ -334,6 +336,16 @@ export function ViolaWakeProvider({ children }: { children: React.ReactNode }) {
     return () => { if (rearmTimerRef.current) { clearTimeout(rearmTimerRef.current); rearmTimerRef.current = null; } void stopEngine(); void stopForegroundService(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shouldRun, settings?.sensitivity, settings?.keyword_mode]);
+
+  // V50.z483 — lease microfono: quando un registratore dell'app parte fermiamo il motore (e il riarmo); al rilascio ripartiamo
+  const shouldRunRef = useRef(shouldRun); shouldRunRef.current = shouldRun;
+  useEffect(() => onMicLease((busy) => {
+    if (busy) {
+      if (rearmTimerRef.current) { clearTimeout(rearmTimerRef.current); rearmTimerRef.current = null; }
+      if (engineRef.current) { void stopEngine(); setState("off"); }
+    } else if (shouldRunRef.current) void startEngine();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), []);
 
   // V50.z370 — presenza dispositivo: heartbeat ogni 30 s mentre ascolta; release quando l'ascolto si spegne / l'app si chiude
   useEffect(() => {

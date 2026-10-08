@@ -307,14 +307,31 @@ async def _audio_to_wav16k(data: bytes) -> Optional[bytes]:
         return None
 
 
+_DG_MIME_BY_EXT = {".wav": "audio/wav", ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".mp4": "audio/mp4", ".webm": "audio/webm", ".ogg": "audio/ogg", ".oga": "audio/ogg", ".flac": "audio/flac", ".mpeg": "audio/mpeg", ".mpga": "audio/mpeg"}
+
+
+async def _dg_transcribe_text(audio_bytes: bytes, ext: str, key: str) -> str:
+    """V50.z483 — Deepgram nova-3 (it) per Axon Drive / dettatura: veloce e indipendente dal proxy LLM. Ritorna il testo (anche vuoto)."""
+    import httpx as _hx
+    params = {"model": os.environ.get("DEEPGRAM_MODEL", "nova-3"), "language": "it", "smart_format": "true", "punctuate": "true"}
+    async with _hx.AsyncClient(timeout=_hx.Timeout(60.0)) as client:
+        r = await client.post("https://api.deepgram.com/v1/listen", params=params, headers={"Authorization": f"Token {key}", "Content-Type": _DG_MIME_BY_EXT.get(ext, "application/octet-stream")}, content=audio_bytes)
+    if r.status_code >= 400:
+        raise RuntimeError(f"Deepgram HTTP {r.status_code}: {r.text[:200]}")
+    ch = (r.json().get("results") or {}).get("channels") or []
+    alt = ((ch[0].get("alternatives") or [{}])[0]) if ch else {}
+    return (alt.get("transcript") or "").strip()
+
+
 @api_router.post("/ai/transcribe")
 async def ai_transcribe(body: AIVoiceIn, user=Depends(get_current_user)):
-    """Transcribe audio to text via OpenAI Whisper (Italian language).
-    Returns just the raw transcript — used by the microphone button on the contact card notes.
+    """Transcribe audio to text. V50.z483 — Deepgram (DEEPGRAM_API_KEY, nova-3 it) se configurato, altrimenti OpenAI Whisper.
+    Returns just the raw transcript — used by Axon Drive, dictation buttons and the contact card notes.
     """
     key = os.environ.get("EMERGENT_LLM_KEY")
-    if not key:
-        raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY non configurato")
+    dg_key = (os.environ.get("DEEPGRAM_API_KEY") or "").strip()
+    if not key and not dg_key:
+        raise HTTPException(status_code=500, detail="Nessun motore di trascrizione configurato (DEEPGRAM_API_KEY o EMERGENT_LLM_KEY)")
     b64 = body.audio_base64
     if b64.startswith("data:"):
         b64 = b64.split(",", 1)[1]
@@ -341,23 +358,39 @@ async def ai_transcribe(body: AIVoiceIn, user=Depends(get_current_user)):
         tmp.write(audio_bytes)
         path = tmp.name
     vp_task = asyncio.create_task(vp_verify_for_user(user, audio_bytes, mime)) if body.verify_speaker else None  # noqa: F821  # V50.z372
-    try:
-        from emergentintegrations.llm.openai.speech_to_text import OpenAISpeechToText
-        stt = OpenAISpeechToText(api_key=key)
+    model_used = "whisper-1"
+    transcript: Optional[str] = None
+    if dg_key:
         try:
-            with open(path, "rb") as _fh:
-                result = await stt.transcribe(file=_fh, model="whisper-1", language="it", response_format="text")
-        except Exception as first_err:
-            # V50.z432 — ultimo tentativo: normalizza in WAV e riprova (copre container m4a «strani» di alcuni Android)
-            if ext == ".wav" or "format" not in str(first_err).lower():
-                raise
-            converted = await _audio_to_wav16k(audio_bytes)
-            if not converted:
-                raise
-            with open(path, "wb") as _fw:
-                _fw.write(converted)
-            with open(path, "rb") as _fh:
-                result = await stt.transcribe(file=_fh, model="whisper-1", language="it", response_format="text")
+            transcript = await _dg_transcribe_text(audio_bytes, ext, dg_key)
+            model_used = "deepgram-" + os.environ.get("DEEPGRAM_MODEL", "nova-3")
+        except Exception as dg_exc:  # fallback Whisper se disponibile
+            logger.warning(f"[transcribe] Deepgram fallito ({dg_exc}) → fallback Whisper={'sì' if key else 'no'}")
+            transcript = None
+            if not key:
+                try: os.unlink(path)
+                except Exception: pass
+                raise HTTPException(status_code=502, detail=f"Errore trascrizione Deepgram: {str(dg_exc)[:200]}")
+    try:
+        if transcript is not None:
+            result = transcript
+        else:
+            from emergentintegrations.llm.openai.speech_to_text import OpenAISpeechToText
+            stt = OpenAISpeechToText(api_key=key)
+            try:
+                with open(path, "rb") as _fh:
+                    result = await stt.transcribe(file=_fh, model="whisper-1", language="it", response_format="text")
+            except Exception as first_err:
+                # V50.z432 — ultimo tentativo: normalizza in WAV e riprova (copre container m4a «strani» di alcuni Android)
+                if ext == ".wav" or "format" not in str(first_err).lower():
+                    raise
+                converted = await _audio_to_wav16k(audio_bytes)
+                if not converted:
+                    raise
+                with open(path, "wb") as _fw:
+                    _fw.write(converted)
+                with open(path, "rb") as _fh:
+                    result = await stt.transcribe(file=_fh, model="whisper-1", language="it", response_format="text")
         # response can be a plain string when response_format=text, or an object with .text
         if isinstance(result, str):
             transcript = result.strip()
@@ -379,9 +412,9 @@ async def ai_transcribe(body: AIVoiceIn, user=Depends(get_current_user)):
         if vp is not None and not vp.get("match"):
             await db.viola_wake_events.insert_one({"kind": "unknown_voice", "detail": f"Axon Drive · score {vp.get('score')} < soglia {vp.get('threshold')}", "engine": "ecapa",
                                                    "event_id": f"vw_{uuid.uuid4().hex[:10]}", "user_id": user["user_id"], "tenant_id": tenant_id(user), "created_at": utcnow()})
-            return {"transcript": "", "reason": "unknown_voice", "silent": True, "speaker": None, "score": vp.get("score"), "language": "it", "model": "whisper-1"}
-        return {"transcript": transcript, "language": "it", "model": "whisper-1", "speaker": (vp or {}).get("profile"), "speaker_score": (vp or {}).get("score")}
-    return {"transcript": transcript, "language": "it", "model": "whisper-1"}
+            return {"transcript": "", "reason": "unknown_voice", "silent": True, "speaker": None, "score": vp.get("score"), "language": "it", "model": model_used}
+        return {"transcript": transcript, "language": "it", "model": model_used, "speaker": (vp or {}).get("profile"), "speaker_score": (vp or {}).get("score")}
+    return {"transcript": transcript, "language": "it", "model": model_used}
 
 
 @api_router.post("/ai/contact-from-voice")

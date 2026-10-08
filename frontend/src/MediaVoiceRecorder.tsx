@@ -6,6 +6,8 @@ import { Pressable, Text, StyleSheet, Platform, Alert, Linking } from "react-nat
 import { useAudioRecorder, RecordingPresets } from "expo-audio"; // V50.z255 — hook ufficiale (createAudioRecorder non esiste in expo-audio)
 import { Ionicons } from "@expo/vector-icons";
 import { notify } from "@/src/utils/notify";
+import { acquireMicLease } from "@/src/utils/micLease"; // V50.z483 — pausa wake-word mentre si registra
+let _micRelease: null | (() => void) = null;
 
 type Props = { color: string; disabled?: boolean; onDone: (b64: string, mime: string, durationSec: number) => void; onRecordingChange?: (r: boolean) => void };
 
@@ -40,7 +42,7 @@ export function MediaVoiceRecorder({ color, disabled, onDone, onRecordingChange 
         }
         await AudioMod.setAudioModeAsync?.({ allowsRecording: true, playsInSilentMode: true });
         const r = nativeRecorder; // V50.z255 — prima: AudioMod.createAudioRecorder(...) → «undefined is not a function»
-        await r.prepareToRecordAsync(); r.record(); native.current = r;
+        await r.prepareToRecordAsync(); r.record(); native.current = r; _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
         tick(); setRec(true);
       } catch (e: any) { notify("Microfono", e?.message || String(e)); }
       return;
@@ -53,13 +55,13 @@ export function MediaVoiceRecorder({ color, disabled, onDone, onRecordingChange 
       const r = mime ? new MR(s, { mimeType: mime }) : new MR(s); webRec.current = r; chunks.current = [];
       r.ondataavailable = (ev: BlobEvent) => { if (ev.data?.size) chunks.current.push(ev.data); };
       r.onstop = async () => {
-        s.getTracks().forEach((t) => t.stop()); stream.current = null;
+        s.getTracks().forEach((t) => t.stop()); stream.current = null; _micRelease?.(); _micRelease = null; // V50.z483
         const blob = new Blob(chunks.current, { type: r.mimeType || "audio/webm" });
         if (blob.size < 512) { notify("Registrazione troppo corta"); return; }
         const b64: string = await new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(",")[1] || ""); fr.readAsDataURL(blob); });
         onDone(b64, blob.type || "audio/webm", secRef.current);
       };
-      r.start(); tick(); setRec(true);
+      r.start(); tick(); setRec(true); _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
     } catch (e: any) { notify("Microfono", e?.name === "NotAllowedError" ? "Permesso microfono negato dal browser" : (e?.message || String(e))); }
   };
 
@@ -70,7 +72,7 @@ export function MediaVoiceRecorder({ color, disabled, onDone, onRecordingChange 
       try {
         const r = native.current; native.current = null;
         if (!r) return;
-        await r.stop();
+        await r.stop(); _micRelease?.(); _micRelease = null; // V50.z483
         const FS: any = await import("expo-file-system/legacy");
         const uri: string | undefined = r.uri;
         if (!uri) return;

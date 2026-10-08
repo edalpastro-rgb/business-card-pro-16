@@ -57,6 +57,8 @@ import { ConversationPanel, MessageBubble, TypingDots } from "@/src/assistant/Ch
 import type { ChatMsg } from "@/src/assistant/chatTypes";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 import { KModalBody } from "@/src/ui/keyboard"; // V50.z397 — tastiera: campo attivo sempre visibile nelle Modal
+import { acquireMicLease } from "@/src/utils/micLease"; // V50.z483 — pausa wake-word mentre si registra
+let _micRelease: null | (() => void) = null;
 
 // V29.l — Logo AxonOS orizzontale trasparente per l'empty state chat (senza card scura, compatto).
 const AXONOS_LOGO_HORIZONTAL = require("@/assets/images/axonos-logo-light.png"); // V50.z228 — nuovo logo (sfondo chiaro)
@@ -1599,7 +1601,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
         if (!perm.granted) { notify("Permesso negato", "Consenti l'accesso al microfono nelle impostazioni."); return; }
         await ensureVoiceAudioMode({ recording: true }); // V50.z186 — registrazione anche in background/schermo bloccato
         await nativeRecorder.prepareToRecordAsync();
-        nativeRecorder.record();
+        nativeRecorder.record(); _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
         recordingRef.current = true;
         setRecording(true);
         durRef.current = 0;
@@ -1632,7 +1634,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
         if (ev.data && ev.data.size > 0) chunksRef.current.push(ev.data);
       };
       rec.onstop = () => { void handleStop(rec.mimeType); };
-      rec.start();
+      rec.start(); _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
       setRecording(true);
       durRef.current = 0;
       setRecDuration(0);
@@ -1656,7 +1658,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     if (Platform.OS !== "web") {
       (async () => {
         try {
-          await nativeRecorder.stop();
+          await nativeRecorder.stop(); _micRelease?.(); _micRelease = null; // V50.z483
           const uri = nativeRecorder.uri;
           if (!uri) return;
           nativeUriRef.current = uri;
@@ -1683,7 +1685,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     // V50.z478 — Web: rilascia SUBITO il microfono (prima i track venivano fermati solo in onstop → pallino rosso
     // di Chrome acceso ~2 s dopo il tap). rec.stop() ha già richiesto l'ultimo chunk, quindi nulla va perso.
     if (streamRef.current) {
-      try { streamRef.current.getTracks().forEach((t) => t.stop()); } catch {}
+      try { streamRef.current.getTracks().forEach((t) => t.stop()); } catch {} _micRelease?.(); _micRelease = null; // V50.z483
       streamRef.current = null;
     }
   };
