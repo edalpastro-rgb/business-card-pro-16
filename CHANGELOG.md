@@ -927,6 +927,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z484 | Giu 2026 | **Permessi di sistema** (GPS, microfono, fotocamera, contatti): banner persistente in Home con tap → Impostazioni, alert con nome e percorso quando si usa una funzione senza permesso, Axon sa in tempo reale quali permessi sono attivi e non afferma mai di avere accesso a risorse negate. |
 | V50.z483 | Giu 2026 | **Comunica con l'azienda**: email opzionale per contatto, mail/chiamata funzionanti · **Axon Drive** trascrive con Deepgram (nova-3) · **Fix registrazioni vocali** interrotte/«a vuoto» dopo 2 s (lease microfono: la wake-word si ferma mentre si registra) · dettatura fino a 10 min. |
 | V50.z482 | Giu 2026 | **Carica cartella con anteprima** (spunte per escludere file, Tutti/Nessuno) e **barra «N di M file»** in tutti i punti di upload; **FAB calcolatrice unica** (niente doppioni sulle schede); fix difensivo scroll Home web. |
 | V50.z481 | Giu 2026 | **Fix warning VPS** CHANGELOG.md / PRD.md mancanti: inclusi nel pacchetto (`backend/CHANGELOG.md`, `backend/memory/PRD.md`) e lettura tollerante in `axon_system_awareness.py`. |

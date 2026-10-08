@@ -422,6 +422,23 @@ _NAV_NO_MARKER_SECTION = (
 
 _nav_prev_prepare = _prepare_assistant_prompt  # noqa: F821 — definita nei moduli precedenti
 
+def _nav_permissions_section(ctx: Optional[dict]) -> str:
+    """V50.z484 — Sezione «PERMESSI DISPOSITIVO»: stato REALE dei permessi di sistema inviato dall'app (client_context.device_permissions)."""
+    if not isinstance(ctx, dict):
+        return ""
+    dp = str(ctx.get("device_permissions") or "").strip()
+    if not dp:
+        return ""
+    denied = [p for p in ("gps", "microfono", "fotocamera", "rubrica") if re.search(rf"{p}:(NEGATO|non ancora richiesto)", dp)]
+    txt = ("\n\n🔐 PERMESSI DISPOSITIVO (stato reale del sistema operativo, aggiornato ora) — " + dp + ".\n"
+           "REGOLA: NON affermare MAI di avere accesso o di poter usare GPS/posizione, microfono, fotocamera o rubrica se qui risultano NEGATI o non richiesti. "
+           "Se l'utente chiede qualcosa che li richiede (clienti vicini, percorso da qui, dettatura, foto, numero dalla rubrica): di' chiaramente che il permesso «X» non è attivo "
+           "e che va abilitato da Impostazioni del telefono → App → AdvisorOS → Autorizzazioni (iOS: Impostazioni → Privacy e sicurezza → X → AdvisorOS); proponi l'alternativa manuale.")
+    if denied:
+        txt += " PERMESSI NON ATTIVI ORA: " + ", ".join(denied) + "."
+    return txt
+
+
 def _nav_position_section(ctx: Optional[dict]) -> str:
     """V50.z291 — Sezione «POSIZIONE ATTUALE»: route del client → voce della mappa app (nome, gruppo, descrizione)."""
     if not isinstance(ctx, dict):
@@ -485,6 +502,8 @@ async def _prepare_assistant_prompt(user: dict, body) -> dict:  # noqa: F811
             prep["data_request"] = True  # V50.z453 — lo stream mostra SOLO il dato: niente fonte/link/chip
         if voice_block:
             prep["max_tokens"] = min(prep.get("max_tokens") or 180, 180)
+        # V50.z484 — PERMESSI DISPOSITIVO reali (OS): Axon non deve mai dire di avere GPS/microfono/fotocamera/rubrica se negati
+        section += _nav_permissions_section(ctx)
         prep["system_message"] = voice_block + prep["system_message"] + section + ("\n\n" + voice_block if voice_block else "")
         prep["nav_intent"] = intent
         try:  # telemetria dimensione prompt

@@ -27,6 +27,7 @@ import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 import { AddressAutocomplete } from "@/src/AddressAutocomplete"; // V50.z469 — Google Places
 import { acquireMicLease } from "@/src/utils/micLease"; // V50.z483 — pausa wake-word mentre si registra
+import { ensureDevicePermission } from "@/src/permissions/devicePermissions"; // V50.z484 — alert permesso di sistema mancante
 let _micRelease: null | (() => void) = null;
 
 type Attachment = {
@@ -302,6 +303,7 @@ function NewAppointmentScreen() {
       }
       const { granted } = await AudioModule.requestRecordingPermissionsAsync();
       if (!granted) { notify("Permesso microfono negato"); return; }
+      if (!(await ensureDevicePermission("microphone"))) return; // V50.z484
       await recorder.prepareToRecordAsync();
       recorder.record(); _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
       setRecording(true);

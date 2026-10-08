@@ -7,6 +7,7 @@ import { useAudioRecorder, RecordingPresets } from "expo-audio"; // V50.z255 —
 import { Ionicons } from "@expo/vector-icons";
 import { notify } from "@/src/utils/notify";
 import { acquireMicLease } from "@/src/utils/micLease"; // V50.z483 — pausa wake-word mentre si registra
+import { ensureDevicePermission } from "@/src/permissions/devicePermissions"; // V50.z484 — alert permesso di sistema mancante
 let _micRelease: null | (() => void) = null;
 
 type Props = { color: string; disabled?: boolean; onDone: (b64: string, mime: string, durationSec: number) => void; onRecordingChange?: (r: boolean) => void };
@@ -42,6 +43,7 @@ export function MediaVoiceRecorder({ color, disabled, onDone, onRecordingChange 
         }
         await AudioMod.setAudioModeAsync?.({ allowsRecording: true, playsInSilentMode: true });
         const r = nativeRecorder; // V50.z255 — prima: AudioMod.createAudioRecorder(...) → «undefined is not a function»
+        if (!(await ensureDevicePermission("microphone"))) return; // V50.z484
         await r.prepareToRecordAsync(); r.record(); native.current = r; _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
         tick(); setRec(true);
       } catch (e: any) { notify("Microfono", e?.message || String(e)); }

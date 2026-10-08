@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 import { pickSingleImageDataUrlWeb, pickFilesWeb, WebPickedAsset } from "./web-image-picker";
+import { ensureDevicePermission } from "@/src/permissions/devicePermissions"; // V50.z484 — alert permesso di sistema mancante
 
 /**
  * Universal image picker helpers.
@@ -89,6 +90,7 @@ export async function pickImages(opts: UniversalPickerOptions = {}): Promise<Uni
 
   // Native
   const ImagePicker = await import("expo-image-picker");
+  if (fromCamera && !(await ensureDevicePermission("camera"))) return []; // V50.z484 — alert con percorso Impostazioni
   const perm = fromCamera
     ? await ImagePicker.requestCameraPermissionsAsync()
     : await ImagePicker.requestMediaLibraryPermissionsAsync();

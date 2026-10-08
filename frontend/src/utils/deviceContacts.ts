@@ -2,6 +2,7 @@
 // Privacy: la rubrica resta sul dispositivo (si cerca solo il nome richiesto e si mostra il numero in chat). Permesso chiesto
 // contestualmente (l'utente ha appena chiesto un numero); negato/bloccato/web → fallback silenzioso, mai un crash.
 import { Platform } from "react-native";
+import { ensureDevicePermission } from "@/src/permissions/devicePermissions"; // V50.z484 — alert permesso di sistema mancante
 
 export type DeviceContactLookup =
   | { status: "found"; name: string; phone: string }
@@ -18,8 +19,8 @@ export async function lookupDeviceContact(query: string): Promise<DeviceContactL
   try {
     let perm = await Contacts.getPermissionsAsync();
     if (!perm.granted) {
-      if (perm.canAskAgain === false) return { status: "denied" };
-      perm = await Contacts.requestPermissionsAsync();
+      if (!(await ensureDevicePermission("contacts"))) return { status: "denied" }; // V50.z484 — alert con percorso Impostazioni
+      perm = await Contacts.getPermissionsAsync();
       if (!perm.granted) return { status: "denied" };
     }
     const q = norm(query);

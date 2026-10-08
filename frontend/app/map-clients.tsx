@@ -15,6 +15,7 @@ import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
 import { LeafletMap, MapMarker } from "@/src/LeafletMap";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { ensureDevicePermission } from "@/src/permissions/devicePermissions"; // V50.z484 — alert permesso di sistema mancante
 
 export const GIRO_KEY = "geo_giro_ids_v1";
 type GeoContact = { contact_id: string; name: string; company: string; status: string; phone: string; address: string; city: string; area: string; lat: number | null; lon: number | null; owner_id?: string; owner_name?: string };
@@ -55,8 +56,8 @@ export default function MapClientsScreen() {
       const perm = await Location.getForegroundPermissionsAsync();
       let granted = perm.granted;
       if (!granted && !silent) {
-        if (!perm.canAskAgain) { setGpsDenied(true); notify("Posizione disattivata", "Abilita la posizione nelle impostazioni del telefono per centrare la mappa su di te.", [{ text: "Apri impostazioni", onPress: () => Linking.openSettings() }, { text: "Ok" }]); return; }
-        granted = (await Location.requestForegroundPermissionsAsync()).granted;
+        granted = await ensureDevicePermission("location"); // V50.z484 — alert con nome permesso + percorso Impostazioni
+        if (!granted) { setGpsDenied(true); return; }
       }
       if (!granted) { setGpsDenied(true); return; }
       const p = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });

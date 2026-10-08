@@ -6,6 +6,7 @@ import { notify } from "@/src/utils/notify";
 import { useAudioRecorder, AudioModule, RecordingPresets } from "expo-audio"; // V50.z247 — dettatura anche su iOS/Android nativi
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 import { acquireMicLease } from "@/src/utils/micLease"; // V50.z483 — pausa wake-word mentre si registra
+import { ensureDevicePermission } from "@/src/permissions/devicePermissions"; // V50.z484 — alert permesso di sistema mancante
 let _micRelease: null | (() => void) = null;
 
 type Props = {
@@ -79,6 +80,7 @@ export function VoiceDictationButton({ onTranscript, label = "Dettatura", compac
         granted = (await AudioModule.requestRecordingPermissionsAsync()).granted;
         if (!granted) return;
       }
+      if (!(await ensureDevicePermission("microphone"))) return; // V50.z484
       await nativeRecorder.prepareToRecordAsync();
       nativeRecorder.record(); _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
       nativeRecordingRef.current = true;

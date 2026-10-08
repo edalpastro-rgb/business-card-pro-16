@@ -14,6 +14,7 @@ import { Platform } from "react-native";
 // «Call to function ExponentImagePicker.launchCameraAsync has been rejected». Importato qui, si registra all'avvio dell'app.
 import * as ImagePicker from "expo-image-picker";
 import { pickFilesWeb, WebPickedAsset } from "@/src/web-image-picker";
+import { ensureDevicePermission } from "@/src/permissions/devicePermissions"; // V50.z484 — alert permesso di sistema mancante
 
 export type PickerAsset = {
   uri: string;              // web: data URL; native: file URI
@@ -153,6 +154,7 @@ export async function launchCameraUniversal(
     };
   }
 
+  if (!(await ensureDevicePermission("camera"))) return { canceled: true, assets: null }; // V50.z484 — alert con percorso Impostazioni
   const perm = await ImagePicker.requestCameraPermissionsAsync();
   if (!perm.granted) return { canceled: true, assets: null };
 

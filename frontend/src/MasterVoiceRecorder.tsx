@@ -11,6 +11,7 @@ import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 import { KModalBody } from "@/src/ui/keyboard"; // V50.z397 — tastiera: campo attivo sempre visibile nelle Modal
 import { acquireMicLease } from "@/src/utils/micLease"; // V50.z483 — pausa wake-word mentre si registra
+import { ensureDevicePermission } from "@/src/permissions/devicePermissions"; // V50.z484 — alert permesso di sistema mancante
 let _micRelease: null | (() => void) = null;
 type Contact = { contact_id: string; first_name: string; last_name: string; contact_code?: string; phone?: string };
 type Group = { group_id: string; name: string; color: string; member_count?: number };
@@ -130,6 +131,7 @@ export function MasterVoiceRecorder({
           return;
         }
         const recorder = nativeRecorder; // V50.z255 — prima: AudioMod.createAudioRecorder(...) → «undefined is not a function»
+        if (!(await ensureDevicePermission("microphone"))) return; // V50.z484
         await recorder.prepareToRecordAsync();
         recorder.record(); _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
         nativeRecorderRef.current = recorder;

@@ -6,6 +6,7 @@ import { Platform, Linking } from "react-native";
 import * as FileSystem from "expo-file-system/legacy";
 import { AudioModule, createAudioPlayer, type AudioRecorder } from "expo-audio";
 import { acquireMicLease } from "@/src/utils/micLease"; // V50.z483 — pausa wake-word mentre si registra
+import { ensureDevicePermission } from "@/src/permissions/devicePermissions"; // V50.z484 — alert permesso di sistema mancante
 let _micRelease: null | (() => void) = null;
 
 export type RecordedAudio = { b64: string; mime: string };
@@ -106,6 +107,7 @@ export async function startRecording(native: AudioRecorder | null): Promise<void
   }
   if (!native) throw new Error("Recorder non disponibile");
   await AudioModule.setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true });
+  if (!(await ensureDevicePermission("microphone"))) throw new Error("Permesso microfono non attivo"); // V50.z484
   await native.prepareToRecordAsync({ isMeteringEnabled: true }); // V50.z366 — metering per il tono in tempo reale
   native.record(); _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
 }

@@ -18,6 +18,7 @@ import { ModuleErrorBoundary } from "@/src/shared";
 import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 import { acquireMicLease } from "@/src/utils/micLease"; // V50.z483 — pausa wake-word mentre si registra
+import { ensureDevicePermission } from "@/src/permissions/devicePermissions"; // V50.z484 — alert permesso di sistema mancante
 let _micRelease: null | (() => void) = null;
 // ---------- Types ----------
 type EventBanner = {
@@ -385,6 +386,7 @@ function EventBannersScreen() {
         return;
       }
       await AudioModule.setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true });
+      if (!(await ensureDevicePermission("microphone"))) return; // V50.z484
       await audioRecorder.prepareToRecordAsync();
       audioRecorder.record(); _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
       setRecording(true);

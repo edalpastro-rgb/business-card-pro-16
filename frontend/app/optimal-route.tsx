@@ -19,6 +19,7 @@ import { useAuth } from "@/src/auth";
 import { useNavChooser, joinAddr } from "@/src/NavChooser";
 import { KmEntry } from "@/src/utils/kmReportPdf";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { ensureDevicePermission } from "@/src/permissions/devicePermissions"; // V50.z484 — alert permesso di sistema mancante
 
 const GIRO_KEY = "geo_giro_ids_v1";
 const ORANGE = "#FF6B35"; const NAVY = HT.text;
@@ -88,9 +89,8 @@ export default function OptimalRouteScreen() {
 
   const readGps = useCallback(async () => {
     try {
-      const perm = await Location.getForegroundPermissionsAsync();
-      const granted = perm.granted || (perm.canAskAgain ? (await Location.requestForegroundPermissionsAsync()).granted : false);
-      if (!granted) { notify("Posizione non disponibile", "Consenti la posizione oppure scegli Ufficio / indirizzo.", [{ text: "Apri impostazioni", onPress: () => Linking.openSettings() }, { text: "Ok" }]); setDep(office ? "office" : "custom"); return; }
+      const granted = await ensureDevicePermission("location"); // V50.z484 — alert con nome permesso + percorso Impostazioni
+      if (!granted) { setDep(office ? "office" : "custom"); return; }
       const p = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       setGps({ lat: p.coords.latitude, lon: p.coords.longitude });
     } catch (e: any) { notify("GPS", e?.message || "Posizione non disponibile"); }

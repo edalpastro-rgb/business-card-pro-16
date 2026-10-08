@@ -58,6 +58,7 @@ import type { ChatMsg } from "@/src/assistant/chatTypes";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 import { KModalBody } from "@/src/ui/keyboard"; // V50.z397 — tastiera: campo attivo sempre visibile nelle Modal
 import { acquireMicLease } from "@/src/utils/micLease"; // V50.z483 — pausa wake-word mentre si registra
+import { getDevicePermissions, permissionsForAxon, ensureDevicePermission } from "@/src/permissions/devicePermissions"; // V50.z484
 let _micRelease: null | (() => void) = null;
 
 // V29.l — Logo AxonOS orizzontale trasparente per l'empty state chat (senza card scura, compatto).
@@ -468,6 +469,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     try {
       const ImagePicker = await import("expo-image-picker");
       if (source === "camera") {
+        if (!(await ensureDevicePermission("camera"))) return; // V50.z484 — alert con percorso Impostazioni
         const perm = await ImagePicker.requestCameraPermissionsAsync();
         if (!perm.granted) return;
         let page = imageCount;
@@ -833,7 +835,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
         attachments: attachmentsPayload,
         merge_images: mergeImages, // V50.z438
         quick_label: opts?.quickLabel && !attachmentsPayload.length ? opts.quickLabel : undefined,
-        client_context: { ...(clientContextRef.current || { route: "" }), voice: wantSpeech || undefined, personal_vault: (await vaultContextForMessage(msg)) || undefined }, // V50.z291 · V50.z469 Spazio Personale (solo se «Condividi con Axon» e domanda pertinente) — dove si trova l'utente · V50.z305 voice=true → risposta breve parlata
+        client_context: { ...(clientContextRef.current || { route: "" }), voice: wantSpeech || undefined, personal_vault: (await vaultContextForMessage(msg)) || undefined, device_permissions: permissionsForAxon(await getDevicePermissions().catch(() => null)) }, // V50.z484 · V50.z291 · V50.z469 Spazio Personale (solo se «Condividi con Axon» e domanda pertinente) — dove si trova l'utente · V50.z305 voice=true → risposta breve parlata
         signal: controller.signal,
         onProgress: (p) => {
           // V50.z126 — Stato del preflight visibile ("Sto raccogliendo il contesto…")
@@ -1600,6 +1602,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
         const perm = await AudioModule.requestRecordingPermissionsAsync();
         if (!perm.granted) { notify("Permesso negato", "Consenti l'accesso al microfono nelle impostazioni."); return; }
         await ensureVoiceAudioMode({ recording: true }); // V50.z186 — registrazione anche in background/schermo bloccato
+        if (!(await ensureDevicePermission("microphone"))) return; // V50.z484
         await nativeRecorder.prepareToRecordAsync();
         nativeRecorder.record(); _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
         recordingRef.current = true;

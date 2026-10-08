@@ -28,6 +28,7 @@ import { notify } from "@/src/utils/notify";
 import { useNativeBargeIn } from "@/src/voice/useNativeBargeIn";
 import { ensureVoiceAudioMode } from "@/src/voice/voiceAudioMode";
 import { acquireMicLease } from "@/src/utils/micLease"; // V50.z483 — pausa wake-word mentre si registra
+import { ensureDevicePermission } from "@/src/permissions/devicePermissions"; // V50.z484 — alert permesso di sistema mancante
 let _micRelease: null | (() => void) = null;
 
 type Phase = "idle" | "recording" | "transcribing" | "executing" | "speaking" | "error";
@@ -141,6 +142,7 @@ export default function VoiceCopilotScreen() {
     setPhase("recording");
     try {
       await ensureVoiceAudioMode({ recording: true }); // V50.z186 — registrazione continua in background
+      if (!(await ensureDevicePermission("microphone"))) return; // V50.z484
       await recorder.prepareToRecordAsync();
       recorder.record(); _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
     } catch (e: any) {

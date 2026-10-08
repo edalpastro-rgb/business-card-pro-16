@@ -3,6 +3,7 @@
 import { Linking } from "react-native";
 import * as Location from "expo-location";
 import { notify } from "@/src/utils/notify";
+import { ensureDevicePermission } from "@/src/permissions/devicePermissions"; // V50.z484 — alert permesso di sistema mancante
 
 export type GeoPoint = { lat: number; lon: number };
 
@@ -10,6 +11,7 @@ const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T | null> =>
   Promise.race([p, new Promise<null>((r) => setTimeout(() => r(null), ms))]);
 
 async function readPosition(): Promise<GeoPoint | null> {
+  if (!(await ensureDevicePermission("location"))) return null; // V50.z484 — alert se il permesso GPS di sistema manca
   const last = await Location.getLastKnownPositionAsync().catch(() => null);
   const p = last || (await withTimeout(Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }), 6000).catch(() => null));
   return p ? { lat: p.coords.latitude, lon: p.coords.longitude } : null;

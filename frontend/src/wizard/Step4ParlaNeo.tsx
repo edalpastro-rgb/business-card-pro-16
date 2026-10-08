@@ -12,6 +12,7 @@ import type { StepBinder } from "@/src/wizard/Step1Anagrafica";
 import { PrivacyNote } from "@/src/wizard/PrivacyNote"; // V50.z217
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 import { acquireMicLease } from "@/src/utils/micLease"; // V50.z483 — pausa wake-word mentre si registra
+import { ensureDevicePermission } from "@/src/permissions/devicePermissions"; // V50.z484 — alert permesso di sistema mancante
 let _micRelease: null | (() => void) = null;
 
 const PURPLE = "#7C3AED";
@@ -134,6 +135,7 @@ export function Step4ParlaNeo({ bind }: { bind: StepBinder }) {
           if (!perm?.granted) { setError("Senza microfono non posso ascoltarti: puoi scrivere o caricare un file."); return; }
         }
         await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+        if (!(await ensureDevicePermission("microphone"))) return; // V50.z484
         await nativeRecorder.prepareToRecordAsync();
         nativeRecorder.record(); _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
         nativeRecording.current = true; tick(); setRec(true);

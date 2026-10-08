@@ -22,6 +22,7 @@ import { HeaderWeatherBadge } from "@/src/WeatherWidget";
 import { DeadlineActionsSheet, DeadlineItem } from "@/src/DeadlineActionsSheet";
 const APPT_TODAY_WIDGET = ["appointments_today"];
 import { HomeTipsBanner } from "@/src/HomeTipsBanner";
+import { PermissionsBanner } from "@/src/PermissionsBanner"; // V50.z484 — permessi di sistema mancanti
 import { CgymAlertStrip } from "@/src/corporate-gym/CgymAlertStrip"; // Corporate Gym (Blocco 1)
 import { ProactiveBubbles } from "@/src/ProactiveBubbles"; // V50.z196 — Blocco 9: bubble proattive AxonOS
 import { openAxonRecommendations } from "@/src/axonProactive"; // V50.z334 — «Consigli di Axon» → chat (card «Consigliato per te» rimossa dalla Home)
@@ -472,6 +473,8 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={C.primary} />}
       >
+        {/* V50.z484 — Permessi di sistema mancanti (GPS/mic/fotocamera/contatti): persistente, tap → Impostazioni OS */}
+        <PermissionsBanner />
         {/* V50.z104 — Banner consigli utilizzo / broadcast super-admin */}
         <HomeTipsBanner />
         {/* Corporate Gym (Blocco 1) — striscia sottile: solo con sessioni obbligatorie non completate */}

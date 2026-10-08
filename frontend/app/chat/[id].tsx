@@ -18,6 +18,7 @@ import { ModuleErrorBoundary } from "@/src/shared";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 import { useSafeAreaInsets } from "react-native-safe-area-context"; // V50.z344 — barra input sopra la bottom nav (60px) e la safe area
 import { acquireMicLease } from "@/src/utils/micLease"; // V50.z483 — pausa wake-word mentre si registra
+import { ensureDevicePermission } from "@/src/permissions/devicePermissions"; // V50.z484 — alert permesso di sistema mancante
 let _micRelease: null | (() => void) = null;
 
 type Message = {
@@ -128,6 +129,7 @@ function ChatDetailScreen() {
     if (Platform.OS === "web") { Alert.alert("Non disponibile", "Registrazione audio non disponibile su web preview"); return; }
     const { granted } = await AudioModule.requestRecordingPermissionsAsync();
     if (!granted) return;
+    if (!(await ensureDevicePermission("microphone"))) return; // V50.z484
     await recorder.prepareToRecordAsync();
     recorder.record(); _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
     setRecording(true);

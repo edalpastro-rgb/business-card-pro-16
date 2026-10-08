@@ -29,6 +29,7 @@ import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 import { DateField } from "@/src/ui/DateField"; // V50.z388 — calendario nativo su ogni campo data
 import { AddressAutocomplete } from "@/src/AddressAutocomplete"; // V50.z469 — Google Places
 import { acquireMicLease } from "@/src/utils/micLease"; // V50.z483 — pausa wake-word mentre si registra
+import { ensureDevicePermission } from "@/src/permissions/devicePermissions"; // V50.z484 — alert permesso di sistema mancante
 let _micRelease: null | (() => void) = null;
 
 type PendingAttachment = {
@@ -365,6 +366,7 @@ function NewContactScreen() {
     } else {
       const { granted } = await AudioModule.requestRecordingPermissionsAsync();
       if (!granted) { notify("Permesso microfono negato"); return; }
+      if (!(await ensureDevicePermission("microphone"))) return; // V50.z484
       await recorder.prepareToRecordAsync();
       recorder.record(); _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
       setRecordingFor("general");
@@ -378,9 +380,8 @@ function NewContactScreen() {
       return;
     }
     try {
-      const { status } = await Contacts.requestPermissionsAsync();
+      const status = (await ensureDevicePermission("contacts")) ? "granted" : "denied"; // V50.z484 — alert con percorso Impostazioni
       if (status !== "granted") {
-        notify("Permesso negato", "Serve accesso alla rubrica per importare.");
         return;
       }
       // Try native picker first (iOS only in current expo-contacts)
@@ -765,6 +766,7 @@ function NewContactScreen() {
       if (Platform.OS === "web") return await startRecWebFor(target);
       const { granted } = await AudioModule.requestRecordingPermissionsAsync();
       if (!granted) { notify("Permesso microfono negato"); return; }
+      if (!(await ensureDevicePermission("microphone"))) return; // V50.z484
       await recorder.prepareToRecordAsync();
       recorder.record(); _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
       setRecordingFor(target);
@@ -1111,7 +1113,7 @@ function NewContactScreen() {
     if (savingToPhone || savedToPhone) return;
     try {
       setSavingToPhone(true);
-      const perm = await Contacts.requestPermissionsAsync();
+      const perm = (await ensureDevicePermission("contacts")) ? await Contacts.getPermissionsAsync() : { status: "denied", canAskAgain: true } as any; // V50.z484
       if (perm.status !== "granted") {
         if (perm.canAskAgain === false) {
           notify("Permessi negati", "Vai nelle impostazioni del telefono e abilita l'accesso ai Contatti per AdvisorOS.");

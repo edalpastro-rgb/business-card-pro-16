@@ -53,6 +53,7 @@ import { ContactDistanceBadge } from "@/src/ContactDistanceBadge"; // V50.z241 �
 import { useDraft } from "@/src/utils/appStatePersist"; // V50.z242 — BUG-STATE-001: bozza nota
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 import { acquireMicLease } from "@/src/utils/micLease"; // V50.z483 — pausa wake-word mentre si registra
+import { ensureDevicePermission } from "@/src/permissions/devicePermissions"; // V50.z484 — alert permesso di sistema mancante
 let _micRelease: null | (() => void) = null;
 
 type Note = { id: string; kind: "text" | "audio" | "photo" | "video" | "file" | "link"; category?: "general" | "email" | "referral" | null; text?: string; audio_base64?: string; audio_mime?: string; photo_base64?: string; video_base64?: string; video_mime?: string; file_base64?: string; file_name?: string; file_mime?: string; file_size?: number; link_url?: string; link_title?: string; created_at: string; duration_ms?: number };
@@ -481,6 +482,7 @@ function ContactDetail() {
     if (Platform.OS === "web") { alert("Registrazione audio non disponibile su web preview"); return; }
     const { granted } = await AudioModule.requestRecordingPermissionsAsync();
     if (!granted) return;
+    if (!(await ensureDevicePermission("microphone"))) return; // V50.z484
     await recorder.prepareToRecordAsync();
     recorder.record(); _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
     setRecording(true);
