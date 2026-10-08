@@ -19,7 +19,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useAudioRecorder, AudioModule, RecordingPresets } from "expo-audio";
+import { AudioModule } from "expo-audio";
+import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "expo-speech-recognition"; // V50.z486 — trascrizione LIVE
 import { confirmCritical } from "@/src/violawake/guard"; // V50.z371
 import * as FileSystem from "expo-file-system/legacy";
 import { api } from "@/src/api";
@@ -42,10 +43,21 @@ type HistoryItem = {
 
 export default function VoiceCopilotScreen() {
   const router = useRouter();
-  // V50.z368 — preset voce (file ~4× più piccolo → upload e Whisper più rapidi)
-  const recorder = useAudioRecorder({ ...RecordingPresets.HIGH_QUALITY, sampleRate: 16000, numberOfChannels: 1, bitRate: 48000 });
+  // V50.z486 — TRASCRIZIONE LIVE: il riconoscitore di sistema mostra il testo mentre parli (interim) e salva l'audio su file
+  // (recordingOptions.persist) che a fine comando va a Deepgram per il testo definitivo (fallback: testo del riconoscitore).
+  // «INTERROMPI» detto a voce → cancella il messaggio in corso e riparte l'ascolto per quello nuovo.
+  const [liveText, setLiveText] = useState("");
+  const liveRef = useRef("");
+  const finalRef = useRef("");
+  const recUriRef = useRef<string | null>(null);
+  const endWaitersRef = useRef<Array<() => void>>([]);
+  const endedRef = useRef(false);      // il riconoscitore ha già emesso "end"
+  const restartingRef = useRef(false); // abort volontario (INTERROMPI) → non processare
+  const phaseRef = useRef<Phase>("idle");
+  const [cancelledFlash, setCancelledFlash] = useState(false);
 
-  const [phase, setPhase] = useState<Phase>("idle");
+  const [phase, setPhaseState] = useState<Phase>("idle");
+  const setPhase = (p: Phase) => { phaseRef.current = p; setPhaseState(p); };
   const [currentTranscript, setCurrentTranscript] = useState("");
   const [currentConfirm, setCurrentConfirm] = useState("");
   const pendingRef = useRef<{ contact_id: string; question: string } | null>(null); // V50.z368 — «Intendi il tuo cliente X?»
@@ -131,6 +143,49 @@ export default function VoiceCopilotScreen() {
     }
   };
 
+  const startListening = async () => {
+    await ensureVoiceAudioMode({ recording: true }); // V50.z186 — registrazione continua in background
+    liveRef.current = ""; finalRef.current = ""; recUriRef.current = null; setLiveText(""); endedRef.current = false;
+    ExpoSpeechRecognitionModule.start({
+      lang: "it-IT", interimResults: true, continuous: true, maxAlternatives: 1,
+      recordingOptions: { persist: true, outputFileName: `drive_${Date.now()}.wav` },
+      androidIntentOptions: { EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS: 4000, EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS: 4000 },
+    });
+    _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
+  };
+
+  // «INTERROMPI» → butta via quello detto finora e riparte subito l'ascolto per il nuovo comando
+  const cancelAndRestart = async () => {
+    restartingRef.current = true;
+    try { ExpoSpeechRecognitionModule.abort(); } catch { /* noop */ }
+    liveRef.current = ""; finalRef.current = ""; recUriRef.current = null; setLiveText(""); setCurrentTranscript("");
+    setCancelledFlash(true); setTimeout(() => setCancelledFlash(false), 1800);
+    await new Promise((r) => setTimeout(r, 450));
+    if (phaseRef.current === "recording") { try { await startListening(); } catch { /* noop */ } }
+    restartingRef.current = false;
+  };
+
+  useSpeechRecognitionEvent("result", (ev) => {
+    if (phaseRef.current !== "recording") return;
+    const t = (ev.results?.[0]?.transcript || "").trim();
+    if (/\binterromp\w*\b/i.test(t) || /\bcancella (il )?messaggio\b/i.test(t)) { void cancelAndRestart(); return; }
+    liveRef.current = t; setLiveText(t);
+    if (ev.isFinal && t) finalRef.current = t;
+  });
+  useSpeechRecognitionEvent("audiostart", (ev) => { if (ev.uri) recUriRef.current = ev.uri; });
+  useSpeechRecognitionEvent("audioend", (ev) => { if (ev.uri) recUriRef.current = ev.uri; });
+  useSpeechRecognitionEvent("end", () => {
+    endedRef.current = true;
+    const w = endWaitersRef.current; endWaitersRef.current = []; w.forEach((f) => f());
+    // il sistema ha chiuso l'ascolto da solo (silenzio/limite): se l'utente stava ancora parlando, processiamo quanto detto
+    if (!w.length && !restartingRef.current && phaseRef.current === "recording") void stopAndProcess();
+  });
+  useSpeechRecognitionEvent("error", (ev) => {
+    if (ev.error === "aborted" || ev.error === "no-speech") return;
+    if (phaseRef.current === "recording") { setPhase("error"); notify("Axon Drive", `Ascolto interrotto: ${ev.message || ev.error}`); _micRelease?.(); _micRelease = null; }
+  });
+  const waitEnd = (ms: number) => new Promise<void>((resolve) => { if (endedRef.current) { resolve(); return; } const t = setTimeout(resolve, ms); endWaitersRef.current.push(() => { clearTimeout(t); resolve(); }); });
+
   const startRecording = async () => {
     if (permission === false) {
       notify("Microfono", "Permesso microfono negato. Vai in Impostazioni per abilitarlo.");
@@ -141,10 +196,10 @@ export default function VoiceCopilotScreen() {
     setCurrentConfirm("");
     setPhase("recording");
     try {
-      await ensureVoiceAudioMode({ recording: true }); // V50.z186 — registrazione continua in background
-      if (!(await ensureDevicePermission("microphone"))) return; // V50.z484
-      await recorder.prepareToRecordAsync();
-      recorder.record(); _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
+      if (!(await ensureDevicePermission("microphone"))) { setPhase("idle"); return; } // V50.z484
+      const sp = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      if (!sp.granted) { setPhase("idle"); notify("Riconoscimento vocale", "Consenti il riconoscimento vocale nelle Impostazioni per vedere il testo mentre parli."); return; }
+      await startListening();
     } catch (e: any) {
       setPhase("error");
       notify("Errore", `Registrazione fallita: ${e?.message || e}`);
@@ -155,16 +210,26 @@ export default function VoiceCopilotScreen() {
     if (phase !== "recording") return;
     setPhase("transcribing");
     try {
-      await recorder.stop(); _micRelease?.(); _micRelease = null; // V50.z483
-      const uri = recorder.uri;
-      if (!uri) throw new Error("Nessun audio registrato");
-      // Read as base64 and send to /api/ai/transcribe
-      const b64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
-      const tRes: any = await api("/ai/transcribe", { method: "POST", body: { audio_base64: b64, mime: "audio/m4a", verify_speaker: true } }); // V50.z372 — impronta vocale
-      if (tRes?.reason === "unknown_voice") { setPhase("idle"); return; } // voce NON riconosciuta → silenzio totale
-      const transcript = (tRes?.data?.transcript || tRes?.transcript || "").trim();
-      if (!transcript) throw new Error("Trascrizione vuota");
-      setCurrentTranscript(transcript);
+      const endP = waitEnd(4000);
+      try { ExpoSpeechRecognitionModule.stop(); } catch { /* noop */ }
+      await endP; // il file audio è pronto solo dopo l'evento "end"
+      _micRelease?.(); _micRelease = null; // V50.z483
+      const uri = recUriRef.current;
+      const liveFinal = (finalRef.current || liveRef.current).trim();
+      let transcript = liveFinal;
+      let tRes: any = null;
+      if (uri) {
+        try {
+          const b64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+          const mime = uri.endsWith(".caf") ? "audio/x-caf" : "audio/wav";
+          tRes = await api("/ai/transcribe", { method: "POST", body: { audio_base64: b64, mime, verify_speaker: true } }); // V50.z372 — impronta vocale · V50.z483 Deepgram
+          if (tRes?.reason === "unknown_voice") { setPhase("idle"); return; } // voce NON riconosciuta → silenzio totale
+          const dg = (tRes?.data?.transcript || tRes?.transcript || "").trim();
+          if (dg) transcript = dg;
+        } catch { /* fallback: testo live del riconoscitore */ }
+      }
+      if (!transcript) throw new Error("Non ho sentito nulla: riprova parlando più vicino al telefono.");
+      setCurrentTranscript(transcript); setLiveText("");
 
       // Execute intent
       setPhase("executing");
@@ -257,6 +322,13 @@ export default function VoiceCopilotScreen() {
             <Text style={[styles.statusText, { color: phaseColor[phase] }]}>{phaseLabel[phase]}</Text>
           </View>
 
+          {phase === "recording" ? (
+            <View style={[styles.bubble, { borderColor: "#38BDF8", borderStyle: "dashed" }]} testID="drive-live">
+              <Text style={[styles.bubbleLabel, { color: "#38BDF8" }]}>{cancelledFlash ? "Messaggio cancellato — dimmi il nuovo comando" : "Sto scrivendo quello che dici…"}</Text>
+              <Text style={styles.bubbleText}>{liveText || "…"}</Text>
+              <Text style={styles.liveHint}>Hai sbagliato? Pronuncia «INTERROMPI»: cancello e riparto da capo.</Text>
+            </View>
+          ) : null}
           {currentTranscript ? (
             <View style={styles.bubble}>
               <Text style={styles.bubbleLabel}>Tu hai detto</Text>
@@ -331,6 +403,7 @@ const styles = StyleSheet.create({
   statusText: { fontSize: 14, fontWeight: "800" },
   bubble: { alignSelf: "stretch", borderWidth: 1.5, borderColor: "#38BDF8", backgroundColor: "rgba(56,189,248,0.16)", borderRadius: 14, padding: 14 },
   bubbleLabel: { color: "#38BDF8", fontSize: 11, fontWeight: "800", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 },
+  liveHint: { marginTop: 6, fontSize: 12, color: "#94A3B8", fontStyle: "italic" },
   bubbleText: { color: "#FFF", fontSize: 17, lineHeight: 23, fontWeight: "600" },
   examples: { alignSelf: "stretch", backgroundColor: "rgba(6,14,26,0.66)", borderRadius: 18, padding: 12, gap: 6, borderWidth: 1, borderColor: "rgba(255,255,255,0.12)" },
   exRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 8, paddingHorizontal: 6, minHeight: 56 },

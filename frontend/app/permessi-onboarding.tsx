@@ -2,7 +2,7 @@
 // chiesti UNO ALLA VOLTA, con il messaggio chiave: i dati restano privati, ma per avere Axon al 100% servono tutte le
 // autorizzazioni — «Axon è la tua estensione, non una cosa in più da gestire. Tu chiedi e Axon fa: ma devi permetterglielo».
 // Mostrato una sola volta per utente (AsyncStorage `perm_onboarding_done_{user_id}`), solo su app nativa.
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -13,6 +13,35 @@ import { HT } from "@/src/homeTheme";
 import { PERM_META, PERM_ONBOARDING_KEY, type PermKey, type PermInfo, ensureDevicePermission, getDevicePermissions, openSystemSettings } from "@/src/permissions/devicePermissions";
 import { playActivationEffect } from "@/src/activation/events";
 import { openAxonChat } from "@/src/axonProactive";
+import { api } from "@/src/api";
+import { playAudioBase64, type AudioStopper } from "@/src/utils/audioPlayback";
+
+// V50.z486 — VOCE DI AXON nell'onboarding (come nel Tour): una frase alla volta, pausa/riprendi/stop/muto SEMPRE visibili.
+// Il muto è condiviso con il Tour (chiave `tour_voice_muted`) e viene ricordato.
+const MUTE_KEY = "tour_voice_muted";
+const voice = { gen: 0, stop: (() => {}) as () => void, pauser: null as AudioStopper | null, muted: false };
+const voiceStop = () => { voice.gen += 1; try { voice.stop(); } catch { /* noop */ } voice.stop = () => {}; voice.pauser = null; };
+async function speak(text: string, onState: (st: "loading" | "speaking" | "idle") => void) {
+  voiceStop();
+  if (voice.muted) { onState("idle"); return; }
+  const my = voice.gen; onState("loading");
+  let audio: { b64: string; mime: string } | null = null;
+  try { const r = await api<{ audio_base64: string; mime: string }>("/assistant/tts", { method: "POST", body: { text } }); if (r?.audio_base64) audio = { b64: r.audio_base64, mime: r.mime || "audio/mpeg" }; } catch { /* silenzio */ }
+  if (voice.gen !== my) return;
+  if (!audio) { onState("idle"); return; }
+  try {
+    const stopper = await playAudioBase64(audio.b64, audio.mime, () => { if (voice.gen === my) onState("idle"); });
+    if (voice.gen !== my) { try { stopper(); } catch { /* noop */ } return; }
+    voice.stop = stopper; voice.pauser = stopper; onState("speaking");
+  } catch { onState("idle"); }
+}
+const VOICE_INTRO = "Ciao. Io sono Axon, la tua estensione: non una cosa in più da gestire, ma il collega che lavora al posto tuo. Tu chiedi, e io faccio. Ma devi permettermelo. I tuoi dati restano privati: posizione, voce, foto e rubrica li uso solo io, solo quando me lo chiedi tu, e non li condivido con nessuno. Per darti il cento per cento servono tutte e quattro le autorizzazioni. Te le chiedo una alla volta, spiegandoti a cosa servono.";
+const VOICE_STEP: Record<PermKey, string> = {
+  location: "Primo permesso: la posizione. Con il GPS posso dirti chi hai vicino adesso, costruire il percorso migliore della giornata partendo da dove sei, e segnare da solo le visite fatte. La uso solo mentre usi l'app.",
+  microphone: "Secondo permesso: il microfono. È la mia voce preferita: tu parli e io scrivo note, relazioni, appuntamenti e contatti. Serve anche per chiamarmi a mani libere in auto. L'audio serve solo per la trascrizione, e resta tuo.",
+  camera: "Terzo permesso: la fotocamera. Fotografi una bolletta o un biglietto da visita e io leggo i dati e creo tutto in un attimo. Le foto restano nel tuo archivio.",
+  contacts: "Ultimo permesso: la rubrica. Così importi i clienti in un tap e, se mi dici chiama Mario, lo trovo anche se non è ancora nel CRM. Non copio e non invio la rubrica: la leggo solo quando me lo chiedi.",
+};
 
 const STEPS: { key: PermKey; title: string; axon: string[]; privacy: string }[] = [
   { key: "location", title: "Posizione (GPS)", axon: ["«Axon, chi ho vicino a me adesso?» → clienti nel raggio di pochi km", "Percorso ottimizzato della giornata partendo da dove sei", "Meteo e rilevamento automatico delle visite fatte"], privacy: "Usata solo mentre usi l'app. Non viene mai condivisa con nessuno." },
@@ -29,15 +58,32 @@ export default function PermessiOnboarding() {
   const [step, setStep] = useState(0); // 0 = intro · 1..4 = permessi · 5 = riepilogo
   const [busy, setBusy] = useState(false);
   const [perms, setPerms] = useState<PermInfo[] | null>(null);
+  const [vState, setVState] = useState<"loading" | "speaking" | "idle">("idle");
+  const [vPaused, setVPaused] = useState(false);
+  const [muted, setMuted] = useState(false);
+  useEffect(() => {
+    AsyncStorage.getItem(MUTE_KEY).then((v) => { const m = v === "1"; voice.muted = m; setMuted(m); }).catch(() => {});
+    return () => voiceStop();
+  }, []);
+  const toggleMute = () => { const m = !muted; voice.muted = m; setMuted(m); AsyncStorage.setItem(MUTE_KEY, m ? "1" : "0").catch(() => {}); if (m) { voiceStop(); setVState("idle"); setVPaused(false); } else void speak(textForStep(step), setVState); };
+  const pauseResume = () => { if (!voice.pauser) return; if (vPaused) { voice.pauser.resume?.(); setVPaused(false); } else { voice.pauser.pause?.(); setVPaused(true); } };
+  const stopVoice = () => { voiceStop(); setVState("idle"); setVPaused(false); };
   const refresh = useCallback(async () => setPerms(await getDevicePermissions(true).catch(() => null)), []);
   useEffect(() => { void refresh(); }, [refresh]);
 
+  const textForStep = (st: number) => (st === 0 ? VOICE_INTRO : st <= STEPS.length ? VOICE_STEP[STEPS[st - 1].key] : (grantedCountRef.current === STEPS.length ? "Perfetto: tutte le autorizzazioni sono attive. Da adesso chiedi, e io faccio." : "Alcune autorizzazioni mancano: farò quello che posso, il resto toccherà a te. Puoi completarle quando vuoi dalle Impostazioni."));
+  const grantedCountRef = useRef(0);
+  // parla a ogni cambio schermata (intro, ogni permesso, riepilogo)
+  useEffect(() => { setVPaused(false); void speak(textForStep(step), setVState); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
   const statusOf = (k: PermKey) => perms?.find((p) => p.key === k)?.status || "undetermined";
   const grantedCount = useMemo(() => (perms || []).filter((p) => p.status === "granted").length, [perms]);
+  grantedCountRef.current = grantedCount;
   const total = STEPS.length;
 
   const markDone = useCallback(async () => { if (user?.user_id) await AsyncStorage.setItem(PERM_ONBOARDING_KEY(user.user_id), "1").catch(() => {}); }, [user?.user_id]);
   const goHome = useCallback(async () => {
+    voiceStop();
     await markDone();
     router.replace("/(tabs)/home" as any);
     if (params.activate === "1" && params.name) setTimeout(() => { openAxonChat(); playActivationEffect({ name: String(params.name), voice: String(params.voice || ""), greet: true }); }, 700);
@@ -117,6 +163,18 @@ export default function PermessiOnboarding() {
   return (
     <SafeAreaView style={s.root} edges={["top", "bottom"]}>
       <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
+        {/* V50.z486 — barra voce di Axon: sempre visibile, pausa/riprendi · stop · muto */}
+        <View style={s.voiceBar} testID="perm-onb-voicebar">
+          <Ionicons name={muted ? "volume-mute" : vState === "speaking" && !vPaused ? "volume-high" : "volume-medium"} size={18} color={muted ? HT.muted : HT.brand} />
+          <Text style={s.voiceTxt} numberOfLines={1}>{muted ? "Voce di Axon disattivata" : vState === "loading" ? "Axon sta per parlare…" : vState === "speaking" ? (vPaused ? "Voce in pausa" : "Axon sta parlando…") : "Voce di Axon attiva"}</Text>
+          {!muted && vState === "speaking" ? (
+            <>
+              <Pressable onPress={pauseResume} hitSlop={8} style={s.voiceBtn} testID="perm-onb-voice-pause" accessibilityLabel={vPaused ? "Riprendi la voce" : "Metti in pausa la voce"}><Ionicons name={vPaused ? "play" : "pause"} size={16} color={HT.text} /></Pressable>
+              <Pressable onPress={stopVoice} hitSlop={8} style={s.voiceBtn} testID="perm-onb-voice-stop" accessibilityLabel="Ferma la voce"><Ionicons name="stop" size={16} color={HT.text} /></Pressable>
+            </>
+          ) : null}
+          <Pressable onPress={toggleMute} hitSlop={8} style={[s.voiceBtn, muted && { backgroundColor: "#FEE2E2" }]} testID="perm-onb-voice-mute" accessibilityLabel={muted ? "Riattiva la voce di Axon" : "Disattiva la voce di Axon"}><Ionicons name={muted ? "volume-mute" : "volume-high"} size={16} color={muted ? "#DC2626" : HT.text} /></Pressable>
+        </View>
         <View style={s.progress}>{Array.from({ length: total + 2 }).map((_, i) => <View key={i} style={[s.dot, i <= step && s.dotOn]} />)}</View>
         {step === 0 ? Intro : step <= total ? Step(step) : Summary}
       </ScrollView>
@@ -127,6 +185,9 @@ export default function PermessiOnboarding() {
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: HT.bg },
   scroll: { padding: 20, paddingBottom: 40, flexGrow: 1, justifyContent: "center", maxWidth: 560, width: "100%", alignSelf: "center" },
+  voiceBar: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, marginBottom: 12 },
+  voiceTxt: { flex: 1, fontSize: 12.5, fontWeight: "700", color: HT.text2 },
+  voiceBtn: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border },
   progress: { flexDirection: "row", gap: 6, justifyContent: "center", marginBottom: 14 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: HT.border },
   dotOn: { backgroundColor: HT.brand, width: 18 },

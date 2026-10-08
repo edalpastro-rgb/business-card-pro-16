@@ -927,6 +927,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z486 | Giu 2026 | **Voce di Axon nell'onboarding permessi** (pausa/stop/muto sempre visibili) · **Axon Drive con trascrizione live**: vedi il testo mentre parli, «INTERROMPI» cancella e riparte; testo definitivo da Deepgram. |
 | V50.z485 | Giu 2026 | **Onboarding permessi al primo avvio**: GPS, microfono, fotocamera e contatti chiesti uno alla volta con cosa può fare Axon e la garanzia di privacy; messaggio chiave «Axon è la tua estensione: tu chiedi, Axon fa — ma devi permetterglielo»; riepilogo «Axon al N%». |
 | V50.z484 | Giu 2026 | **Permessi di sistema** (GPS, microfono, fotocamera, contatti): banner persistente in Home con tap → Impostazioni, alert con nome e percorso quando si usa una funzione senza permesso, Axon sa in tempo reale quali permessi sono attivi e non afferma mai di avere accesso a risorse negate. |
 | V50.z483 | Giu 2026 | **Comunica con l'azienda**: email opzionale per contatto, mail/chiamata funzionanti · **Axon Drive** trascrive con Deepgram (nova-3) · **Fix registrazioni vocali** interrotte/«a vuoto» dopo 2 s (lease microfono: la wake-word si ferma mentre si registra) · dettatura fino a 10 min. |

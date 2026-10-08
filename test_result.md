@@ -571,3 +571,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z485 — Onboarding permessi al primo avvio: app/permessi-onboarding.tsx (intro «Axon è la tua estensione… Tu chiedi, Axon fa: ma devi permetterglielo», privacy + 100% con tutte e 4 le autorizzazioni; 4 step uno alla volta con cosa fa Axon + riga privacy + Consenti/Salta; riepilogo «Axon al N%» + Apri Impostazioni). Mostrato: dal Tour (activate → poi effetto attivazione in Home; finish) e dalla Home per utenti esistenti, una sola volta per utente (perm_onboarding_done_{user_id}), solo nativo. _layout: nascosti FAB/nav sulla schermata. Screenshot web intro + step GPS OK."
+
+  - agent: "main"
+    message: "V50.z486 — (1) permessi-onboarding: voce di Axon (TTS /assistant/tts + playAudioBase64) che legge intro, ogni permesso e riepilogo; barra voce sempre visibile con pausa/riprendi, stop e muto (chiave condivisa tour_voice_muted). (2) Axon Drive: trascrizione LIVE con expo-speech-recognition (interim, it-IT, continuous, recordingOptions.persist) → a fine comando l'audio salvato va a /ai/transcribe (Deepgram), fallback testo del riconoscitore; «INTERROMPI»/«cancella messaggio» a voce → abort, cancella e riparte l'ascolto; auto-process se il sistema chiude l'ascolto. expo-audio recorder rimosso da voice-copilot. tsc/eslint ok; web screenshot barra voce OK. Da verificare su dispositivo."
