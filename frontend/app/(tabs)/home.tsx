@@ -23,6 +23,7 @@ import { DeadlineActionsSheet, DeadlineItem } from "@/src/DeadlineActionsSheet";
 const APPT_TODAY_WIDGET = ["appointments_today"];
 import { HomeTipsBanner } from "@/src/HomeTipsBanner";
 import { PermissionsBanner } from "@/src/PermissionsBanner"; // V50.z484 — permessi di sistema mancanti
+import { shouldShowPermOnboarding } from "@/src/permissions/devicePermissions"; // V50.z485
 import { CgymAlertStrip } from "@/src/corporate-gym/CgymAlertStrip"; // Corporate Gym (Blocco 1)
 import { ProactiveBubbles } from "@/src/ProactiveBubbles"; // V50.z196 — Blocco 9: bubble proattive AxonOS
 import { openAxonRecommendations } from "@/src/axonProactive"; // V50.z334 — «Consigli di Axon» → chat (card «Consigliato per te» rimossa dalla Home)
@@ -240,6 +241,11 @@ export default function HomeScreen() {
         // viene mostrato una volta (poi mai più su quel dispositivo).
         const localKey = `onboarding_done_${user.user_id}`;
         const doneLocal = await AsyncStorage.getItem(localKey);
+        if (doneLocal === "1" && mounted) {
+          // V50.z485 — tour già fatto ma permessi di sistema mai chiesti «uno alla volta» (utenti esistenti dopo l'aggiornamento)
+          if (await shouldShowPermOnboarding(user.user_id)) { onboardingTriggered.current = true; timers.push(setTimeout(() => { if (mounted) router.push("/permessi-onboarding" as any); }, navReady ? 600 : 1200)); }
+          return;
+        }
         if (doneLocal === "1" || !mounted) return;
         onboardingTriggered.current = true;
         const href = "/tour" as any; // V50.z257 — nuovo Tour conversazionale (4 schermate)

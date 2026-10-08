@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-08 | D2026.10.08-2121 | V50.z485 onboarding permessi primo avvio |
 | 2026-10-08 | D2026.10.08-2112 | V50.z484 permessi di sistema: banner Home, alert all'uso, Axon consapevole |
 | 2026-10-08 | D2026.10.08-1931 | V50.z483 email contatti azienda + Deepgram Axon Drive + lease microfono |
 | 2026-10-08 | D2026.10.08-1914 | V50.z482 Home web scroll + anteprima cartella + barra avanzamento + FAB unica |

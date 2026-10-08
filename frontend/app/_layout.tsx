@@ -170,7 +170,7 @@ function StackWithCallBar() {
   const { user } = useAuth();
   // V50.z257 — Tour conversazionale a schermo intero: niente FAB/Edge/bottom nav sopra
   const pathname = usePathname() || "";
-  const inTour = pathname.startsWith("/tour") || pathname.startsWith("/paywall"); // V50.z330 — sul paywall niente FAB/tab bar/edge panel
+  const inTour = pathname.startsWith("/tour") || pathname.startsWith("/paywall") || pathname.startsWith("/permessi-onboarding"); // V50.z330 · V50.z485 permessi primo avvio — sul paywall niente FAB/tab bar/edge panel
   const router = useRouter();
   useEffect(() => {
     // V50.z13 — Response listener globale: tap su notifica sveglia/timer/

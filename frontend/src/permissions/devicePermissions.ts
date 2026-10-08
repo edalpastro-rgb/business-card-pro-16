@@ -7,6 +7,7 @@
 // Web: i permessi OS non sono interrogabili in modo uniforme → tutto «n/d» (nessun banner, nessun blocco).
 import { useEffect, useState } from "react";
 import { Alert, AppState, Linking, Platform } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export type PermKey = "location" | "microphone" | "camera" | "contacts";
 export type PermStatus = "granted" | "denied" | "blocked" | "undetermined" | "unavailable";
@@ -118,4 +119,15 @@ export async function ensureDevicePermission(key: PermKey, opts?: { silent?: boo
     );
   }
   return false;
+}
+
+// ---- V50.z485 — Onboarding permessi al primo avvio (app/permessi-onboarding.tsx) ----
+export const PERM_ONBOARDING_KEY = (userId: string) => `perm_onboarding_done_${userId}`;
+
+/** true se va mostrato: nativo, non ancora fatto per questo utente e almeno un permesso non concesso. */
+export async function shouldShowPermOnboarding(userId?: string | null): Promise<boolean> {
+  if (Platform.OS === "web" || !userId) return false;
+  if ((await AsyncStorage.getItem(PERM_ONBOARDING_KEY(userId)).catch(() => null)) === "1") return false;
+  const perms = await getDevicePermissions(true).catch(() => null);
+  return !!perms && perms.some((p) => p.status !== "granted" && p.status !== "unavailable");
 }

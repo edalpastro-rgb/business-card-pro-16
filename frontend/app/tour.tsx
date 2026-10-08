@@ -24,6 +24,7 @@ import { AssistantSetupStep } from "@/src/activation/AssistantSetupStep"; // V50
 import { PromoCodeField } from "@/src/PromoCodeField"; // V50.z320 — codice promozionale opzionale
 import { playActivationEffect } from "@/src/activation/events";
 import { openAxonChat } from "@/src/axonProactive";
+import { shouldShowPermOnboarding } from "@/src/permissions/devicePermissions"; // V50.z485
 
 const NAVY = "#0B1B33"; const SKY = "#38BDF8"; const MUTED = "#94A3B8"; const WHITE = "#FFFFFF"; const AMBER = "#FBBF24";
 const FEATURE_ICON: Record<string, any> = { bills: "document-text", compare: "git-compare", route: "car-sport", calendar: "calendar", deadlines: "alarm", notes: "mic", scanner: "scan", email: "mail", whatsapp: "logo-whatsapp", referrals: "share-social", contacts: "people", voice: "mic-circle", team: "people-circle", kpi: "stats-chart", chat: "chatbubbles", proactive: "notifications", km: "speedometer", visits: "location", map: "map", files: "folder", pdf: "document", offers: "pricetags", pun: "flash", courses: "school", courses_dashboard: "bar-chart", forms: "document-attach", iddocs: "id-card", axon_voice: "volume-high", offline: "airplane", crt: "document-text" };
@@ -141,6 +142,8 @@ export default function TourScreen() {
     voiceStop();
     await api("/user-settings", { method: "PUT", body: { assistant_name: name, assistant_voice: voiceKey, assistant_setup_done: true, activation_done: true, onboarding_done: true } }).catch(() => {});
     if (user?.user_id) await AsyncStorage.setItem(`onboarding_done_${user.user_id}`, "1").catch(() => {});
+    // V50.z485 — primo avvio: prima i 4 permessi di sistema (uno alla volta), poi Home + effetto di attivazione
+    if (await shouldShowPermOnboarding(user?.user_id)) { router.replace({ pathname: "/permessi-onboarding", params: { activate: "1", name, voice: voiceKey } } as any); return; }
     router.replace("/(tabs)/home" as any);
     // apre la chat e lancia l'effetto (vibrazione doppia → onda 3 s → «Ciao, sono {nome}. Sono pronto.»)
     setTimeout(() => { openAxonChat(); playActivationEffect({ name, voice: voiceKey, greet: true }); }, 700);
@@ -155,6 +158,7 @@ export default function TourScreen() {
     if (user?.user_id) await AsyncStorage.setItem(`onboarding_done_${user.user_id}`, "1").catch(() => {});
     await AsyncStorage.setItem("libretto_seen_v1", "1").catch(() => {});
     api("/user-settings", { method: "PUT", body: { onboarding_done: true } }).catch(() => {});
+    if (await shouldShowPermOnboarding(user?.user_id)) { router.replace("/permessi-onboarding" as any); return; } // V50.z485
     router.replace("/(tabs)/home" as any);
   }, [router, user?.user_id]);
 
