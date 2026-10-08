@@ -687,7 +687,11 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
         # ritelefonate urgenti", "notifica di prova") → axon_chat_push.py. PRIMA del comando
         # sveglie perché "avvisami" è anche un intent promemoria.
         user["_client_ctx"] = getattr(body, "client_context", None)  # V50.z291 — posizione utente disponibile agli intercettori
-        _al_result = await _maybe_push_command(body.message or "", user)
+        # V50.z458 — Prompt 19: comando multi-step («chiudi la trattativa con X, mandagli il preventivo e richiamalo tra 30 giorni»)
+        # o risposta a «Come procedo?» (salta/riprova/annulla) → axon_agent.py, PRIMA di push/alarm (che catturerebbero solo un pezzo).
+        _al_result = await _maybe_agent_command(body.message or "", user)  # noqa: F821
+        if not _al_result:
+            _al_result = await _maybe_push_command(body.message or "", user)
         # V50.z125 — Comandi timer/sveglia/promemoria ("imposta timer 15 minuti",
         # "ricordami di chiamare Mario stasera"): crea la sveglia e conferma.
         if not _al_result:

@@ -581,6 +581,20 @@ async def voice_copilot_execute(body: VoiceCopilotIn, user=Depends(get_current_u
 
     from emergentintegrations.llm.chat import LlmChat, UserMessage
 
+    # V50.z458 — Prompt 19: comando vocale multi-step → stesso agente della chat (axon_agent.py); riepilogo parlato senza marker
+    _ag = await _maybe_agent_command(transcript, user)  # noqa: F821
+    if _ag and _ag.get("reply"):
+        _ag_spoken = re.sub(r"\[\[(NAV|ACTION):[^\]]*\]\]", "", _ag["reply"]).replace("**", "").replace("↳ ", "").strip()
+        _ag_audio = None; _ag_mime = None
+        if body.want_audio:
+            try:
+                _ag_tts = await axon_tts_generate(user, _ag_spoken[:600], None)  # noqa: F821
+                _ag_audio, _ag_mime = _ag_tts.get("audio_base64"), _ag_tts.get("mime")
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("[voice-copilot] agent tts failed: %s", exc)
+        return {"spoken": _ag_spoken, "audio_base64": _ag_audio, "audio_mime": _ag_mime, "intent": "agent", "params": {}, "confirmation": _ag_spoken,
+                "extra": {"reply": _ag["reply"], "cmd": _ag.get("cmd"), "agent_status": _ag.get("agent_status")}, "transcript": transcript}
+
     now_iso = utcnow().isoformat()
     # V50.z368 — CRM-first: candidati dal CRM (o cliente in attesa di conferma) nel prompt, prima di tutto il resto
     candidates = await _vc_crm_candidates(user, transcript)

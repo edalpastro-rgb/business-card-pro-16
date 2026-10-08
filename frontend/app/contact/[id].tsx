@@ -26,6 +26,7 @@ import { ShareSheet, ShareTarget } from "@/src/ShareSheet";
 import { FileViewer } from "@/src/FileViewer";
 import { VoiceDictationButton } from "@/src/VoiceDictationButton";
 import { ContactAudioSection } from "@/src/ContactAudioSection";
+import { CallTranscriptSection } from "@/src/CallTranscriptSection"; // V50.z459 — Prompt 20: trascrizione chiamate
 import { ContactCallsSection } from "@/src/ContactCallsSection";
 import { ContactAppointmentsSection } from "@/src/ContactAppointmentsSection";
 import { ContactReferralsSection } from "@/src/ContactReferralsSection";
@@ -94,7 +95,7 @@ function ContactDetail() {
   const { id, refs: refsParam, tab: tabParam } = useLocalSearchParams<{ id: string; refs?: string; tab?: string }>();
   const router = useRouter();
   const [c, setC] = useState<Contact | null>(null);
-  const [tab, setTab] = useState<"info" | "notes" | "files" | "bills" | "contracts" | "audio" | "calls" | "appts" | "visits" | "refs" | "reviews">("info");
+  const [tab, setTab] = useState<"info" | "notes" | "files" | "bills" | "contracts" | "audio" | "transcripts" | "calls" | "appts" | "visits" | "refs" | "reviews">("info");
   // V50.z101 — Popup "Vuoi programmare la richiesta recensione?" quando lo status
   // del contatto transita a "client". Compariamo lo stato precedente conservato
   // in una ref, e apriamo la modale review-request se la transizione avviene.
@@ -108,7 +109,7 @@ function ContactDetail() {
   }, [refsParam]);
   // V50.z259 — Deep link Navigatore Axon: /contact/{id}?tab=visits|notes|bills|…
   useEffect(() => {
-    const ok = ["info", "notes", "files", "bills", "contracts", "audio", "calls", "appts", "visits", "refs", "reviews"];
+    const ok = ["info", "notes", "files", "bills", "contracts", "audio", "transcripts", "calls", "appts", "visits", "refs", "reviews"];
     if (tabParam && ok.includes(tabParam)) setTab(tabParam as any);
   }, [tabParam]);
   const [noteText, setNoteText] = useState("");
@@ -789,19 +790,20 @@ function ContactDetail() {
       {/* V50.z335 — Tab bar: icone più grandi con etichetta, scorrevole, stile dark */}
       <View style={styles.tabsWrap}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs} testID="contact-tabs">
-        {(["info", "notes", "files", "bills", "contracts", "audio", "calls", "appts", "visits", "refs", "reviews"] as const).map((t) => {
+        {(["info", "notes", "files", "bills", "contracts", "audio", "transcripts", "calls", "appts", "visits", "refs", "reviews"] as const).map((t) => {
           const iconName: any = t === "info" ? "person"
             : t === "notes" ? "create"
             : t === "files" ? "folder"
             : t === "bills" ? "flash"
             : t === "contracts" ? "document-text"
             : t === "audio" ? "mic"
+            : t === "transcripts" ? "call" // V50.z459 — Prompt 20: trascrizione chiamate
             : t === "calls" ? "chatbubbles"
             : t === "refs" ? "share-social"
             : t === "reviews" ? "star"
             : t === "visits" ? "location"
             : "calendar";
-          const label = t === "info" ? "Info" : t === "notes" ? "Note" : t === "files" ? "File" : t === "bills" ? "Fatture" : t === "contracts" ? "Contratti" : t === "audio" ? "Audio" : t === "calls" ? "Comunic." : t === "refs" ? "Referenze" : t === "reviews" ? "Recensioni" : t === "visits" ? "Visite" : "Appuntam.";
+          const label = t === "info" ? "Info" : t === "notes" ? "Note" : t === "files" ? "File" : t === "bills" ? "Fatture" : t === "contracts" ? "Contratti" : t === "audio" ? "Audio" : t === "transcripts" ? "Chiamate" : t === "calls" ? "Comunic." : t === "refs" ? "Referenze" : t === "reviews" ? "Recensioni" : t === "visits" ? "Visite" : "Appuntam.";
           const active = tab === t;
           const activeColor = t === "bills" ? HT.brand : t === "reviews" ? HT.warning : t === "visits" ? HT.axon : HT.brand;
           const iconColor = active ? activeColor : HT.muted;
@@ -838,6 +840,8 @@ function ContactDetail() {
         <ContactContractsSection contactId={id} />
       ) : tab === "audio" ? (
         <ContactAudioSection contactId={id} />
+      ) : tab === "transcripts" ? (
+        <CallTranscriptSection contactId={id} onContactChanged={load} />
       ) : tab === "calls" ? (
         <ContactCallsSection
           contactId={id}

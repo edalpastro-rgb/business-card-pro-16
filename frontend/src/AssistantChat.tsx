@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useViolaWakeOptional } from "@/src/violawake/ViolaWakeProvider"; // V50.z452 — gate microfono automatico
 import { syncTtsModeFromSetting, loadTtsMuted, isTtsMode } from "@/src/utils/ttsGate"; // V50.z453/z454
 import { DeviceEventEmitter, // V50.z315 — prompt vocale ViolaWake a chat già aperta
-  View, Text, Pressable, Modal, TextInput, ScrollView, ActivityIndicator, Keyboard, Platform, Image, Alert } from "react-native";
+  View, Text, Pressable, Modal, TextInput, ScrollView, ActivityIndicator, Keyboard, Platform, Image, Alert, Linking } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller"; // V50.z374 — behavior "padding" valido su iOS e Android
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { ChatShell } from "@/src/assistant/ChatShell"; // V50.z403
@@ -1018,6 +1018,10 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   // V50.z259 — Azione confermabile [[ACTION]] (es. sposta appuntamenti mancati) → risposta appesa in chat
   const runNavAction = async (action: string, payload: Record<string, any>) => {
     try {
+      // V50.z458 — agente multi-step: «Apri WhatsApp» apre wa.me precompilato sul dispositivo (l'utente preme Invia lui)
+      if (action === "open_whatsapp" && payload?.url) {
+        try { await Linking.openURL(String(payload.url)); } catch {}
+      }
       const r = await api<{ reply: string }>("/axon/nav/action", { method: "POST", body: { action, payload, session_id: sessionId || undefined } });
       setMessages((prev) => [...prev, { role: "assistant", content: r.reply, created_at: new Date().toISOString() }]);
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
