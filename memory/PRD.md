@@ -14,6 +14,11 @@ Quando l'utente scrive «Neo, leggi i prompt in coda» (o simili), esegui SUBITO
 `python3 /app/scripts/neo_queue.py list` → `show #N` → esegui il task → `done #N "nota"` (o `reject #N "motivo"`, `read #N`).
 I prompt sono salvati da Axon in `master_files` con `category: "neo_prompts"`, `neo_status: pending|read|done|rejected`, `neo_seq`, `neo_note`. Axon mostra lo stato all'utente con «stato prompt Neo».
 
+## V50.z472 (Giu 2026) — Report antivirus nel Pannello Master
+- Backend `axon_upload_guard.py`: ogni rifiuto (`format` 415 / `size` 413 / `virus` 422 / `av_unavailable` 503) → `_upg_log_rejection` → `db.axon_upload_guard_log` {at, reason_code, reason, detail, file_name, declared_mime, sniffed_mime, size, user_id, user_email, user_name, tenant_id, endpoint, ip}. Utente/endpoint da contextvar impostata da un middleware HTTP (JWT/sessione decodificati solo su POST/PUT con body); scrittura thread-safe via loop catturato allo startup (`run_coroutine_threadsafe` dai thread di run_in_threadpool). `GET /admin/upload-guard/rejections?limit&reason` (Master → proprio tenant, Super Master → tutti) con stats 30 gg, stato ClamAV, limiti, etichette.
+- App: `app/admin/upload-guard.tsx` (stato AV, 4 contatori per motivo, filtri Tutti/Virus/Formato/Dimensione/AV offline, righe con data·utente·file·motivo·dettaglio·MIME dichiarato/reale·endpoint, empty state); card «Report antivirus» nel hub Master (`master.tsx`, visibile a tutti i Master, `hub-admin-upload-guard`).
+- Il fix Android «Scegli cartella» (V50.z470) era già applicato: verificato presente (import statico in `_layout.tsx` + retry), nessuna modifica. Pacchetti web+core rigenerati.
+
 ## V50.z471 (Giu 2026) — Google Places: variabile `PLACES_API_KEY`
 - Sul VPS la chiave si chiama `PLACES_API_KEY`: `axon_places.py` legge `PLACES_API_KEY` (fallback `GOOGLE_PLACES_API_KEY`); `.env` dev e `.env.example` aggiornati; docker-compose usa `env_file: .env` quindi la variabile arriva al container. Verificato: autocomplete + details rispondono 200 (Places API New ora abilitata). Pacchetto core rigenerato.
 

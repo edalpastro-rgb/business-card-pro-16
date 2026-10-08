@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-08 | D2026.10.08-1355 | V50.z472 — Report antivirus nel Pannello Master (file rifiutati: data, utente, motivo) + log rifiuti upload guard |
 | 2026-10-08 | D2026.10.08-1346 | V50.z471 — Google Places: chiave letta da PLACES_API_KEY (alias GOOGLE_PLACES_API_KEY) |
 | 2026-10-08 | D2026.10.08-1241 | V50.z470 — Fix Android «Scegli cartella» (Importazione clienti): import statico expo-file-system all'avvio + retry singolo (come Prompt 23.a) |
 | 2026-10-08 | D2026.10.08-1227 | V50.z469 — batch Feature 5-8/12-15 (Storico PUN, Places, rubrica, watchdog, Libretto+Axon, Spazio Personale, antivirus) |

@@ -13,6 +13,13 @@
 
 import socket as _upg_socket
 import struct as _upg_struct
+import contextvars as _upg_ctxvars
+
+# V50.z472 — Report antivirus: ogni rifiuto (formato/dimensione/virus/AV non disponibile) viene registrato in `axon_upload_guard_log`
+# con data, utente, file, endpoint e motivo. Utente/endpoint arrivano da una contextvar impostata dal middleware (anche nei
+# thread di run_in_threadpool: anyio propaga il contesto). GET /admin/upload-guard/rejections → pannello Master.
+_upg_req_ctx: _upg_ctxvars.ContextVar[Optional[dict]] = _upg_ctxvars.ContextVar("upg_req_ctx", default=None)
+_upg_loop: dict = {"loop": None}
 
 _UPG_HOST = (os.environ.get("CLAMAV_HOST") or "clamav").strip()
 _UPG_PORT = int(os.environ.get("CLAMAV_PORT") or 3310)
@@ -82,35 +89,125 @@ def _upg_clamd_scan(raw: bytes) -> Tuple[str, str]:
         return "ERROR", f"{type(exc).__name__}: {exc}"
 
 
+def _upg_log_rejection(reason_code: str, reason: str, name: str, mime: str, size: int, sniffed: Optional[str], detail: str = "") -> None:
+    """Registra il rifiuto (thread-safe: usa il loop principale catturato allo startup)."""
+    ctx = _upg_req_ctx.get() or {}
+    doc = {"at": utcnow(), "reason_code": reason_code, "reason": reason, "detail": (detail or "")[:300], "file_name": (name or "")[:200], "declared_mime": (mime or "")[:80],
+           "sniffed_mime": sniffed, "size": int(size or 0), "user_id": ctx.get("user_id"), "user_email": ctx.get("email"), "user_name": ctx.get("name"), "tenant_id": ctx.get("tenant_id"),
+           "endpoint": ctx.get("path"), "ip": ctx.get("ip")}
+    _upg_state["blocked"] += 1
+    logger.warning("[upload-guard] REJECTED %s · %s · %s (%s) user=%s", reason_code, name, reason, detail[:80], ctx.get("email"))
+    try:
+        loop = _upg_loop.get("loop")
+        if loop is None:
+            return
+        try:
+            running = asyncio.get_running_loop()
+        except RuntimeError:
+            running = None
+        if running is loop:
+            loop.create_task(db.axon_upload_guard_log.insert_one(doc))
+        else:
+            asyncio.run_coroutine_threadsafe(db.axon_upload_guard_log.insert_one(doc), loop)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[upload-guard] log failed: %s", exc)
+
+
 def _upg_check_sync(raw: bytes, name: str = "", mime: str = "", kind: str = "document") -> dict:
-    """kind: document (jpg/png/pdf) | audio | any (document+audio). Alza HTTPException 413/415/422/503."""
+    """kind: document (jpg/png/pdf) | audio | any (document+audio). Alza HTTPException 413/415/422/503 (ogni rifiuto è loggato)."""
     real = _upg_sniff(raw)
+
+    def _reject(code: int, reason_code: str, msg: str, detail: str = ""):
+        _upg_log_rejection(reason_code, msg, name, mime, len(raw), real, detail)
+        raise HTTPException(status_code=code, detail=msg)
+
     if real is None:
-        raise HTTPException(status_code=415, detail="Formato non consentito: sono accettati solo JPG, PNG e PDF" + (" (o audio per le trascrizioni)" if kind != "document" else "") + ".")
+        _reject(415, "format", "Formato non consentito: sono accettati solo JPG, PNG e PDF" + (" (o audio per le trascrizioni)" if kind != "document" else "") + ".", f"magic bytes sconosciuti: {raw[:8].hex()}")
     is_audio = real.startswith("audio/")
     if kind == "document" and is_audio:
-        raise HTTPException(status_code=415, detail="Formato non consentito: sono accettati solo JPG, PNG e PDF.")
+        _reject(415, "format", "Formato non consentito: sono accettati solo JPG, PNG e PDF.", f"audio ({real}) dove servono documenti")
     if kind == "audio" and not is_audio:
-        raise HTTPException(status_code=415, detail="Formato audio non riconosciuto (m4a, mp3, wav, ogg, webm, flac).")
+        _reject(415, "format", "Formato audio non riconosciuto (m4a, mp3, wav, ogg, webm, flac).", f"rilevato {real}")
     cat = "audio" if is_audio else ("pdf" if real == "application/pdf" else "image")
     if len(raw) > _UPG_MAX[cat]:
-        raise HTTPException(status_code=413, detail=f"File troppo grande (max {_UPG_MAX[cat] // (1024 * 1024)} MB per {cat})")
+        _reject(413, "size", f"File troppo grande (max {_UPG_MAX[cat] // (1024 * 1024)} MB per {cat})", f"{len(raw) // 1024} KB")
     av = "skipped"
     if _UPG_ENABLED:
         status, detail = _upg_clamd_scan(raw)
         _upg_state["scanned"] += 1
         if status == "FOUND":
-            _upg_state["blocked"] += 1
-            logger.warning("[upload-guard] BLOCKED %s (%s): %s", name, real, detail)
-            raise HTTPException(status_code=422, detail="File rifiutato: contenuto potenzialmente dannoso rilevato dall'antivirus.")
+            _reject(422, "virus", "File rifiutato: contenuto potenzialmente dannoso rilevato dall'antivirus.", detail)
         if status == "ERROR":
             _upg_state["last_error"] = detail
             if _UPG_REQUIRED:
-                raise HTTPException(status_code=503, detail="Antivirus non disponibile: riprova tra qualche istante.")
+                _reject(503, "av_unavailable", "Antivirus non disponibile: riprova tra qualche istante.", detail)
             av = "unavailable"
         else:
             _upg_state["last_ok"] = utcnow(); av = "clean"
     return {"mime": real, "size": len(raw), "category": cat, "antivirus": av}
+
+
+@app.middleware("http")
+async def _upg_context_middleware(request: Request, call_next):
+    """Contesto richiesta (utente dal JWT, endpoint, IP) per il report antivirus — solo sulle richieste con body da caricare."""
+    token = None
+    if request.method in ("POST", "PUT") and (request.headers.get("content-length") or "0") != "0":
+        auth = request.headers.get("authorization") or ""
+        if auth.startswith("Bearer "):
+            token = auth[7:].strip()
+    ctx = None
+    if token:
+        ctx = {"path": request.url.path, "ip": (request.headers.get("x-forwarded-for") or (request.client.host if request.client else "") or "").split(",")[0].strip()}
+        try:
+            payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALG])
+            ctx["user_id"] = payload.get("sub")
+        except Exception:  # noqa: BLE001
+            sess = await db.user_sessions.find_one({"session_token": token}, {"_id": 0, "user_id": 1})
+            ctx["user_id"] = sess.get("user_id") if sess else None
+        if ctx.get("user_id"):
+            u = await db.users.find_one({"user_id": ctx["user_id"]}, {"_id": 0, "email": 1, "name": 1, "parent_user_id": 1})
+            if u:
+                ctx["email"] = u.get("email"); ctx["name"] = u.get("name"); ctx["tenant_id"] = u.get("parent_user_id") or ctx["user_id"]
+    tok = _upg_req_ctx.set(ctx)
+    try:
+        return await call_next(request)
+    finally:
+        _upg_req_ctx.reset(tok)
+
+
+@app.on_event("startup")
+async def _upg_startup():
+    _upg_loop["loop"] = asyncio.get_running_loop()
+    try:
+        await db.axon_upload_guard_log.create_index([("at", -1)])
+        await db.axon_upload_guard_log.create_index([("tenant_id", 1), ("at", -1)])
+    except Exception:  # noqa: BLE001
+        pass
+
+
+@api_router.get("/admin/upload-guard/rejections")
+async def upg_rejections(limit: int = 100, reason: Optional[str] = None, user=Depends(get_current_user)):
+    """Report antivirus per il pannello Master: file rifiutati con data, utente, motivo. Master → solo il proprio tenant; Super Master → tutti."""
+    if not is_owner(user):
+        raise HTTPException(status_code=403, detail="Solo il Master")
+    q: dict = {}
+    if not (user.get("super_admin") is True):
+        q["tenant_id"] = tenant_id(user)
+    if reason in ("format", "size", "virus", "av_unavailable"):
+        q["reason_code"] = reason
+    n = max(1, min(limit, 500))
+    rows = await db.axon_upload_guard_log.find(q, {"_id": 0}).sort("at", -1).to_list(n)
+    for r in rows:
+        if isinstance(r.get("at"), datetime):
+            r["at"] = r["at"].isoformat()
+    since = utcnow() - timedelta(days=30)
+    agg = await db.axon_upload_guard_log.aggregate([{"$match": {**q, "at": {"$gte": since}}}, {"$group": {"_id": "$reason_code", "n": {"$sum": 1}}}]).to_list(10)
+    by_reason = {a["_id"]: a["n"] for a in agg if a.get("_id")}
+    total30 = sum(by_reason.values())
+    av_status, av_detail = (await run_in_threadpool(_upg_clamd_scan, b"ping-" + b"x" * 16)) if _UPG_ENABLED else ("disabled", "")
+    return {"items": rows, "stats_30d": {"total": total30, "by_reason": by_reason}, "antivirus": {"enabled": _UPG_ENABLED, "required": _UPG_REQUIRED, "status": av_status, "detail": av_detail[:160], "host": f"{_UPG_HOST}:{_UPG_PORT}"},
+            "limits_mb": {k: v // (1024 * 1024) for k, v in _UPG_MAX.items()}, "allowed": ["JPG", "PNG", "PDF", "audio (trascrizioni)"],
+            "labels": {"format": "Formato non consentito", "size": "File troppo grande", "virus": "Virus / contenuto dannoso", "av_unavailable": "Antivirus non disponibile"}}
 
 
 # ── HOOK 1: Object Storage (tutti gli upload binari) ────────────────────────────────────────────────────────────────────
@@ -173,7 +270,8 @@ async def upg_status(user=Depends(get_current_user)):
 
 
 _OMNI_EXTRA_SECTIONS.append((
-    "Sicurezza upload (antivirus)", "/admin/upload-guard/status",
+    "Sicurezza upload (antivirus) + Report file rifiutati", "/admin/upload-guard/rejections",
     "Ogni file caricato è accettato solo se è davvero JPG, PNG o PDF (audio per le trascrizioni), entro i limiti di dimensione, e viene analizzato da ClamAV sul server prima del salvataggio; "
-    "un file sospetto è rifiutato con un messaggio chiaro. Il Master vede lo stato dell'antivirus con «stato antivirus».",
+    "un file sospetto è rifiutato con un messaggio chiaro. Nel Pannello Master › «Report antivirus» (route app /admin/upload-guard) il Master vede l'elenco dei file rifiutati con data, utente, file e motivo "
+    "(formato, dimensione, virus, antivirus non disponibile) e lo stato di ClamAV.",
 ))

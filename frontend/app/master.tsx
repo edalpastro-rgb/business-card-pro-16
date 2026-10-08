@@ -963,6 +963,7 @@ function SettingsHubSection({
         { icon: "shield-half", label: "Protezione registrazione", hint: "Anti-bot «Fort Knox»: rate limit, honeypot, proof-of-work, Turnstile, email usa-e-getta, URL privacy, tentativi bloccati", onPress: () => onGoto("/admin/register-guard"), superAdminOnly: true, testID: "hub-admin-register-guard" },
         { icon: "mail-unread-outline", label: "Email di benvenuto", hint: "Oggetto e testo con segnaposto, codice promo incluso, link privacy/app, invio di prova", onPress: () => onGoto("/admin/welcome-email"), superAdminOnly: true, testID: "hub-admin-welcome-email" },
         { icon: "footsteps", label: "Onboarding consulenti", hint: "3 checkpoint per consulente (profilo, anagrafica, primo cliente) con data/ora; solleciti automatici a 3 e 7 giorni", onPress: () => onGoto("/admin/onboarding"), superAdminOnly: true, testID: "hub-admin-onboarding" }, // V50.z461 — Prompt 23
+        { icon: "shield-checkmark-outline", label: "Report antivirus", hint: "File rifiutati dall'upload guard (formato, dimensione, virus) con data, utente e motivo; stato ClamAV", onPress: () => onGoto("/admin/upload-guard"), testID: "hub-admin-upload-guard" }, // V50.z472
       ],
     },
     {
