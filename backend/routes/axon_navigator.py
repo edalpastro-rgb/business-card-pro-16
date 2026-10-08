@@ -1035,6 +1035,8 @@ async def nav_action(body: NavActionIn, user=Depends(get_current_user)):
                 await db.appointments.update_one({"appointment_id": a["appointment_id"]}, {"$set": upd})
                 moved += 1
         reply = f"✅ Fatto: ho spostato {moved} appuntament{'o' if moved == 1 else 'i'} a domani allo stesso orario.\n" + _nav("/calendario?view=week", "📅 Vedi la settimana")
+    elif body.action == "emergency_confirm":  # V50.z460 — conferma unica del piano emergenza (axon_emergency.py)
+        reply = await _emergency_nav_action(body.action, body.payload or {}, user)  # noqa: F821
     elif body.action in ("send_email", "open_whatsapp"):  # V50.z458 — chip dell'agente multi-step (axon_agent.py)
         reply = await _agent_nav_action(body.action, body.payload or {}, user)  # noqa: F821
         if reply is None:

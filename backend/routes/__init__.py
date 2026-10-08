@@ -121,6 +121,8 @@ MODULES = [
     "axon_honesty_rule.py",  # V50.z386 — REGOLA PERMANENTE: «Non lo so, verifica con Emmy o con Neo.» — ULTIMO wrapper di _prepare_assistant_prompt (testa+coda del prompt, non sovrascrivibile)
     "axon_personalize.py",  # V50.z456 — «Personalizza Axon»: personalità + stile linguistico per account (Super Master / Lite), sezione nel prompt (DOPO axon_honesty_rule, prima del suo footer)
     "axon_agent.py",  # V50.z458 — Prompt 19: agenti autonomi multi-step (piano LLM → esecuzione sequenziale verificata → riepilogo; stop+«come procedo?» su errore; chat + voce)
+    "axon_emergency.py",  # V50.z460 — Prompt 22: emergenze → ricalcolo agenda (slot liberi, scuse con tono personalità, roadmap, cascata, conferma unica, push prioritaria)
+    "onboarding_tracking.py",  # V50.z461 — Prompt 23: checkpoint onboarding (profilo/anagrafica/primo cliente) + pannello titolare + solleciti email 3/7 gg
     "call_transcripts.py",  # V50.z459 — Prompt 20: trascrizione chiamate (Deepgram diarizzata → estrazione Anthropic → conferma → CRM); profilo utente (Agente/B2B/Libero prof.)
     "audio_transcripts.py",  # V50.z389 — FUNZIONALITÀ 4: trascrizione (Whisper, segmenti) + pulizia LLM di OGNI audio caricato, bozza→conferma→pubblicazione sola lettura (usa _cgym_llm, _upl_whisper_path, MC_FFMPEG)
     "wake_samples.py",  # V50.z390 — Raccolta pubblica campioni audio wake-word «Axon» (/public/wake-samples, pronuncia TTS) + pannello Super Master (stats, export.zip)

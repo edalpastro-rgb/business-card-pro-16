@@ -582,7 +582,7 @@ async def voice_copilot_execute(body: VoiceCopilotIn, user=Depends(get_current_u
     from emergentintegrations.llm.chat import LlmChat, UserMessage
 
     # V50.z458 — Prompt 19: comando vocale multi-step → stesso agente della chat (axon_agent.py); riepilogo parlato senza marker
-    _ag = await _maybe_agent_command(transcript, user)  # noqa: F821
+    _ag = (await _maybe_emergency_command(transcript, user)) or (await _maybe_agent_command(transcript, user))  # noqa: F821 — V50.z460 emergenze + agente
     if _ag and _ag.get("reply"):
         _ag_spoken = re.sub(r"\[\[(NAV|ACTION):[^\]]*\]\]", "", _ag["reply"]).replace("**", "").replace("↳ ", "").strip()
         _ag_audio = None; _ag_mime = None
