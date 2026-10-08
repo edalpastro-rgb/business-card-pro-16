@@ -1,0 +1,34 @@
+{
+  "summary": "V50.z487 verified. Backend 10/10 (test_v50z487_nav_guard_gps_ocr.py) + 3/3 new (test_v50z487_sse_and_sanitize_extras.py: combo 4-markers sanitize, routes list, SSE stream contains valid [[NAV:/permessi?standalone=1|...]]). Frontend: Impostazioni → Generale card general-permissions-card opens /permessi?standalone=1 with title 'Permessi utili', button testID perm-continue says 'Fatto' (not 'Continua'), no 'Salta per ora'; Fatto returns to Impostazioni. Axon chat: call-chip-3471234567 and wa-chip-3471234567 render under Axon reply (ContactActionChips). testIDs ai-doc-btn, ai-doc-scan, anag-doc-scan, general-permissions-card, perm-continue all present in source.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Axon chat nav-chip for 'Dove trovo i permessi dell'app per il GPS?'", "issue": "LLM reply emitted a nav-chip pointing to in-app settings (Preferenze Generali / Rilevamento GPS visite) rather than /permessi?standalone=1. The chip DID render as testID nav-chip-0 and clicking opened /impostazioni?section= (empty 'section' query param — Preferenze Generali screen loads but URL has empty section). Backend SSE sanitize test confirms that when the LLM uses /permessi route it is correctly rewritten to /permessi?standalone=1, so sanitizer is OK; the issue is LLM-generated route choice variance. Minor: the fallback URL ends with trailing 'section=' which looks like an empty query — consider stripping empty section params in NavChips/resolveNavRoute.", "affected_testIDs": ["nav-chip-0"]},
+      {"flow": "waze-chip / gmaps-chip rendering", "issue": "Axon's summarization of 'Mario Rossi, tel 347 1234567, Via Roma 10, Bassano del Grappa (VI)' reduced the reply to just '347 1234567' and dropped the address, so address-based chips didn't appear. Code & regex in ContactActionChips.tsx look correct; when the LLM reply includes the address the chips should render. Non-deterministic LLM output — not a chip component bug. Recommend testing by manually injecting a reply that contains both or using a seeded contact create flow to verify waze/gmaps chips."}
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v50z487_nav_guard_gps_ocr.py",
+    "/app/backend/tests/test_v50z487_sse_and_sanitize_extras.py",
+    "/app/test_reports/pytest/v50z487_results.xml"
+  ],
+  "action_items": [
+    "Minor: in src/NavChips.tsx or src/navRoutes.ts, strip empty query params before router.push (so '/impostazioni?section=' becomes '/impostazioni?section=general' or just '/impostazioni'). Observed only on LLM reply that generated a NAV marker lacking a concrete section value.",
+    "Optional: refine Axon prompt so the GPS permissions question prefers /permessi over OS-settings textual path (backend test_sse already covers the sanitizer side; the LLM instruction could be strengthened to always include [[NAV:/permessi?standalone=1|...]] when the user asks about app GPS permissions)."
+  ],
+  "critical_code_review_comments": [
+    "ContactActionChips.tsx renders only under non-user, non-streaming bubbles — correct. Chips triggered by regex scan of reply text; works for the 10-digit normalised phone format shown.",
+    "AssistantFAB.tsx opens AssistantChatModal correctly on web; testID assistant-fab, assistant-input, assistant-send all present.",
+    "/app/frontend/app/permessi.tsx: perm-continue label switches to 'Fatto' when ?standalone=1 — verified live."
+  ],
+  "updated_files": ["/app/backend/tests/test_v50z487_sse_and_sanitize_extras.py"],
+  "success_rate": {"backend": "100% (13/13)", "frontend": "~90% (7/8 — nav-chip destination variance)"},
+  "seed_data_creation": "none",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Owner login: test@dalpastro.it / Test1234!. Login flow: /landing → click 'ENTRA' → /login → fill input[placeholder=\"tu@email.it\"] + input[type=password] → click text=Accedi (last). Axon chat: click [data-testid=assistant-fab], then use [data-testid=assistant-input] + [data-testid=assistant-send]. Wait for [data-testid=assistant-stop-btn] to disappear before asserting chips. Chip testIDs: call-chip-<10digit>, wa-chip-<10digit>, waze-chip, gmaps-chip, nav-chip-<idx>. The nav-chip destination depends on Axon LLM output.",
+  "rca_of_issue": "nav-chip to /impostazioni?section= (empty): the Axon LLM selected an in-app GPS-visits route rather than /permessi for the permissions question. The axon_nav_guard router does map /impostazioni?section=permessi → /permessi?standalone=1 (verified backend), but if the LLM instead emits [[NAV:/impostazioni|...]] with no section, or a section not in SETTINGS_SECTIONS, the resolver returns /impostazioni with the original (possibly empty) section param. Mitigation: strip empty 'section=' before navigation OR add fallback to canonical '/impostazioni?section=general' when section is empty/invalid."
+}

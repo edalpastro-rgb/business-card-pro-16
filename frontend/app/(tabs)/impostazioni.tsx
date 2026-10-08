@@ -553,6 +553,19 @@ function ImpostazioniScreen() {
             <Text style={styles.hint}>Altre lingue e il tema scuro arriveranno nei prossimi aggiornamenti.</Text>
           </View>
         )}
+        {/* V50.z487 — Permessi del dispositivo (GPS, microfono, fotocamera, rubrica): la voce che Axon indicava come «Impostazioni → Permessi» ora esiste */}
+        {sec === "general" && (
+          <Pressable onPress={() => router.push({ pathname: "/permessi", params: { standalone: "1" } } as any)} style={styles.card} testID="general-permissions-card">
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <Ionicons name="shield-checkmark" size={20} color={HT.brand} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.sectionTitle}>Permessi del dispositivo</Text>
+                <Text style={styles.hint}>Posizione (GPS), microfono, fotocamera e rubrica: stato reale e attivazione.</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={HT.muted} />
+            </View>
+          </Pressable>
+        )}
         {/* V50.z256 — Rilevamento Visite (GPS) */}
         {sec === "general" && (
           <View style={styles.card} testID="visit-detection-card">

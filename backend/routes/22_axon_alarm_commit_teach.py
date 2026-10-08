@@ -876,6 +876,7 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
 
         collected: List[str] = []
         _bare = bool(prep.get("data_request")) or _axon_is_phone_request(msg)  # noqa: F821 — V50.z453 — dato secco: bufferizza e mostra SOLO il dato (niente fonte/link/chip); V50.z455 anche per richieste di numero di telefono
+        _navf = NavStreamFilter(user)  # noqa: F821 — V50.z487 axon_nav_guard.py: marker [[NAV]] verso schermate inesistenti → corretti o resi a parole, anche in streaming
         try:
             async for _wd_kind, ev in _wd_llm_stream(_make_chat, prep["user_prompt"], user_id=user.get("user_id")):  # noqa: F821 — axon_watchdog.py
                 if _wd_kind == "recovering":  # primo token non arrivato entro 10 s → nuova sessione, l'utente vede il messaggio di ripristino
@@ -883,12 +884,19 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
                     continue
                 if isinstance(ev, TextDelta):
                     if ev.content:
-                        collected.append(ev.content)
-                        if not _bare:
-                            yield sse("delta", {"text": ev.content})
+                        _piece = _navf.feed(ev.content)
+                        if _piece:
+                            collected.append(_piece)
+                            if not _bare:
+                                yield sse("delta", {"text": _piece})
                 elif isinstance(ev, StreamDone):
                     # end handled below
                     break
+            _tail = _navf.flush()
+            if _tail:
+                collected.append(_tail)
+                if not _bare:
+                    yield sse("delta", {"text": _tail})
         except Exception as e:
             # V50.z467 — risposta amichevole come messaggio normale (testo + TTS), mai errore tecnico
             _off = _axon_llm_failure("stream", e)  # noqa: F821

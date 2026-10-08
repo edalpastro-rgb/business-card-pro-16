@@ -1041,6 +1041,16 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     except Exception as exc:  # noqa: BLE001
         logger.warning("[axs] context (non-stream) failed: %s", exc)
 
+    # V50.z487 — GPS reale del telefono (client_context.position) + permessi dispositivo anche nell'endpoint non-stream (voce / Viola)
+    try:
+        _ng_gps_fn = globals().get("_nav_gps_section")
+        _ng_perm_fn = globals().get("_nav_permissions_section")
+        _ng_sec = ((await _ng_gps_fn(user, body.client_context, msg)) if _ng_gps_fn else "") + (_ng_perm_fn(body.client_context) if _ng_perm_fn else "")
+        if _ng_sec:
+            system_message = f"{system_message}{_ng_sec}"
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[nav-guard] gps/permissions (non-stream) failed: %s", exc)
+
     # V50.z144 — PINNED rules in cima anche nell'endpoint non-streaming (stesso blocco dello stream).
     try:
         _pinned_section_ns = await _build_pinned_rules_section(tenant_id(user), msg)

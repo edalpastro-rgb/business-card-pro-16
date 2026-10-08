@@ -5,6 +5,7 @@
  */
 import { Platform } from "react-native";
 import * as Location from "expo-location";
+import { getLiveCoords } from "@/src/utils/liveLocation"; // V50.z487 — posizione corrente
 
 export const WEATHER_ICON: Record<string, { name: any; color: string }> = {
   sunny: { name: "sunny", color: "#F59E0B" },
@@ -36,15 +37,16 @@ export async function getWeatherCoords(): Promise<{ lat: number; lon: number } |
   try {
     const perm = await Location.getForegroundPermissionsAsync();
     if (perm.granted) {
-      const loc = await Location.getLastKnownPositionAsync({ maxAge: 1000 * 60 * 60 }).catch(() => null);
+      // V50.z487 — posizione CORRENTE (prima: last-known fino a 1 h → meteo della zona sbagliata dopo uno spostamento)
+      const cur = await getLiveCoords({ timeoutMs: POSITION_TIMEOUT_MS, maxAgeMs: 60000 });
+      if (cur) return { lat: cur.lat, lon: cur.lon };
+      const loc = await Location.getLastKnownPositionAsync({ maxAge: 1000 * 60 * 10 }).catch(() => null);
       if (loc?.coords) return { lat: loc.coords.latitude, lon: loc.coords.longitude };
-      const cur = await withTimeout(Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low }).catch(() => null), POSITION_TIMEOUT_MS);
-      if (cur?.coords) return { lat: cur.coords.latitude, lon: cur.coords.longitude };
     } else if (perm.canAskAgain && Platform.OS !== "web") {
       const req = await withTimeout(Location.requestForegroundPermissionsAsync(), 20000);
       if (req?.granted) {
-        const cur = await withTimeout(Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low }).catch(() => null), POSITION_TIMEOUT_MS);
-        if (cur?.coords) return { lat: cur.coords.latitude, lon: cur.coords.longitude };
+        const cur = await getLiveCoords({ timeoutMs: POSITION_TIMEOUT_MS });
+        if (cur) return { lat: cur.lat, lon: cur.lon };
       }
     }
   } catch { /* ignore */ }

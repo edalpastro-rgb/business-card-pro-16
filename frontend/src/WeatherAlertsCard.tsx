@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Pressable, Animated, Platform } from "react-nat
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
+import { getLiveCoords } from "@/src/utils/liveLocation"; // V50.z487
 import { api } from "@/src/api";
 
 /**
@@ -34,17 +35,14 @@ export function WeatherAlertsCard() {
       try {
         const perm = await Location.getForegroundPermissionsAsync();
         if (perm.granted) {
-          try {
-            const loc = await Location.getLastKnownPositionAsync({ maxAge: 1000 * 60 * 60 });
-            coords = loc?.coords || null;
-          } catch { /* ignore */ }
+          // V50.z487 — posizione corrente (prima last-known fino a 1 h)
+          const live = await getLiveCoords({ timeoutMs: 8000, maxAgeMs: 60000 });
+          coords = live ? { latitude: live.lat, longitude: live.lon } : null;
         } else if (perm.canAskAgain && Platform.OS !== "web") {
           const req = await Location.requestForegroundPermissionsAsync();
           if (req.granted) {
-            try {
-              const loc = await Location.getCurrentPositionAsync({});
-              coords = loc?.coords || null;
-            } catch { /* ignore */ }
+            const live = await getLiveCoords({ timeoutMs: 8000 });
+            coords = live ? { latitude: live.lat, longitude: live.lon } : null;
           }
         }
       } catch { /* ignore */ }

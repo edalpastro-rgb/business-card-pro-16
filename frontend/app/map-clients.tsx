@@ -9,6 +9,7 @@ import { useNavChooser, joinAddr } from "@/src/NavChooser";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Location from "expo-location";
+import { getLiveCoords } from "@/src/utils/liveLocation"; // V50.z487 — posizione corrente con timeout/fallback
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { api } from "@/src/api";
@@ -60,8 +61,9 @@ export default function MapClientsScreen() {
         if (!granted) { setGpsDenied(true); return; }
       }
       if (!granted) { setGpsDenied(true); return; }
-      const p = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const pos = { lat: p.coords.latitude, lon: p.coords.longitude };
+      const p = await getLiveCoords({ timeoutMs: 10000 });
+      if (!p) { if (!silent) notify("GPS", "Posizione non disponibile: controlla che la localizzazione del telefono sia attiva."); return; }
+      const pos = { lat: p.lat, lon: p.lon };
       setMe(pos); mapRef.current?.setMe(pos.lat, pos.lon);
       if (!silent) mapRef.current?.center(pos.lat, pos.lon, 12);
       if (!gpsTimer.current) gpsTimer.current = setInterval(() => void readGps(true), 30000);

@@ -8,7 +8,7 @@ import { CT } from "@/src/assistant/chatTheme"; // V50.z337 — chat dark/premiu
 import { ChatTableExport, parseMessageSegments } from "@/src/ChatTableExport";
 import { ChatChartExport } from "@/src/ChatChartExport";
 import { NavChips, extractNavChips } from "@/src/NavChips";
-import { CallChips } from "@/src/CallChips"; // V50.z454 — tasto «Chiama» accanto ai numeri trovati
+import { ContactActionChips } from "@/src/ContactActionChips"; // V50.z487 — Chiama/WhatsApp per i numeri, Waze/Google Maps per gli indirizzi (sostituisce CallChips V50.z454)
 import { SaveToAxonPrompt } from "@/src/SaveToAxonPrompt";
 import { copyText, shareText, exportConversationPdf } from "@/src/utils/chatExport";
 import { ModuleErrorBoundary } from "@/src/shared/ModuleErrorBoundary";
@@ -267,7 +267,7 @@ export function MessageBubble({
               {navChips.length > 0 && onNavigate && (
                 <NavChips chips={navChips} onNavigate={onNavigate} onAction={(a, p) => onAction?.(a, p)} />
               )}
-              {!isUser && !msg.streaming && <CallChips text={cleanContent} />}
+              {!isUser && !msg.streaming && <ContactActionChips text={cleanContent} />}
             </View>
           );
         })()}

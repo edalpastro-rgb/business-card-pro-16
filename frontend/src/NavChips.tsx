@@ -5,6 +5,7 @@ import { View, Text, Pressable, StyleSheet, ActivityIndicator } from "react-nati
 import { Ionicons } from "@expo/vector-icons";
 import { CT } from "@/src/assistant/chatTheme"; // V50.z337 — chat dark/premium
 import { api } from "@/src/api";
+import { resolveNavRoute } from "@/src/navRoutes"; // V50.z487 — schermate reali + alias
 
 export type NavChip = { kind: "nav"; route: string; label: string };
 export type ActionChip = { kind: "action"; action: string; label: string; payload: Record<string, any> };
@@ -14,20 +15,21 @@ const NAV_RX = /\[\[NAV:([^|\]]+)\|([^\]]+)\]\]/g;
 const ACT_RX = /\[\[ACTION:([a-z_]+)\|([^|\]]+)\|(\{[\s\S]*?\})\]\]/g;
 
 /** V50.z383 — «Impostazioni AxonOS» (lingua, tono, voce, nome) deve aprire SEMPRE la sezione «AI & Axon · Assistente»
- *  (/impostazioni?section=axon): se il modello ha messo /axon-hub o /axon-voice con quell'etichetta, correggiamo qui. */
+ *  (/impostazioni?section=axon): se il modello ha messo /axon-hub o /axon-voice con quell'etichetta, correggiamo qui.
+ *  V50.z487 — poi la route passa da `resolveNavRoute` (schermate reali + alias): se non esiste → null → nessun pulsante rotto. */
 const AXON_SETTINGS_ROUTE = "/impostazioni?section=axon";
-export function normalizeNavRoute(route: string, label: string): string {
+export function normalizeNavRoute(route: string, label: string): string | null {
   const base = route.split("?")[0];
-  if (base !== "/axon-hub" && base !== "/axon-voice") return route;
   const l = (label || "").toLowerCase();
-  if (/impostazioni|assistente|\btono\b|\blingua\b|\bvoce\b/.test(l)) return AXON_SETTINGS_ROUTE;
-  return route;
+  if ((base === "/axon-hub" || base === "/axon-voice") && /impostazioni|assistente|\btono\b|\blingua\b|\bvoce\b/.test(l)) return AXON_SETTINGS_ROUTE;
+  return resolveNavRoute(route);
 }
 
 /** Estrae i marker dal testo e restituisce il contenuto pulito + i chip. */
 export function extractNavChips(content: string): { clean: string; chips: Chip[] } {
   if (!content || content.indexOf("[[") === -1) return { clean: content, chips: [] };
   const chips: Chip[] = [];
+  const seen = new Set<string>();
   let clean = content.replace(ACT_RX, (_m, action, label, json) => {
     let payload: Record<string, any> = {};
     try { payload = JSON.parse(json); } catch { payload = {}; }
@@ -35,7 +37,11 @@ export function extractNavChips(content: string): { clean: string; chips: Chip[]
     return "";
   });
   clean = clean.replace(NAV_RX, (_m, route, label) => {
-    chips.push({ kind: "nav", route: normalizeNavRoute(route.trim(), label.trim()), label: label.trim() });
+    const ok = normalizeNavRoute(route.trim(), label.trim());
+    if (!ok) return `ℹ️ «${label.trim()}»: schermata non disponibile come collegamento diretto.`; // V50.z487 — mai un pulsante rotto
+    if (seen.has(ok)) return "";
+    seen.add(ok);
+    chips.push({ kind: "nav", route: ok, label: label.trim() });
     return "";
   });
   // Rimuove righe rimaste vuote dai marker

@@ -927,6 +927,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z487 | Giu 2026 | **GPS in tempo reale** (posizione corrente, non più last-known; Axon riceve le coordinate reali e sa i clienti vicini) · **Bottoni automatici** Chiama/WhatsApp sui numeri e Waze/Google Maps sugli indirizzi nelle risposte di Axon · **Scansiona documento** (CI/passaporto/patente/biglietto) in Set Up and Go › Chi sei e in Nuovo contatto · **Link interni di Axon mai rotti** (route verificate su schermate reali, alias, altrimenti istruzioni a parole) · Impostazioni → Generale → «Permessi del dispositivo». |
 | V50.z486 | Giu 2026 | **Voce di Axon nell'onboarding permessi** (pausa/stop/muto sempre visibili) · **Axon Drive con trascrizione live**: vedi il testo mentre parli, «INTERROMPI» cancella e riparte; testo definitivo da Deepgram. |
 | V50.z485 | Giu 2026 | **Onboarding permessi al primo avvio**: GPS, microfono, fotocamera e contatti chiesti uno alla volta con cosa può fare Axon e la garanzia di privacy; messaggio chiave «Axon è la tua estensione: tu chiedi, Axon fa — ma devi permetterglielo»; riepilogo «Axon al N%». |
 | V50.z484 | Giu 2026 | **Permessi di sistema** (GPS, microfono, fotocamera, contatti): banner persistente in Home con tap → Impostazioni, alert con nome e percorso quando si usa una funzione senza permesso, Axon sa in tempo reale quali permessi sono attivi e non afferma mai di avere accesso a risorse negate. |

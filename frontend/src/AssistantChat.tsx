@@ -59,6 +59,7 @@ import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 import { KModalBody } from "@/src/ui/keyboard"; // V50.z397 — tastiera: campo attivo sempre visibile nelle Modal
 import { acquireMicLease } from "@/src/utils/micLease"; // V50.z483 — pausa wake-word mentre si registra
 import { getDevicePermissions, permissionsForAxon, ensureDevicePermission } from "@/src/permissions/devicePermissions"; // V50.z484
+import { silentLiveCoords, positionForAxon } from "@/src/utils/liveLocation"; // V50.z487 — GPS reale nel contesto di Axon
 let _micRelease: null | (() => void) = null;
 
 // V29.l — Logo AxonOS orizzontale trasparente per l'empty state chat (senza card scura, compatto).
@@ -835,7 +836,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
         attachments: attachmentsPayload,
         merge_images: mergeImages, // V50.z438
         quick_label: opts?.quickLabel && !attachmentsPayload.length ? opts.quickLabel : undefined,
-        client_context: { ...(clientContextRef.current || { route: "" }), voice: wantSpeech || undefined, personal_vault: (await vaultContextForMessage(msg)) || undefined, device_permissions: permissionsForAxon(await getDevicePermissions().catch(() => null)) }, // V50.z484 · V50.z291 · V50.z469 Spazio Personale (solo se «Condividi con Axon» e domanda pertinente) — dove si trova l'utente · V50.z305 voice=true → risposta breve parlata
+        client_context: { ...(clientContextRef.current || { route: "" }), voice: wantSpeech || undefined, personal_vault: (await vaultContextForMessage(msg)) || undefined, device_permissions: permissionsForAxon(await getDevicePermissions().catch(() => null)), position: positionForAxon(await silentLiveCoords(20000).catch(() => null)) }, // V50.z487 GPS reale (solo con permesso) → «dove sono», clienti vicini, percorso da qui · V50.z484 · V50.z291 · V50.z469 Spazio Personale (solo se «Condividi con Axon» e domanda pertinente) — dove si trova l'utente · V50.z305 voice=true → risposta breve parlata
         signal: controller.signal,
         onProgress: (p) => {
           // V50.z126 — Stato del preflight visibile ("Sto raccogliendo il contesto…")
@@ -1051,8 +1052,9 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     // arrivano a useLocalSearchParams anche se la schermata è già montata (prima il click «non faceva nulla» sul desktop)
     const [pathname, qs] = route.split("?");
     const params: Record<string, string> = {};
-    if (qs) qs.split("&").forEach((kv) => { const [k, v = ""] = kv.split("="); if (k) params[decodeURIComponent(k)] = decodeURIComponent(v); });
-    setTimeout(() => { try { router.push(qs ? ({ pathname, params } as any) : (route as any)); } catch { router.push(route as any); } }, 150);
+    if (qs) qs.split("&").forEach((kv) => { const [k, v = ""] = kv.split("="); if (k && v) params[decodeURIComponent(k)] = decodeURIComponent(v); }); // V50.z487 — parametri vuoti («?section=») scartati
+    const hasParams = Object.keys(params).length > 0;
+    setTimeout(() => { try { router.push(hasParams ? ({ pathname, params } as any) : (pathname as any)); } catch { router.push(pathname as any); } }, 150);
   };
   // V50.z259 — Azione confermabile [[ACTION]] (es. sposta appuntamenti mancati) → risposta appesa in chat
   const runNavAction = async (action: string, payload: Record<string, any>) => {

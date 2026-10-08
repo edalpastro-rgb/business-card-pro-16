@@ -3,7 +3,7 @@
 // Tutto saltabile: negare non blocca nulla. Alla fine → /setup?welcome=1.
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, Platform, Linking } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { api } from "@/src/api";
@@ -45,6 +45,8 @@ async function requestPerm(key: PermKey): Promise<PermStatus> {
 
 export default function PermessiScreen() {
   const router = useRouter();
+  const { standalone } = useLocalSearchParams<{ standalone?: string }>(); // V50.z487 — aperta da Axon / Impostazioni: «Fatto» torna indietro, niente wizard
+  const isStandalone = standalone === "1";
   const insets = useInsetsSafe();
   const [status, setStatus] = useState<Record<PermKey, PermStatus>>({ location: "unknown", microphone: "unknown", camera: "unknown", contacts: "unknown" });
 
@@ -60,9 +62,13 @@ export default function PermessiScreen() {
   const finish = useCallback(async (skippedAll: boolean) => {
     const perms: Record<string, string> = {};
     for (const c of CARDS) perms[c.key] = skippedAll && status[c.key] === "unknown" ? "skipped" : status[c.key];
+    if (isStandalone) {
+      if (router.canGoBack()) router.back(); else router.replace("/impostazioni?section=general" as any);
+      return;
+    }
     api("/axon/setup/state", { method: "PUT", body: { permissions: perms, permissions_done: true } }).catch(() => {});
     router.replace("/setup?welcome=1" as any);
-  }, [router, status]);
+  }, [router, status, isStandalone]);
 
   const granted = CARDS.filter((c) => status[c.key] === "granted").length;
 
@@ -100,8 +106,8 @@ export default function PermessiScreen() {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
-        <Pressable onPress={() => finish(false)} style={styles.primary} testID="perm-continue"><Text style={styles.primaryTxt}>Continua</Text><Ionicons name="arrow-forward" size={18} color="#FFF" /></Pressable>
-        <Pressable onPress={() => finish(true)} style={styles.skip} testID="perm-skip"><Text style={styles.skipTxt}>Salta per ora</Text></Pressable>
+        <Pressable onPress={() => finish(false)} style={styles.primary} testID="perm-continue"><Text style={styles.primaryTxt}>{isStandalone ? "Fatto" : "Continua"}</Text><Ionicons name={isStandalone ? "checkmark" : "arrow-forward"} size={18} color="#FFF" /></Pressable>
+        {!isStandalone && <Pressable onPress={() => finish(true)} style={styles.skip} testID="perm-skip"><Text style={styles.skipTxt}>Salta per ora</Text></Pressable>}
       </View>
     </View>
   );

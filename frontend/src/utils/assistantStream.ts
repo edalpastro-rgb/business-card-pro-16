@@ -40,7 +40,7 @@ export type StreamAssistantChatArgs = {
   // V50.z126 — etichetta azione rapida (il backend arricchisce il prompt e salva in cache)
   quick_label?: string;
   // V50.z291 — posizione attuale nell'app (route, parametri, titolo) → Axon sa dove si trova l'utente
-  client_context?: { route: string; params?: Record<string, string>; title?: string; voice?: boolean; personal_vault?: string; device_permissions?: string }; // V50.z484 device_permissions // V50.z305 voice → risposta breve · V50.z469 personal_vault (Spazio Personale, solo per questa richiesta)
+  client_context?: { route: string; params?: Record<string, string>; title?: string; voice?: boolean; personal_vault?: string; device_permissions?: string; position?: { lat: number; lon: number; accuracy_m: number | null; age_s: number } }; // V50.z487 position (GPS reale) // V50.z484 device_permissions // V50.z305 voice → risposta breve · V50.z469 personal_vault (Spazio Personale, solo per questa richiesta)
   signal?: AbortSignal;
   onMeta?: (meta: StreamMeta) => void;
   onProgress?: (p: StreamProgress) => void;

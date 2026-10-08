@@ -8,7 +8,7 @@ import { KScrollView } from "@/src/ui/keyboard"; // V50.z374 — tastiera: campo
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as Location from "expo-location";
+import { getLiveCoords } from "@/src/utils/liveLocation"; // V50.z487 — posizione corrente con timeout/fallback
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { api } from "@/src/api";
@@ -91,8 +91,9 @@ export default function OptimalRouteScreen() {
     try {
       const granted = await ensureDevicePermission("location"); // V50.z484 — alert con nome permesso + percorso Impostazioni
       if (!granted) { setDep(office ? "office" : "custom"); return; }
-      const p = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      setGps({ lat: p.coords.latitude, lon: p.coords.longitude });
+      const p = await getLiveCoords({ timeoutMs: 10000 });
+      if (!p) { notify("GPS", "Posizione non disponibile: controlla che la localizzazione del telefono sia attiva."); setDep(office ? "office" : "custom"); return; }
+      setGps({ lat: p.lat, lon: p.lon });
     } catch (e: any) { notify("GPS", e?.message || "Posizione non disponibile"); }
   }, [office]);
   useEffect(() => { if (step === 2 && dep === "gps" && !gps) void readGps(); }, [step, dep, gps, readGps]);

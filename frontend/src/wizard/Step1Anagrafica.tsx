@@ -8,6 +8,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 import { DateField } from "@/src/ui/DateField"; // V50.z388 — calendario nativo su ogni campo data
+import { DocScanButton, type DocScanResult } from "@/src/DocScanButton"; // V50.z487 — «Scansiona documento d'identità» compila tutti i campi
 
 const PURPLE = "#7C3AED";
 export type Anag = {
@@ -41,6 +42,24 @@ export function Step1Anagrafica({ bind }: { bind: StepBinder }) {
   }, []);
 
   const set = (k: keyof Anag, v: string) => setA((s) => ({ ...s, [k]: v }));
+
+  // V50.z487 — documento scansionato → compila SOLO i campi vuoti (quanto già scritto dall'utente ha priorità); CF → decodifica
+  const applyScan = (r: DocScanResult) => {
+    const d = r.fields || {};
+    const addr = d.address || [d.address_street, [d.address_zip, d.address_city].filter(Boolean).join(" "), d.address_province].filter(Boolean).join(", ");
+    setA((s) => {
+      const emails = [...s.emails];
+      if (d.email && !emails.some((m) => m.trim().toLowerCase() === d.email.toLowerCase())) { const i = emails.findIndex((m) => !m.trim()); if (i >= 0) emails[i] = d.email; else if (emails.length < 3) emails.push(d.email); }
+      return {
+        ...s,
+        first_name: s.first_name.trim() || d.first_name || "", last_name: s.last_name.trim() || d.last_name || "",
+        birth_date: s.birth_date || d.birth_date || "", phone: s.phone.trim() || d.phone || "", address: s.address.trim() || addr || "",
+        sex: s.sex || d.sex || undefined, emails,
+      };
+    });
+    if (d.tax_id && d.tax_id.length === 16 && !aRef.current.tax_id) void onCf(d.tax_id);
+    setErrors({});
+  };
   const setEmail = (i: number, v: string) => setA((s) => { const e = [...s.emails]; e[i] = v; return { ...s, emails: e }; });
 
   // Codice fiscale → decodifica al 16° carattere
@@ -104,6 +123,7 @@ export function Step1Anagrafica({ bind }: { bind: StepBinder }) {
 
   return (
     <View style={{ gap: 12 }} testID="step1-anagrafica">
+      <DocScanButton hint="identity" label="Scansiona documento d'identità" sublabel="Carta d'identità o passaporto: compilo nome, cognome, data di nascita, codice fiscale e indirizzo" onExtracted={applyScan} testID="anag-doc-scan" />
       <Text style={styles.section}>Codice fiscale</Text>
       <Field label="Codice fiscale *" value={a.tax_id} onChangeText={onCf} autoCapitalize="characters" placeholder="RSSMRA80A01H501U" error={errors.tax_id} testID="anag-tax-id" right={cfBusy ? <ActivityIndicator size="small" color={HT.violet} /> : cf?.valid ? <Ionicons name="checkmark-circle" size={20} color="#059669" /> : null} />
       {cf && !cf.valid && <Text style={styles.err}>{cf.reason}</Text>}

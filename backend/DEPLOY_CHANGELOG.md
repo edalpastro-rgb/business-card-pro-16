@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-08 | D2026.10.08-2306 | V50.z487 GPS reale + bottoni Chiama/WhatsApp/Waze/Maps + Scansiona documento + link NAV mai rotti |
 | 2026-10-08 | D2026.10.08-2134 | V50.z486 voce Axon onboarding + trascrizione live Axon Drive |
 | 2026-10-08 | D2026.10.08-2121 | V50.z485 onboarding permessi primo avvio |
 | 2026-10-08 | D2026.10.08-2112 | V50.z484 permessi di sistema: banner Home, alert all'uso, Axon consapevole |

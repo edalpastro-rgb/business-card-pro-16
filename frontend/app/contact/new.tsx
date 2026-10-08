@@ -13,6 +13,7 @@ import { folderPickAvailable, folderFileBase64 } from "@/src/utils/folderPicker"
 import { useFolderImport } from "@/src/FolderImportSheet";
 import { useAudioRecorder, AudioModule, RecordingPresets } from "expo-audio";
 import { api } from "@/src/api";
+import { DocScanButton, type DocScanResult } from "@/src/DocScanButton"; // V50.z487 — documento d'identità / biglietto / documento generico → campi
 import { useAuth } from "@/src/auth";
 import { ContactChannelsEditor, flattenChannels, PhoneEntry, EmailEntry, PersonEntry, ContactPrefs } from "@/src/ContactPreviewForm"; // V50.z278
 import { theme } from "@/src/theme";
@@ -240,16 +241,32 @@ function NewContactScreen() {
   }, [phoneContactsModal, phoneImportSearch]);
 
   // AI helper state
-  const [aiMode, setAiMode] = useState<null | "card" | "url" | "voice">(null);
+  const [aiMode, setAiMode] = useState<null | "card" | "url" | "voice" | "doc">(null);
   const [aiBusy, setAiBusy] = useState(false);
   const [aiUrl, setAiUrl] = useState("");
   const [aiPreview, setAiPreview] = useState<Record<string, string> | null>(null);
   const [aiTranscript, setAiTranscript] = useState<string>("");
 
-  const openAI = (m: "card" | "url" | "voice") => {
+  const openAI = (m: "card" | "url" | "voice" | "doc") => {
     setAiMode(m); setAiUrl(""); setAiPreview(null); setAiTranscript("");
   };
   const closeAI = () => { setAiMode(null); setAiPreview(null); };
+
+  // V50.z487 — documento scansionato (CI, passaporto, patente, CF, biglietto, visura…) → anteprima AI → «Applica al form»
+  const onDocScanned = (r: DocScanResult) => {
+    const d = r.fields || {};
+    const pv: Record<string, any> = {};
+    const put = (k: string, v?: string) => { if (v && String(v).trim()) pv[k] = String(v).trim(); };
+    put("first_name", d.first_name); put("last_name", d.last_name); put("phone", d.phone); put("phone_alt", d.phone_alt);
+    put("email", d.email); put("email_alt", d.email_alt); put("company", d.company); put("role", d.role); put("website", d.website);
+    put("fiscal_code", d.tax_id); put("vat_number", d.vat_number);
+    put("address_street", d.address_street || (!d.address_city && !d.address_zip ? d.address : "")); put("address_city", d.address_city); put("address_zip", d.address_zip); put("address_province", d.address_province);
+    if (d.birth_date && /^\d{4}-\d{2}-\d{2}$/.test(d.birth_date)) pv.birth_date = d.birth_date.split("-").reverse().join("/");
+    const extra = [d.document_number ? `Documento ${d.doc_kind === "passport" ? "passaporto" : d.doc_kind === "driving_license" ? "patente" : "CI"} n. ${d.document_number}` : "", d.expiry_date ? `scadenza ${d.expiry_date}` : "", d.birth_place ? `nato/a a ${d.birth_place}` : "", d.pod ? `POD ${d.pod}` : "", d.pdr ? `PDR ${d.pdr}` : ""].filter(Boolean).join(" · ");
+    if (extra) pv.notes = extra;
+    if (r.doc_kind === "business_card") setForm((f) => ({ ...f, business_card: { data_base64: r.image.split(",")[1] || r.image, mime: r.image.startsWith("data:image/png") ? "image/png" : "image/jpeg", created_at: new Date().toISOString() } }));
+    setAiPreview(pv);
+  };
 
   const applyAIFields = (data: Record<string, any>) => {
     // V50.z278 — azienda/ruolo/fax/P.IVA/recapiti/referenti sono campi strutturati; in nota restano solo sito/linkedin/descrizione
@@ -1263,6 +1280,10 @@ function NewContactScreen() {
           </Pressable>
 
           <View style={{ flexDirection: "row", gap: 6, marginBottom: 10 }}>
+            <Pressable testID="ai-doc-btn" onPress={() => openAI("doc")} style={[styles.aiBtn, { backgroundColor: HT.violet }]}>
+              <Ionicons name="id-card" size={16} color="#FFF" />
+              <Text style={styles.aiBtnTxt}>Documento</Text>
+            </Pressable>
             <Pressable testID="ai-card-btn" onPress={() => openAI("card")} style={[styles.aiBtn, { backgroundColor: '#8B5CF6' }]}>
               <Ionicons name="scan" size={16} color="#FFF" />
               <Text style={styles.aiBtnTxt}>Biglietto</Text>
@@ -2269,7 +2290,7 @@ function NewContactScreen() {
           <View style={{ backgroundColor: HT.card2, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "88%" }}>
             <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: HT.border, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
               <Text style={{ fontSize: 17, fontWeight: "800", color: HT.text }}>
-                {aiMode === "card" ? "📸 Scanner biglietto" : aiMode === "url" ? "🔗 Estrai da URL" : "🎤 Dettato vocale"}
+                {aiMode === "doc" ? "🪪 Scansiona documento" : aiMode === "card" ? "📸 Scanner biglietto" : aiMode === "url" ? "🔗 Estrai da URL" : "🎤 Dettato vocale"}
               </Text>
               <Pressable onPress={closeAI} hitSlop={8}>
                 <Ionicons name="close" size={22} color={HT.text} />
@@ -2292,6 +2313,12 @@ function NewContactScreen() {
                   <Pressable testID="ai-url-go" onPress={runAIUrl} disabled={aiBusy} style={{ backgroundColor: HT.brand, padding: 12, borderRadius: 10, alignItems: "center" }}>
                     {aiBusy ? <ActivityIndicator color="#FFF" /> : <Text style={{ color: "#FFF", fontWeight: "800" }}>Estrai dati</Text>}
                   </Pressable>
+                </>
+              )}
+              {aiMode === "doc" && (
+                <>
+                  <Text style={{ fontSize: 13, color: HT.muted }}>Carta d&apos;identità, passaporto, patente, tessera sanitaria, biglietto da visita o visura: Axon riconosce il documento e compila i campi.</Text>
+                  <DocScanButton hint="any" label="Scansiona documento" sublabel="Fotografa, scegli dalla galleria o da un file (anche Drive)" onExtracted={onDocScanned} testID="ai-doc-scan" />
                 </>
               )}
               {aiMode === "card" && (

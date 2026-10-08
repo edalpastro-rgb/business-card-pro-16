@@ -25,7 +25,7 @@ export const ID_DOC_TYPES: { id: string; label: string; icon: any }[] = [
 
 // V50.z462 — Prompt 23.a: 4 modi per acquisire fronte/retro, stesso risultato (data URL → OCR → anagrafica).
 export type DocSource = "camera" | "gallery" | "files" | "scanner";
-const DOC_SOURCES: { id: DocSource; label: string; icon: any; hint: string }[] = [
+export const DOC_SOURCES: { id: DocSource; label: string; icon: any; hint: string }[] = [
   { id: "camera", label: "Fotografa", icon: "camera", hint: "Fotocamera con messa a fuoco e ritaglio" },
   { id: "gallery", label: "Galleria", icon: "images", hint: "Una foto già scattata" },
   { id: "files", label: "File / Drive", icon: "folder-open", hint: "File locali o Google Drive" },
@@ -40,19 +40,19 @@ async function assetToDataUrl(a: { uri?: string; base64?: string; mimeType?: str
 }
 
 /** Fallback fotocamera via ImagePicker (web o se la fotocamera live non è disponibile). */
-async function shootLegacy(): Promise<string | null> {
+export async function shootLegacy(): Promise<string | null> {
   const res = await launchCameraUniversal({ quality: 0.7, base64: Platform.OS !== "web" });
   if (res.canceled || !res.assets?.[0]) return null;
   return assetToDataUrl(res.assets[0]);
 }
 
-async function pickFromGallery(): Promise<string | null> {
+export async function pickFromGallery(): Promise<string | null> {
   const res = await launchLibraryUniversal({ mediaTypes: "images", quality: 0.8, base64: Platform.OS !== "web", allowsMultipleSelection: false });
   if (res.canceled || !res.assets?.[0]) return null;
   return assetToDataUrl(res.assets[0]);
 }
 
-async function pickFromFiles(): Promise<string | null> {
+export async function pickFromFiles(): Promise<string | null> {
   const DocumentPicker = await import("expo-document-picker"); // selettore di sistema (SAF/Files): include Google Drive e file locali
   const res = await DocumentPicker.getDocumentAsync({ type: ["image/*"], multiple: false, copyToCacheDirectory: true });
   const a = res.assets?.[0];
@@ -62,7 +62,7 @@ async function pickFromFiles(): Promise<string | null> {
   return uriToBase64DataUrl(a.uri, mime);
 }
 
-async function pickFromScanner(): Promise<string | null> {
+export async function pickFromScanner(): Promise<string | null> {
   const pages = await scanWithNativeScanner(1);
   return pages[0] ? `data:${pages[0].mime};base64,${pages[0].data_base64}` : null;
 }
