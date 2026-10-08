@@ -1,11 +1,13 @@
 // app/admin/beta.tsx — V50.z474 — Pannello Master › «Cruscotto Beta»: le 10 metriche del piano «Beta sul campo» con soglia, stato
 // (verde/giallo/rosso/n.d.), dettaglio e verdetto GO/ITERA/RIPENSA; controllo delle ondate del sondaggio NPS; ultimi commenti.
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, RefreshControl, Switch } from "react-native";
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, RefreshControl, Switch, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { api } from "@/src/api";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
+import { api, BACKEND_URL, getAuthHeader } from "@/src/api";
 import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 
@@ -13,6 +15,7 @@ const C = theme.color;
 const TEAL = "#0F766E";
 type Metric = { key: string; label: string; value: number | null; unit: string; target: number; higher_is_better?: boolean; status: "ok" | "warn" | "ko" | "nd"; detail: string; breakdown?: Record<string, number> };
 type ProgramAdmin = { participants: { user_id: string; name?: string; email?: string; week: number; start_date: string; diaries_done: number[]; last_open?: string | null }[]; missions: { week: number; title: string; goal: string; tasks: string[] }[]; diaries: { user_name?: string; user_email?: string; week: number; saved_time?: string; angry?: string; manual?: string; at?: string | null }[]; tenant_start: string | null; current_week: number | null };
+type Mis = { days: number; scope: "all" | "tenant"; total: number; user_messages: number; rate_pct: number | null; by_reason: Record<string, number>; clusters: { key: string; example: string; count: number; users: number; reasons: Record<string, number> }[]; items: { at: string; user: string; phrase: string; retry?: string; reply?: string; reason: string }[]; labels: Record<string, string> };
 type Payload = { days: number; users: number; metrics: Metric[]; summary: { ok: number; nd: number; total: number; verdict: string }; nps_wave: { wave: number; active: boolean; ask_price: boolean; responses: number }; comments: { user: string; score: number; best?: string; worst?: string; at: string | null }[]; scope: "all" | "tenant" };
 
 const STATUS = { ok: { color: "#16A34A", icon: "checkmark-circle" as const, label: "obiettivo raggiunto" }, warn: { color: "#D97706", icon: "alert-circle" as const, label: "vicino all'obiettivo" }, ko: { color: "#DC2626", icon: "close-circle" as const, label: "sotto l'obiettivo" }, nd: { color: "#64748B", icon: "help-circle" as const, label: "dati insufficienti" } };
@@ -26,6 +29,10 @@ export default function AdminBeta() {
   const [days, setDays] = useState(42);
   const [saving, setSaving] = useState(false);
   const [prog, setProg] = useState<ProgramAdmin | null>(null); // V50.z475
+  const [mis, setMis] = useState<Mis | null>(null); // V50.z476 — frasi non capite
+  const [misReason, setMisReason] = useState<"all" | "error" | "repeated" | "correction" | "watchdog">("all");
+  const [misOpen, setMisOpen] = useState(false);
+  useEffect(() => { api<Mis>(`/admin/beta/misunderstood?days=${days}&limit=60${misReason !== "all" ? `&reason=${misReason}` : ""}`).then(setMis).catch(() => {}); }, [days, misReason]);
   const loadProg = useCallback(() => { api<ProgramAdmin>("/admin/beta/program").then(setProg).catch(() => {}); }, []);
   useEffect(() => { loadProg(); }, [loadProg]);
   const startProgram = async () => { setSaving(true); try { await api("/admin/beta/start", { method: "POST", body: {} }); notify("Programma avviato", "Da oggi i consulenti vedono la missione della settimana 1 in Home e il Diario del venerdì."); loadProg(); } catch (e: any) { notify("Avvio non riuscito", e?.message || "Riprova"); } finally { setSaving(false); } };
@@ -50,6 +57,35 @@ export default function AdminBeta() {
 
   const verdict = data ? VERDICT[data.summary.verdict] || VERDICT["IN CORSO"] : null;
 
+  // V50.z477 — Export CSV/PDF del cruscotto (web: download browser · nativo: salva in cache e apre il foglio di condivisione)
+  const [exporting, setExporting] = useState<"csv" | "pdf" | null>(null);
+  const exportReport = async (kind: "csv" | "pdf") => {
+    if (exporting) return;
+    setExporting(kind);
+    const fname = `AdvisorOS_Beta_${days}gg.${kind}`;
+    const url = `${BACKEND_URL}/api/admin/beta/export.${kind}?days=${days}`;
+    const mime = kind === "pdf" ? "application/pdf" : "text/csv";
+    try {
+      const auth = await getAuthHeader();
+      if (Platform.OS === "web") {
+        const res = await fetch(url, { headers: auth });
+        if (!res.ok) throw new Error(`Errore server (${res.status})`);
+        const blob = await res.blob();
+        const href = URL.createObjectURL(blob);
+        const a = document.createElement("a"); a.href = href; a.download = fname; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(href), 4000);
+        notify("Export pronto", `${fname} scaricato`);
+        return;
+      }
+      const dest = `${FileSystem.cacheDirectory}${fname}`;
+      const dl = await FileSystem.downloadAsync(url, dest, { headers: auth });
+      if (dl.status !== 200) throw new Error(`Errore server (${dl.status})`);
+      if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(dl.uri, { mimeType: mime, UTI: kind === "pdf" ? "com.adobe.pdf" : "public.comma-separated-values-text", dialogTitle: `Report Beta (${kind.toUpperCase()})` });
+      else notify("File salvato", dl.uri);
+    } catch (e: any) { notify("Export non riuscito", e?.message || "Riprova"); }
+    finally { setExporting(null); }
+  };
+
   return (
     <SafeAreaView style={s.container} edges={["top"]}>
       <View style={s.header}>
@@ -67,6 +103,18 @@ export default function AdminBeta() {
           {[14, 28, 42, 90].map((d) => (
             <Pressable key={d} onPress={() => setDays(d)} style={[s.chip, days === d && s.chipOn]} testID={`beta-days-${d}`}><Text style={[s.chipTxt, days === d && s.chipTxtOn]}>{d} gg</Text></Pressable>
           ))}
+        </View>
+        {/* V50.z477 — Export per partner/investitori */}
+        <View style={s.filters} testID="beta-export-row">
+          <Pressable onPress={() => exportReport("pdf")} disabled={!!exporting || !data} style={[s.chip, { borderColor: "#B45309" }]} testID="beta-export-pdf">
+            {exporting === "pdf" ? <ActivityIndicator size="small" color="#B45309" /> : <Ionicons name="document-text-outline" size={14} color="#B45309" />}
+            <Text style={[s.chipTxt, { color: "#B45309" }]}> Report PDF</Text>
+          </Pressable>
+          <Pressable onPress={() => exportReport("csv")} disabled={!!exporting || !data} style={s.chip} testID="beta-export-csv">
+            {exporting === "csv" ? <ActivityIndicator size="small" color={TEAL} /> : <Ionicons name="grid-outline" size={14} color={TEAL} />}
+            <Text style={s.chipTxt}> Dati CSV (Excel)</Text>
+          </Pressable>
+          <Text style={[s.hint, { flexBasis: "100%" }]}>Il report include verdetto, 10 metriche, frasi non capite, NPS, partecipanti e diari degli ultimi {days} giorni — pronto da inviare a partner e investitori.</Text>
         </View>
         {data && verdict ? (
           <View style={[s.card, { borderColor: verdict.color, borderWidth: 2 }]} testID="beta-verdict">
@@ -99,6 +147,42 @@ export default function AdminBeta() {
             </View>
           );
         })}
+        {/* V50.z476 — Frasi non capite: cluster (dove migliorare) + elenco; Super Master = tutte le reti */}
+        {mis ? (
+          <View style={[s.card, { borderColor: "#B45309" }]} testID="beta-misunderstood">
+            <View style={s.rowBetween}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}><Ionicons name="chatbox-ellipses-outline" size={20} color="#B45309" /><Text style={s.cardTitle}>Frasi non capite da Axon</Text></View>
+              <Text style={[s.value, { color: "#B45309", fontSize: 18 }]}>{mis.total}</Text>
+            </View>
+            <Text style={s.hint}>{mis.rate_pct !== null ? `${mis.rate_pct}% delle ${mis.user_messages} richieste` : "nessuna richiesta"} negli ultimi {mis.days} gg · {mis.scope === "all" ? "tutte le reti (vista AdvisorOS)" : "la tua rete"} · errori {mis.by_reason.error || 0} · ripetute {mis.by_reason.repeated || 0} · corrette {mis.by_reason.correction || 0} · timeout {mis.by_reason.watchdog || 0}</Text>
+            {mis.clusters.length ? (
+              <>
+                <Text style={[s.lbl, { marginTop: 4 }]}>Dove migliorare (richieste ricorrenti)</Text>
+                {mis.clusters.slice(0, 8).map((c) => (
+                  <View key={c.key} style={[s.rowBetween, { paddingVertical: 5, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.divider }]} testID="beta-mis-cluster">
+                    <Text style={[s.hint, { flex: 1, color: C.onSurface }]} numberOfLines={2}>«{c.example}»</Text>
+                    <View style={{ alignItems: "flex-end" }}><Text style={[s.lbl, { flex: 0 }]}>{c.count}×</Text><Text style={s.hint}>{c.users} utent{c.users === 1 ? "e" : "i"}</Text></View>
+                  </View>
+                ))}
+              </>
+            ) : <Text style={s.hint}>Nessuna frase non capita nel periodo: ottimo segno.</Text>}
+            <View style={s.filters}>
+              {(["all", "error", "repeated", "correction", "watchdog"] as const).map((f) => (
+                <Pressable key={f} onPress={() => { setMisReason(f); setMisOpen(true); }} style={[s.chip, misReason === f && misOpen && s.chipOn]} testID={`beta-mis-${f}`}><Text style={[s.chipTxt, misReason === f && misOpen && s.chipTxtOn]}>{f === "all" ? "Tutte" : f === "error" ? "Errori" : f === "repeated" ? "Ripetute" : f === "correction" ? "Corrette" : "Timeout"}</Text></Pressable>
+              ))}
+              <Pressable onPress={() => setMisOpen((v) => !v)} style={s.chip} testID="beta-mis-toggle"><Text style={s.chipTxt}>{misOpen ? "Nascondi elenco" : "Mostra elenco"}</Text></Pressable>
+            </View>
+            {misOpen ? mis.items.slice(0, 40).map((it, i) => (
+              <View key={i} style={{ gap: 2, paddingVertical: 6, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.divider }} testID={`beta-mis-item-${i}`}>
+                <Text style={s.hint}>{new Date(it.at).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })} · {it.user} · {mis.labels[it.reason] || it.reason}</Text>
+                <Text style={[s.lbl, { flex: 0 }]}>«{it.phrase}»</Text>
+                {it.retry ? <Text style={s.hint}>↻ riformulata: «{it.retry}»</Text> : null}
+                {it.reply ? <Text style={s.hint} numberOfLines={2}>→ {it.reply}</Text> : null}
+              </View>
+            )) : null}
+            <Text style={s.hint}>Come correggere: apri la chat, scrivi la frase e usa «Insegna ad Axon» per la risposta giusta; le frasi ricorrenti vanno aggiunte come comandi deterministici nel rilascio successivo.</Text>
+          </View>
+        ) : null}
         {/* V50.z475 — Programma 6 settimane: avvio, partecipanti, missioni, diari */}
         <View style={s.card} testID="beta-program">
           <View style={s.rowBetween}>

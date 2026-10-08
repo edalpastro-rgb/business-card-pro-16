@@ -44,3 +44,15 @@ def test_beta_program_and_diary():
     assert a["tenant_start"] == "2026-06-01" and len(a["missions"]) == 6 and any(d["manual"] == "pytest-manual" for d in a["diaries"])
     assert requests.delete(f"{BASE}/admin/beta/start", headers=h, timeout=20).json()["ok"]
     assert requests.get(f"{BASE}/beta/program", headers=h, timeout=20).json()["enrolled"] is False
+
+
+def test_misunderstood_report():
+    h = _login()
+    r = requests.get(f"{BASE}/admin/beta/misunderstood?days=42&limit=20", headers=h, timeout=120)
+    assert r.status_code == 200
+    j = r.json()
+    assert set(j["by_reason"]) == {"error", "repeated", "correction", "watchdog"} and isinstance(j["clusters"], list) and len(j["items"]) <= 20
+    for it in j["items"]:
+        assert it["reason"] in j["labels"] and it["phrase"]
+    r2 = requests.get(f"{BASE}/admin/beta/misunderstood?days=42&reason=error", headers=h, timeout=120).json()
+    assert all(i["reason"] == "error" for i in r2["items"])

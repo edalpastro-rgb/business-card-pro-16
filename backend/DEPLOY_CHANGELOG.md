@@ -6,6 +6,8 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-08 | D2026.10.08-1647 | V50.z477 export Cruscotto Beta CSV/PDF |
+| 2026-10-08 | D2026.10.08-1635 | V50.z476 — Frasi non capite da Axon nel Cruscotto Beta (cluster + elenco, vista Super Master su tutte le reti) |
 | 2026-10-08 | D2026.10.08-1606 | V50.z475 — Programma Beta 6 settimane: missioni in Home, Diario del venerdì, gestione nel Cruscotto Beta |
 | 2026-10-08 | D2026.10.08-1445 | V50.z474 — Beta sul campo: sondaggio NPS in-app + Cruscotto Beta (10 metriche) nel Pannello Master + eventi d'uso |
 | 2026-10-08 | D2026.10.08-1355 | V50.z472 — Report antivirus nel Pannello Master (file rifiutati: data, utente, motivo) + log rifiuti upload guard |
