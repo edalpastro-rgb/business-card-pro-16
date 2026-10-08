@@ -9,6 +9,10 @@
  * do NOT need to change their result handling logic.
  */
 import { Platform } from "react-native";
+// V50.z462 — import STATICO: su Android l'ActivityResultLauncher di ExponentImagePicker viene registrato alla creazione del modulo;
+// con il vecchio `await import("expo-image-picker")` dentro la funzione il modulo nasceva a Activity già RESUMED →
+// «Call to function ExponentImagePicker.launchCameraAsync has been rejected». Importato qui, si registra all'avvio dell'app.
+import * as ImagePicker from "expo-image-picker";
 import { pickFilesWeb, WebPickedAsset } from "@/src/web-image-picker";
 
 export type PickerAsset = {
@@ -72,7 +76,6 @@ export async function launchLibraryUniversal(
   }
 
   // Native
-  const ImagePicker = await import("expo-image-picker");
   const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (!perm.granted) return { canceled: true, assets: null };
 
@@ -150,7 +153,6 @@ export async function launchCameraUniversal(
     };
   }
 
-  const ImagePicker = await import("expo-image-picker");
   const perm = await ImagePicker.requestCameraPermissionsAsync();
   if (!perm.granted) return { canceled: true, assets: null };
 
@@ -169,7 +171,16 @@ export async function launchCameraUniversal(
   if (allowsEditing !== undefined) nativeOpts.allowsEditing = allowsEditing;
   if (aspect) nativeOpts.aspect = aspect;
 
-  const res = await ImagePicker.launchCameraAsync(nativeOpts);
+  let res: any;
+  try {
+    res = await ImagePicker.launchCameraAsync(nativeOpts);
+  } catch (e: any) {
+    // V50.z462 — launcher non pronto / fotocamera occupata: un secondo tentativo dopo che l'Activity ha completato il ciclo
+    if (/rejected|launcher|register/i.test(String(e?.message || e))) {
+      await new Promise((r) => setTimeout(r, 350));
+      res = await ImagePicker.launchCameraAsync(nativeOpts);
+    } else throw e;
+  }
   if (res.canceled || !res.assets?.length) return { canceled: true, assets: null };
   const assets: PickerAsset[] = res.assets.map((a: any) => ({
     uri: a.uri,

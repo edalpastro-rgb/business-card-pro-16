@@ -7,8 +7,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { notify } from "@/src/utils/notify";
 import { DateField } from "@/src/ui/DateField"; // V50.z388 — calendario nativo su ogni campo data
-import { launchCameraUniversal } from "@/src/utils/imagePickerCompat";
+import { launchCameraUniversal, launchLibraryUniversal } from "@/src/utils/imagePickerCompat";
 import { uriToBase64DataUrl } from "@/src/utils/media";
+import { LiveCameraScanner, type LiveScannedPage } from "@/src/LiveCameraScanner"; // V50.z462 — fotocamera expo-camera (niente ImagePicker.launchCameraAsync)
+import { isNativeScannerAvailable, scanWithNativeScanner } from "@/src/NativeDocScanner"; // V50.z462 — scanner di sistema se disponibile
 import { shareDataUri } from "@/src/share";
 
 export type IdDoc = {
@@ -21,11 +23,48 @@ export const ID_DOC_TYPES: { id: string; label: string; icon: any }[] = [
   { id: "passport", label: "Passaporto", icon: "airplane" }, { id: "health_card", label: "Tessera sanitaria / CF", icon: "medkit" },
 ];
 
-async function shoot(): Promise<string | null> {
+// V50.z462 — Prompt 23.a: 4 modi per acquisire fronte/retro, stesso risultato (data URL → OCR → anagrafica).
+export type DocSource = "camera" | "gallery" | "files" | "scanner";
+const DOC_SOURCES: { id: DocSource; label: string; icon: any; hint: string }[] = [
+  { id: "camera", label: "Fotografa", icon: "camera", hint: "Fotocamera con messa a fuoco e ritaglio" },
+  { id: "gallery", label: "Galleria", icon: "images", hint: "Una foto già scattata" },
+  { id: "files", label: "File / Drive", icon: "folder-open", hint: "File locali o Google Drive" },
+  { id: "scanner", label: "Scanner", icon: "scan", hint: "Scanner di sistema" },
+];
+
+async function assetToDataUrl(a: { uri?: string; base64?: string; mimeType?: string | null }): Promise<string | null> {
+  if (!a?.uri && !a?.base64) return null;
+  if (a.uri?.startsWith("data:")) return a.uri;
+  if (a.base64) return `data:${a.mimeType || "image/jpeg"};base64,${a.base64}`;
+  return uriToBase64DataUrl(a.uri!, a.mimeType || "image/jpeg");
+}
+
+/** Fallback fotocamera via ImagePicker (web o se la fotocamera live non è disponibile). */
+async function shootLegacy(): Promise<string | null> {
   const res = await launchCameraUniversal({ quality: 0.7, base64: Platform.OS !== "web" });
   if (res.canceled || !res.assets?.[0]) return null;
-  const a = res.assets[0];
-  return a.uri?.startsWith("data:") ? a.uri : a.base64 ? `data:${a.mimeType || "image/jpeg"};base64,${a.base64}` : await uriToBase64DataUrl(a.uri!, a.mimeType || "image/jpeg");
+  return assetToDataUrl(res.assets[0]);
+}
+
+async function pickFromGallery(): Promise<string | null> {
+  const res = await launchLibraryUniversal({ mediaTypes: "images", quality: 0.8, base64: Platform.OS !== "web", allowsMultipleSelection: false });
+  if (res.canceled || !res.assets?.[0]) return null;
+  return assetToDataUrl(res.assets[0]);
+}
+
+async function pickFromFiles(): Promise<string | null> {
+  const DocumentPicker = await import("expo-document-picker"); // selettore di sistema (SAF/Files): include Google Drive e file locali
+  const res = await DocumentPicker.getDocumentAsync({ type: ["image/*"], multiple: false, copyToCacheDirectory: true });
+  const a = res.assets?.[0];
+  if (!a) return null;
+  const mime = a.mimeType || "image/jpeg";
+  if (!mime.startsWith("image/")) throw new Error("Scegli un'immagine (JPG, PNG, HEIC): i PDF non sono supportati per il documento");
+  return uriToBase64DataUrl(a.uri, mime);
+}
+
+async function pickFromScanner(): Promise<string | null> {
+  const pages = await scanWithNativeScanner(1);
+  return pages[0] ? `data:${pages[0].mime};base64,${pages[0].data_base64}` : null;
 }
 
 export function expiryBadge(daysLeft: number | null): { label: string; color: string } | null {
@@ -55,7 +94,10 @@ export function IdentityDocsSection({ subjectType, subjectId, onExtracted, onDoc
   const [busy, setBusy] = useState<string | null>(null);
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [pickFor, setPickFor] = useState<"front" | "back" | null>(null); // V50.z462 — lato per cui scegliere la sorgente
+  const [camOpen, setCamOpen] = useState<"front" | "back" | null>(null); // V50.z462 — fotocamera live aperta
   const c = dark ? DARK : LIGHT;
+  const scannerOk = Platform.OS !== "web" && isNativeScannerAvailable();
 
   const load = useCallback(async () => {
     try {
@@ -65,9 +107,25 @@ export function IdentityDocsSection({ subjectType, subjectId, onExtracted, onDoc
   }, [subjectType, subjectId]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { void load(); }, [load]);
 
-  const capture = async (side: "front" | "back") => {
+  const capture = (side: "front" | "back") => setPickFor((p) => (p === side ? null : side)); // apre la scelta della sorgente
+
+  const acquire = async (side: "front" | "back", source: DocSource) => {
+    setPickFor(null);
+    if (source === "camera" && Platform.OS !== "web") { setCamOpen(side); return; }
     try {
-      const img = await shoot(); if (!img) return;
+      const img = source === "camera" ? await shootLegacy() : source === "gallery" ? await pickFromGallery() : source === "files" ? await pickFromFiles() : await pickFromScanner();
+      if (img) await onImage(side, img);
+    } catch (e: any) { notify("Documento", e?.message || "Impossibile acquisire l'immagine"); }
+  };
+
+  const onLiveShot = async (pages: LiveScannedPage[]) => {
+    const side = camOpen; setCamOpen(null);
+    if (!side || !pages[0]) return;
+    await onImage(side, pages[0].preview_uri || `data:${pages[0].mime};base64,${pages[0].data_base64}`);
+  };
+
+  const onImage = async (side: "front" | "back", img: string) => {
+    try {
       if (side === "front") setFront(img); else setBack(img);
       const f = side === "front" ? img : front;
       if (!f) return;
@@ -113,6 +171,7 @@ export function IdentityDocsSection({ subjectType, subjectId, onExtracted, onDoc
 
   return (
     <View style={{ gap: 10 }} testID="iddocs-section">
+      {Platform.OS !== "web" ? <LiveCameraScanner visible={!!camOpen} singleShot onClose={() => setCamOpen(null)} onDone={(p) => void onLiveShot(p)} /> : null}
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
         <Ionicons name="id-card" size={18} color={c.accent} />
         <Text style={[st.title, { color: c.text }]}>{title}</Text>
@@ -139,6 +198,19 @@ export function IdentityDocsSection({ subjectType, subjectId, onExtracted, onDoc
               );
             })}
           </View>
+          {pickFor ? (
+            <View style={{ gap: 6 }} testID="iddoc-sources">
+              <Text style={[st.small, { color: c.muted }]}>Come vuoi caricare il {pickFor === "front" ? "fronte" : "retro"}?</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                {DOC_SOURCES.filter((o) => o.id !== "scanner" || scannerOk).map((o) => (
+                  <Pressable key={o.id} onPress={() => acquire(pickFor, o.id)} disabled={!!busy} style={[st.srcBtn, { borderColor: c.border, backgroundColor: c.input }]} testID={`iddoc-src-${o.id}`}>
+                    <Ionicons name={o.icon} size={18} color={c.accent} />
+                    <View style={{ flex: 1, minWidth: 0 }}><Text style={[st.srcTxt, { color: c.text }]} numberOfLines={1}>{o.label}</Text><Text style={[st.small, { color: c.muted }]} numberOfLines={1}>{o.hint}</Text></View>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          ) : null}
           {busy ? <View style={{ flexDirection: "row", gap: 8, alignItems: "center", justifyContent: "center" }}><ActivityIndicator color={c.accent} /><Text style={{ color: c.muted, fontSize: 13 }}>{busy}</Text></View> : null}
           {ocr ? (
             <View style={{ gap: 6 }} testID="iddoc-ocr-result">
@@ -201,6 +273,8 @@ export function IdentityDocsSection({ subjectType, subjectId, onExtracted, onDoc
 const LIGHT = { text: "#0F172A", muted: "#64748B", accent: "#10B981", card: "#FFFFFF", border: "#E2E8F0", input: "#F8FAFC" };
 const DARK = { text: "#FFFFFF", muted: "#94A3B8", accent: "#38BDF8", card: "rgba(255,255,255,0.06)", border: "rgba(255,255,255,0.14)", input: "rgba(255,255,255,0.08)" };
 const st = StyleSheet.create({
+  srcBtn: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, minHeight: 52, width: "100%" },
+  srcTxt: { fontSize: 13, fontWeight: "700" },
   title: { flex: 1, fontSize: 14, fontWeight: "900" },
   addBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, minHeight: 34, borderRadius: 8 }, addTxt: { color: "#FFF", fontSize: 11, fontWeight: "900" },
   card: { borderRadius: 14, borderWidth: 1, padding: 12, gap: 10 },
