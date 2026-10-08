@@ -29,6 +29,10 @@ fi
 PKG="$(mktemp -d)/axon-core-pkg"
 mkdir -p "$PKG"
 rsync -a --exclude '__pycache__' --exclude '*.pyc' --exclude 'assets/kokoro' --exclude '.env' --exclude 'tests' "$ROOT/backend/" "$PKG/backend/"
+# V50.z481 — CHANGELOG.md e memory/PRD.md dentro backend/ del pacchetto: Axon (axon_system_awareness.py) li legge per la sezione
+# «novità»; sul VPS mancavano → warning «No such file or directory» a ogni upgrade.
+cp "$ROOT/CHANGELOG.md" "$PKG/backend/CHANGELOG.md"
+mkdir -p "$PKG/backend/memory" && cp "$ROOT/memory/PRD.md" "$PKG/backend/memory/PRD.md"
 # FIX build VPS: tolgo la riga `litellm @ …#sha256=…` (stesso wheel richiesto da emergentintegrations senza hash → ResolutionImpossible)
 grep -v '^litellm @ ' "$PKG/backend/requirements.txt" > "$PKG/backend/requirements.tmp" && mv "$PKG/backend/requirements.tmp" "$PKG/backend/requirements.txt"
 cp "$ROOT/deploy/axon-core/Dockerfile" "$PKG/backend/Dockerfile"

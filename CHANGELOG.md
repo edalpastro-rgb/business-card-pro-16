@@ -927,6 +927,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z481 | Giu 2026 | **Fix warning VPS** CHANGELOG.md / PRD.md mancanti: inclusi nel pacchetto (`backend/CHANGELOG.md`, `backend/memory/PRD.md`) e lettura tollerante in `axon_system_awareness.py`. |
 | V50.z480 | Giu 2026 | **Fix crash web calcolatrice** («pathname is not defined»: `useSafePathname()` anche in CalculatorModal) + **FAB calcolatrice su desktop** spostato nella sidebar (non copre più la card Scadenze). |
 | V50.z479 | Giu 2026 | **Home web a 2 colonne allineate** (Statistiche a destra, colonne stesse altezze) + **«Carica cartella»** (Android + desktop) in tutti gli upload: File contatto, allegati contatto/appuntamento, Master Files (file e fatture), Bollette bulk, Knowledge Base, Corsi (`src/utils/folderPicker.ts`). |
 

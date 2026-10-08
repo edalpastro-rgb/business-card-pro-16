@@ -24,8 +24,16 @@ import time as _axs_time
 
 _AXS_BOOT_ID = uuid.uuid4().hex[:10]
 _AXS_STARTED_AT = utcnow()
-_AXS_CHANGELOG_PATH = next((p for p in (os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "CHANGELOG.md"), "/app/CHANGELOG.md") if os.path.exists(p)), "/app/CHANGELOG.md")
-_AXS_CHANGELOG_PATH = os.path.abspath(_AXS_CHANGELOG_PATH)
+# V50.z481 — Sul VPS il backend vive in /app/backend (Docker) e il pacchetto include CHANGELOG.md e memory/PRD.md DENTRO backend/;
+# in dev restano in /app e /app/memory. Si prova in ordine: backend/…, ../…, /app/…; se mancano, nessun warning (solo debug).
+_AXS_BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))  # __file__ = server.py (moduli exec'd nello stesso namespace)
+
+
+def _axs_find(*cands: str) -> str:
+    return os.path.abspath(next((p for p in cands if os.path.exists(p)), cands[-1]))
+
+
+_AXS_CHANGELOG_PATH = _axs_find(os.path.join(_AXS_BACKEND_DIR, "CHANGELOG.md"), os.path.join(_AXS_BACKEND_DIR, "..", "CHANGELOG.md"), "/app/CHANGELOG.md")
 _AXS_RETENTION_DAYS = 14
 _AXS_SKIP_PATHS = ("/api/axon/system/", "/api/assistant/chat", "/api/axon/push/", "/api/health", "/api/axon/proactive/items", "/api/auth/me", "/api/axon/notifications/", "/api/weather/", "/api/axon/quick-actions/preflight")
 _AXS_LEVEL_ICON = {"info": "ℹ️", "warning": "⚠️", "error": "🛑", "deploy": "🚀", "client": "📱"}
@@ -147,7 +155,7 @@ _AXS_CL_ROW_RE = re.compile(r"^\|\s*(V[\w.\-–]+|v[\w.\-–]+|Giu 2026[^|]*)\s*
 # V50.z359 — CHANGELOG DINAMICO: oltre alla tabella di CHANGELOG.md, Axon legge SEMPRE i titoli di versione del PRD
 # (`## V50.zNNN (Mese Anno) — Titolo`), che l'agente aggiorna a ogni rilascio. Così le novità dell'app (Axon Lab, Compilazione
 # CRT, Mercato, voce Kokoro…) entrano nel prompt di Axon appena esistono, anche se la tabella del CHANGELOG non è stata aggiornata.
-_AXS_PRD_PATH = "/app/memory/PRD.md"
+_AXS_PRD_PATH = _axs_find(os.path.join(_AXS_BACKEND_DIR, "memory", "PRD.md"), os.path.join(_AXS_BACKEND_DIR, "..", "memory", "PRD.md"), "/app/memory/PRD.md")
 _AXS_PRD_HEAD_RE = re.compile(r"^##\s+(V[\w.\-–/]+)\s*(?:\(([^)]*)\))?\s*[—\-:]+\s*(.+?)\s*$")
 
 
@@ -160,6 +168,8 @@ def _axs_prd_rows() -> List[dict]:
                 if m:
                     desc = re.sub(r"\s*[—\-]+\s*(DONE|FATTO|COMPLETATO)\b.*$", "", m.group(3), flags=re.I).strip()
                     rows.append({"version": m.group(1).strip(), "date": (m.group(2) or "Giu 2026").strip(), "desc": desc, "src": "prd"})
+    except FileNotFoundError:
+        logger.debug("[axs] PRD non presente (%s): sezione novità dal solo CHANGELOG", _AXS_PRD_PATH)
     except Exception as exc:  # noqa: BLE001
         logger.warning("[axs] PRD read failed: %s", exc)
     return rows
@@ -188,6 +198,8 @@ def _axs_changelog() -> Dict[str, Any]:
                 m = _AXS_CL_ROW_RE.match(line.strip())
                 if m and not m.group(1).lower().startswith(("versione", "---")):
                     rows.append({"version": m.group(1).strip(), "date": m.group(2).strip(), "desc": m.group(3).strip()})
+    except FileNotFoundError:
+        logger.debug("[axs] CHANGELOG non presente (%s)", _AXS_CHANGELOG_PATH)
     except Exception as exc:  # noqa: BLE001
         logger.warning("[axs] changelog read failed: %s", exc)
     # Fusione con il PRD: le versioni presenti solo nel PRD vanno in testa (sono le più recenti), ordinate dalla più nuova

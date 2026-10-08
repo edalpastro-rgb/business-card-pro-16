@@ -556,3 +556,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z480 — Crash web «pathname is not defined» (CalculatorFAB): root cause = `pathname` usato in CalculatorModal (riga `if (!mounted || pathname === '/voice-enroll')`) ma definito solo nel componente CalculatorFAB → ReferenceError appena la calcolatrice si apre (il fix z466 aveva reso safe solo il FAB). Ora CalculatorModal chiama useSafePathname(). FAB desktop: default dentro la sidebar sopra utente/Esci (chiave AsyncStorage separata _desktop) → non copre più la card Scadenze. Pacchetti rigenerati."
+
+  - agent: "main"
+    message: "V50.z481 — Warning VPS «No such file or directory: /app/CHANGELOG.md e /app/memory/PRD.md»: build_package.sh ora copia CHANGELOG.md → backend/CHANGELOG.md e memory/PRD.md → backend/memory/PRD.md nel pacchetto; axon_system_awareness.py risolve i percorsi (backend/ → ../ → /app/) e tratta FileNotFoundError come debug (nessun warning). Verificato con tar -tzf."

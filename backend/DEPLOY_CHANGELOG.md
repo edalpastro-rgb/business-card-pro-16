@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-08 | D2026.10.08-1828 | V50.z481 CHANGELOG+PRD nel pacchetto, niente warning file mancanti |
 | 2026-10-08 | D2026.10.08-1824 | V50.z480 fix crash CalculatorFAB pathname web + posizione FAB desktop |
 | 2026-10-08 | D2026.10.08-1818 | V50.z479 Home web 2 colonne + Carica cartella ovunque |
 | 2026-10-08 | D2026.10.08-1800 | V50.z478 fix stop mic web immediato |

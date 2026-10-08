@@ -14,6 +14,10 @@ Quando l'utente scrive «Neo, leggi i prompt in coda» (o simili), esegui SUBITO
 `python3 /app/scripts/neo_queue.py list` → `show #N` → esegui il task → `done #N "nota"` (o `reject #N "motivo"`, `read #N`).
 I prompt sono salvati da Axon in `master_files` con `category: "neo_prompts"`, `neo_status: pending|read|done|rejected`, `neo_seq`, `neo_note`. Axon mostra lo stato all'utente con «stato prompt Neo».
 
+## V50.z481 (Giu 2026) — Fix warning VPS «No such file or directory: CHANGELOG.md / memory/PRD.md»
+- `deploy/axon-core/scripts/build_package.sh`: copia `CHANGELOG.md` → `backend/CHANGELOG.md` e `memory/PRD.md` → `backend/memory/PRD.md` dentro il pacchetto (nel container il backend è `/app/backend`, `/app/CHANGELOG.md` e `/app/memory` non esistono).
+- `routes/axon_system_awareness.py`: `_axs_find()` prova `backend/…`, `../…`, `/app/…`; `FileNotFoundError` → `logger.debug` (niente warning), così Axon legge le novità anche sul VPS.
+
 ## V50.z480 (Giu 2026) — Crash web calcolatrice + posizione FAB desktop
 - `src/CalculatorFAB.tsx`: `CalculatorModal` usava `pathname` senza definirlo (era nel solo `CalculatorFAB`; z466 aveva reso safe solo quello) → ReferenceError «pathname is not defined» su web all'apertura della calcolatrice. Fix: `const pathname = useSafePathname()` anche nel modal. Desktop (≥ 1024 px): posizione di default del FAB nella colonna sidebar sopra utente/«Esci» (`x=(SIDEBAR_W-FAB)/2`, `y=H-FAB-130`), chiave AsyncStorage `calc_fab_position_v1_desktop` separata; mobile invariato.
 
