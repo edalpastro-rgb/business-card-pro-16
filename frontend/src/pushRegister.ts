@@ -42,10 +42,15 @@ export async function registerForPush(userId: string): Promise<boolean> {
       return true;
     }
     try {
-      await api(`/register-push`, {
+      const r = await api<{ status?: string; reason?: string }>(`/register-push`, {
         method: "POST",
         body: { user_id: userId, platform: Platform.OS, device_token: token },
       });
+      // V50.z463 — «deferred» (chiave relay non configurata/non valida sul server) ≠ registrato: i promemoria restano locali
+      if (r?.status !== "registered") {
+        console.warn("[push] register-push deferred:", r?.reason || "unknown");
+        return false;
+      }
       lastRegistered = { userId, token };
       return true;
     } catch (e) {

@@ -22,15 +22,39 @@ class RegisterPushBody(BaseModel):
     device_token: str
 
 
+_PUSH_KEY_OK = bool(_PUSH_KEY) and _PUSH_KEY.lower() not in ("placeholder", "changeme", "none", "null")
+_PUSH_LAST_WARN: Dict[str, float] = {}  # V50.z463 — warning al massimo ogni 10 min per motivo (niente spam di log)
+
+
+def _push_warn_once(reason: str, msg: str) -> None:
+    now_ts = time.time()
+    if now_ts - _PUSH_LAST_WARN.get(reason, 0) > 600:
+        _PUSH_LAST_WARN[reason] = now_ts
+        logger.warning(msg)
+
+
 @api_router.post("/register-push", status_code=201)
 async def register_push(body: RegisterPushBody, user=Depends(get_current_user)):
-    """Registra il device token del dispositivo dell'utente per ricevere push."""
-    # Sicurezza: forza user_id = utente autenticato
+    """Registra il device token del dispositivo dell'utente per ricevere push.
+    V50.z463 — FIX HTTP 500: una chiave relay assente/«placeholder»/non valida è un problema di CONFIGURAZIONE del server, non un
+    errore della richiesta: il token viene comunque salvato in `push_devices` (riprova automatica al prossimo avvio con chiave valida)
+    e la risposta è 201 con `status` esplicativo. 500 mai; 502 solo se il relay è davvero giù."""
     payload = {"user_id": user["user_id"], "platform": body.platform, "device_token": body.device_token}
+    now = utcnow()
+    # stesso documento di axon_push_bridge.py (indice unico user_id+platform): token completo + hint
+    device = {"tenant_id": tenant_id(user), "device_token": body.device_token, "token_hint": body.device_token[-6:], "updated_at": now}
+    _key = {"user_id": user["user_id"], "platform": body.platform}
+    _ins = {"user_id": user["user_id"], "platform": body.platform, "created_at": now}
+    if not _PUSH_KEY_OK:
+        _push_warn_once("nokey", "[push] EMERGENT_PUSH_KEY non configurata (placeholder): token salvato localmente, registrazione al relay rinviata")
+        await db.push_devices.update_one(_key, {"$set": {**device, "relay_status": "no_key"}, "$setOnInsert": _ins}, upsert=True)
+        return {"status": "deferred", "reason": "push_key_not_configured"}
     try:
         resp = await _push_client.post("/api/v1/push/users/register", json=payload)
         if resp.status_code == 401:
-            raise HTTPException(500, "EMERGENT_PUSH_KEY missing or invalid")
+            _push_warn_once("401", "[push] relay Emergent ha rifiutato EMERGENT_PUSH_KEY (401 invalid X-Push-Key): verifica la chiave nel .env del server")
+            await db.push_devices.update_one(_key, {"$set": {**device, "relay_status": "invalid_key"}, "$setOnInsert": _ins}, upsert=True)
+            return {"status": "deferred", "reason": "invalid_push_key"}
         if resp.status_code >= 500:
             raise HTTPException(502, "Push provider unavailable")
         resp.raise_for_status()
@@ -39,7 +63,9 @@ async def register_push(body: RegisterPushBody, user=Depends(get_current_user)):
     except Exception as e:
         logger.warning(f"register_push failed: {e}")
         # Non blocchiamo il login se push provider è down
-        return {"status": "deferred"}
+        await db.push_devices.update_one(_key, {"$set": {**device, "relay_status": "error", "relay_error": str(e)[:200]}, "$setOnInsert": _ins}, upsert=True)
+        return {"status": "deferred", "reason": "provider_error"}
+    await db.push_devices.update_one(_key, {"$set": {**device, "relay_status": "registered", "registered": True, "registered_at": now}, "$setOnInsert": _ins}, upsert=True)
     return {"status": "registered"}
 
 
