@@ -84,6 +84,8 @@ MODULES = [
     "axon_chat_queue.py",  # V50.z223 — chat non bloccante: coda messaggi con priorità (POST /chat/messages, GET/PATCH/DELETE /chat/queue, /chat/queue/next) + tab = sessioni (GET/POST/PATCH /chat/tabs)
     "axon_area_wizard.py",  # V50.z227 — mini-wizard per area (upload OCR/AI → campi precompilati, cartella personale/lavoro/famiglia), profili area, aree custom, promemoria scadenze 30/15/7/0, prompt PROFILI AREA + marker [[CONFIGURA:key]] (dopo alarms/chat_push/wizard_talk)
     "axon_org_branding.py",  # V50.z232 — Personalizzazione Aziendale: logo header per tenant + ragione sociale/P.IVA/indirizzo → firma PDF/documenti/comunicazioni (wrap _prepare_assistant_prompt)
+    "axon_pun_history.py",  # V50.z469 — Feature 5: Storico PUN (widget Home cliccabile): GET /pun/history + /pun/history/pdf (reportlab); DOPO axon_pun_quick e axon_org_branding (firma)
+    "axon_places.py",  # V50.z469 — Feature 6: Google Places autocomplete indirizzi (chiave solo server): GET /places/autocomplete, /places/details
     "axon_personal_lock.py",  # V50.z237 — PIN 6 cifre server-side per Spazio Personale (set/verify/change), rate limit, «Ho dimenticato il PIN» via Emergent Resend → fallback SMTP tenant (isolato)
     "axon_neo_bridge.py",  # V50.z239 — «Prompt per Neo»: comando chat «invia … a Neo» → Master Files category neo_prompts (pending/read/done), «stato prompt Neo», regola prompt anti-allucinazione «nessun canale diretto con Neo», API /neo-bridge/prompts (avvolge _maybe_push_command e _prepare_assistant_prompt; dopo tutti i wrapper)
     "bill_analysis_config.py",  # V50.z251 — Pannello «Configura Analisi Fatture» per tenant: campi estrazione spuntabili, comparativa (layout/stile/sezioni/campi/base), richieste manuali (GET/PUT /bills/analysis-config); usato da 13_bills e 17_company_offers_docs
@@ -120,6 +122,11 @@ MODULES = [
     "axon_shared_learning.py",  # V50.z447 — apprendimento comportamentale cross-tenant (dopo axon_persona: usa _axon_is_super_master)
     "axon_honesty_rule.py",  # V50.z386 — REGOLA PERMANENTE: «Non lo so, verifica con Emmy o con Neo.» — ULTIMO wrapper di _prepare_assistant_prompt (testa+coda del prompt, non sovrascrivibile)
     "axon_personalize.py",  # V50.z456 — «Personalizza Axon»: personalità + stile linguistico per account (Super Master / Lite), sezione nel prompt (DOPO axon_honesty_rule, prima del suo footer)
+    "axon_phonebook.py",  # V50.z469 — Feature 7: rubrica del telefono come fallback («numero di X» non in CRM → marker [[RUBRICA:X]] per l'app, regola prompt, POST /assistant/phonebook-result); wrap _maybe_push_command/_prepare_assistant_prompt
+    "axon_help_links.py",  # V50.z469 — Feature 12: Axon ↔ Libretto (APP_MAP «Guida», prompt chip [[NAV:/libretto?section=id]], «apri il libretto su…», GET /libretto/index); DOPO navigator+omniscience
+    "axon_personal_vault.py",  # V50.z469 — Feature 13/14: Spazio Personale Anagrafica (dati SOLO on-device): prompt con client_context.personal_vault per la singola risposta (Super Master)
+    "axon_upload_guard.py",  # V50.z469 — Feature 15: whitelist upload per magic bytes (jpg/png/pdf + audio), limiti, antivirus ClamAV (clamd INSTREAM); wrap _put_object_sync/_upl_stream_to_temp/POST /master-files; GET /admin/upload-guard/status
+    "axon_watchdog.py",  # V50.z469 — Feature 8: watchdog Axon (first-token 10s + retry, event-loop stall → riavvio processo, POST /axon/watchdog/recover, GET /axon/watchdog/status)
     "axon_agent.py",  # V50.z458 — Prompt 19: agenti autonomi multi-step (piano LLM → esecuzione sequenziale verificata → riepilogo; stop+«come procedo?» su errore; chat + voce)
     "axon_emergency.py",  # V50.z460 — Prompt 22: emergenze → ricalcolo agenda (slot liberi, scuse con tono personalità, roadmap, cascata, conferma unica, push prioritaria)
     "onboarding_tracking.py",  # V50.z461 — Prompt 23: checkpoint onboarding (profilo/anagrafica/primo cliente) + pannello titolare + solleciti email 3/7 gg

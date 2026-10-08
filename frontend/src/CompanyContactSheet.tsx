@@ -212,6 +212,35 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
   // (estratti dal PDF o già presenti). L'inserimento manuale avviene dal bottone
   // separato "+ Aggiungi contatto" in view-mode (form inline, nessun modal annidato).
   const [addOpen, setAddOpen] = useState(false);
+  // V50.z468 — Feature 11: WhatsApp (cellulari) con testo componibile/Axon · Mail (fissi) con email dell'anagrafica o manuale
+  const [waFor, setWaFor] = useState<Phone | null>(null);
+  const [waText, setWaText] = useState("");
+  const [waBusy, setWaBusy] = useState(false);
+  const [mailFor, setMailFor] = useState<Phone | null>(null);
+  const [mailTo, setMailTo] = useState("");
+  const isMobileNumber = (n: string) => { const d = n.replace(/\D/g, "").replace(/^(00)?39/, ""); return d.startsWith("3") && d.length >= 9; };
+  const waDigits = (n: string) => { let d = n.replace(/\D/g, ""); if (d.startsWith("00")) d = d.slice(2); if (d.length === 10 && d.startsWith("3")) d = "39" + d; return d; };
+  const askAxonForWa = async () => {
+    if (!waFor) return;
+    setWaBusy(true);
+    try {
+      const r = await api<{ reply: string }>("/assistant/chat", { method: "POST", body: { message: `Scrivi un breve messaggio WhatsApp (max 50 parole, cordiale, in italiano, senza oggetto né firma formale) da inviare a «${waFor.label || "l'azienda"}»${waText.trim() ? ` su questo tema: ${waText.trim()}` : ""}. Rispondi SOLO con il testo del messaggio.`, session_id: null } });
+      if (r?.reply) setWaText(r.reply.replace(/\[\[[^\]]*\]\]/g, "").trim());
+    } catch (e: any) { notify("Axon non disponibile", e?.message); } finally { setWaBusy(false); }
+  };
+  const sendWa = () => {
+    if (!waFor) return;
+    const url = `https://wa.me/${waDigits(waFor.number)}?text=${encodeURIComponent(waText.trim())}`;
+    Linking.openURL(url).catch(() => notify("WhatsApp non disponibile"));
+    setWaFor(null); setWaText("");
+  };
+  const sendMail = () => {
+    const to = (mailTo || "").trim();
+    if (!to.includes("@")) { notify("Inserisci un indirizzo email valido"); return; }
+    const subj = encodeURIComponent(`Richiesta — ${mailFor?.label || "contatto"}`);
+    Linking.openURL(`mailto:${to}?subject=${subj}`).catch(() => {});
+    setMailFor(null);
+  };
   const [addLabel, setAddLabel] = useState("");
   const [addNumber, setAddNumber] = useState("");
 
@@ -838,12 +867,44 @@ export function CompanyContactSheet({ visible, onClose }: Props) {
                           {p.number}
                         </Text>
                       </View>
+                      {isMobileNumber(p.number) ? (
+                        <Pressable onPress={() => { setWaFor(waFor?.id === p.id ? null : p); setMailFor(null); }} hitSlop={6} style={[styles.callBadge, { backgroundColor: "#25D366" }]} testID={`company-sheet-wa-${p.id}`}>
+                          <Ionicons name="logo-whatsapp" size={16} color="#FFF" />
+                        </Pressable>
+                      ) : (
+                        <Pressable onPress={() => { setMailFor(mailFor?.id === p.id ? null : p); setMailTo(data?.communica_azienda_email || ""); setWaFor(null); }} hitSlop={6} style={[styles.callBadge, { backgroundColor: "#2563EB" }]} testID={`company-sheet-mail-${p.id}`}>
+                          <Ionicons name="mail" size={15} color="#FFF" />
+                        </Pressable>
+                      )}
                       <View style={styles.callBadge}>
                         <Ionicons name="call" size={14} color="#FFF" />
                       </View>
                     </Pressable>
                   ))
                 )}
+                {waFor ? (
+                  <View style={styles.composeBox} testID="company-sheet-wa-compose">
+                    <Text style={styles.rowLabel}>WhatsApp a {waFor.label || waFor.number}</Text>
+                    <TextInput value={waText} onChangeText={setWaText} multiline placeholder="Scrivi il messaggio o chiedi ad Axon di comporlo…" placeholderTextColor={HT.muted} style={styles.composeInput} testID="company-sheet-wa-text" />
+                    <View style={{ flexDirection: "row", gap: 8 }}>
+                      <Pressable onPress={askAxonForWa} disabled={waBusy} style={[styles.composeBtn, { backgroundColor: HT.axon }]} testID="company-sheet-wa-axon">
+                        {waBusy ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="sparkles" size={14} color="#FFF" /><Text style={styles.composeBtnTxt}>Chiedi ad Axon</Text></>}
+                      </Pressable>
+                      <Pressable onPress={sendWa} disabled={!waText.trim()} style={[styles.composeBtn, { backgroundColor: "#25D366", opacity: waText.trim() ? 1 : 0.5 }]} testID="company-sheet-wa-send">
+                        <Ionicons name="logo-whatsapp" size={14} color="#FFF" /><Text style={styles.composeBtnTxt}>Invia su WhatsApp</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                ) : null}
+                {mailFor ? (
+                  <View style={styles.composeBox} testID="company-sheet-mail-compose">
+                    <Text style={styles.rowLabel}>Email per {mailFor.label || mailFor.number}</Text>
+                    <TextInput value={mailTo} onChangeText={setMailTo} autoCapitalize="none" keyboardType="email-address" placeholder={data?.communica_azienda_email ? "" : "Indirizzo email (non presente in anagrafica)"} placeholderTextColor={HT.muted} style={[styles.composeInput, { minHeight: 44 }]} testID="company-sheet-mail-to" />
+                    <Pressable onPress={sendMail} style={[styles.composeBtn, { backgroundColor: "#2563EB" }]} testID="company-sheet-mail-send">
+                      <Ionicons name="mail" size={14} color="#FFF" /><Text style={styles.composeBtnTxt}>Apri email precompilata</Text>
+                    </Pressable>
+                  </View>
+                ) : null}
 
                 {/* V50.z145 — Inserimento manuale di un nuovo contatto (indipendente dal PDF) */}
                 {isMaster && !addOpen && (
@@ -1502,6 +1563,10 @@ const styles = StyleSheet.create({
   editSubLbl: { fontSize: 11, fontWeight: "700", color: C.muted, marginTop: 2, marginBottom: -2 },
   // Multi-line input per il nome del bottone (fino a 3 righe visibili prima dello scroll interno)
   inputLabelMulti: { fontSize: 13, minHeight: 42, textAlignVertical: "top" },
+  composeBox: { gap: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: HT.border, backgroundColor: HT.card, marginBottom: 8 },
+  composeInput: { minHeight: 72, borderWidth: 1, borderColor: HT.border, borderRadius: 10, padding: 10, color: HT.text, backgroundColor: HT.bg, textAlignVertical: "top", fontSize: 14 },
+  composeBtn: { flex: 1, minHeight: 42, borderRadius: 10, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6 },
+  composeBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 12.5 },
   callBadge: {
     width: 34,
     height: 34,

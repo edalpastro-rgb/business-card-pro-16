@@ -747,7 +747,8 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
                 yield sse("error", {"error": he.detail, "status": he.status_code})
                 return
             except Exception as e:
-                yield sse("error", {"error": f"prep failed: {e}"})
+                yield sse("delta", {"text": _axon_llm_failure("prep", e)})  # noqa: F821 — V50.z467
+                yield sse("done", {"session_id": body.session_id or f"asst_{user['user_id']}_{uuid.uuid4().hex[:10]}", "message_id": uuid.uuid4().hex[:16], "used_web_search": False, "web_sources": [], "offline": True})
                 return
 
         msg = prep["msg"]
@@ -838,7 +839,8 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
         try:
             from emergentintegrations.llm.chat import LlmChat, UserMessage, TextDelta, StreamDone
         except Exception as e:
-            yield sse("error", {"error": f"llm import failed: {e}"})
+            yield sse("delta", {"text": _axon_llm_failure("import", e)})  # noqa: F821 — V50.z467
+            yield sse("done", {"session_id": prep.get("session_id") or body.session_id, "message_id": uuid.uuid4().hex[:16], "used_web_search": False, "web_sources": [], "offline": True})
             return
 
         # V50.k — Router modello Haiku/Sonnet basato su euristica veloce.
@@ -861,18 +863,24 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
             "model": _model_choice,
         })
 
-        chat = LlmChat(
-            api_key=prep["api_key"],
-            session_id=session_id,
-            system_message=prep["system_message"],
-        ).with_model("anthropic", _model_id)
-        if prep.get("max_tokens"):  # V50.z452 — risposte minimaliste (dato secco / voce)
-            chat = chat.with_params(max_tokens=int(prep["max_tokens"]))
+        # V50.z469 — Feature 8: watchdog — ogni tentativo usa una sessione LLM nuova (`_make_chat`), vedi axon_watchdog.py
+        def _make_chat():
+            _c = LlmChat(
+                api_key=prep["api_key"],
+                session_id=session_id,
+                system_message=prep["system_message"],
+            ).with_model("anthropic", _model_id)
+            if prep.get("max_tokens"):  # V50.z452 — risposte minimaliste (dato secco / voce)
+                _c = _c.with_params(max_tokens=int(prep["max_tokens"]))
+            return _c
 
         collected: List[str] = []
         _bare = bool(prep.get("data_request")) or _axon_is_phone_request(msg)  # noqa: F821 — V50.z453 — dato secco: bufferizza e mostra SOLO il dato (niente fonte/link/chip); V50.z455 anche per richieste di numero di telefono
         try:
-            async for ev in chat.stream_message(UserMessage(text=prep["user_prompt"])):
+            async for _wd_kind, ev in _wd_llm_stream(_make_chat, prep["user_prompt"], user_id=user.get("user_id")):  # noqa: F821 — axon_watchdog.py
+                if _wd_kind == "recovering":  # primo token non arrivato entro 10 s → nuova sessione, l'utente vede il messaggio di ripristino
+                    yield sse("progress", {"stage": "recovering", "text": _WD_USER_MSG})  # noqa: F821
+                    continue
                 if isinstance(ev, TextDelta):
                     if ev.content:
                         collected.append(ev.content)
@@ -882,7 +890,11 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
                     # end handled below
                     break
         except Exception as e:
-            yield sse("error", {"error": f"Errore LLM: {e}"})
+            # V50.z467 — risposta amichevole come messaggio normale (testo + TTS), mai errore tecnico
+            _off = _axon_llm_failure("stream", e)  # noqa: F821
+            if not collected:
+                yield sse("delta", {"text": _off})
+            yield sse("done", {"session_id": session_id, "message_id": assistant_message_id, "used_web_search": False, "web_sources": [], "offline": True})
             return
         if _bare:
             _full = "".join(collected)

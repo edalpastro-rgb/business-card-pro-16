@@ -25,6 +25,7 @@ import { useBottomSheetPadding } from "@/src/utils/bottomSheetInsets";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 import { DateField } from "@/src/ui/DateField"; // V50.z388 — calendario nativo su ogni campo data
+import { AddressAutocomplete } from "@/src/AddressAutocomplete"; // V50.z469 — Google Places
 
 type PendingAttachment = {
   local_id: string;
@@ -1720,6 +1721,8 @@ function NewContactScreen() {
 
 
           <Section title="Indirizzo">
+            {/* V50.z469 — Feature 6: autocomplete Google Places → compila via/civico/CAP/città/provincia (campi comunque modificabili) */}
+            <AddressAutocomplete testID="c-address-search" onSelect={(p) => setForm((f: any) => ({ ...f, address_street: p.street || f.address_street, address_number: p.number || f.address_number, address_zip: p.zip || f.address_zip, address_city: p.city || f.address_city, address_province: (p.province || f.address_province || "").slice(0, 2) }))} />
             <Row>
               <Field flex={3} label="Via" testID="c-street" value={form.address_street} onChangeText={(t: string) => setForm({ ...form, address_street: t })} placeholder="Via Verdi" />
               <Field flex={1} label="N. civico" testID="c-number" value={form.address_number} onChangeText={(t: string) => setForm({ ...form, address_number: t })} placeholder="15" />

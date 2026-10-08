@@ -6,6 +6,14 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-08 | D2026.10.08-1227 | V50.z469 — batch Feature 5-8/12-15 (Storico PUN, Places, rubrica, watchdog, Libretto+Axon, Spazio Personale, antivirus) |
+| 2026-10-08 | D2026.10.08-1223 | V50.z466 — batch Feature 5-8/12-15 (asserzione rotta upload-guard) |
+| 2026-10-08 | D2026.10.08-1215 | V50.z466 — Feature 5-8, 12-15: Storico PUN, Google Places, rubrica telefono, watchdog Axon, Libretto+Axon, Spazio Personale on-device, antivirus upload (ClamAV) |
+| 2026-10-08 | D2026.10.08-1117 | Comunica con l'azienda: pulsante WhatsApp sui cellulari (testo componibile in app o scritto da Axon → wa.me precompilato) e pulsante Mail sui fissi (email precompilata con indirizzo dell'anagrafica o inserito a mano) |
+| 2026-10-08 | D2026.10.08-1115 | Errori LLM amichevoli: se Claude non risponde (timeout, 500, crediti, rete) Axon dice «Sono temporaneamente offline, riprova tra qualche minuto.» come risposta normale, anche a voce; landing: firma «Un progetto Italian Brain ®» 🇮🇹 nel footer; appuntamento: durata scorrevole su Android + orario di fine; CalculatorModal fix pathname |
+| 2026-10-08 | D2026.10.08-1110 | Nuovo appuntamento: ruota Durata prevista scorrevole su Android + orario di fine per eventi su più giorni; CalculatorModal: fix crash Android pathname |
+| 2026-10-08 | D2026.10.08-1106 | Privacy policy interna all'app (schermata dedicata con testo GDPR completo, nessun browser esterno): link da onboarding, login e Help |
+| 2026-10-08 | D2026.10.08-1104 | Help ripristinato: avviso pre-segnalazione in cima al modulo bug, modulo «Invia un consiglio», contatti di supporto, oltre a Libretto, privacy e tour |
 | 2026-10-08 | D2026.10.08-1042 | Fix HTTP 500 su POST /api/register-push: chiave push assente/placeholder/non valida non genera più errori 500 (risposta 201 «deferred» con motivo), token salvato in push_devices e registrato al relay appena la chiave è valida; log senza spam. Sul VPS impostare EMERGENT_PUSH_KEY reale in /opt/axon-core/.env |
 | 2026-10-08 | D2026.10.08-1034 | Fix fotocamera documento su Android (expo-image-picker registrato all'avvio, niente «launchCameraAsync has been rejected») + caricamento documento da Galleria, File/Google Drive e Scanner di sistema accanto a Fotografa: stesso OCR, anagrafica precompilata |
 | 2026-10-08 | D2026.10.08-1021 | Onboarding tracking (Prompt 23): 3 checkpoint per consulente (profilo configurato, anagrafica salvata, primo cliente) con data/ora; sezione «Onboarding consulenti» nel pannello del titolare; solleciti email automatici: dopo 3 giorni link diretto al punto in cui si è fermato, dopo 7 giorni senza anagrafica seconda email più diretta (job orario, nessun intervento manuale) |

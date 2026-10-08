@@ -118,9 +118,12 @@ function ComingSoonCard({ label, icon }: { label: string; icon: keyof typeof Ion
 }
 
 function PunLiveCard({ data }: { data: PunLatest | null }) {
+  const router = useRouter();
+  // V50.z469 — Feature 5: widget cliccabile → schermata «Storico PUN» (18 mesi + PDF)
+  const openHistory = () => router.push("/pun-storico" as any);
   if (!data || !data.available) {
     return (
-      <View style={[styles.card, styles.coming]}>
+      <Pressable onPress={openHistory} style={[styles.card, styles.coming]} testID="widget-pun">
         <View style={[styles.iconBadge, { backgroundColor: HT.warningTint }]}>
           <Ionicons name="flash" size={16} color={HT.warning} />
         </View>
@@ -128,7 +131,8 @@ function PunLiveCard({ data }: { data: PunLatest | null }) {
           <Text style={styles.value}>—</Text>
           <Text style={styles.label} numberOfLines={1}>PUN — dati non disponibili</Text>
         </View>
-      </View>
+        <Ionicons name="chevron-forward" size={16} color={HT.muted} />
+      </Pressable>
     );
   }
   const unit = data.unit || "€/MWh";
@@ -137,7 +141,7 @@ function PunLiveCard({ data }: { data: PunLatest | null }) {
   const partialTxt = data.partial ? `PUN ${data.month_short || ""} parziale · ${data.partial_days || 0} gg${upd ? ` · agg. ${upd.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })}` : ""}` : null;
   // V50.z334 — card dark con accenti vivaci (ciano F1 · arancio F2 · verde F3), niente pastelli
   return (
-    <View style={{ gap: 4 }} testID="widget-pun">
+    <Pressable onPress={openHistory} style={({ pressed }) => [{ gap: 4 }, pressed && { opacity: 0.85 }]} testID="widget-pun">
       <View style={styles.punCardCompact}>
         <View style={styles.punHeadCol}>
           <View style={[styles.iconBadge, { backgroundColor: HT.warningTint }]}>
@@ -151,8 +155,8 @@ function PunLiveCard({ data }: { data: PunLatest | null }) {
         <PunFascia label="F2" value={data.F2} delta={data.delta_f2_pct} unit={unit} bg={HT.brandTint} fg="#FB923C" />
         <PunFascia label="F3" value={data.F3} delta={data.delta_f3_pct} unit={unit} bg={HT.successTint} fg={HT.success} />
       </View>
-      {partialTxt ? <Text style={styles.punPartial} testID="widget-pun-partial">{partialTxt} · Δ vs mese chiuso</Text> : null}
-    </View>
+      <Text style={styles.punPartial} testID="widget-pun-partial">{partialTxt ? `${partialTxt} · Δ vs mese chiuso · ` : ""}Tocca per lo storico 18 mesi ›</Text>
+    </Pressable>
   );
 }
 

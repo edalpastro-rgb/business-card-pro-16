@@ -73,6 +73,12 @@ if [[ -d backend ]]; then tar czf "backend-backup-$STAMP.tgz" backend && echo "�
 rsync -a --delete --exclude '.env' --exclude 'assets/kokoro' "$TMP/axon-core-pkg/backend/" "$DEST/backend/"
 cp "$TMP/axon-core-pkg/PKG_VERSION" backend/PKG_VERSION 2>/dev/null || true
 echo "→ backend aggiornato"
+# V50.z469 — docker-compose.yml aggiornato dal pacchetto (nuovo servizio `clamav` per l'antivirus upload): backup del precedente
+if [[ -f "$TMP/axon-core-pkg/docker-compose.yml" ]] && ! cmp -s "$TMP/axon-core-pkg/docker-compose.yml" docker-compose.yml; then
+  cp docker-compose.yml "docker-compose.backup-$STAMP.yml" && cp "$TMP/axon-core-pkg/docker-compose.yml" docker-compose.yml
+  echo "→ docker-compose.yml aggiornato (backup: docker-compose.backup-$STAMP.yml)"
+  docker compose up -d clamav 2>/dev/null && echo "→ antivirus ClamAV avviato (prime firme: 2-5 min; stato: GET /api/admin/upload-guard/status)" || true
+fi
 
 # 2) Rebuild + restart del solo container backend (MongoDB e nginx restano su)
 rebuild_and_wait

@@ -430,6 +430,11 @@ export default function LandingScreen() {
         <View style={[s.container, { alignItems: "center", gap: 6 }]}>
           <Text style={s.footerBrand}>AdvisorOS <Text style={{ color: LP.muted }}>·</Text> <Text style={{ color: LP.brand }}>powered by Axon</Text></Text>
           <Text style={s.footerTxt}>© 2026 AdvisorOS</Text>
+          {/* V50.z467 — Feature 10: firma Italian Brain ®, discreta nel footer */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }} testID="landing-italian-brain">
+            <Text style={{ fontSize: 13 }}>🇮🇹</Text>
+            <Text style={[s.footerTxt, { letterSpacing: 0.3 }]}>Un progetto <Text style={{ color: LP.onSurface, fontWeight: "700" }}>Italian Brain</Text> ®</Text>
+          </View>
           <View style={s.footerLinks}>
             <Pressable onPress={openMail}><Text style={s.footerLink}>info@advisoros.it</Text></Pressable>
             <Text style={s.footerTxt}>·</Text>

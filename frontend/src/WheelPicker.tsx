@@ -74,9 +74,14 @@ export function Wheel<T = any>({ items, value, onChange, testID }: WheelProps<T>
         snapToAlignment="start"
         decelerationRate="fast"
         onMomentumScrollEnd={onMomentumEnd}
-        onScrollEndDrag={Platform.OS === "web" ? onMomentumEnd : undefined}
+        onScrollEndDrag={Platform.OS === "ios" ? undefined : onMomentumEnd}
         onScroll={Platform.OS === "web" ? onScrollWeb : undefined}
         scrollEventThrottle={16}
+        nestedScrollEnabled
+        keyboardShouldPersistTaps="handled"
+        // V50.z466 — Android: lo ScrollView deve prendere il gesto anche dentro Modal/Pressable (prima non scorreva)
+        onStartShouldSetResponderCapture={() => false}
+        onMoveShouldSetResponderCapture={() => true}
         contentContainerStyle={{ paddingVertical: HALF * ITEM_HEIGHT }}
       >
         {items.map((it, i) => {
@@ -84,8 +89,9 @@ export function Wheel<T = any>({ items, value, onChange, testID }: WheelProps<T>
           const opacity = dist === 0 ? 1 : dist === 1 ? 0.55 : 0.25;
           const scale = dist === 0 ? 1 : dist === 1 ? 0.92 : 0.85;
           return (
-            <View
+            <Pressable
               key={String(it.value) + i}
+              onPress={() => { setCurrentIdx(i); scrollRef.current?.scrollTo({ y: i * ITEM_HEIGHT, animated: true }); }}
               style={[styles.item, { opacity, transform: [{ scale }] }]}
             >
               <Text
@@ -97,7 +103,7 @@ export function Wheel<T = any>({ items, value, onChange, testID }: WheelProps<T>
               >
                 {it.label}
               </Text>
-            </View>
+            </Pressable>
           );
         })}
       </ScrollView>
@@ -135,7 +141,7 @@ export function WheelPickerModal<T = any>({
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()} testID={testID}>
+        <View style={styles.sheet} onStartShouldSetResponder={() => true} testID={testID}>
           <View style={styles.head}>
             <Text style={styles.title}>{title}</Text>
             <Pressable onPress={onClose} hitSlop={8}>
@@ -157,7 +163,7 @@ export function WheelPickerModal<T = any>({
               <Text style={[styles.btnTxt, { color: "#FFF" }]}>Conferma</Text>
             </Pressable>
           </View>
-        </Pressable>
+        </View>
       </Pressable>
     </Modal>
   );

@@ -399,6 +399,19 @@ async def _get_assistant_name(user: dict) -> str:
 
 
 # ============================================================
+# V50.z467 — GESTIONE ERRORI LLM (timeout, 500, crediti esauriti, connessione): MAI un errore tecnico in chat.
+# Axon risponde come messaggio normale (testo + TTS): AXON_OFFLINE_MSG. L'errore reale finisce solo nei log.
+# ============================================================
+AXON_OFFLINE_MSG = "Sono temporaneamente offline, riprova tra qualche minuto."
+
+
+def _axon_llm_failure(where: str, exc: Exception) -> str:
+    """Logga l'errore tecnico e restituisce la frase amichevole da mostrare/leggere all'utente."""
+    logger.warning("[axon-llm] %s: %s: %s", where, type(exc).__name__, str(exc)[:300])
+    return AXON_OFFLINE_MSG
+
+
+# ============================================================
 # V50.z455 — FIX SERVER-SIDE (richiesta utente)
 #  1) «Solo testo» = NESSUN audio generato dal backend: ogni sintesi vocale (axon_tts_generate → /assistant/tts, /ai/tts,
 #     Viola/voice-copilot, Corporate Gym) legge user_settings.assistant_response_mode e, se "text", NON produce audio.

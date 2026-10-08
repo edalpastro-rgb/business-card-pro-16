@@ -33,6 +33,8 @@ export type LibrettoSection = {
   highlight?: string;
   /** V50.z182 — lista visiva con icona grande (Ionicons) a fianco. */
   bullets?: { icon: string; text: string }[];
+  /** V50.z469 — FAQ della sezione (espandibili, cercabili). */
+  faqs?: { q: string; a: string }[];
 };
 
 export type LibrettoMeta = {

@@ -69,6 +69,8 @@ export default function SpazioPersonaleScreen() {
   }
 
   const cards: Card[] = s ? [
+    // V50.z469 — Feature 13/14: anagrafica personale cifrata SOLO sul dispositivo (Super Master)
+    { key: "anagrafica", icon: "lock-closed", label: "Anagrafica personale", desc: "Famiglia, case, contatti d'emergenza, documenti. Cifrati sul dispositivo, mai sul server.", count: "🔐", hint: "solo su questo dispositivo · condivisione con Axon a scelta", route: "/spazio-personale-anagrafica", testID: "ps-card-anagrafica" },
     { key: "my-thing", icon: "sparkles", label: "My Thing", desc: "Messaggi, immagini, eventi e anniversari che compaiono sul tuo banner personale.",
       count: `${s.my_thing.total}`, hint: `${s.my_thing.message} messaggi · ${s.my_thing.image} immagini · ${s.my_thing.event + s.my_thing.anniversary} ricorrenze`, route: "/my-thing", testID: "ps-card-my-thing" },
     { key: "my-web", icon: "globe", label: "My Web", desc: "I tuoi siti preferiti, ad accesso rapido dentro l'app.", count: `${s.web_links}`, hint: "link salvati", route: "/my-web", testID: "ps-card-my-web" },

@@ -5,7 +5,7 @@
  * Include pulsante di export PDF (expo-print + expo-sharing) con logo brand.
  */
 import { fetchOrgSignature } from "@/src/BrandHeaderImage";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import {
   Image,
   ActivityIndicator,
   Platform,
+  TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
@@ -27,6 +28,7 @@ import { Asset } from "expo-asset";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { notify } from "@/src/utils/notify";
 import { LIBRETTO_SECTIONS, LIBRETTO_META, LibrettoSection, LibrettoMeta, LIBRETTO_IMAGE_MAP, resolveSectionImage, withCorporateGymSection } from "@/src/libretto/libretto-content";
+import { withExtraSections } from "@/src/libretto/libretto-extra"; // V50.z469 — Feature 12: nuove sezioni + FAQ
 import { getAppVersion, getAppLastUpdateDate, buildVersionBadge } from "@/src/libretto/appVersion";
 import { EvolutionMotto } from "@/src/EvolutionMotto";
 import { api } from "@/src/api";
@@ -99,9 +101,10 @@ function buildPdfHtml(logoAdvisorB64: string, logoAxonB64: string, sectionImages
   `;
 
   const sectionsHtml = sections.map((s) => {
+    const faqs = s.faqs?.length ? `<div class="faqs"><b>❓ Domande frequenti</b>${s.faqs.map((f) => `<p><b>${f.q}</b><br/>${f.a}</p>`).join("")}</div>` : ""; // V50.z469
     const tips = s.tips
-      ? `<ul class="tips">${s.tips.map((t) => `<li><span class="tip-em">${t.emoji}</span> ${t.text}</li>`).join("")}</ul>`
-      : "";
+      ? `<ul class="tips">${s.tips.map((t) => `<li><span class="tip-em">${t.emoji}</span> ${t.text}</li>`).join("")}</ul>${faqs}`
+      : faqs;
     // Priorità: data URL uploaded > base64 dell'asset bundled (risolto dal chiamante)
     let imgHtml = "";
     if (s.image_data_url && s.image_data_url.startsWith("data:")) {
@@ -190,6 +193,7 @@ function buildPdfHtml(logoAdvisorB64: string, logoAxonB64: string, sectionImages
   .bullets li { display: flex; align-items: center; gap: 10px; padding: 7px 0; font-size: 13px; font-weight: 700; border-bottom: 1px solid #EEF2F7; }
   .bdot { width: 12px; height: 12px; border-radius: 4px; display: inline-block; flex: 0 0 12px; }
   .tips { list-style: none; padding: 0; margin: 14px 0 0; }
+  .faqs { margin-top: 12px; padding: 10px 12px; background: #F1F5F9; border-radius: 8px; font-size: 12px; } .faqs p { margin: 6px 0 0; }
   .tips li { padding: 8px 12px; margin-bottom: 6px; background: #FEF3C7; border-radius: 8px; font-size: 12.5px; }
   .tip-em { display: inline-block; width: 22px; }
   .warning { margin-top: 14px; padding: 12px 16px; background: #FEF2F2; border-left: 4px solid #DC2626; color: #7F1D1D; font-size: 12.5px; border-radius: 4px; }
@@ -215,15 +219,26 @@ const LIBRETTO_SEEN_KEY = "libretto_seen_v1";
 export default function LibrettoScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const params = useLocalSearchParams<{ onboarding?: string }>();
+  const params = useLocalSearchParams<{ onboarding?: string; section?: string; q?: string }>();
   const isOnboarding = params.onboarding === "1";
+  // V50.z469 — Feature 12: ricerca in tempo reale, indice cliccabile, deep link ?section=<id> (usato anche da Axon: [[NAV:/libretto?section=…]])
+  const [query, setQuery] = useState<string>(typeof params.q === "string" ? params.q : "");
+  const scrollRef = useRef<ScrollView>(null);
+  const sectionY = useRef<Record<string, number>>({});
+  const pendingSection = useRef<string | null>(typeof params.section === "string" ? params.section : null);
+  const scrollToSection = useCallback((id: string) => {
+    const y = sectionY.current[id];
+    if (typeof y === "number") { scrollRef.current?.scrollTo({ y: Math.max(0, y - 8), animated: true }); return true; }
+    return false;
+  }, []);
+  useEffect(() => { if (typeof params.section === "string" && params.section) { pendingSection.current = params.section; setQuery(""); setTimeout(() => { if (scrollToSection(params.section as string)) pendingSection.current = null; }, 350); } }, [params.section, scrollToSection]);
   const [exporting, setExporting] = useState(false);
   // V50.n — usa insets nativi per la sticky bar
   const insets = useInsetsSafe(); // V50.z165 — fallback bottom dentro Modal
   const bottomInset = Math.max(insets.bottom, 12);
 
   // V50.v — Contenuto remoto (editabile dal Super Master) con fallback statico
-  const [sections, setSections] = useState<LibrettoSection[]>(LIBRETTO_SECTIONS);
+  const [sections, setSections] = useState<LibrettoSection[]>(() => withExtraSections(LIBRETTO_SECTIONS));
   const [meta, setMeta] = useState<LibrettoMeta>(LIBRETTO_META);
   const [canEdit, setCanEdit] = useState(false);
   // V50.z179 — badge versione dinamico: versione reale dell'app + data ultimo aggiornamento (build)
@@ -253,7 +268,7 @@ export default function LibrettoScreen() {
       try {
         const r = await api<any>("/libretto/content");
         if (r && !r.is_default && Array.isArray(r.sections) && r.sections.length > 0) {
-          setSections(withCorporateGymSection(r.sections as LibrettoSection[]));
+          setSections(withExtraSections(withCorporateGymSection(r.sections as LibrettoSection[])));
           if (r.meta) setMeta(r.meta as LibrettoMeta);
         }
       } catch { /* fallback statico */ }
@@ -285,6 +300,17 @@ export default function LibrettoScreen() {
     // V50.z211 — dopo il Tour (concluso o saltato): schermata permessi → popup «Set Up and Go»
     router.replace("/permessi" as any);
   }, [router, user?.user_id]);
+
+  const norm = (t: string) => (t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const visibleSections = useMemo(() => {
+    const q = norm(query.trim());
+    if (q.length < 2) return sections;
+    const toks = q.split(/\s+/).filter(Boolean);
+    return sections.filter((s) => {
+      const hay = norm([s.title, s.subtitle, s.highlight, ...(s.paragraphs || []), ...(s.tips || []).map((t) => t.text), ...(s.bullets || []).map((b) => b.text), ...(s.faqs || []).flatMap((f) => [f.q, f.a])].filter(Boolean).join(" "));
+      return toks.every((t) => hay.includes(t));
+    });
+  }, [sections, query]);
 
   const onExport = useCallback(async () => {
     try {
@@ -367,6 +393,7 @@ export default function LibrettoScreen() {
       </View>
 
       <ScrollView
+        ref={scrollRef}
         style={styles.scroll}
         contentContainerStyle={[
           styles.scrollContent,
@@ -396,9 +423,33 @@ export default function LibrettoScreen() {
           </View>
         </View>
 
+        {/* V50.z469 — Feature 12: ricerca + indice cliccabile (solo Libretto, non in onboarding) */}
+        {!isOnboarding ? (
+          <View style={styles.searchWrap} testID="libretto-search">
+            <View style={styles.searchBox}>
+              <Ionicons name="search" size={18} color="#94A3B8" />
+              <TextInput value={query} onChangeText={setQuery} placeholder="Cerca nel libretto (es. PUN, appuntamenti, rubrica…)" placeholderTextColor="#94A3B8" style={styles.searchInput} autoCorrect={false} testID="libretto-search-input" returnKeyType="search" />
+              {query ? <Pressable onPress={() => setQuery("")} hitSlop={8} testID="libretto-search-clear"><Ionicons name="close-circle" size={18} color="#94A3B8" /></Pressable> : null}
+            </View>
+            {query.trim().length >= 2 ? (
+              <Text style={styles.searchCount} testID="libretto-search-count">{visibleSections.length ? `${visibleSections.length} sezioni trovate` : "Nessuna sezione corrisponde: prova con un'altra parola o chiedi ad Axon."}</Text>
+            ) : (
+              <View style={styles.indexWrap} testID="libretto-index">
+                {sections.map((s) => (
+                  <Pressable key={s.id} onPress={() => scrollToSection(s.id)} style={[styles.indexChip, { borderColor: s.color }]} testID={`libretto-index-${s.id}`}>
+                    <Text style={styles.indexEmoji}>{s.emoji}</Text>
+                    <Text style={styles.indexTxt} numberOfLines={1}>{s.title.replace(/^\d+\s*·\s*/, "")}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+          </View>
+        ) : null}
         {/* V50.z244 — Tour Guidato: 4 storie utente in prima persona (le sezioni funzionalità restano nel Libretto) */}
-        {isOnboarding ? <TourStories /> : sections.map((s) => (
-          <SectionCard key={s.id} section={s} />
+        {isOnboarding ? <TourStories /> : visibleSections.map((s) => (
+          <View key={s.id} onLayout={(e) => { sectionY.current[s.id] = e.nativeEvent.layout.y; if (pendingSection.current === s.id) { pendingSection.current = null; setTimeout(() => scrollToSection(s.id), 50); } }}>
+            <SectionCard section={s} highlightId={params.section === s.id ? s.id : undefined} />
+          </View>
         ))}
 
         {/* Footer */}
@@ -463,10 +514,11 @@ export default function LibrettoScreen() {
   );
 }
 
-function SectionCard({ section }: { section: LibrettoSection }) {
+function SectionCard({ section, highlightId }: { section: LibrettoSection; highlightId?: string }) {
   const imgSrc = resolveSectionImage(section);
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
   return (
-    <View style={styles.sec}>
+    <View style={[styles.sec, highlightId ? { borderWidth: 2, borderColor: "#FBBF24" } : null]} testID={`libretto-section-${section.id}`}>
       <View style={[styles.secHeader, { backgroundColor: section.color }]}>
         <Text style={styles.secEmoji}>{section.emoji}</Text>
         <View style={{ flex: 1 }}>
@@ -534,6 +586,21 @@ function SectionCard({ section }: { section: LibrettoSection }) {
                 <Text style={styles.tipEmoji}>{t.emoji}</Text>
                 <Text style={styles.tipTxt}>{t.text}</Text>
               </View>
+            ))}
+          </View>
+        ) : null}
+        {/* V50.z469 — FAQ della sezione (espandibili) */}
+        {section.faqs?.length ? (
+          <View style={styles.faqWrap} testID={`libretto-faq-${section.id}`}>
+            <Text style={styles.faqTitle}>❓ Domande frequenti</Text>
+            {section.faqs.map((f, i) => (
+              <Pressable key={i} onPress={() => setOpenFaq(openFaq === i ? null : i)} style={styles.faqItem} testID={`libretto-faq-${section.id}-${i}`}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Ionicons name={openFaq === i ? "chevron-down" : "chevron-forward"} size={16} color={section.color} />
+                  <Text style={styles.faqQ}>{f.q}</Text>
+                </View>
+                {openFaq === i ? <Text style={styles.faqA}>{f.a}</Text> : null}
+              </Pressable>
             ))}
           </View>
         ) : null}
@@ -704,6 +771,20 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   tips: { marginTop: 10, gap: 6 },
+  // V50.z469 — ricerca / indice / FAQ
+  searchWrap: { marginBottom: 14, gap: 10 },
+  searchBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "rgba(255,255,255,0.08)", borderWidth: 1, borderColor: "rgba(255,255,255,0.16)", borderRadius: 12, paddingHorizontal: 12, minHeight: 46 },
+  searchInput: { flex: 1, color: "#FFF", fontSize: 15, paddingVertical: 10 },
+  searchCount: { color: "#CBD5E1", fontSize: 12.5, fontWeight: "600" },
+  indexWrap: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  indexChip: { flexDirection: "row", alignItems: "center", gap: 5, borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, minHeight: 34, backgroundColor: "rgba(255,255,255,0.06)", maxWidth: "100%" },
+  indexEmoji: { fontSize: 13 },
+  indexTxt: { color: "#F1F5F9", fontSize: 12, fontWeight: "700", maxWidth: 170 },
+  faqWrap: { marginTop: 12, backgroundColor: "rgba(15,36,56,0.05)", borderRadius: 12, padding: 10, gap: 4 },
+  faqTitle: { fontSize: 13, fontWeight: "800", color: HT.text, marginBottom: 4 },
+  faqItem: { paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: HT.border, minHeight: 40, justifyContent: "center" },
+  faqQ: { flex: 1, fontSize: 13.5, fontWeight: "700", color: HT.text },
+  faqA: { fontSize: 13, lineHeight: 19, color: HT.text2, marginTop: 6, marginLeft: 24 },
   tip: {
     flexDirection: "row",
     gap: 8,

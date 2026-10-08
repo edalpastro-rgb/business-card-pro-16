@@ -27,9 +27,19 @@ function _clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
 }
 
+/** V50.z466 — Fix crash Android: la FAB è montata nel layout radice e all'avvio lo stato di navigazione può non esistere ancora
+ *  (`usePathname` legge `state.routes[...].pathname` → TypeError). Se il contesto non è pronto restituisce "" invece di lanciare. */
+function useSafePathname(): string {
+  try {
+    return usePathname() || "";
+  } catch {
+    return "";
+  }
+}
+
 export function CalculatorFAB() {
   const [open, setOpen] = useState(false);
-  const pathname = usePathname() || ""; // V50.z407 — nascosto su /voice-enroll (copriva il footer)
+  const pathname = useSafePathname(); // V50.z407 — nascosto su /voice-enroll · V50.z466 — safe: su Android crashava con «pathname» undefined
   const { width: screenW, height: screenH } = Dimensions.get("window");
 
   // Default: bottom-right, con margine per non coprire i tab

@@ -228,7 +228,7 @@ export function MessageBubble({
           let segments: ReturnType<typeof parseMessageSegments>;
           // V50.z227 — marker [[CONFIGURA:<area>]] → bottone «Configura ora» (area attiva ma non configurata)
           const cfgMatch = /\[\[CONFIGURA:([a-z0-9_]+)\]\]/i.exec(msg.content || "");
-          const cleanContent0 = cfgMatch ? (msg.content || "").replace(cfgMatch[0], "").trimEnd() : (msg.content || "");
+          const cleanContent0 = (cfgMatch ? (msg.content || "").replace(cfgMatch[0], "").trimEnd() : (msg.content || "")).replace(/\s*\[\[RUBRICA:[^\]]*\]\]/g, ""); // V50.z469 — marker rubrica mai visibile
           // V50.z259 — marker [[NAV:route|label]] / [[ACTION:id|label|json]] → pulsanti deep link (nascosti finché lo stream non è completo)
           const { clean: cleanContent, chips: navChips0 } = extractNavChips(cleanContent0);
           const navChips = msg.streaming ? [] : navChips0;

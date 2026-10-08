@@ -23,6 +23,7 @@ import { AppointmentShareActions } from "@/src/AppointmentShareActions";
 import { pickCommonFile } from "@/src/utils/filePicker";
 import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { AddressAutocomplete } from "@/src/AddressAutocomplete"; // V50.z469 — Google Places
 
 type Attachment = {
   id: string;
@@ -186,7 +187,7 @@ function NewAppointmentScreen() {
       } catch {}
     })();
   }, [canBroadcast, user?.user_id]);
-  const [showPicker, setShowPicker] = useState<"date" | "time" | "endDate" | null>(null);
+  const [showPicker, setShowPicker] = useState<"date" | "time" | "endDate" | "endTime" | null>(null); // V50.z466 — endTime
   // V50.z242 — BUG-STATE-001: bozza del form nuovo appuntamento (no modifica, no prefill da altre pagine):
   // ripristinata al mount se presente (< 12 h), salvata con debounce 700 ms, cancellata al salvataggio riuscito.
   const DRAFT_KEY = "draft_appointment_new_v1";
@@ -737,7 +738,13 @@ function NewAppointmentScreen() {
               <Text style={styles.lbl}>Data di fine (opzionale · eventi su più giorni)</Text>
               {/* @ts-expect-error web-only */}
               <input type="date" value={form.end_at ? new Date(form.end_at.getTime() - form.end_at.getTimezoneOffset() * 60000).toISOString().slice(0, 10) : ""}
-                onChange={(e: any) => setForm({ ...form, end_at: e.target.value ? new Date(`${e.target.value}T23:59:00`) : null })} style={webInputStyle} />
+                onChange={(e: any) => setForm({ ...form, end_at: e.target.value ? new Date(`${e.target.value}T${form.end_at ? form.end_at.toTimeString().slice(0, 5) : "18:00"}:00`) : null })} style={webInputStyle} />
+              {form.end_at ? (<>
+                <Text style={[styles.lbl, { marginTop: 8 }]}>Orario di fine</Text>
+                {/* @ts-expect-error web-only — V50.z466: orario di fine per eventi su più giorni */}
+                <input type="time" value={form.end_at.toTimeString().slice(0, 5)} data-testid="ap-end-time-web"
+                  onChange={(e: any) => { if (!e.target.value) return; const [h, m] = e.target.value.split(":").map(Number); const n = new Date(form.end_at!); n.setHours(h, m, 0, 0); setForm({ ...form, end_at: n }); }} style={webInputStyle} />
+              </>) : null}
             </View>
           ) : (
             <>
@@ -757,11 +764,20 @@ function NewAppointmentScreen() {
                   <Ionicons name="calendar-number-outline" size={18} color={HT.brand} />
                   <Text style={styles.dateBtnTxt}>{form.end_at ? form.end_at.toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "short" }) : "Stesso giorno"}</Text>
                 </Pressable>
+                {form.end_at ? (
+                  <Pressable testID="ap-end-time-btn" onPress={() => setShowPicker("endTime")} style={styles.dateBtn}>
+                    <Ionicons name="time-outline" size={18} color={HT.brand} />
+                    <Text style={styles.dateBtnTxt}>{form.end_at.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}</Text>
+                  </Pressable>
+                ) : null}
                 {form.end_at ? <Pressable onPress={() => setForm({ ...form, end_at: null })} style={styles.dateBtn} testID="ap-end-date-clear"><Ionicons name="close" size={18} color={HT.muted} /><Text style={styles.dateBtnTxt}>Rimuovi</Text></Pressable> : null}
               </View>
               {showPicker && (
-                <DateTimePicker value={showPicker === "endDate" ? (form.end_at || form.start_at) : form.start_at} mode={showPicker === "endDate" ? "date" : showPicker} minimumDate={showPicker === "endDate" ? form.start_at : undefined}
-                  onChange={(e, d) => { const which = showPicker; setShowPicker(null); if (d) { if (which === "date") setDate(d); else if (which === "time") setTime(d); else { const n = new Date(d); n.setHours(23, 59, 0, 0); setForm({ ...form, end_at: n }); } } }} />
+                <DateTimePicker value={showPicker === "endDate" || showPicker === "endTime" ? (form.end_at || form.start_at) : form.start_at} mode={showPicker === "endDate" ? "date" : showPicker === "endTime" ? "time" : showPicker} minimumDate={showPicker === "endDate" ? form.start_at : undefined}
+                  onChange={(e, d) => { const which = showPicker; setShowPicker(null); if (d) {
+                    if (which === "date") setDate(d); else if (which === "time") setTime(d);
+                    else if (which === "endTime") { const n = new Date(form.end_at || d); n.setHours(d.getHours(), d.getMinutes(), 0, 0); setForm({ ...form, end_at: n }); } // V50.z469
+                    else { const n = new Date(d); const prev = form.end_at; n.setHours(prev ? prev.getHours() : 18, prev ? prev.getMinutes() : 0, 0, 0); setForm({ ...form, end_at: n }); } } }} />
               )}
             </>
           )}
@@ -936,6 +952,8 @@ function NewAppointmentScreen() {
           />
 
           {/* v2.16 — Structured address fields */}
+          {/* V50.z469 — Feature 6: autocomplete Google Places */}
+          <AddressAutocomplete testID="ap-address-search" onSelect={(p) => setForm((f) => ({ ...f, address_street: p.street || f.address_street, address_number: p.number || f.address_number, address_zip: p.zip || f.address_zip, address_city: p.city || f.address_city, address_province: (p.province || f.address_province || "").slice(0, 2), location: f.location || p.formatted }))} />
           <View style={{ flexDirection: "row", gap: 8 }}>
             <View style={{ flex: 2 }}>
               <Text style={styles.lbl}>Via / Piazza</Text>

@@ -15,6 +15,7 @@ import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { SupportForm } from "@/src/SupportFab";
+import { PreReportNotice, SuggestionForm, SupportContacts } from "@/src/HelpExtras"; // V50.z464 — avviso + consigli + contatti
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 export default function HelpTabScreen() {
@@ -52,12 +53,22 @@ export default function HelpTabScreen() {
         <Text style={styles.sub}>Chiedi aiuto, segnala un problema o gestisci la tua privacy. Axon risponde subito; se serve, la richiesta passa al Master.</Text>
       </View>
 
-      {/* Form richiesta aiuto — sempre visibile nella schermata principale */}
-      <Text style={styles.sectionLabel}>RICHIESTA AIUTO</Text>
+      {/* V50.z464 — 1) Segnala un bug: avviso pre-segnalazione + modulo (SupportForm) */}
+      <Text style={styles.sectionLabel}>SEGNALA UN PROBLEMA</Text>
+      <PreReportNotice />
       <SupportForm inline />
+
+      {/* V50.z464 — 2) Invia un consiglio */}
+      <Text style={styles.sectionLabel}>INVIA UN CONSIGLIO</Text>
+      <SuggestionForm />
+
+      {/* V50.z464 — 3) Contatti di supporto */}
+      <Text style={styles.sectionLabel}>CONTATTI DI SUPPORTO</Text>
+      <SupportContacts />
 
       {/* Privacy & Termini */}
       <Text style={styles.sectionLabel}>PRIVACY & TERMINI</Text>
+      <Card icon="document-lock-outline" color="#2563EB" title="Privacy policy" sub="Informativa GDPR completa, consultabile nell'app" onPress={() => router.push("/privacy-policy" as any)} testID="help-tab-privacy-policy" />
       <Card icon="shield-checkmark-outline" color="#7C3AED" title="Termini d'uso assistente AI · Privacy" sub="Leggi l'informativa e i termini dell'assistente AxonOS" onPress={() => router.push("/help-center" as any)} testID="help-tab-privacy" />
       <Card icon="trash-bin-outline" color="#DC2626" title="Richiesta cancellazione dati" sub="Invia la richiesta di cancellazione dei tuoi dati personali" onPress={() => router.push("/help-center?deletion=1" as any)} testID="help-tab-deletion" />
       {isMaster ? <Card icon="file-tray-full-outline" color="#0891B2" title="Richieste ricevute (Master)" sub="Ticket inoltrati e richieste di cancellazione da gestire" onPress={() => router.push("/help-center-admin" as any)} testID="help-tab-admin" /> : null}

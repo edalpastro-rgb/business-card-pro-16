@@ -38,12 +38,18 @@ services:
       MONGO_URL: mongodb://${MONGO_ROOT_USER:-axon}:${MONGO_ROOT_PASSWORD}@mongodb:27017/${DB_NAME:-axon_core}?authSource=admin
       DB_NAME: ${DB_NAME:-axon_core}
       PORT: "8001"
+      # V50.z469 — Feature 15: antivirus ClamAV (servizio `clamav` qui sotto). CLAMAV_REQUIRED=1 → upload rifiutati se l'AV non risponde.
+      CLAMAV_HOST: clamav
+      CLAMAV_PORT: "3310"
+      CLAMAV_REQUIRED: ${CLAMAV_REQUIRED:-0}
     volumes:
       - core_uploads:/app/backend/uploads        # file locali (fallback quando Object Storage non è configurato)
       - core_tmp:/tmp                            # temp ffmpeg / Whisper / ZIP export
     depends_on:
       mongodb:
         condition: service_healthy
+      clamav:
+        condition: service_started               # le firme si scaricano al primo avvio (~2-5 min): nel frattempo fail-open (log) salvo CLAMAV_REQUIRED=1
     expose:
       - "8001"
     # Sblocca SOLO per debug locale (raggiungibile su http://IP:8001 senza HTTPS):
@@ -52,10 +58,36 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2560m            # VPS 4 GB: ~2.5 GB a Core, ~0.9 GB a Mongo, resto a nginx/OS
+          memory: 2048m            # VPS 4 GB: ~2 GB a Core, ~0.9 GB a Mongo, ~1 GB a ClamAV (V50.z469), resto a nginx/OS
     logging:
       driver: json-file
       options: { max-size: "20m", max-file: "5" }
+    networks: [axon]
+
+  # V50.z469 — Feature 15: antivirus ClamAV (clamd su TCP 3310, solo rete interna; firme aggiornate da freshclam ogni ora)
+  clamav:
+    image: clamav/clamav:stable
+    container_name: axon-clamav
+    restart: unless-stopped
+    environment:
+      CLAMAV_NO_FRESHCLAMD: "false"
+      CLAMD_STARTUP_TIMEOUT: "1800"
+    volumes:
+      - clamav_db:/var/lib/clamav                # database firme persistente (evita il download completo ad ogni riavvio)
+    expose:
+      - "3310"
+    healthcheck:
+      test: ["CMD", "clamdcheck.sh"]
+      interval: 60s
+      retries: 3
+      start_period: 300s
+    deploy:
+      resources:
+        limits:
+          memory: 1024m            # clamd carica le firme in RAM (~0.8-1 GB)
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
     networks: [axon]
 
   nginx:
@@ -84,6 +116,7 @@ volumes:
   mongo_config:
   core_uploads:
   core_tmp:
+  clamav_db:                 # V50.z469 — firme ClamAV
 
 networks:
   axon:

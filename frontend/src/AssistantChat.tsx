@@ -18,6 +18,8 @@ import * as FileSystem from "expo-file-system/legacy";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter, usePathname, useGlobalSearchParams } from "expo-router";
 import { api } from "@/src/api";
+import { lookupDeviceContact } from "@/src/utils/deviceContacts"; // V50.z469 — Feature 7: rubrica telefono
+import { vaultContextForMessage } from "@/src/personalVault"; // V50.z469 — Feature 13/14
 import { deviceTtsAvailable, deviceTtsSpeak } from "@/src/utils/deviceTts"; // V50.z412
 import { SentenceSpeaker, cleanForSpeech } from "@/src/utils/sentenceSpeaker";
 import { acquireAudio } from "@/src/utils/audioMutex"; // V50.z385 — una sola voce alla volta
@@ -770,9 +772,23 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     // ricerca web bloccata, ecc.) interrompiamo e mostriamo un errore visibile.
     let watchdogFired = false;
     let watchdog: ReturnType<typeof setTimeout> | null = setTimeout(() => { watchdogFired = true; controller.abort(); }, 90000);
+    // V50.z469 — Feature 8: watchdog 10 s. Nessun evento dal server per 10 s → «Axon si sta riprendendo, torno subito…» +
+    // POST /axon/watchdog/recover (soft recovery / riavvio automatico lato server se il blocco persiste). Lo stream resta aperto
+    // e la risposta riprende da sola appena arriva; il timeout duro resta a 90 s.
+    let wdRecoverSent = false;
+    let silence: ReturnType<typeof setTimeout> | null = null;
+    const armSilence = () => {
+      if (silence) clearTimeout(silence);
+      silence = setTimeout(() => {
+        setProgressText("Axon si sta riprendendo, torno subito…");
+        if (!wdRecoverSent) { wdRecoverSent = true; api("/axon/watchdog/recover", { method: "POST", body: { reason: "client_silence", elapsed_ms: 10000 } }).catch(() => {}); }
+      }, 10000);
+    };
+    armSilence();
     const armWatchdog = () => {
       if (watchdog) clearTimeout(watchdog);
       watchdog = setTimeout(() => { watchdogFired = true; controller.abort(); }, 90000);
+      armSilence();
     };
     // V50.z112 — Voce in streaming: le frasi vengono sintetizzate e riprodotte
     // man mano che arrivano i delta (prima frase entro pochi secondi), senza
@@ -813,7 +829,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
         attachments: attachmentsPayload,
         merge_images: mergeImages, // V50.z438
         quick_label: opts?.quickLabel && !attachmentsPayload.length ? opts.quickLabel : undefined,
-        client_context: { ...(clientContextRef.current || { route: "" }), voice: wantSpeech || undefined }, // V50.z291 — dove si trova l'utente · V50.z305 voice=true → risposta breve parlata
+        client_context: { ...(clientContextRef.current || { route: "" }), voice: wantSpeech || undefined, personal_vault: (await vaultContextForMessage(msg)) || undefined }, // V50.z291 · V50.z469 Spazio Personale (solo se «Condividi con Axon» e domanda pertinente) — dove si trova l'utente · V50.z305 voice=true → risposta breve parlata
         signal: controller.signal,
         onProgress: (p) => {
           // V50.z126 — Stato del preflight visibile ("Sto raccogliendo il contesto…")
@@ -822,6 +838,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
           prog.onServer(p || {});
         },
         onMeta: (meta) => {
+          armWatchdog();
           setProgressText(null);
           if (meta.session_id) { setSessionId(meta.session_id); AsyncStorage.setItem("axon_chat_session_id_v1", meta.session_id).catch(() => {}); }
           if (meta.assistant_name) setAssistantName(meta.assistant_name);
@@ -878,6 +895,21 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       // stream non ha prodotto delta, es. risposta non-stream). onSpoken viene
       // chiamato dal SentenceSpeaker alla fine dell'ultimo audio.
       const finalReply = streamResult.reply;
+      // V50.z469 — Feature 7: marker [[RUBRICA:Nome]] → cerca nella rubrica del telefono (fallback silenzioso se negato/web)
+      const pbMatch = /\[\[RUBRICA:([^\]]{2,80})\]\]/.exec(finalReply || "");
+      if (pbMatch) {
+        const pbName = pbMatch[1].trim();
+        setMessages((prev) => prev.map((m) => (m.role === "assistant" && /\[\[RUBRICA:/.test(m.content || "") ? { ...m, content: (m.content || "").replace(/\s*\[\[RUBRICA:[^\]]*\]\]/g, "").trim() } : m)));
+        void (async () => {
+          const r = await lookupDeviceContact(pbName);
+          try {
+            const res = await api<{ content: string; message_id: string }>("/assistant/phonebook-result", { method: "POST", body: { session_id: sessionId || undefined, name: r.status === "found" ? r.name : pbName, phone: r.status === "found" ? r.phone : null, found: r.status === "found", permission: r.status === "denied" ? "denied" : r.status === "unavailable" ? "unavailable" : "granted" } });
+            setMessages((prev) => [...prev, { role: "assistant", content: res.content, created_at: new Date().toISOString(), message_id: res.message_id }]);
+          } catch {
+            setMessages((prev) => [...prev, { role: "assistant", content: r.status === "found" ? `📱 Trovato nella rubrica del telefono: **${r.name}** · ${r.phone}` : `Non ho trovato «${pbName}» in AdvisorOS.`, created_at: new Date().toISOString() }]);
+          }
+        })();
+      }
       if (!finalReply.trim()) {  // V50.z448 — risposta volutamente vuota (es. utente: «ci sto pensando») → rimuovi la bolla placeholder
         setMessages((prev) => (prev.length && prev[prev.length - 1].role === "assistant" && !(prev[prev.length - 1].content || "").trim() ? prev.slice(0, -1) : prev));
         if (speaker) { speaker.stop(); speaker = null; }
@@ -896,7 +928,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
         // V50.z121 — Timeout: messaggio chiaro nella chat invece di schermata vuota
         setMessages((prev) => {
           const last = prev[prev.length - 1];
-          const errTxt = "⏱️ Axon non ha risposto entro 90 secondi. Il server potrebbe essere lento o non raggiungibile: riprova tra qualche istante.";
+          const errTxt = "⏱️ Axon si sta riprendendo ma non è riuscito a rispondere entro 90 secondi. Riprova tra qualche istante: il servizio si riavvia automaticamente.";
           if (last && last.role === "assistant" && last.streaming) return [...prev.slice(0, -1), { ...last, content: last.content || errTxt, streaming: false }];
           return [...prev, { role: "assistant", content: errTxt }];
         });
@@ -927,6 +959,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       if (opts?.onSpoken && !wantSpeech) opts.onSpoken();
     } finally {
       if (watchdog) clearTimeout(watchdog);
+      if (silence) clearTimeout(silence); // V50.z469
       abortRef.current = null;
       setProgressText(null);
       prog.stop();

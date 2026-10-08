@@ -15,7 +15,7 @@ import re as _omni_re
 import unicodedata as _omni_unicodedata
 
 _OMNI_MAX_CHARS = 32000
-_OMNI_APP_MAP_PATH = _omni_os.path.join(_omni_os.path.dirname(_omni_os.path.abspath(__file__)), "axon_app_map.json")
+_OMNI_APP_MAP_PATH = _omni_os.path.join(_ROUTES_DIR, "axon_app_map.json")  # V50.z469 — FIX: __file__ nell'exec è server.py → il JSON non veniva mai caricato
 
 # Sezioni non coperte dal Libretto (menu laterale / rotte) — una riga ciascuna
 _OMNI_EXTRA_SECTIONS = [

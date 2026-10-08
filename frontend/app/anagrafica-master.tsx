@@ -13,6 +13,7 @@ import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { IdentityDocsSection } from "@/src/IdentityDocsSection"; // V50.z267
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 import { DateField } from "@/src/ui/DateField"; // V50.z388 — calendario nativo su ogni campo data
+import { AddressAutocomplete } from "@/src/AddressAutocomplete"; // V50.z469 — Google Places
 
 type Cred = { cred_id: string; service: string; username?: string; url?: string; notes?: string; password_masked?: boolean };
 type Profile = {
@@ -126,6 +127,11 @@ export default function AnagraficaMasterScreen() {
               {k === "birth_date" ? (
                 <DateField value={(p[k] as string) || ""} onChange={(t) => setP((prev) => ({ ...prev, [k]: t }))} placeholder="Data di nascita" testID="anag-master-birth-date" />
               ) : (
+              <>
+              {/* V50.z469 — Feature 6: autocomplete Google Places sui campi indirizzo (onboarding/anagrafica Master) */}
+              {(k === "address" || k === "address_second" || k === "address_relative") ? (
+                <AddressAutocomplete label={null} testID={`anag-master-${k}-search`} placeholder="Cerca con Google…" onSelect={(pl) => setP((prev) => ({ ...prev, [k]: pl.formatted || [pl.street, pl.number, pl.zip, pl.city, pl.province].filter(Boolean).join(" ") }))} />
+              ) : null}
               <TextInput
                 value={(p[k] as string) || ""}
                 onChangeText={(t) => setP((prev) => ({ ...prev, [k]: t }))}
@@ -135,6 +141,7 @@ export default function AnagraficaMasterScreen() {
                 multiline={k === "notes"}
                 autoCapitalize={k === "iban" || k === "tax_id" || k === "vat_id" ? "characters" : "sentences"}
               />
+              </>
               )}
             </View>
           ))}

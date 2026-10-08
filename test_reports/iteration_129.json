@@ -1,0 +1,34 @@
+{
+  "summary": "V50.z466 backend-only validation. All 29 extended tests + 6 original tests pass (35/35). Verified Feature 5 (Storico PUN JSON+PDF+auth+clamp), Feature 6 (Google Places: 502 italiano su PERMISSION_DENIED, short q empty, 422 su place_id missing), Feature 7 (rubrica fallback: marker RUBRICA per contatto sconosciuto, hit CRM Mario Rossi senza marker, phonebook-result persistenza + testo 'Permessi'), Feature 8 (watchdog status 10s/5s/15s + recover soft 'riprendendo' + chat SSE regression OK), Feature 12 (libretto/index >=30 items, q='pun pdf' → storico-pun, NAV markers 'libretto?section=storico-pun' e '/libretto'), Feature 15 (upload-guard: PE camuffato 415, PDF reale 200, HTML in JSON base64 415, note JSON senza data 200, status enabled+clamav='ERROR' dev+limits_mb 12/50/25, identity-doc PNG non bloccato). Lavoro di cleanup master-files eseguito via teardown_class.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v50z466_extended.py",
+    "/app/test_reports/pytest/v50z466_extended.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "axon_upload_guard.py: dependency on dynamic globals (`_put_object_sync`, `_upl_stream_to_temp`, `add_master_file`) is fragile; a load-order error would silently break all upload-whitelist hooks. Consider adding a startup assertion that `api_router.routes` only contains ONE POST /master-files entry after the hooks mount.",
+    "axon_help_links.py (libretto/index): no `limit`/`offset` params exposed; current response always carries 30+ items. Not urgent given payload is small, but worth noting."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v50z466_extended.py"
+  ],
+  "success_rate": {
+    "backend": "100% (29/29 new, 35/35 overall)",
+    "frontend": "n/a (skipped per request)"
+  },
+  "seed_data_creation": "None persistent. Created and immediately deleted: 1 master-file (real PDF), 1 master-file (TEST_note), 1 identity-document (TEST_12345). teardown_class cleans up all captured file_ids.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend http://localhost:8001/api. Login POST /api/auth/login returns 'token' (not 'access_token'). Watchdog recover limited to 2 calls / 2 minutes (3rd triggers hard restart) — this suite calls it once; the original test_v50z466_phonebook_watchdog.py also calls it once, so running BOTH files in the same 2-min window is still safe (2 total). SSE streaming helper should NOT rely on a 'done' event — the server simply closes the connection; iterate until lines stop.",
+  "rca_of_issue": "n/a — no bugs found. All V50.z466 features (5, 6, 7, 8, 12, 15) behave as specified."
+}

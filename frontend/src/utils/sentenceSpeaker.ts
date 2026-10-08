@@ -47,7 +47,7 @@ export function cleanForSpeech(raw: string): string {
       return true;
     })
     .join(" ")
-    .replace(/\[\[(NAV|ACTION|CONFIGURA):[^\]]*\]\]/g, "") // V50.z259 — marker deep link non si leggono
+    .replace(/\[\[(NAV|ACTION|CONFIGURA|RUBRICA|HELP):[^\]]*\]\]/g, "") // V50.z259 — marker deep link non si leggono
     .replace(/https?:\/\/\S+/g, "")
     .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}]/gu, "") // V50.z443 — emoji mai lette dal TTS
     .replace(/[*_`#>]+/g, "")

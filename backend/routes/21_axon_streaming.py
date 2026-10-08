@@ -1077,7 +1077,7 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     try:
         reply = await chat.send_message(UserMessage(text=user_prompt))
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Errore LLM: {e}")
+        reply = _axon_llm_failure("chat", e)  # noqa: F821 — V50.z467: risposta normale, letta anche dal TTS
 
     reply_text = (reply or "").strip() or "Non ho ricevuto una risposta. Riprova."
 

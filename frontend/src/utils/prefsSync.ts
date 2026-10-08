@@ -13,7 +13,7 @@ type PrefItem = { v: any; at: number };
 // chiavi SecureStore da sincronizzare (hash PIN, non il PIN in chiaro; comunque protette dall'autenticazione dell'account)
 const SECURE_ALLOW = new Set(["app_lock_pin_hash_v1", "app_lock_enabled_v1", "quick_unlock_v1", "app_lock_bio_v1", "personal_space_bio_enabled_v1"]);
 // prefissi/chiavi locali da NON sincronizzare
-const SKIP_PREFIX = ["offc:", "offq", "offidmap", "draft_", "axon_chat_session", "auth", "token", "session", "cache", "wt_resume", "pending_referral",
+const SKIP_PREFIX = ["pv_", "offc:", "offq", "offidmap", "draft_", "axon_chat_session", "auth", "token", "session", "cache", "wt_resume", "pending_referral",
   "post_reload_route", "axon_theme_pending", "download_dir", "k_recap", "nudge_", "weather_alert_dismissed_", "@expo", "expo", "EXPO", "react-navigation",
   "persist:", "sentry", "__", "landing_seen", "trust_", "advisoros.device", "axs_device", "app_last_unlock", "device_", "push_token", "expo_push", "app_bg_at", "axon_chat_read_at"];
 const MAX_VALUE = 60 * 1024;

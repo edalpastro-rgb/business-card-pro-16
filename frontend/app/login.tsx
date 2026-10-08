@@ -57,7 +57,7 @@ export default function LoginScreen() {
     try { setChallenge(await api<Challenge>("/auth/register/challenge")); setTurnstileToken(null); } catch { setChallenge(null); }
   };
   useEffect(() => { if (mode === "register") void loadChallenge(); }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
-  const privacyUrl = challenge?.privacy_url || "https://advisoros.it/privacy";
+  // V50.z465 — informativa privacy: schermata interna /privacy-policy (il link esterno advisoros.it/privacy non esiste)
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   // V29.j — Logo AdvisorOS reso direttamente sullo sfondo blu, senza card bianca.
@@ -402,7 +402,7 @@ export default function LoginScreen() {
                 <Ionicons name={privacyOk ? "checkbox" : "square-outline"} size={24} color={privacyOk ? HT.brand : HT.muted} />
                 <Text style={styles.checkTxt}>
                   Ho letto e accetto l&apos;
-                  <Text testID="auth-privacy-link" style={styles.checkLink} onPress={() => Linking.openURL(privacyUrl).catch(() => {})}>informativa privacy</Text>
+                  <Text testID="auth-privacy-link" style={styles.checkLink} onPress={() => router.push("/privacy-policy" as any)}>informativa privacy</Text>
                   {" "}<Text style={styles.required}>*</Text>
                 </Text>
               </Pressable>
