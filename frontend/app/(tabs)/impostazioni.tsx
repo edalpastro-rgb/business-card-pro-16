@@ -28,6 +28,7 @@ import { AppInfoCard } from "@/src/AppInfoCard"; // V50.z208 — Piano attivo + 
 import { PromoRedeemCard } from "@/src/PromoCodeField"; // V50.z320 — codice promozionale
 import { ReferralCard } from "@/src/ReferralCard"; // V50.z322 — Invita un amico
 import { PunAlertCard } from "@/src/PunAlertCard"; // V50.z325 — Avviso soglia PUN
+import { AxonPersonalizeCard } from "@/src/AxonPersonalizeCard"; // V50.z456 — Personalizza Axon (Super Master / Lite)
 import { SetupProcessingBadge } from "@/src/SetupProcessingBadge"; // V50.z216 — Blocco 5
 import { ResetTestDataCard } from "@/src/ResetTestDataCard";
 import { CompressAllCard } from "@/src/CompressAllCard"; // V50.z364 — Comprimi tutto (Master) // V50.z288 — Azzera dati di test (Master)
@@ -859,6 +860,8 @@ function ImpostazioniScreen() {
         </>)}
 
         {sec === "axon" && (<>
+        {/* V50.z456 — Personalizza Axon: personalità + stile (si nasconde da sola se non consentita) */}
+        <AxonPersonalizeCard />
         {/* V50.z325 — Avviso soglia PUN (media parziale del mese) */}
         <PunAlertCard />
         {/* AI Assistant customization — available to all users */}

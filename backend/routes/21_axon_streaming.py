@@ -1027,6 +1027,10 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     except Exception:
         pass
     system_message += _axon_product_section(user)  # V50.z323 — Axon Core: cosa esiste/non esiste nel prodotto dell'utente
+    try:
+        system_message += await _axon_personalize_section(user)  # noqa: F821 — V50.z456 axon_personalize.py: personalità + stile scelti dall'utente
+    except Exception:  # noqa: BLE001
+        pass
 
     # V50.z360 — «Stato sistema» + CHANGELOG dinamico anche nel percorso NON-stream (ViolaWake): stessa sezione dello stream.
     try:

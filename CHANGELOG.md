@@ -927,6 +927,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z456 | Giu 2026 | **Personalizza Axon** (Impostazioni › AI & Axon; Super Master su AdvisorOS, tutti su Lite): 2 selettori indipendenti — Personalità (Saggio, Coach, Professore, Monaco, Amico, Direttore) + Stile (Formale, Colloquiale, Diretto, Tecnico, Colorito, Disinibito) → sezione `<PERSONALIZZAZIONE_AXON>` nel prompt solo per quell'account; `GET/PUT /axon/personalize` |
 | V50.z455 | Giu 2026 | **Fix server-side**: «Solo testo» blocca il TTS nel backend (`axon_tts_generate` → audio_base64 vuoto, `muted:true`, su /assistant/tts, /ai/tts, Viola, Corporate Gym; `force` solo test voce) · richiesta di **numero di telefono** → risposta = solo il numero (streaming + chat classica) |
 
 | V50.z437 | Giu 2026 | **TTS**: velocità applicata (tts-1-hd se ≠1.0, `speed` inviato dal client) · **Allegati**: immagine senza testo → analisi vision (prima 400) |
