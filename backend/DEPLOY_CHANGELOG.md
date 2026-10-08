@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-08 | D2026.10.08-1241 | V50.z470 — Fix Android «Scegli cartella» (Importazione clienti): import statico expo-file-system all'avvio + retry singolo (come Prompt 23.a) |
 | 2026-10-08 | D2026.10.08-1227 | V50.z469 — batch Feature 5-8/12-15 (Storico PUN, Places, rubrica, watchdog, Libretto+Axon, Spazio Personale, antivirus) |
 | 2026-10-08 | D2026.10.08-1223 | V50.z466 — batch Feature 5-8/12-15 (asserzione rotta upload-guard) |
 | 2026-10-08 | D2026.10.08-1215 | V50.z466 — Feature 5-8, 12-15: Storico PUN, Google Places, rubrica telefono, watchdog Axon, Libretto+Axon, Spazio Personale on-device, antivirus upload (ClamAV) |

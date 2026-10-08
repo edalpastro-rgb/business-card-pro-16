@@ -137,7 +137,15 @@ export default function ContactImportFolderScreen() {
   const pickMobileFolder = async () => {
     setPermInfo(false);
     try {
-      const dir = await Directory.pickDirectoryAsync();
+      let dir: Awaited<ReturnType<typeof Directory.pickDirectoryAsync>> | null = null;
+      try {
+        dir = await Directory.pickDirectoryAsync();
+      } catch (e: any) {
+        // V50.z470 — come Prompt 23.a (image-picker): launcher non ancora pronto → un solo secondo tentativo dopo 350 ms
+        if (!/launcher|register|rejected/i.test(String(e?.message || e))) throw e;
+        await new Promise((r) => setTimeout(r, 350));
+        dir = await Directory.pickDirectoryAsync();
+      }
       if (!dir) return;
       setScanning(true);
       const root = (dir as any).name || decodeURIComponent(dir.uri.split(/[/:]/).pop() || "Cartella");

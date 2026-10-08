@@ -1,5 +1,10 @@
 import "@/src/polyfills"; // MUST be first — TextEncoder/TextDecoder polyfill for Hermes (xlsx e altre libs legacy)
 import { loadTtsMuted } from "@/src/utils/ttsGate"; // V50.z454 — stato «Solo testo» pronto prima di qualsiasi audio
+// V50.z470 — import STATICO all'avvio di expo-file-system (API nuova: modulo nativo ExpoFileSystem con pickDirectoryAsync).
+// Stessa soluzione del Prompt 23.a per expo-image-picker: la schermata «Importazione clienti» è una route caricata solo alla
+// navigazione → il modulo nativo nasceva ad Activity già RESUMED e il suo ActivityResultLauncher non era registrato
+// («ActivityResultLauncher is registered before calling launch()»). Importandolo qui il launcher è registrato prima di qualsiasi tap.
+import "expo-file-system";
 void loadTtsMuted();
 import { Stack, useRouter, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
