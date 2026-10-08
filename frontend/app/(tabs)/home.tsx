@@ -583,8 +583,8 @@ export default function HomeScreen() {
         <DashboardWidgetsSection exclude={APPT_TODAY_WIDGET} />
         <BetaProgramCard />{/* V50.z475 — Programma Beta: missione della settimana + Diario del venerdì (solo se avviato dal Master) */}
 
-        {/* V50.z409 — Desktop: Ritelefonate + Azioni rapide a sinistra, Appuntamenti + Scadenze + Statistiche a destra */}
-        <DesktopGrid gap={16}>
+        {/* V50.z409/z479 — Desktop: Ritelefonate + Azioni rapide a sinistra, Appuntamenti + Scadenze + Statistiche a destra (assign esplicito) */}
+        <DesktopGrid gap={16} assign={[0, 1, 0, 1, 1]}>
         {/* ── 4) Ritelefonate di oggi ── */}
         <View style={styles.section} onLayout={onSectionLayout("ritelefonate")}>
           <View style={styles.sectionHead}>

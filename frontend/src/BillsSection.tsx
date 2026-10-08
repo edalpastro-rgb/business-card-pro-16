@@ -9,6 +9,7 @@ import * as Sharing from "expo-sharing";
 import { api } from "@/src/api";
 import { notify, confirmAsync } from "@/src/utils/notify";
 import { uriToBase64 } from "@/src/utils/media";
+import { folderPickAvailable, pickFolderFiles, folderFileBase64 } from "@/src/utils/folderPicker";
 import { CalculatorFAB } from "@/src/CalculatorFAB";
 import { VoiceDictationButton } from "@/src/VoiceDictationButton";
 import { BillFieldRow } from "@/src/BillFieldRenderers";
@@ -942,22 +943,35 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
       if (res.canceled || !res.assets?.length) return;
       setBulkBusy(true);
       const items: Array<{ bill_type: BillType; pdf_base64: string; pdf_name: string; pdf_mime: string }> = [];
-      for (const a of res.assets) {
-        const b64 = await uriToBase64(a.uri);
-        const nm = (a.name || "").toLowerCase();
-        let bt: BillType = "luce";
-        if (nm.includes("gas")) bt = "gas";
-        else if (nm.includes("telco") || nm.includes("telefon") || nm.includes("internet")) bt = "telco";
-        items.push({ bill_type: bt, pdf_base64: b64, pdf_name: a.name || `fattura.pdf`, pdf_mime: a.mimeType || "application/pdf" });
-      }
-      const r = await api<{ count: number }>(`/contacts/${contactId}/bills/bulk-upload`, {
-        method: "POST",
-        body: { bills: items },
-      });
-      notify("Upload completato ✅", `${r.count} fatture caricate. L'AI le analizzerà a breve.`);
-      await load();
+      for (const a of res.assets) items.push(bulkItem(a.name || "fattura.pdf", await uriToBase64(a.uri), a.mimeType || "application/pdf"));
+      await bulkSend(items);
     } catch (e: any) {
       notify("Errore upload multiplo", e?.message || "");
+    } finally { setBulkBusy(false); }
+  };
+  const bulkItem = (name: string, pdf_base64: string, pdf_mime: string) => {
+    const nm = name.toLowerCase();
+    let bt: BillType = "luce";
+    if (nm.includes("gas")) bt = "gas";
+    else if (nm.includes("telco") || nm.includes("telefon") || nm.includes("internet")) bt = "telco";
+    return { bill_type: bt, pdf_base64, pdf_name: name, pdf_mime };
+  };
+  const bulkSend = async (items: Array<{ bill_type: BillType; pdf_base64: string; pdf_name: string; pdf_mime: string }>) => {
+    const r = await api<{ count: number }>(`/contacts/${contactId}/bills/bulk-upload`, { method: "POST", body: { bills: items } });
+    notify("Upload completato ✅", `${r.count} fatture caricate. L'AI le analizzerà a breve.`);
+    await load();
+  };
+  // V50.z479 — «Carica cartella» (Android + desktop): tutti i PDF della cartella (e sottocartelle) → stesso bulk-upload
+  const bulkUploadFolder = async () => {
+    try {
+      const files = await pickFolderFiles({ extRe: /\.pdf$/i });
+      if (!files.length) return;
+      setBulkBusy(true);
+      const items: Array<{ bill_type: BillType; pdf_base64: string; pdf_name: string; pdf_mime: string }> = [];
+      for (const f of files) items.push(bulkItem(f.name, await folderFileBase64(f), "application/pdf"));
+      await bulkSend(items);
+    } catch (e: any) {
+      notify("Errore upload cartella", e?.message || "");
     } finally { setBulkBusy(false); }
   };
 
@@ -1350,6 +1364,17 @@ export function BillsSection({ contactId, contactName, onContactFilesChanged }: 
           </>
         )}
       </Pressable>
+      {folderPickAvailable() ? (
+        <Pressable
+          testID="bills-bulk-upload-folder-btn"
+          disabled={bulkBusy}
+          onPress={bulkUploadFolder}
+          style={[styles.reportBtn, { backgroundColor: '#0E7490', marginTop: 8, opacity: bulkBusy ? 0.6 : 1 }]}
+        >
+          <Ionicons name="folder-open" size={20} color="#FFF" />
+          <Text style={styles.reportBtnTxt}>Carica cartella di fatture</Text>
+        </Pressable>
+      ) : null}
 
       {/* v2.12 — CTE Comparativa */}
       <Pressable

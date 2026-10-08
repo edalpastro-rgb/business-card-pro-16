@@ -550,3 +550,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z478 — Bug web: dopo tap su stop del mic singolo (AssistantChat.stopRec) i track del getUserMedia venivano chiusi solo in onstop/handleStop → pallino rosso Chrome acceso ~2 s. Ora stopRec su web ferma subito i track dopo rec.stop(). Solo frontend; pacchetti VPS rigenerati."
+
+  - agent: "main"
+    message: "V50.z479 — (A) Home web: DesktopGrid alignItems stretch + ultima sezione per colonna flexGrow + prop `assign` (home: [0,1,0,1,1] → Statistiche a destra con Appuntamenti+Scadenze, come da commento). (B) «Carica cartella» ovunque: src/utils/folderPicker.ts (web desktop webkitdirectory · Android Directory.pickDirectoryAsync SAF · iOS/browser mobile nascosto) integrato in contact/[id] (File), contact/new (allegati note/email), appointment/new (allegati), master-files (file + bollette), BillsSection (bulk fatture), KbUploadSourceSheet (sorgente Cartella), courses/new (allegati). tsc: nessun nuovo errore; preview web non loggabile (VPS) → verifica visiva utente."

@@ -12,6 +12,7 @@ import { api } from "@/src/api";
 import { theme } from "@/src/theme";
 import { uploadMasterFile } from "@/src/utils/upload"; // V50.z202 — multipart a chunk, niente base64
 import { notify, confirmAsync } from "@/src/utils/notify";
+import { folderPickAvailable, pickFolderFiles, folderFileUploadSource, folderSummary } from "@/src/utils/folderPicker";
 import { FileViewer } from "@/src/FileViewer";
 import { ShareSheet, type ShareTarget } from "@/src/ShareSheet";
 import { ModuleErrorBoundary } from "@/src/shared";
@@ -219,6 +220,28 @@ function MasterFilesScreen() {
     }
     await uploadMasterFile({ uri: src.uri, name, mime: src.mime }, category as any);
     return true;
+  };
+
+  // V50.z479 — «Carica cartella» (Android + desktop): tutti i documenti della cartella nella categoria corrente (file o bollette PDF)
+  const uploadFolder = async (category: MasterCat) => {
+    let files: Awaited<ReturnType<typeof pickFolderFiles>> = [];
+    try { files = await pickFolderFiles({ extRe: category === "bills" ? /\.pdf$/i : undefined }); }
+    catch (e: any) { notify("Accesso alla cartella non riuscito", e?.message || "Riprova oppure usa «Carica file»."); return; }
+    if (!files.length) { notify("Nessun documento", category === "bills" ? "Nella cartella scelta non ci sono PDF." : "Nella cartella scelta non ci sono documenti supportati."); return; }
+    setBusy(true);
+    let ok = 0, failed = 0;
+    try {
+      for (const f of files) {
+        if (f.size > 50 * 1024 * 1024) { failed++; continue; }
+        try {
+          const src = await folderFileUploadSource(f);
+          await uploadWithDupCheck({ uri: "uri" in src ? src.uri : URL.createObjectURL(src.blob), name: f.name, mime: f.mime }, f.size, category);
+          ok++;
+        } catch { failed++; }
+      }
+      await load();
+      notify("Cartella importata", folderSummary(ok, failed));
+    } finally { setBusy(false); }
   };
 
   const uploadFile = async (category: MasterCat) => {
@@ -444,10 +467,18 @@ function MasterFilesScreen() {
           </Pressable>
         )}
         {tab === "bills" && (
-          <Pressable testID="master-files-add-bill" onPress={() => uploadFile("bills")} disabled={busy} style={[styles.addBtn, { backgroundColor: catMeta.color, opacity: busy ? 0.5 : 1 }]}>
-            <Ionicons name="cloud-upload" size={18} color="#FFF" />
-            <Text style={styles.addTxt}>Carica PDF fattura</Text>
-          </Pressable>
+          <View style={{ flexDirection: "row", gap: 8, flex: 1 }}>
+            <Pressable testID="master-files-add-bill" onPress={() => uploadFile("bills")} disabled={busy} style={[styles.addBtn, { backgroundColor: catMeta.color, flex: 1, opacity: busy ? 0.5 : 1 }]}>
+              <Ionicons name="cloud-upload" size={18} color="#FFF" />
+              <Text style={styles.addTxt}>Carica PDF fattura</Text>
+            </Pressable>
+            {folderPickAvailable() ? (
+              <Pressable testID="master-files-add-bill-folder" onPress={() => uploadFolder("bills")} disabled={busy} style={[styles.addBtn, { backgroundColor: catMeta.color, flex: 1, opacity: busy ? 0.5 : 1 }]}>
+                <Ionicons name="folder-open" size={18} color="#FFF" />
+                <Text style={styles.addTxt}>Carica cartella</Text>
+              </Pressable>
+            ) : null}
+          </View>
         )}
         {tab === "audio" && (
           <View style={{ flex: 1, gap: 8 }}>
@@ -517,6 +548,12 @@ function MasterFilesScreen() {
               <Ionicons name="document" size={18} color="#FFF" />
               <Text style={styles.addTxt}>Carica file</Text>
             </Pressable>
+            {folderPickAvailable() ? (
+              <Pressable testID="master-files-add-folder" onPress={() => uploadFolder("files")} disabled={busy} style={[styles.addBtn, { backgroundColor: catMeta.color, flex: 1, opacity: busy ? 0.5 : 1 }]}>
+                <Ionicons name="folder-open" size={18} color="#FFF" />
+                <Text style={styles.addTxt}>Carica cartella</Text>
+              </Pressable>
+            ) : null}
             <Pressable testID="master-files-add-image" onPress={openPhotoPicker} disabled={busy} style={[styles.addBtn, { backgroundColor: '#16A34A', flex: 1, opacity: busy ? 0.5 : 1 }]}>
               <Ionicons name="camera" size={18} color="#FFF" />
               <Text style={styles.addTxt}>Foto</Text>

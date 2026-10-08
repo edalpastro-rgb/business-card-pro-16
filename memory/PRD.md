@@ -14,6 +14,11 @@ Quando l'utente scrive «Neo, leggi i prompt in coda» (o simili), esegui SUBITO
 `python3 /app/scripts/neo_queue.py list` → `show #N` → esegui il task → `done #N "nota"` (o `reject #N "motivo"`, `read #N`).
 I prompt sono salvati da Axon in `master_files` con `category: "neo_prompts"`, `neo_status: pending|read|done|rejected`, `neo_seq`, `neo_note`. Axon mostra lo stato all'utente con «stato prompt Neo».
 
+## V50.z479 (Giu 2026) — Home web a 2 colonne allineate + «Carica cartella» in tutti i punti di upload
+- **Home web** (`src/ui/DesktopGrid.tsx`, `app/(tabs)/home.tsx`): la riga ha `alignItems: "stretch"` e l'ultima sezione di ogni colonna ha `flexGrow: 1` (colonne della stessa altezza); nuova prop `assign` per la colonna esplicita di ogni figlio — Home usa `[0,1,0,1,1]`: sinistra Ritelefonate + Azioni rapide, destra Appuntamenti + Scadenze + Statistiche (prima Statistiche finiva a sinistra per alternanza → destra corta con spazio bianco). Solo layout.
+- **Carica cartella** (`src/utils/folderPicker.ts`): `folderPickAvailable()` (Android app + browser desktop; iOS e browser mobile → solo file singoli), `pickFolderFiles({extRe})` (web `webkitdirectory`, Android `Directory.pickDirectoryAsync` SAF, ricorsivo max 12 livelli/150 file), `folderFileBase64/DataUrl/UploadSource`, `folderSummary`. Integrato in: Scheda contatto › File (`file-add-folder-btn`), Nuovo/Modifica contatto › allegati note generali ed email (`att-*-folder`), Nuovo appuntamento › allegati (`ap-media-folder`), Master Files › Carica file + Carica PDF fattura (`master-files-add-folder`, `master-files-add-bill-folder`), Bollette contatto › «Carica cartella di fatture» (`bills-bulk-upload-folder-btn`), Knowledge Base › sorgente «Cartella» (`kb-src-folder`), Nuovo corso › allegati (`course-add-folder`).
+
+
 ## V50.z478 (Giu 2026) — Bug web: stop microfono (dettatura singola) non immediato (~2 s)
 - Causa: in `AssistantChat.tsx` `stopRec()` su web chiamava solo `MediaRecorder.stop()`; i track del `getUserMedia` venivano chiusi solo nel callback `onstop` → `handleStop`, quindi Chrome teneva il mic (pallino rosso) aperto ~2 s. Fix: `stopRec` ferma subito `streamRef` dopo `rec.stop()` (l'ultimo chunk è già richiesto, nessuna perdita). Nessun'altra modifica.
 

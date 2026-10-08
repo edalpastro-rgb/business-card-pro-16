@@ -9,6 +9,7 @@ import * as Contacts from "expo-contacts";
 import { launchLibraryUniversal, launchCameraUniversal } from "@/src/utils/imagePickerCompat";
 import * as DocumentPicker from "expo-document-picker";
 import { pickCommonFile } from "@/src/utils/filePicker";
+import { folderPickAvailable, pickFolderFiles, folderFileBase64, folderSummary } from "@/src/utils/folderPicker";
 import { useAudioRecorder, AudioModule, RecordingPresets } from "expo-audio";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
@@ -740,6 +741,25 @@ function NewContactScreen() {
     } catch (e: any) {
       console.warn("pickFileFor err", e);
       notify("Impossibile caricare il file", e?.message || "");
+    }
+  };
+
+  // V50.z479 — «Carica cartella» (Android + desktop): tutti i documenti della cartella come allegati, stesso formato di pickFileFor
+  const pickFolderFor = async (target: "email" | "general") => {
+    try {
+      const files = await pickFolderFiles();
+      if (!files.length) return;
+      let ok = 0, skipped = 0;
+      for (const f of files) {
+        if (f.size > 15 * 1024 * 1024) { skipped++; continue; }
+        const b64 = await folderFileBase64(f);
+        if (base64ByteSize(b64) > 15 * 1024 * 1024) { skipped++; continue; }
+        addAttachmentFor(target, { local_id: `${Date.now()}_${ok}`, kind: "file", file_base64: b64, file_name: f.name, file_mime: f.mime, file_size: f.size });
+        ok++;
+      }
+      notify("Cartella importata", folderSummary(ok, skipped) + (skipped ? " (oltre 15 MB)" : ""));
+    } catch (e: any) {
+      notify("Accesso alla cartella non riuscito", e?.message || "Riprova oppure usa «Allega file».");
     }
   };
 
@@ -1859,6 +1879,7 @@ function NewContactScreen() {
                   onPhotoCam={() => pickPhotoFor("email", true)}
                   onPhotoGal={() => pickPhotoFor("email", false)}
                   onFile={() => pickFileFor("email")}
+                  onFolder={() => pickFolderFor("email")}
                   onRecStart={() => startRecFor("email")}
                   onRecStop={stopRecFor}
                 />
@@ -1873,6 +1894,7 @@ function NewContactScreen() {
                   onPhotoCam={() => pickPhotoFor("general", true)}
                   onPhotoGal={() => pickPhotoFor("general", false)}
                   onFile={() => pickFileFor("general")}
+                  onFolder={() => pickFolderFor("general")}
                   onRecStart={() => startRecFor("general")}
                   onRecStop={stopRecFor}
                 />
@@ -2419,7 +2441,7 @@ function NewContactScreen() {
   );
 }
 
-function NoteMediaBar({ target, recording, onPhotoCam, onPhotoGal, onFile, onRecStart, onRecStop }: any) {
+function NoteMediaBar({ target, recording, onPhotoCam, onPhotoGal, onFile, onFolder, onRecStart, onRecStop }: any) {
   // V29.ao — Riordinati per priorità (richiesta utente):
   //  1) Allega file  2) Importa foto  3) Scatta foto  4) Registra audio
   // Testo del bottone audio: "Registra audio" (removed obsolete "Non supportato").
@@ -2429,6 +2451,12 @@ function NoteMediaBar({ target, recording, onPhotoCam, onPhotoGal, onFile, onRec
         <Ionicons name="attach" size={14} color="#FFF" />
         <Text style={mediaBarStyles.txt}>Allega file</Text>
       </Pressable>
+      {onFolder && folderPickAvailable() ? (
+        <Pressable testID={`att-${target}-folder`} onPress={onFolder} style={[mediaBarStyles.btn, { backgroundColor: '#0E7490' }]}>
+          <Ionicons name="folder-open" size={14} color="#FFF" />
+          <Text style={mediaBarStyles.txt}>Carica cartella</Text>
+        </Pressable>
+      ) : null}
       <Pressable testID={`att-${target}-gallery`} onPress={onPhotoGal} style={[mediaBarStyles.btn, { backgroundColor: '#8B5CF6' }]}>
         <Ionicons name="image" size={14} color="#FFF" />
         <Text style={mediaBarStyles.txt}>Importa foto</Text>

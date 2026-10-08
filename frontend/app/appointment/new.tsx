@@ -21,6 +21,7 @@ import { WheelPickerModal, WheelItem } from "@/src/WheelPicker";
 import { ModuleErrorBoundary } from "@/src/shared";
 import { AppointmentShareActions } from "@/src/AppointmentShareActions";
 import { pickCommonFile } from "@/src/utils/filePicker";
+import { folderPickAvailable, pickFolderFiles, folderFileBase64, folderSummary } from "@/src/utils/folderPicker";
 import { useSafeBottom } from "@/src/hooks/useSafeBottom";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 import { AddressAutocomplete } from "@/src/AddressAutocomplete"; // V50.z469 — Google Places
@@ -276,6 +277,25 @@ function NewAppointmentScreen() {
     } catch (e: any) {
       console.warn("pickFile err", e);
       notify("Impossibile caricare il file", e?.message || "Riprova");
+    }
+  };
+
+  // V50.z479 — «Carica cartella» (Android + desktop): tutti i documenti della cartella come allegati
+  const pickFolder = async () => {
+    try {
+      const files = await pickFolderFiles();
+      if (!files.length) return;
+      let ok = 0, skipped = 0;
+      for (const f of files) {
+        if (f.size > 15 * 1024 * 1024) { skipped++; continue; }
+        const b64 = await folderFileBase64(f);
+        if (base64ByteSize(b64) > 15 * 1024 * 1024) { skipped++; continue; }
+        setAttachments((p) => [...p, { id: `${Date.now()}_${p.length}`, kind: "file", file_base64: b64, file_name: f.name, file_mime: f.mime, file_size: f.size }]);
+        ok++;
+      }
+      notify("Cartella importata", folderSummary(ok, skipped) + (skipped ? " (oltre 15 MB)" : ""));
+    } catch (e: any) {
+      notify("Accesso alla cartella non riuscito", e?.message || "Riprova oppure usa «File».");
     }
   };
 
@@ -1065,6 +1085,12 @@ function NewAppointmentScreen() {
                 <Ionicons name="attach" size={16} color="#FFF" />
                 <Text style={styles.mediaBtnTxt}>File</Text>
               </Pressable>
+              {folderPickAvailable() ? (
+                <Pressable testID="ap-media-folder" onPress={pickFolder} style={[styles.mediaBtn, { backgroundColor: '#0E7490' }]}>
+                  <Ionicons name="folder-open" size={16} color="#FFF" />
+                  <Text style={styles.mediaBtnTxt}>Cartella</Text>
+                </Pressable>
+              ) : null}
             </View>
             {attachments.length > 0 && (
               <View style={styles.attRow}>
