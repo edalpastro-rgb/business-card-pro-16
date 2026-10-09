@@ -580,3 +580,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z488 — Link navigazione con coordinate precise: POST /geo/resolve-destination (Google Places searchText → lat/lon, fallback Geocoding/OSM, cache) + GET /geo/google-apis-status; frontend src/utils/navLinks.ts openNavigation (GPS letto al tap, waze://?ll=, maps/dir?origin=&destination=) usato da ContactActionChips, contact/[id], appointment/[id], NavChooser. Test 13/13."
+
+  - agent: "main"
+    message: "V50.z489 — Web: DesktopSidebar con blocco Interfaccia Master (Agenda/Contatti/Contratti/Team) + Menu completo (voci DrawerMenu per categoria) sotto Profilo; EdgePanel (Azioni rapide) montato anche su desktop con overflow:hidden sulla root. Verificato via screenshot a 1280px: nessun overflow orizzontale, sidebar visibile su /crt, pannello destro apribile."

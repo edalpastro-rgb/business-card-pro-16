@@ -26,7 +26,7 @@ const AxonDriveCarBadge = () => <Ionicons name="car-sport" size={16} color="#7C3
 
 type IconName = MenuIconName;
 
-type DrawerItem = {
+export type DrawerItem = {
   label: string;
   icon: IconName;
   href: string;
@@ -35,7 +35,7 @@ type DrawerItem = {
   action?: () => void; // V50.z334 — azione al posto della navigazione (es. apre la chat Axon)
 };
 
-const ITEMS: DrawerItem[] = [
+export const ITEMS: DrawerItem[] = [
   // CRM Core (blu #0EA5E9)
   { label: "Cruscotto",         icon: "speedometer-outline",  href: "/cruscotto",          categoryKey: "crm" },
   { label: "Contatti",          icon: "people-outline",       href: "/contatti",           categoryKey: "crm" },
@@ -43,6 +43,7 @@ const ITEMS: DrawerItem[] = [
   { label: "Appuntamenti",      icon: "calendar-outline",     href: "/calendario",         categoryKey: "crm" },
   { label: "Nuovo Appuntamento",icon: "add-circle-outline",   href: "/appointment/new",    categoryKey: "crm" },
   { label: "Scadenze",          icon: "hourglass-outline",    href: "/deadlines",          categoryKey: "crm" },
+  { label: "Contratti",         icon: "document-text-outline", href: "/crt",               categoryKey: "crm" }, // V50.z489 — anche nella sidebar web
   // AI & Axon (viola #7C3AED)
   { label: "Axon Hub",          icon: "sparkles",             href: "/axon-hub",           categoryKey: "axon" },
   { label: "Addestramento wake-word Axon", icon: "mic-circle-outline", href: "/wake-word-training", categoryKey: "axon" }, // V50.z410
@@ -74,6 +75,7 @@ const ITEMS: DrawerItem[] = [
   { label: "Spazio Personale",    icon: LOCK_KEY_ICON,          href: "/spazio-personale",    categoryKey: "docs" }, // V50.z205 — Blocco 8 Fase 4: Sfera Home · V50.z237 lucchetto+chiave (area protetta da PIN)
   { label: "Biglietto da visita", icon: "card-outline",         href: "/business-card",       categoryKey: "docs" },
   // Team & Insights (giallo #EAB308)
+  { label: "Team",              icon: "people-circle-outline", href: "/team",              categoryKey: "team" }, // V50.z489
   { label: "Team Insights",     icon: "analytics-outline",    href: "/team-insights",      categoryKey: "team" },
   { label: "Invita Collaboratore", icon: "person-add-outline",href: "/invite-collaborator",categoryKey: "team" },
   { label: "Statistiche",       icon: "bar-chart-outline",    href: "/(tabs)/report",      categoryKey: "team" }, // V50.z141 — ex tab "Report"

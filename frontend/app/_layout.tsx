@@ -230,7 +230,7 @@ function StackWithCallBar() {
   const { isDesktop } = useResponsive();
   const showSidebar = isDesktop && !!user && !inTour && !desktopSidebarHidden(pathname);
   return (
-    <View style={{ flex: 1, backgroundColor: ACTIVE.bg }}>
+    <View style={[{ flex: 1, backgroundColor: ACTIVE.bg }, Platform.OS === "web" ? { overflow: "hidden" as const } : null]}>{/* V50.z489 — web: niente overflow orizzontale dal pannello laterale destro chiuso (translateX fuori schermo) */}
       <StatusBar style={ACTIVE.statusBar} />
       {/* V50.z279 — Banner offline / sincronizzazione (sopra lo Stack, tocca → /offline-sync) */}
       <OfflineBanner userId={user?.user_id} />
@@ -275,7 +275,7 @@ function StackWithCallBar() {
       {user && !inTour ? <PersistentBottomNav /> : null}
       {user && !inTour ? <OnboardingWizard /> : null}
       {/* V50.z15 — Edge Panel Samsung-style: linguetta a destra, shortcut personalizzabili */}
-      {user && !inTour && !isDesktop ? <EdgePanel /> : null}{/* V50.z409 — desktop: niente edge panel (causava overflow orizzontale) */}
+      {user && !inTour ? <EdgePanel /> : null}{/* V50.z489 — anche su web desktop (come sul telefono): l'overflow orizzontale è risolto con overflow:hidden sulla root */}
     </View>
   );
 }
