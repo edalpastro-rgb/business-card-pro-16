@@ -16,8 +16,8 @@ export function playActivationEffect(p: ActivationPayload) {
 export type FindPhoneRingMode = "ring" | "vibrate";
 /** LATO BERSAGLIO (V50.z492): squillo dedicato (`ring`) o vibrazione continua (`vibrate`) finché non si tocca lo schermo o si dice «stop».
  *  Il dispositivo che pronuncia il comando NON chiama più questa funzione: usa `triggerFindPhone` (findPhoneClient) che fa squillare l'altro dispositivo via VPS. */
-export function startFindPhone(name?: string, mode: FindPhoneRingMode = "ring") {
-  DeviceEventEmitter.emit(AXON_FIND_PHONE_EVENT, { name: name || "Axon", mode });
+export function startFindPhone(name?: string, mode: FindPhoneRingMode = "ring", cmdId?: string) {
+  DeviceEventEmitter.emit(AXON_FIND_PHONE_EVENT, { name: name || "Axon", mode, cmdId });
 }
 export function stopFindPhone() {
   DeviceEventEmitter.emit(AXON_FIND_PHONE_STOP_EVENT, {});

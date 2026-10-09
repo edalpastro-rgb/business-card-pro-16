@@ -24,6 +24,7 @@ import { AxonInitiativeCard } from "@/src/AxonInitiativeCard"; // V50.z419 // V5
 import { useResponsive, SIDEBAR_W, CONTENT_MAX_W } from "@/src/hooks/useResponsive";
 import { invalidateTableBrandHeader } from "@/src/ChatTableExport";
 import { AxonMemoryEntryCard } from "@/src/AxonMemoryEntryCard"; // V50.z192 — Profilo → Memoria AxonOS
+import { FindPhoneSoundCard } from "@/src/findPhone/FindPhoneSoundCard"; // V50.z493
 import { AppInfoCard } from "@/src/AppInfoCard"; // V50.z208 — Piano attivo + versione APK
 import { PromoRedeemCard } from "@/src/PromoCodeField"; // V50.z320 — codice promozionale
 import { ReferralCard } from "@/src/ReferralCard"; // V50.z322 — Invita un amico
@@ -587,6 +588,8 @@ function ImpostazioniScreen() {
         {sec === "axon" && (<>
         {/* V50.z192 — Profilo → Memoria AxonOS: cosa sa Axon di me */}
         <AxonMemoryEntryCard />
+        {/* V50.z493 — suono dello squillo «Trova il mio telefono» (preset o registrazione) */}
+        <FindPhoneSoundCard />
         </>)}
         {/* V50.z249 — vecchia card profilo rimossa: ora nella HUB in cima */}
 

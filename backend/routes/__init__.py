@@ -141,6 +141,7 @@ MODULES = [
     "contact_import_folder.py",  # V50.z424 — Import cliente da cartella documenti (visura → anagrafica, allegati compressi, cartelle preservate)
     "contact_import_dedupe.py",  # V50.z491 — anteprima duplicati + unione (cartella/Drive/CSV), contact_ids nella risposta execute (DOPO contact_import_folder e 07_contacts)
     "axon_find_phone.py",  # V50.z492 — «Trova il mio telefono» via push: gerarchia dispositivi (pc/tablet→telefono, telefono→tablet), coda comandi, ack/stop (dopo auth_devices e push)
+    "axon_find_phone_extras.py",  # V50.z493 — suono «trova il telefono» personalizzabile + foto di chi ferma lo squillo
     "axon_landing_ref.py",
     "user_prefs_sync.py",  # V50.z428 — GET/PUT /me/prefs: preferenze utente (PIN, tema, widget sidebar…) legate all account
     "axon_register_security.py",  # V50.z434 — «Fort Knox» registrazione (rate limit, honeypot, PoW, Turnstile, email usa-e-getta) + Email di benvenuto configurabile (Master)

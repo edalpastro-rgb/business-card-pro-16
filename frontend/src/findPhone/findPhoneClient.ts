@@ -4,6 +4,23 @@
 import { api } from "@/src/api";
 import { getDeviceInfo } from "@/src/device";
 import { stopFindPhone } from "@/src/activation/events";
+import { DeviceEventEmitter } from "react-native";
+
+export const AXON_FINDER_PHOTO_EVENT = "axon:finder-photo"; // V50.z493
+let photoWatch: any = null;
+/** Dopo il trigger: per 3 minuti controlla se il bersaglio ha inviato la foto di chi ha fermato lo squillo. */
+function watchFinderPhoto(cmdId: string, targetName: string) {
+  if (photoWatch) clearInterval(photoWatch);
+  const started = Date.now();
+  photoWatch = setInterval(async () => {
+    if (Date.now() - started > 3 * 60 * 1000) { clearInterval(photoWatch); photoWatch = null; return; }
+    try {
+      const c = await api<{ finder_photo?: string; finder_photo_at?: string; status: string }>(`/axon/find-phone/${cmdId}`);
+      if (c.finder_photo) { clearInterval(photoWatch); photoWatch = null; DeviceEventEmitter.emit(AXON_FINDER_PHOTO_EVENT, { b64: c.finder_photo, target: targetName, at: c.finder_photo_at || new Date().toISOString() }); }
+      else if (c.status === "expired") { clearInterval(photoWatch); photoWatch = null; }
+    } catch { /* offline */ }
+  }, 5000);
+}
 
 export type FindPhoneMode = "ring" | "vibrate";
 export type FindPhoneTriggerResult = { cmd_id: string; mode: FindPhoneMode; push_sent: boolean; target: { device_id: string; type: string; name: string }; message: string };
@@ -13,6 +30,7 @@ export async function triggerFindPhone(text: string, opts: { sourceType?: "phone
   try {
     const dev = await getDeviceInfo();
     const r = await api<FindPhoneTriggerResult>("/axon/find-phone/trigger", { method: "POST", body: { source_device_id: dev.device_id, source_type: opts.sourceType || dev.type, mode: opts.mode, text } });
+    watchFinderPhoto(r.cmd_id, r.target?.name || "dispositivo");
     return { ok: true, message: r.message + (r.push_sent ? "" : " (notifica push non configurata su questo server: il dispositivo squilla appena l'app è aperta)"), result: r };
   } catch (e: any) {
     return { ok: false, message: `⚠️ ${e?.message || "Non riesco a contattare l'altro dispositivo."}` };

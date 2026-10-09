@@ -592,3 +592,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z492 — axon_find_phone.py (trigger con gerarchia dispositivi, coda pending, ack, stop, status) + send_push relay con target_device_id; frontend findPhoneClient/FindPhoneReceiver/ActivationOverlay mode ring|vibrate, canale find_phone + find_phone.wav. Test 4/4; web chat verificata (nessun overlay locale, trigger+stop inviati). Push reale richiede build nativa + EMERGENT_PUSH_KEY sul VPS."
+
+  - agent: "main"
+    message: "V50.z493 — landing pubblica senza chrome da loggati (inPublicPage in _layout, desktopSidebarHidden); box prodotto paritetici; axon_find_phone_extras.py (GET/PUT /axon/find-phone-sound, POST finder-photo) + FindPhoneSoundCard, findPhoneSound presets, CameraView frontale nell'overlay, modale foto lato sorgente. Test 6/6 + screenshot."

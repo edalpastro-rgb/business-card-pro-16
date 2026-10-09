@@ -95,3 +95,31 @@ def test_viola_route_returns_ring_mode():
         return  # endpoint con altro nome: coperto dal test backend diretto
     j = r.json()
     assert j.get("mode") == "find_phone" and j.get("ring_mode") == "vibrate", j
+
+
+# ---- V50.z493 — suono personalizzabile + foto di chi ferma lo squillo --------------------------------------------
+def test_sound_setting_preset_and_custom():
+    h = _ensure_devices()
+    r = requests.put(f"{BASE}/axon/find-phone-sound", json={"kind": "preset", "preset": "siren"}, headers=h, timeout=20)
+    assert r.status_code == 200 and r.json()["sound"]["preset"] == "siren"
+    assert requests.get(f"{BASE}/axon/find-phone-sound", headers=h, timeout=20).json()["sound"]["preset"] == "siren"
+    assert requests.put(f"{BASE}/axon/find-phone-sound", json={"kind": "preset", "preset": "nope"}, headers=h, timeout=20).status_code == 400
+    assert requests.put(f"{BASE}/axon/find-phone-sound", json={"kind": "custom", "b64": "x"}, headers=h, timeout=20).status_code == 400
+    r = requests.put(f"{BASE}/axon/find-phone-sound", json={"kind": "custom", "mime": "audio/m4a", "b64": "A" * 2000}, headers=h, timeout=20)
+    assert r.status_code == 200 and r.json()["sound"]["kind"] == "custom"
+    g = requests.get(f"{BASE}/axon/find-phone-sound", headers=h, timeout=20).json()["sound"]
+    assert g["kind"] == "custom" and len(g["b64"]) == 2000
+    requests.put(f"{BASE}/axon/find-phone-sound", json={"kind": "preset", "preset": "axon"}, headers=h, timeout=20)
+
+
+def test_finder_photo_saved_on_command_and_visible_to_source():
+    h = _ensure_devices()
+    r = requests.post(f"{BASE}/axon/find-phone/trigger", json={"source_device_id": PC, "source_type": "pc", "text": "dove sei"}, headers=h, timeout=20).json()
+    cmd_id = r["cmd_id"]
+    assert requests.post(f"{BASE}/axon/find-phone/{cmd_id}/finder-photo", json={"image_base64": "short"}, headers=h, timeout=20).status_code == 400
+    fake = "data:image/jpeg;base64," + "B" * 1200
+    a = requests.post(f"{BASE}/axon/find-phone/{cmd_id}/finder-photo", json={"image_base64": fake, "device_id": PHONE}, headers=h, timeout=20)
+    assert a.status_code == 200
+    c = requests.get(f"{BASE}/axon/find-phone/{cmd_id}", headers=h, timeout=20).json()
+    assert c["finder_photo"] == "B" * 1200 and c["finder_device_id"] == PHONE and c.get("finder_photo_at")
+    requests.post(f"{BASE}/axon/find-phone/stop", json={"source_device_id": PC}, headers=h, timeout=20)

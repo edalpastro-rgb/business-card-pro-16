@@ -5,8 +5,10 @@
 // 2) Rete di sicurezza: polling `GET /axon/find-phone/pending` ogni 12 s quando l'app è attiva e al rientro in foreground.
 // 3) Mentre squilla: ogni 3 s legge lo stato del comando → «stop» detto da un altro dispositivo lo ferma.
 // Il dispositivo sorgente non è mai bersaglio (lo decide il backend), quindi non squilla mai se stesso.
-import { useEffect, useRef } from "react";
-import { AppState, DeviceEventEmitter, Platform } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { AppState, DeviceEventEmitter, Platform, Modal, View, Text, Image, Pressable, StyleSheet } from "react-native";
+import { HT } from "@/src/homeTheme";
+import { AXON_FINDER_PHOTO_EVENT } from "@/src/findPhone/findPhoneClient";
 import { api } from "@/src/api";
 import { getDeviceInfo } from "@/src/device";
 import { startFindPhone, stopFindPhone, AXON_FIND_PHONE_STOP_EVENT } from "@/src/activation/events";
@@ -30,7 +32,7 @@ export function FindPhoneReceiver() {
     const begin = (cmd: Cmd) => {
       if (!alive || activeCmd.current === cmd.cmd_id) return;
       activeCmd.current = cmd.cmd_id;
-      startFindPhone(cmd.assistant_name || "Axon", cmd.mode === "vibrate" ? "vibrate" : "ring");
+      startFindPhone(cmd.assistant_name || "Axon", cmd.mode === "vibrate" ? "vibrate" : "ring", cmd.cmd_id);
       void ack(cmd.cmd_id, "ringing");
       if (statusTimer) clearInterval(statusTimer);
       statusTimer = setInterval(async () => {
@@ -91,5 +93,33 @@ export function FindPhoneReceiver() {
     };
   }, [user]);
 
-  return null;
+  // V50.z493 — lato SORGENTE: foto di chi ha fermato lo squillo (emessa da findPhoneClient dopo il trigger)
+  const [photo, setPhoto] = useState<{ b64: string; target: string; at: string } | null>(null);
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener(AXON_FINDER_PHOTO_EVENT, (p: { b64: string; target: string; at: string }) => setPhoto(p));
+    return () => sub.remove();
+  }, []);
+  if (!photo) return null;
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={() => setPhoto(null)}>
+      <View style={fp.backdrop}>
+        <View style={fp.card} testID="finder-photo-modal">
+          <Text style={fp.title}>📸 Qualcuno ha fermato lo squillo</Text>
+          <Text style={fp.sub}>{photo.target} · {new Date(photo.at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}</Text>
+          <Image source={{ uri: `data:image/jpeg;base64,${photo.b64}` }} style={fp.img} resizeMode="cover" />
+          <Pressable onPress={() => setPhoto(null)} style={fp.btn} testID="finder-photo-close"><Text style={fp.btnTxt}>Chiudi</Text></Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
 }
+
+const fp = StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center", padding: 24 },
+  card: { width: "100%", maxWidth: 380, backgroundColor: HT.card, borderRadius: 18, padding: 16, gap: 10 },
+  title: { color: HT.text, fontWeight: "900", fontSize: 17 },
+  sub: { color: HT.muted, fontSize: 12.5 },
+  img: { width: "100%", aspectRatio: 3 / 4, borderRadius: 12, backgroundColor: HT.border },
+  btn: { minHeight: 46, borderRadius: 12, backgroundColor: HT.brand, alignItems: "center", justifyContent: "center" },
+  btnTxt: { color: "#FFF", fontWeight: "800" },
+});

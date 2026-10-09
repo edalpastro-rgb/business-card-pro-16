@@ -927,6 +927,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z493 | Giu 2026 | **/landing sempre pubblica** (niente interfaccia app sovrapposta da loggati) · **box Axon Lite / AdvisorOS paritetici** (stessa struttura, testi nuovi) · **suono «Trova il mio telefono» personalizzabile** (4 preset o registrazione, Impostazioni → AI & Axon) · **foto frontale silenziosa di chi ferma lo squillo**, mostrata al dispositivo che ha chiesto. |
 | V50.z492 | Giu 2026 | **Trova il mio telefono via VPS**: il dispositivo da cui parli non squilla mai se stesso; push reale all'altro dispositivo (PC/tablet/CarPlay → telefono, telefono → tablet) con squillo dedicato o vibrazione continua («fallo vibrare») finché non tocchi lo schermo o dici «stop» da qualsiasi dispositivo. |
 | V50.z491 | Giu 2026 | **Import clienti**: anteprima duplicati (P.IVA, CF, email, telefono, ragione sociale, nome) con «Unisci alla scheda esistente» / «Salta» / «Crea comunque» per cartella, Drive e CSV/Excel · dopo l'import si apre subito la scheda del cliente · Nuovo contatto: icona cartella su «Importa», sottotitolo su «Documento», più spazio sotto il banner rubrica. |
 | V50.z490 | Giu 2026 | **Nuovo contatto → «Importa»**: bottone nella fila in cima che apre lo stesso flusso «Importazione clienti» della pagina Contatti (cartelle/sottocartelle, file, CSV/Excel, Google Drive). |

@@ -188,27 +188,29 @@ export default function LandingScreen() {
             <Text style={[s.title, compact && s.titleCompact, { textAlign: "center" }]}>Axon non si replica.{"\n"}<Text style={s.titleAccent}>Si porta con sé.</Text></Text>
             <Text style={[s.lead, { textAlign: "center" }]}>Mille app senza controllo valgono zero: mille impostazioni, mille aggiornamenti, tempo perso. Axon è un cervello che ti conosce, ricorda tutto e agisce per te. AdvisorOS è la casa dove lavora. AxonOS Lite è la porta aperta a tutti.</Text>
           </Reveal>
-          <View style={[s.compareRow, compact && s.compareCol, { marginTop: 28 }]}>
-            <Reveal delay={100} style={compact ? { width: "100%" } : { flex: 1 }}>
-              <Pressable onPress={openLite} style={({ pressed }) => [s.card, s.cardOn, pressed && s.pressed]} testID="landing-lite-link">
-                <View style={s.cardHead}><View style={[s.badge, s.badgeOn]}><LiveDot /><Text style={[s.badgeTxt, { color: LP.axon }]}>AXONOS LITE</Text></View><Text style={s.cardTitle}>Axon Lite. L&apos;assistente per tutti, senza compromessi.</Text></View>
-                <Text style={s.liTxt}>Lo installi, impara a conoscerti, poi tu chiedi e lui fa.</Text>
-                <View style={s.whoRow}>
-                  {[["school-outline", "Studenti"], ["home-outline", "Casalinghe"], ["briefcase-outline", "Professionisti"], ["bicycle-outline", "Sportivi"], ["book-outline", "Insegnanti"]].map(([ic, lb]) => (
-                    <View key={lb} style={s.whoChip}><Ionicons name={ic as any} size={14} color={LP.axon} /><Text style={s.whoTxt}>{lb}</Text></View>
-                  ))}
-                </View>
-                <Text style={[s.liTxt, { color: LP.onSurface2 }]}>Per chi ha una vita moderna, ricca di impegni, ricorrenze e cose importanti da non dimenticare.</Text>
-                <View style={[s.li, { alignItems: "center", marginTop: 6 }]}><Ionicons name="arrow-forward-circle" size={22} color={LP.axon} /><Text style={[s.liTxt, { color: LP.axon, fontWeight: "800" }]}>Scopri e prova AxonOS Lite</Text></View>
-              </Pressable>
-            </Reveal>
-            <Reveal delay={250} style={compact ? { width: "100%" } : { flex: 1 }}>
-              <Pressable onPress={goLogin} style={({ pressed }) => [s.card, pressed && s.pressed]} testID="landing-advisor-link">
-                <View style={s.cardHead}><View style={s.badge}><Text style={[s.badgeTxt, { color: LP.brand }]}>ADVISOROS</Text></View><Text style={s.cardTitle}>I clienti non si gestiscono, si seguono.</Text></View>
-                <Text style={s.liTxt}>Per professionisti di tutti i livelli e attività dove sono coinvolti team e più organizzazioni.</Text>
-                <View style={[s.li, { alignItems: "center", marginTop: 6 }]}><Ionicons name="arrow-forward-circle" size={22} color={LP.brand} /><Text style={[s.liTxt, { color: LP.brand, fontWeight: "800" }]}>Entra in AdvisorOS</Text></View>
-              </Pressable>
-            </Reveal>
+          {/* V50.z493 — due prodotti, stesso peso visivo: stesso box, stessa struttura, stesse dimensioni; cambia solo l'accento */}
+          <View style={[s.compareRow, compact && s.compareCol, { marginTop: 28, alignItems: "stretch" }]}>
+            {([
+              { key: "lite", accent: LP.axon, tint: LP.axonTint, line: LP.axonLine, badge: "AXONOS LITE", icon: "diamond" as const, title: "Axon Lite. L'assistente per tutti.", sub: "Per chi ha una vita moderna e vuole un assistente personale che ricorda, organizza e agisce al posto tuo.", chips: [["school-outline", "Studenti"], ["home-outline", "Casalinghe"], ["briefcase-outline", "Professionisti"], ["bicycle-outline", "Sportivi"], ["book-outline", "Insegnanti"]], cta: "Scopri e prova AxonOS Lite", onPress: openLite, testID: "landing-lite-link" },
+              { key: "advisor", accent: LP.brand, tint: "rgba(234,88,12,0.12)", line: "rgba(234,88,12,0.45)", badge: "ADVISOROS", icon: "business" as const, title: "AdvisorOS. Il CRM che pensa con te.", sub: "Per professionisti, consulenti e team che gestiscono clienti. Un CRM intelligente con Axon integrato: non solo organizza, ragiona con te.", chips: [["people-outline", "Consulenti"], ["briefcase-outline", "Professionisti"], ["git-network-outline", "Team"], ["document-text-outline", "Contratti"], ["calendar-outline", "Agenda"]], cta: "Entra in AdvisorOS", onPress: goLogin, testID: "landing-advisor-link" },
+            ]).map((b, i) => (
+              <Reveal key={b.key} delay={100 + i * 150} style={compact ? { width: "100%" } : { flex: 1 }}>
+                <Pressable onPress={b.onPress} style={({ pressed }) => [s.card, s.productCard, { borderColor: b.line, shadowColor: b.accent }, pressed && s.pressed]} testID={b.testID} accessibilityRole="button" accessibilityLabel={b.cta}>
+                  <View style={s.cardHead}>
+                    <View style={[s.badge, { borderColor: b.line, backgroundColor: b.tint }]}>{b.key === "lite" ? <LiveDot /> : <Ionicons name={b.icon} size={12} color={b.accent} />}<Text style={[s.badgeTxt, { color: b.accent }]}>{b.badge}</Text></View>
+                    <Text style={[s.cardTitle, s.productTitle]}>{b.title}</Text>
+                  </View>
+                  <Text style={[s.liTxt, s.productSub]}>{b.sub}</Text>
+                  <View style={s.whoRow}>
+                    {b.chips.map(([ic, lb]) => (
+                      <View key={lb} style={[s.whoChip, { borderColor: b.line, backgroundColor: b.tint }]}><Ionicons name={ic as any} size={14} color={b.accent} /><Text style={[s.whoTxt, { color: b.accent }]}>{lb}</Text></View>
+                    ))}
+                  </View>
+                  <View style={{ flex: 1 }} />
+                  <View style={[s.productCta, { backgroundColor: b.accent }]}><Text style={s.productCtaTxt}>{b.cta}</Text><Ionicons name="arrow-forward" size={18} color="#FFF" /></View>
+                </Pressable>
+              </Reveal>
+            ))}
           </View>
         </View>
       </View>
@@ -490,6 +492,11 @@ const s = StyleSheet.create({
   cardOff: { opacity: 0.9 },
   cardOn: { borderColor: LP.axonLine, backgroundColor: LP.surface3, shadowColor: LP.axon, shadowOpacity: 0.25, shadowRadius: 30, shadowOffset: { width: 0, height: 0 } },
   cardHead: { gap: 8 },
+  productCard: { flex: 1, minHeight: 360, backgroundColor: LP.surface3, borderWidth: 1, shadowOpacity: 0.22, shadowRadius: 30, shadowOffset: { width: 0, height: 0 } }, // V50.z493 — stesso box per i due prodotti
+  productTitle: { fontSize: 24, minHeight: 64 },
+  productSub: { minHeight: 60 },
+  productCta: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 999, minHeight: 50, paddingHorizontal: 18, marginTop: 6 },
+  productCtaTxt: { color: "#FFF", fontWeight: "900", fontSize: 15 },
   badge: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, borderWidth: 1 },
   badgeOff: { borderColor: LP.errorText, backgroundColor: LP.offRed },
   badgeOn: { borderColor: LP.axonLine, backgroundColor: LP.axonTint },

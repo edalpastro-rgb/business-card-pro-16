@@ -9,7 +9,9 @@ import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { playAudioBase64 } from "@/src/utils/audioPlayback";
-import { findPhoneRingBase64 } from "@/src/findPhone/findPhoneClient"; // V50.z492 — squillo dedicato
+import { ringForPlayback } from "@/src/findPhone/findPhoneSound"; // V50.z493 — suono scelto in Impostazioni (preset o registrazione)
+import { CameraView } from "expo-camera"; // V50.z493 — foto frontale silenziosa di chi ferma lo squillo
+import { getDeviceInfo } from "@/src/device";
 import { theme } from "@/src/theme";
 import { AXON_ACTIVATION_EVENT, AXON_ACTIVATION_HIDE_EVENT, AXON_FIND_PHONE_EVENT, AXON_FIND_PHONE_STOP_EVENT, stopFindPhone, type ActivationPayload } from "./events";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
@@ -132,7 +134,9 @@ function Core({ pulseMs = 900, shake = false }: { pulseMs?: number; shake?: bool
 export function ActivationOverlay({ mirror = false }: { mirror?: boolean }) {
   const { width, height } = useWindowDimensions();
   const [wave, setWave] = useState<ActivationPayload | null>(null);
-  const [find, setFind] = useState<{ name: string; mode?: "ring" | "vibrate" } | null>(null);
+  const [find, setFind] = useState<{ name: string; mode?: "ring" | "vibrate"; cmdId?: string } | null>(null);
+  const camRef = useRef<any>(null);
+  const [camOk, setCamOk] = useState(false); // permesso fotocamera già concesso → CameraView invisibile pronta allo scatto
   const [phase, setPhase] = useState(0); // V50.z335 — 0 «sta prendendo vita» → 1 «connessione stabilita» → 2 «pronto»
   const [pulse, setPulse] = useState(false); // V50.z337 — onde + vibrazione partono insieme dopo BUZZ_DELAY_MS
   const findRef = useRef(false);
@@ -163,20 +167,36 @@ export function ActivationOverlay({ mirror = false }: { mirror?: boolean }) {
   }, [mirror]);
 
   const stopFind = useCallback(() => {
+    // V50.z493 — chi tocca lo schermo per fermare lo squillo viene fotografato (frontale, silenzioso) e la foto arriva al dispositivo sorgente
+    const cmdId = find?.cmdId;
+    const cam = camRef.current;
+    if (cmdId && cam && camOk && Platform.OS !== "web") {
+      (async () => {
+        try {
+          const pic = await cam.takePictureAsync({ quality: 0.25, base64: true, skipProcessing: true, shutterSound: false });
+          if (pic?.base64) await api(`/axon/find-phone/${cmdId}/finder-photo`, { method: "POST", body: { image_base64: pic.base64, device_id: (await getDeviceInfo()).device_id } });
+        } catch (e) { console.log("[find-phone] foto non scattata", e); }
+      })();
+    }
     findRef.current = false;
     if (findTimer.current) { clearInterval(findTimer.current); findTimer.current = null; }
     Vibration.cancel();
     setFind(null);
-  }, []);
+    setCamOk(false);
+  }, [find?.cmdId, camOk]);
 
   // TROVA IL MIO TELEFONO: pattern ritmico + suono identitario in loop
   useEffect(() => {
-    const start = DeviceEventEmitter.addListener(AXON_FIND_PHONE_EVENT, (p: { name?: string; mode?: "ring" | "vibrate" }) => {
+    const start = DeviceEventEmitter.addListener(AXON_FIND_PHONE_EVENT, (p: { name?: string; mode?: "ring" | "vibrate"; cmdId?: string }) => {
       if (findRef.current) return;
       findRef.current = true;
       const mode = p?.mode === "vibrate" ? "vibrate" : "ring";
-      setFind({ name: p?.name || "Axon", mode });
+      setFind({ name: p?.name || "Axon", mode, cmdId: p?.cmdId });
       if (mirror) return;
+      // V50.z493 — foto di chi lo trova: solo se il permesso fotocamera è GIÀ concesso (nessun popup durante lo squillo), solo nativo
+      if (Platform.OS !== "web" && p?.cmdId) {
+        import("expo-camera").then(({ Camera }) => Camera.getCameraPermissionsAsync()).then((perm) => setCamOk(!!perm?.granted)).catch(() => setCamOk(false));
+      }
       // V50.z492 — «vibrate»: vibrazione CONTINUA e lunga (non un pattern breve) finché non si ferma
       if (mode === "vibrate") {
         if (Platform.OS === "android") Vibration.vibrate([0, 1500, 150], true);
@@ -188,10 +208,10 @@ export function ActivationOverlay({ mirror = false }: { mirror?: boolean }) {
       }
       // «ring»: squillo DEDICATO (motivo sintetico find_phone, non la suoneria di chiamata) in loop + vibrazione leggera di accompagnamento
       const loop = async () => {
-        const ring = findPhoneRingBase64();
+        const ring = await ringForPlayback(); // V50.z493 — preset scelto o registrazione personale
         while (findRef.current) {
           if (Platform.OS === "android") Vibration.vibrate([0, 200, 100, 200], false);
-          await new Promise<void>((res) => { playAudioBase64(ring, "audio/wav", () => res()).catch(() => res()); });
+          await new Promise<void>((res) => { playAudioBase64(ring.b64, ring.mime, () => res()).catch(() => res()); });
           if (!findRef.current) break;
           await new Promise((r) => setTimeout(r, 250));
         }
@@ -206,6 +226,7 @@ export function ActivationOverlay({ mirror = false }: { mirror?: boolean }) {
 
   return (
     <Animated.View entering={FadeIn.duration(250)} exiting={FadeOut.duration(400)} style={styles.full} pointerEvents="auto" testID={mirror ? (wave ? "activation-overlay-chat" : "find-phone-overlay-chat") : (wave ? "activation-overlay" : "find-phone-overlay")}>
+      {find && camOk && !mirror && Platform.OS !== "web" ? <CameraView ref={camRef} facing="front" mute style={{ position: "absolute", width: 2, height: 2, opacity: 0.01, top: 0, left: 0 }} /> : null}
       <Pressable style={StyleSheet.absoluteFill} onPress={find ? () => { stopFind(); stopFindPhone(); } : undefined} accessibilityRole="button" accessibilityLabel={find ? "Trovato: ferma" : "Attivazione"}>
         <LinearGradient colors={["#0B1226", "#1E1B4B", "#0B1226"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
         <View style={styles.center}>
