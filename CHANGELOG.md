@@ -203,6 +203,8 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 
 
 ## 6. Timer, Sveglie, Promemoria (Axon Alarms)
+- **V50.z498** — Cestino funzionante anche su web (`confirmAsync` al posto di `Alert.alert` con bottoni); nessun timer creato da domande o dallo
+  stress test (`no_cache`); campo `source` su ogni allarme + log della creazione da chat.
 - CRUD `GET/POST/PUT/DELETE /api/axon/alarms` (kind timer | alarm | reminder), suoni custom base64 + preset, volume 0-100,
   vibrazione (V50.z8, V50.z78). Schermata `/axon-alarms` con toggle 12h/24h, TimePicker fix, anteprima suono (V50.z10, z13).
 - Notifiche locali via `alarmNotifs.ts` (canale Android `axon-alarms`), tap notifica → apre la schermata; widget Home prossima

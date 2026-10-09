@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-09 | D2026.10.09-1648 | Timer & Sveglie: cestino funzionante su web; nessun timer creato da domande o dallo stress test notturno (timer fantasma 1 min); campo source su ogni allarme |
 | 2026-10-09 | D2026.10.09-1625 | Axon Drive: layout fisso a tutto schermo, due bottoni grandi in basso (niente mic), display centrale con mappa embedded, foto cliente, elenchi ritelefonate/appuntamenti, nota |
 | 2026-10-09 | D2026.10.09-1603 | Allarme prioritario eventi critici: banner rosso in Home (finché non chiuso), push urgente non silenziabile, Axon avvisa a voce alla prima domanda successiva; collegato allo stress test notturno (soglia/calo) e al riavvio del watchdog |
 | 2026-10-09 | D2026.10.09-1535 | Axon Drive: richiamata/nota/contatto vocali salvati come dal form manuale (prima invisibili) + migrazione richiamate legacy; nuovi intent ritelefonate del giorno, ultima nota, portami da <cliente> (scelta indirizzo, Maps/Waze); wake word «Axon, modalità drive» |

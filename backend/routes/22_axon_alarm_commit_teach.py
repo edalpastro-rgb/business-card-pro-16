@@ -119,6 +119,17 @@ async def _maybe_alarm_command(msg: str, user: dict) -> Optional[dict]:
     txt = (msg or "").strip()
     if not txt or len(txt) > 300 or not _ALARM_INTENT_RE.search(txt):
         return None
+    # V50.z498 — una DOMANDA («dove vedo i promemoria?», «ho timer attivi?», «come funziona il timer») non crea mai nulla:
+    # senza un verbo di creazione esplicito (o «tra X minuti») il parser LLM poteva inventare un timer da 1 minuto.
+    _is_question = txt.rstrip().endswith("?") or re.match(r"^\s*(dove|quali?|quante?|quanti|come|cosa|che|perch[eé]|chi|ho|hai|c'è|ci sono|esist\w*|posso|puoi|mi (spieghi|dici|mostri))\b", txt, re.IGNORECASE)
+    _has_create_verb = re.search(r"\b(metti\w*|imposta\w*|crea\w*|avvia\w*|fai partire|parti\w*|attiva\w*|aggiungi\w*|programma\w*|fissa\w*|segna\w*|ricordam\w*|svegliam\w*|avvisam\w*|avvertim\w*|tra\s+(\d+|un[oa']?|una|due|tre|cinque|dieci|quindici|venti|trenta|mezz)|alle\s+\d|stasera|domani|domattina|ogni)\b", txt, re.IGNORECASE)
+    if _is_question and not re.search(r"\b(puoi|potresti|riesci a|mi)\s+(metter\w*|impostar\w*|crear\w*|avviar\w*|ricordar\w*|svegliar\w*|avvisar\w*)", txt, re.IGNORECASE):
+        if not _parse_timer_fast(txt):
+            # risposte all'elenco restano gestite più sotto solo se è davvero una domanda sull'elenco
+            if not re.search(r"\b(quali|quante|quanti|elenca|mostra|lista|ho|attiv[ie])\b", txt, re.IGNORECASE):
+                return None
+    if not _is_question and not _has_create_verb and not _parse_timer_fast(txt):
+        return None
     import zoneinfo as _zi
     rome = _zi.ZoneInfo("Europe/Rome")
 
@@ -131,6 +142,10 @@ async def _maybe_alarm_command(msg: str, user: dict) -> Optional[dict]:
         parsed = await _parse_alarm_llm(txt)
         if not parsed or not isinstance(parsed, dict):
             return None
+        if parsed.get("action") == "create" and _is_question:
+            parsed["action"] = "none"; parsed["missing"] = None  # V50.z498 — una domanda non crea mai: al massimo elenca
+        if parsed.get("action") == "create" and parsed.get("kind") == "timer" and not _parse_timer_fast(txt) and not re.search(r"\d|\b(un[o']?|una|due|tre|quattro|cinque|dieci|quindici|venti|trenta|sessanta|mezz\w*)\b", txt, re.IGNORECASE):
+            return None  # V50.z498 — timer senza una durata detta esplicitamente → niente timer inventato
         if parsed.get("action") != "create":
             missing = (parsed.get("missing") or "").strip()
             if missing:
@@ -182,6 +197,8 @@ async def _maybe_alarm_command(msg: str, user: dict) -> Optional[dict]:
             return None
 
     try:
+        payload["source"] = "chat"  # V50.z498
+        logger.info("[axon-alarm] creato da chat: %s ← «%s»", payload, txt[:120])
         doc = await _create_axon_alarm_doc(user, payload)
     except HTTPException as he:
         logger.info("[axon-alarm-nlp] invalid payload %s: %s", payload, he.detail)
@@ -697,7 +714,8 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
             _al_result = await _maybe_push_command(body.message or "", user)
         # V50.z125 — Comandi timer/sveglia/promemoria ("imposta timer 15 minuti",
         # "ricordami di chiamare Mario stasera"): crea la sveglia e conferma.
-        if not _al_result:
+        # V50.z498 — MAI con effetti collaterali dallo stress test (no_cache=True → domande automatiche): nasceva un timer fantasma.
+        if not _al_result and not getattr(body, "no_cache", False):
             _al_result = await _maybe_alarm_command(body.message or "", user)
         if _al_result and _al_result.get("reply") is not None:
             _sid = body.session_id or f"asst_{user['user_id']}_{uuid.uuid4().hex[:10]}"

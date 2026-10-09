@@ -52,6 +52,7 @@ async def create_axon_alarm(payload: Dict[str, Any] = Body(...), user=Depends(ge
         # Promemoria:
         trigger_at: ISO datetime
     """
+    payload = {**payload, "source": "app"}  # V50.z498
     return await _create_axon_alarm_doc(user, payload)
 
 
@@ -94,6 +95,7 @@ async def _create_axon_alarm_doc(user: dict, payload: Dict[str, Any]) -> Dict[st
         "created_at": now_utc.isoformat(),
         "updated_at": now_utc.isoformat(),
         "last_triggered_at": None,
+        "source": (payload.get("source") or "app")[:40],  # V50.z498 — tracciamento origine (app | chat | agent | wizard): per capire chi crea cosa
     }
 
     if kind == "timer":

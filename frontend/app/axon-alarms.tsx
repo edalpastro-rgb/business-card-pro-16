@@ -9,6 +9,7 @@ import { KeyboardAvoidingView } from "react-native-keyboard-controller"; // V50.
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
+import { notify, confirmAsync } from "@/src/utils/notify"; // V50.z498
 import DateTimePicker, { DateTimePickerAndroid } from "@react-native-community/datetimepicker";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
@@ -126,23 +127,17 @@ export default function AxonAlarmsScreen() {
     }
   };
 
-  const onDelete = (a: Alarm) => {
-    Alert.alert("Elimina", `Vuoi eliminare "${a.label}"?`, [
-      { text: "Annulla", style: "cancel" },
-      {
-        text: "Elimina",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await api(`/axon/alarms/${a.id}`, { method: "DELETE" });
-            await removeAlarmNotifs(a.id);
-            setAlarms((prev) => prev.filter((x) => x.id !== a.id));
-          } catch (e: any) {
-            Alert.alert("Errore", e?.message || "Impossibile eliminare");
-          }
-        },
-      },
-    ]);
+  const onDelete = async (a: Alarm) => {
+    // V50.z498 — BUG: su web `Alert.alert` con bottoni non esegue i callback → il cestino non faceva nulla. `confirmAsync` funziona ovunque.
+    const ok = await confirmAsync("Elimina", `Vuoi eliminare "${a.label}"?`);
+    if (!ok) return;
+    try {
+      await api(`/axon/alarms/${a.id}`, { method: "DELETE" });
+      await removeAlarmNotifs(a.id).catch(() => {});
+      setAlarms((prev) => prev.filter((x) => x.id !== a.id));
+    } catch (e: any) {
+      notify("Errore", e?.message || "Impossibile eliminare");
+    }
   };
 
   const openCreate = (kind: AlarmKind) => {
