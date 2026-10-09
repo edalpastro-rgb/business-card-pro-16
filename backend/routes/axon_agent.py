@@ -42,6 +42,7 @@ _AG_RESUME_RX = {
     "retry": _ag_re.compile(r"^\s*(riprova\w*|ritenta\w*|retry|rifai|riprovaci)\b", _ag_re.I),
     "cancel": _ag_re.compile(r"^\s*(annulla\w*|cancella tutto|stop|basta|lascia (stare|perdere)|ferma\w*|interrompi)\b", _ag_re.I),
     "confirm": _ag_re.compile(r"^\s*(s[iì]\b|certo|esatto|conferm\w*|ok\b|va bene|procedi|crea\w* (comunque|lo stesso)|vai)\b", _ag_re.I),  # V50.z506 — conferma doppione
+    "modify": _ag_re.compile(r"^\s*(modific\w*|cambi\w*|spost\w*|piuttosto)\b", _ag_re.I),  # V50.z507 — «modifica: giovedì alle 10»
 }
 
 
@@ -165,13 +166,59 @@ class _AgentStepError(Exception):
     pass
 
 
+_AG_KIND_PHONE_RX = _ag_re.compile(r"\b(telefonat\w*|telefonic\w*|chiamat\w*|call|videochiamat\w*|video\s?call)\b", _ag_re.I)
+_AG_KIND_CALLBACK_RX = _ag_re.compile(r"\b(richiam\w*|ritelefon\w*|callback)\b", _ag_re.I)
+_AG_KIND_APPT_RX = _ag_re.compile(r"\b(appuntament\w*|incontr\w*|visit\w*|sopralluog\w*|riunion\w*|meeting)\b", _ag_re.I)
+
+
+def _ag_kind_from_text(text: str) -> _ag_Optional[str]:
+    """V50.z507 — REGOLA ASSOLUTA dettata dall'utente, nessuna interpretazione: «telefonata»/«fissa una chiamata»/«call» → phone;
+    «ritelefonata»/«richiama» → callback; «appuntamento» (incontro/visita) → appointment di persona. None se nessuna parola chiave."""
+    t = text or ""
+    if _AG_KIND_PHONE_RX.search(t):
+        return "phone"
+    if _AG_KIND_CALLBACK_RX.search(t):
+        return "callback"
+    if _AG_KIND_APPT_RX.search(t):
+        return "appointment"
+    return None
+
+
+def _ag_apply_kind(step: dict) -> None:
+    """Allinea azione e is_phone del passo alle parole dell'utente (solo comandi a passo singolo, src_text presente)."""
+    kind = _ag_kind_from_text(step.get("src_text") or "")
+    if not kind:
+        return
+    p = step.setdefault("params", {})
+    a = step.get("action")
+    if kind == "callback" and a == "create_appointment":
+        step["action"] = "create_callback"
+        p["scheduled_at"] = p.pop("start_at", None) or p.get("scheduled_at")
+        p["title"] = ""
+        step["label"] = f"Ritelefonata: {step.get('contact') or ''}".strip()
+    elif kind in ("phone", "appointment") and a == "create_callback":
+        step["action"] = "create_appointment"
+        p["start_at"] = p.pop("scheduled_at", None) or p.get("start_at")
+        p["title"] = ""
+        step["label"] = f"{'Telefonata' if kind == 'phone' else 'Appuntamento'} con {step.get('contact') or ''}".strip()
+    if step.get("action") == "create_appointment" and kind in ("phone", "appointment"):
+        p["is_phone"] = kind == "phone"
+        if kind == "appointment" and _AG_KIND_PHONE_RX.search(p.get("title") or ""):
+            p["title"] = ""  # il pianificatore aveva scritto «Telefonata con…» per un appuntamento di persona
+        if kind == "phone" and not p.get("duration_min"):
+            p["duration_min"] = 30
+
+
 async def _agent_exec_step(user: dict, step: dict, contact: _ag_Optional[dict]) -> _ag_Dict[str, _ag_Any]:
     """Esegue UNA azione e ne VERIFICA l'esito. Ritorna {"text": riga di riepilogo, "chip": marker|None}. Solleva _AgentStepError."""
+    if step.get("src_text"):
+        _ag_apply_kind(step)  # V50.z507 — BUG 2: il tipo lo decide l'utente (appuntamento / telefonata / ritelefonata)
     action = step["action"]
     p = step.get("params") or {}
     tid = tenant_id(user)  # noqa: F821
     now = utcnow()  # noqa: F821
-    cname = _ag_cname(contact) if contact else None
+    # V50.z507 — BUG 3: contatto non in rubrica → si salva comunque con il nome detto (cname = nome pronunciato)
+    cname = _ag_cname(contact) if contact else ((step.get("contact") or "").strip() or None)
     # V50.z506 — BUG 4: le date relative in italiano («martedì», «domani alle 9», «13 ottobre») sono calcolate in modo deterministico
     # (Europe/Rome) dalla frase dell'utente e CORREGGONO la proposta dell'LLM (che a volte sbaglia giorno). Solo per comandi a un passo.
     if step.get("src_text"):
@@ -323,19 +370,20 @@ async def _agent_exec_step(user: dict, step: dict, contact: _ag_Optional[dict]) 
             raise _AgentStepError(f"la data indicata ({_ag_fmt(start)}) è già passata")
         dur = int(p.get("duration_min") or (30 if p.get("is_phone") else 60))
         # V50.z506 — BUG 5: «telefonata/chiamata/call» → appuntamento di tipo TELEFONATA (is_phone), anche se il pianificatore lo dimentica
-        is_phone = bool(p.get("is_phone")) or bool(_ag_re.search(r"\b(telefonat\w*|chiamat\w*|call|telefonic\w*)\b", (step.get("src_text") or "") + " " + (p.get("title") or ""), _ag_re.I))
+        is_phone = bool(p.get("is_phone")) if "is_phone" in p else bool(_AG_KIND_PHONE_RX.search(p.get("title") or ""))
         title = (p.get("title") or "").strip() or ((f"Telefonata con {cname}" if is_phone else f"Appuntamento con {cname}") if cname else ("Telefonata" if is_phone else "Appuntamento"))
         # V50.z506 — BUG 3: stesso contatto, stesso giorno (Europe/Rome) → chiedo conferma prima di creare un doppione
-        if contact and not p.get("allow_duplicate"):
+        if (contact or cname) and not p.get("allow_duplicate"):
             day0 = start.astimezone(_AG_ROME).replace(hour=0, minute=0, second=0, microsecond=0)
-            dup = await db.appointments.find_one({"user_id": tid, "contact_id": contact["contact_id"], "done": {"$ne": True},  # noqa: F821
+            _dq = {"contact_id": contact["contact_id"]} if contact else {"title": {"$regex": _ag_re.escape(cname or ""), "$options": "i"}}
+            dup = await db.appointments.find_one({"user_id": tid, **_dq, "done": {"$ne": True},  # noqa: F821
                                                   "start_at": {"$gte": day0.astimezone(_ag_tz.utc), "$lt": (day0 + _ag_td(days=1)).astimezone(_ag_tz.utc)}},
                                                  {"_id": 0, "title": 1, "start_at": 1})
             if dup:
                 d0 = dup.get("start_at"); d0 = d0.replace(tzinfo=_ag_tz.utc) if d0 and d0.tzinfo is None else d0
                 step["needs_confirm"] = True
-                raise _AgentStepError(f"⚠️ {cname} ha già un appuntamento quel giorno («{dup.get('title')}» alle {d0.astimezone(_AG_ROME).strftime('%H:%M') if d0 else '?'}). "
-                                      f"Vuoi crearne comunque un altro il {_ag_fmt(start)}? Rispondi «sì» per confermare o «annulla».")
+                step["confirm_question"] = f"{cname} ha già un appuntamento quel giorno («{dup.get('title')}» alle {d0.astimezone(_AG_ROME).strftime('%H:%M') if d0 else '?'}). Vuoi crearne comunque un altro il {_ag_fmt(start)}?"
+                raise _AgentStepError(f"⚠️ {step['confirm_question']} Rispondi «sì» per confermare, «annulla», oppure «modifica … <nuova data>».")
         # V50.z499 — STESSA funzione del form «Nuovo appuntamento» (08_calendar.create_appointment): id, created_by, broadcast, indirizzo…
         created = await create_appointment(AppointmentIn(  # noqa: F821
             contact_id=contact["contact_id"] if contact else None, title=title, area=(contact or {}).get("area") if (contact or {}).get("area") in ("energy", "network") else "energy",
@@ -346,10 +394,12 @@ async def _agent_exec_step(user: dict, step: dict, contact: _ag_Optional[dict]) 
         aid = created["appointment_id"]
         if not await db.appointments.find_one({"appointment_id": aid}, {"_id": 0, "appointment_id": 1}):  # noqa: F821
             raise _AgentStepError("l'appuntamento non risulta salvato")
+        logger.info("[axon-agent] SALVATO appuntamento %s «%s» %s is_phone=%s contatto=%s", aid, title, start.strftime("%d/%m/%Y %H:%M"), is_phone, (contact or {}).get("contact_id") or f"NON IN RUBRICA ({cname})")  # noqa: F821 — V50.z507: riga di log per verifica in produzione
         # V50.z506 — BUG 1/3: qui c'era `doc["location"]` (variabile inesistente) → l'appuntamento veniva SALVATO ma il passo risultava
         # «errore interno» → l'utente riprovava → doppioni. Ora il riepilogo usa i dati reali.
         loc = (created.get("location") or "").strip()
-        return {"text": f"{'Telefonata' if is_phone else 'Appuntamento'} «{title}» il {_ag_fmt(start)}" + (f" ({loc})" if loc else ""), "chip": None}
+        _warn = f" ⚠️ «{cname}» non è in rubrica: salvato senza collegamento al contatto." if (cname and not contact) else ""
+        return {"text": f"{'Telefonata' if is_phone else 'Appuntamento'} «{title}» il {_ag_fmt(start)}" + (f" ({loc})" if loc else "") + _warn, "chip": None}
 
     if action == "update_appointment":
         new_start = _ag_local(p.get("new_start_at"))
@@ -483,8 +533,10 @@ async def _agent_run(run: dict, user: dict, start_index: int) -> dict:
                 if cname.lower() not in contacts_cache:
                     contacts_cache[cname.lower()] = await _nav_find_contact(user, cname)  # noqa: F821 — axon_navigator.py
                 contact = contacts_cache[cname.lower()]
-                if not contact:
+                if not contact and s.get("action") not in ("create_appointment", "create_callback", "create_reminder"):
                     raise _AgentStepError(f"non trovo «{cname}» tra i tuoi contatti")
+                if not contact:
+                    s["contact_missing"] = True  # V50.z507 — BUG 3: si salva comunque con il nome detto
             res = await _agent_exec_step(user, s, contact)
             s.update({"status": "done", "result": res["text"], "chip": res.get("chip"), "preview": res.get("preview"), "contact_id": (contact or {}).get("contact_id")})
         except _AgentStepError as e:
@@ -512,12 +564,23 @@ async def _agent_resume(msg: str, user: dict) -> _ag_Optional[dict]:
     if not verb:
         return None
     since = utcnow() - _ag_td(minutes=30)  # noqa: F821
-    run = await db.axon_agent_runs.find_one({"user_id": user["user_id"], "status": "awaiting", "updated_at": {"$gte": since}}, {"_id": 0}, sort=[("updated_at", -1)])  # noqa: F821
+    since_confirm = utcnow() - _ag_td(hours=48)  # noqa: F821 — V50.z507: una conferma doppione resta attiva 48 h (anche uscendo e rientrando)
+    run = await db.axon_agent_runs.find_one({"user_id": user["user_id"], "status": "awaiting",
+                                             "$or": [{"updated_at": {"$gte": since}}, {"steps.needs_confirm": True, "updated_at": {"$gte": since_confirm}}]},
+                                            {"_id": 0}, sort=[("updated_at", -1)])  # noqa: F821
     if not run:
         return None
     idx = next((i for i, s in enumerate(run["steps"]) if s.get("status") == "failed"), None)
     if idx is None:
         return None
+    if verb == "modify":
+        if not run["steps"][idx].get("needs_confirm"):
+            return None
+        _nd = it_resolve_datetime(t, utcnow())  # noqa: F821
+        if _nd is None:
+            return {"reply": "🤖 Dimmi la nuova data, per esempio «modifica: giovedì alle 10».", "cmd": "agent_modify"}
+        _agent_set_new_date(run["steps"][idx], _nd)
+        verb = "retry"
     if verb == "confirm":
         if not run["steps"][idx].get("needs_confirm"):
             return None  # «sì» non riferito a una conferma in sospeso → conversazione normale
@@ -542,6 +605,74 @@ async def _agent_resume(msg: str, user: dict) -> _ag_Optional[dict]:
         run["status"] = "running"
         run = await _agent_run(run, user, idx)
     return {"reply": _agent_report(run), "cmd": "agent_" + verb}
+
+
+def _agent_set_new_date(step: dict, nd) -> None:
+    """V50.z507 — «modifica»: nuova data esplicita sul passo in sospeso (niente ricalcolo dalla frase originale)."""
+    key = {"create_appointment": "start_at", "create_callback": "scheduled_at", "create_reminder": "trigger_at"}.get(step.get("action"), "start_at")
+    step.setdefault("params", {})[key] = nd.astimezone(_AG_ROME).strftime("%Y-%m-%dT%H:%M")
+    step["src_text"] = None
+    step.pop("needs_confirm", None); step.pop("confirm_question", None)
+
+
+def _agent_pending_payload(run: _ag_Optional[dict]) -> _ag_Optional[dict]:
+    if not run:
+        return None
+    idx = next((i for i, s in enumerate(run["steps"]) if s.get("status") == "failed" and s.get("needs_confirm")), None)
+    if idx is None:
+        return None
+    st = run["steps"][idx]
+    p = st.get("params") or {}
+    return {"run_id": run["run_id"], "step_index": idx, "action": st.get("action"), "label": st.get("label"), "contact": st.get("contact"),
+            "question": st.get("confirm_question") or (st.get("error") or "").lstrip("⚠️ ").strip(),
+            "start_at": p.get("start_at") or p.get("scheduled_at"), "is_phone": bool(p.get("is_phone")), "created_at": run.get("created_at"), "updated_at": run.get("updated_at")}
+
+
+@api_router.get("/axon/agent/pending")  # noqa: F821
+async def axon_agent_pending(user=Depends(get_current_user)):  # noqa: F821
+    """V50.z507 — BUG 4: la conferma doppione in sospeso (48 h) resta disponibile anche uscendo e rientrando nell'app."""
+    since = utcnow() - _ag_td(hours=48)  # noqa: F821
+    run = await db.axon_agent_runs.find_one({"user_id": user["user_id"], "status": "awaiting", "steps.needs_confirm": True, "updated_at": {"$gte": since}}, {"_id": 0}, sort=[("updated_at", -1)])  # noqa: F821
+    return {"pending": _agent_pending_payload(run)}
+
+
+class AgentPendingResolveIn(BaseModel):  # noqa: F821
+    action: str  # confirm | cancel | modify
+    new_start_at: _ag_Optional[str] = None  # 'YYYY-MM-DDTHH:MM' ora locale Europe/Rome (per modify)
+
+
+@api_router.post("/axon/agent/pending/{run_id}")  # noqa: F821
+async def axon_agent_pending_resolve(run_id: str, body: AgentPendingResolveIn, user=Depends(get_current_user)):  # noqa: F821
+    run = await db.axon_agent_runs.find_one({"run_id": run_id, "user_id": user["user_id"], "status": "awaiting"}, {"_id": 0})  # noqa: F821
+    if not run:
+        raise HTTPException(status_code=404, detail="Nessuna conferma in sospeso")  # noqa: F821
+    idx = next((i for i, s in enumerate(run["steps"]) if s.get("status") == "failed" and s.get("needs_confirm")), None)
+    if idx is None:
+        raise HTTPException(status_code=404, detail="Nessuna conferma in sospeso")  # noqa: F821
+    st = run["steps"][idx]
+    if body.action == "cancel":
+        run["status"] = "cancelled"
+        st["status"] = "skipped"; st["result"] = f"{st.get('label') or st['action']} (annullata)"; st.pop("needs_confirm", None)
+        run["updated_at"] = utcnow()  # noqa: F821
+        await db.axon_agent_runs.update_one({"run_id": run_id}, {"$set": run})  # noqa: F821
+        return {"reply": _agent_report(run), "status": run["status"], "pending": None}
+    if body.action == "modify":
+        if not body.new_start_at:
+            raise HTTPException(status_code=400, detail="Nuova data mancante")  # noqa: F821
+        try:
+            nd = _ag_dt.strptime(body.new_start_at[:16], "%Y-%m-%dT%H:%M").replace(tzinfo=_AG_ROME)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Formato data non valido (atteso YYYY-MM-DDTHH:MM)")  # noqa: F821
+        _agent_set_new_date(st, nd)
+    elif body.action == "confirm":
+        st.setdefault("params", {})["allow_duplicate"] = True
+        st.pop("needs_confirm", None); st.pop("confirm_question", None)
+    else:
+        raise HTTPException(status_code=400, detail="Azione non valida")  # noqa: F821
+    st["status"] = "pending"; st.pop("error", None); st.pop("result", None)
+    run["status"] = "running"
+    run = await _agent_run(run, user, idx)
+    return {"reply": _agent_report(run), "status": run["status"], "pending": _agent_pending_payload(run) if run["status"] == "awaiting" else None}
 
 
 async def _maybe_agent_command(msg: str, user: dict) -> _ag_Optional[dict]:

@@ -36,6 +36,7 @@ import { ensureDevicePermission } from "@/src/permissions/devicePermissions"; //
 // V50.z495 — modalità audio (Tocca per parlare / Sempre attivo), display dinamico, navigazione verso il cliente
 import { DriveModeButtons } from "@/src/drive/DriveModeButtons";
 import { DriveDisplay, type DriveDisplayData, type DriveAddressOption } from "@/src/drive/DriveDisplay";
+import { PendingConfirmCard, useAxonPending, refreshAxonPending } from "@/src/axon/PendingConfirmCard"; // V50.z507 — conferma doppione persistente con bottoni
 import { loadDriveMode, saveDriveMode, loadSuggestionsHidden, saveSuggestionsHidden, DRIVE_SILENCE_MS, DRIVE_NO_SPEECH_MS, DRIVE_IDLE_RESET_MS, type DriveAudioMode } from "@/src/drive/driveSettings";
 let _micRelease: null | (() => void) = null;
 
@@ -76,6 +77,7 @@ export default function VoiceCopilotScreen() {
   const alwaysOnRef = useRef(false);
   const setAlwaysOn = (v: boolean) => { alwaysOnRef.current = v; setAlwaysOnState(v); };
   const [display, setDisplay] = useState<DriveDisplayData | null>(null);
+  const { pending: axonPending } = useAxonPending(); // V50.z507
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const noSpeechTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idleResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -309,6 +311,7 @@ export default function VoiceCopilotScreen() {
       setDisplay(disp);
       if (disp?.type === "call" && disp.tel) void Linking.openURL(`tel:${disp.tel}`).catch(() => {}); // V50.z502 — «chiama Rossi» → compone subito
       setCurrentConfirm(confirmation);
+      refreshAxonPending(); // V50.z507 — aggiorna la card «Axon chiede conferma» (doppione) dopo ogni comando
       setHistory(prev => [{
         id: `h-${Date.now()}`,
         transcript,
@@ -352,7 +355,7 @@ export default function VoiceCopilotScreen() {
   // V50.z495 — dopo 5 s di inattività (risposta finita) si torna ai comandi suggeriti
   useEffect(() => {
     if (idleResetRef.current) { clearTimeout(idleResetRef.current); idleResetRef.current = null; }
-    if (phase === "idle" && (display || currentConfirm || currentTranscript) && display?.type !== "navigate" && !pendingNavRef.current && !pendingRef.current) { // V50.z497 — la mappa resta attiva finché guidi (nuovo comando la sostituisce)
+    if (phase === "idle" && (display || currentConfirm || currentTranscript) && display?.type !== "navigate" && !pendingNavRef.current && !pendingRef.current && !axonPending) { // V50.z507 — con una conferma in sospeso il messaggio NON sparisce // V50.z497 — la mappa resta attiva finché guidi (nuovo comando la sostituisce)
       idleResetRef.current = setTimeout(() => { setDisplay(null); setCurrentConfirm(""); setCurrentTranscript(""); }, DRIVE_IDLE_RESET_MS);
     }
     return () => { if (idleResetRef.current) { clearTimeout(idleResetRef.current); idleResetRef.current = null; } };
@@ -433,6 +436,8 @@ export default function VoiceCopilotScreen() {
           </View>
         ) : null}
 
+        {/* V50.z507 — conferma doppione: resta finché l'utente non sceglie (voce o bottoni), anche uscendo e rientrando */}
+        <PendingConfirmCard dark onResolved={(reply) => { const line = (reply || "").split("\n").find((l) => l.includes("✅") || l.includes("annullata")) || reply; setCurrentConfirm(line.replace(/\*\*/g, "")); void speak(line.replace(/[*#]/g, "")); }} />
         {/* DISPLAY DINAMICO CENTRALE: suggerimenti → mappa / foto / elenco / nota → (5 s) suggerimenti */}
         <View style={styles.display}>
           <DriveDisplay data={display} onPickAddress={pickAddress} suggestionsHidden={suggestionsHidden} onHideSuggestions={hideSuggestions} />

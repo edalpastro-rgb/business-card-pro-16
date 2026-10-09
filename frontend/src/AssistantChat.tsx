@@ -18,6 +18,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter, usePathname, useGlobalSearchParams } from "expo-router";
 import { api } from "@/src/api";
+import { PendingConfirmCard, refreshAxonPending } from "@/src/axon/PendingConfirmCard"; // V50.z507
 import { lookupDeviceContact } from "@/src/utils/deviceContacts"; // V50.z469 — Feature 7: rubrica telefono
 import { vaultContextForMessage } from "@/src/personalVault"; // V50.z469 — Feature 13/14
 import { track } from "@/src/utils/beta"; // V50.z474 — Beta: messaggi dettati
@@ -968,6 +969,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       }
       if (opts?.onSpoken && !wantSpeech) opts.onSpoken();
     } finally {
+      refreshAxonPending(); // V50.z507 — la card «Axon chiede conferma» si aggiorna dopo ogni risposta
       if (watchdog) clearTimeout(watchdog);
       if (silence) clearTimeout(silence); // V50.z469
       abortRef.current = null;
@@ -1908,6 +1910,8 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
               contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 24 }}
               onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
             >
+              {/* V50.z507 — conferma doppione persistente con bottoni Conferma / Modifica / Cancella */}
+              <PendingConfirmCard dark onResolved={(reply) => setMessages((prev) => [...prev, { role: "assistant", content: reply, created_at: new Date().toISOString() } as any])} />
               {loadingHist && (
                 <View style={{ alignItems: "center", paddingVertical: 20 }}>
                   <ActivityIndicator color={CT.accent} />

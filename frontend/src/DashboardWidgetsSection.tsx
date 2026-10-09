@@ -31,7 +31,7 @@ export function DashboardWidgetsSection({ only, exclude, fill }: { only?: string
     try {
       const [cfg, apptStats, punRes] = await Promise.allSettled([
         api<{ widgets: Widget[] }>(`/settings/dashboard-widgets`),
-        api<{ mine: { total: number; done: number; undone: number } }>(`/appointments/stats?days=1`),
+        api<{ mine: { total: number; done: number; undone: number } }>(`/appointments/stats?range_days=1&days=1`),
         api<PunLatest>(`/pun/latest`),
       ]);
       if (cfg.status === "fulfilled") setWidgets(cfg.value.widgets || []);

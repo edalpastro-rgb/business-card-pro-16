@@ -554,7 +554,7 @@ Data una trascrizione vocale dell'utente (consulente energetico in auto),
 identifica l'intent tra:
 - create_contact: creare un NUOVO cliente/contatto
 - add_note: aggiungere una nota a un cliente ESISTENTE
-- schedule_call: programmare una telefonata/chiamata/call con un cliente (→ appuntamento di tipo telefonata) oppure una richiamata/ritelefonata (promemoria di richiamo); when_iso = data e ora dette dall'utente
+- schedule_call: FISSARE/programmare a una data e ora un appuntamento, una telefonata/chiamata/call oppure una richiamata/ritelefonata con un cliente (qualsiasi tipo: il tipo lo decide il sistema dalle parole dette); when_iso = data e ora dette; contact_query = nome detto ANCHE se non è tra i candidati
 - list_callbacks: MOSTRARE/elencare le ritelefonate (richiamate) programmate («mostrami le ritelefonate di oggi», «che richiamate ho domani»)
 - list_appointments: MOSTRARE/elencare gli appuntamenti («mostrami gli appuntamenti», «che appuntamenti ho oggi/domani»)
 - show_photo: mostrare la FOTO di un cliente («mostrami la foto di Zanini», «fammi vedere Rossi»)
@@ -748,34 +748,48 @@ async def voice_copilot_execute(body: VoiceCopilotIn, background: BackgroundTask
             when_dt = it_fix_datetime(transcript, when_dt, _vd_now_rome())  # noqa: F821
             if not when_dt:
                 raise HTTPException(status_code=422, detail="Data mancante")
-            contact = await _vd_find_contact(user, params, candidates, body.pending_contact_id)
-            cname = f"{contact.get('first_name') or ''} {contact.get('last_name') or ''}".strip()
+            # V50.z507 — BUG 3: contatto non in rubrica → NON blocca: si salva con il nome detto (avviso nella risposta)
+            try:
+                contact = await _vd_find_contact(user, params, candidates, body.pending_contact_id)
+            except HTTPException as _nf:
+                if _nf.status_code != 404:
+                    raise
+                contact = None
+            spoken_name = re.sub(r"\s+", " ", (params.get("contact_query") or params.get("contact_name") or "")).strip()
+            if not spoken_name:
+                _mn = re.search(r"\b(?:con|a|da)\s+([A-ZÀ-Ý][\wÀ-ÿ'’-]+(?:\s+[A-ZÀ-Ý][\wÀ-ÿ'’-]+)?)", transcript)
+                spoken_name = _mn.group(1) if _mn else ""
+            cname = f"{contact.get('first_name') or ''} {contact.get('last_name') or ''}".strip() if contact else (spoken_name or "cliente")
             when_local = when_dt.astimezone(_vd_zoneinfo.ZoneInfo("Europe/Rome"))
-            if re.search(r"\b(richiam\w*|ritelefon\w*|callback)\b", transcript, re.I):
+            kind = _ag_kind_from_text(transcript) or "phone"  # noqa: F821 — V50.z507 BUG 2: regola assoluta appuntamento/telefonata/ritelefonata
+            if kind == "callback":
                 # Richiamata (promemoria di richiamo) → modulo Ritelefonate, STESSO create_callback del form manuale (V50.z495)
                 cb = await create_callback(CallbackIn(  # noqa: F821
-                    contact_id=contact["contact_id"], title=cname or "Ritelefonata",
-                    area=contact.get("area") if contact.get("area") in ("energy", "network") else "energy",
-                    scheduled_at=when_dt, note=(params.get("notes") or "").strip(), phone=contact.get("phone") or contact.get("phone_alt") or None,
+                    contact_id=(contact or {}).get("contact_id"), title=cname or "Ritelefonata",
+                    area=(contact or {}).get("area") if (contact or {}).get("area") in ("energy", "network") else "energy",
+                    scheduled_at=when_dt, note=(params.get("notes") or "").strip(), phone=(contact or {}).get("phone") or (contact or {}).get("phone_alt") or None,
                 ), user)
-                result_extra = {"callback_id": cb["callback_id"], "contact_id": contact["contact_id"], "scheduled_at": when_dt.isoformat()}
-                parsed["confirmation"] = f"Ritelefonata a {cname} segnata per {it_fmt_datetime(when_local)}."  # noqa: F821
+                result_extra = {"callback_id": cb["callback_id"], "contact_id": (contact or {}).get("contact_id"), "scheduled_at": when_dt.isoformat()}
+                parsed["confirmation"] = f"Ritelefonata a {cname} segnata per {it_fmt_datetime(when_local)}." + ("" if contact else f" Attenzione: {cname} non è in rubrica, l'ho salvata senza collegamento al contatto.")  # noqa: F821
             else:
                 # V50.z506 — BUG 5: «telefonata/chiamata/call» = appuntamento di tipo TELEFONATA (is_phone) → Agenda + modulo Call.
                 # Passa dall'agente (stessa pipeline della chat): verifica doppione stesso giorno con conferma «sì/annulla», verifica salvataggio.
+                _isph = kind == "phone"
+                _lbl = f"{'Telefonata' if _isph else 'Appuntamento'} con {cname}"
                 run = {"run_id": f"agr_{uuid.uuid4().hex[:12]}", "user_id": user["user_id"], "tenant_id": tenant, "message": transcript,
-                       "steps": [{"action": "create_appointment", "contact": cname, "label": f"Telefonata con {cname}", "status": "pending", "src_text": transcript,
-                                  "params": {"title": f"Telefonata con {cname}", "start_at": when_local.strftime("%Y-%m-%dT%H:%M"), "duration_min": 30, "is_phone": True,
+                       "steps": [{"action": "create_appointment", "contact": cname, "label": _lbl, "status": "pending", "src_text": transcript,
+                                  "params": {"title": _lbl, "start_at": when_local.strftime("%Y-%m-%dT%H:%M"), "duration_min": 30 if _isph else 60, "is_phone": _isph,
                                              "note": (params.get("notes") or "").strip()}}],
                        "unsupported": [], "status": "running", "created_at": utcnow(), "updated_at": utcnow()}  # noqa: F821
                 run = await _agent_run(run, user, 0)  # noqa: F821
                 st = run["steps"][0]
-                result_extra = {"contact_id": contact["contact_id"], "scheduled_at": when_dt.isoformat(), "agent_run_id": run["run_id"], "agent_status": run["status"]}
+                result_extra = {"contact_id": (contact or {}).get("contact_id"), "scheduled_at": when_dt.isoformat(), "agent_run_id": run["run_id"], "agent_status": run["status"]}
                 if st.get("status") == "done":
-                    parsed["confirmation"] = f"Telefonata con {cname} fissata per {it_fmt_datetime(when_local)}."  # noqa: F821
+                    parsed["confirmation"] = f"{'Telefonata' if _isph else 'Appuntamento'} con {cname} fissat{'a' if _isph else 'o'} per {it_fmt_datetime(when_local)}." + ("" if contact else f" Attenzione: {cname} non è in rubrica, salvato senza collegamento al contatto.")  # noqa: F821
                 elif st.get("needs_confirm"):
                     intent = "confirm_duplicate"
-                    parsed["confirmation"] = st.get("error") or "Esiste già un appuntamento quel giorno: confermi?"
+                    parsed["confirmation"] = (st.get("confirm_question") or "Esiste già un appuntamento quel giorno: confermi?") + " Puoi dire «sì», «annulla» o «modifica: giovedì alle 10», oppure usare i bottoni."
+                    result_extra["pending"] = _agent_pending_payload(run)  # noqa: F821
                 else:
                     raise HTTPException(status_code=422, detail=st.get("error") or "Telefonata non salvata")
 

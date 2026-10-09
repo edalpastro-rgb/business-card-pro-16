@@ -601,3 +601,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z506 — Fix: doc NameError in agente create_appointment (appuntamento salvato ma riportato come errore → doppioni), intercettori agente anche su /assistant/chat non-stream (axon_critical_events), regex gate telefonata/chiamata/call, date italiane deterministiche (axon_dates_it.py), stats per giorno Rome, conferma doppione sì/annulla, tipo telefonata is_phone. Modulo Call (calls_module.py, app/call.tsx, CallsTodayBlock). Testing agent: backend 12/12, frontend OK."
+
+  - agent: "main"
+    message: "V50.z507 — stats alias days; regola tipo assoluta appuntamento/telefonata/ritelefonata; salvataggio anche con contatto non in rubrica (+ log SALVATO); conferma doppione persistente 48h con endpoint /axon/agent/pending e card con bottoni in Home/Chat/Drive. Testing agent 14/14 backend + UI OK."

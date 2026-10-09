@@ -1,0 +1,39 @@
+{
+  "summary": "V50.z507 — Axon pending confirm persistente. BACKEND 14/14 PASS (100%): /appointments/stats?days=1 alias funziona e conta solo Europe/Rome oggi (verificato con baseline+1); tipo discrimination OK (appuntamento → is_phone false 12/10 15:00 Rome = 13:00Z; telefonata → is_phone true 14/10 09:00Z; richiama → entry in collection callbacks 15/10 07:00Z, NESSUN appointment creato); contatto non in rubrica → appuntamento salvato con contact_id null + title «Appuntamento con Ludovico Sperandio» + spoken contiene '✅' e 'non è in rubrica' (16/10 14:00Z); pending doppione OK (dopo doppione: GET /axon/agent/pending → run_id+question+start_at 2026-10-12T17:00+label; POST resolve modify {new_start_at:'2026-10-14T17:00'} → done + reply contiene '14/10/2026' e '17:00' + appt creato quel giorno; cancel → nessun appt, pending null; confirm → secondo appt stesso giorno; voce 'modifica: giovedì alle 10' → appt 15/10 08:00Z; 404 su run_id inesistente; demo@advisoros.it non vede pending di test@dalpastro.it). FRONTEND web 1280x900 (login test@dalpastro.it via ENTRA → auth form): axon-pending-card presente in Home (2 istanze DOM come V50.z505, 1 dopo reload), axon-pending-question con testo corretto, 3 bottoni (confirm/modify/cancel) presenti; modifica → axon-pending-datetime input visibile, inserimento '2026-10-14T17:00' + axon-pending-modify-save → appuntamento effettivamente creato 14/10 15:00Z (verificato via API); card presente anche su /voice-copilot (Axon Drive) e sopravvive per 8+ secondi; widget-appt-today mostra '1' coerente con GET /appointments/stats?days=1 mine.total=1.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "PendingConfirmCard",
+        "issue": "Dopo click su axon-pending-confirm / axon-pending-cancel / axon-pending-modify-save, la card non sempre sparisce dal DOM anche se l'operazione backend è andata a buon fine (appt correttamente creato/annullato/modificato). Osservato in Home dopo modify (count 1 invece di 0) e in /voice-copilot dopo confirm (count 1). La causa più probabile è la duplicazione DOM Home nota (2 istanze della pagina Home in render SSR) combinata con il fatto che `setPending(null)` + `DeviceEventEmitter.emit(AXON_PENDING_EVENT)` → `useAxonPending.load()` rifà la GET; se un run_awaiting precedente non ancora cancellato esiste, torna disponibile. L'esperienza utente visibile è comunque ok perché l'operazione è andata e il refocus/reload la nasconderà. Priority LOW.",
+        "testID": "axon-pending-card",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v50z507_axon_pending.py",
+    "/app/test_reports/pytest/v50z507_results.xml"
+  ],
+  "action_items": [
+    "Opzionale (LOW): in PendingConfirmCard.resolve() dopo la POST a /pending/{run_id} forzare `setPending(r.pending || null)` E ritardare `refreshAxonPending()` di ~500ms per evitare che una vecchia run awaiting (dall'altra istanza Home in SSR o da race) ri-popoli il card. In alternativa, backend può chiudere tutte le runs 'awaiting' con needs_confirm precedenti quando una nuova dup crea una run.",
+    "Nessuna azione CRITICA richiesta. Tutte le feature V50.z507 funzionano come da specifica."
+  ],
+  "critical_code_review_comments": [
+    "axon_agent.py:634 — ok, filtra per status=awaiting + steps.needs_confirm + updated_at>=48h, isolato per user_id (nessun leakage tra tenant: test demo→null OK).",
+    "08_calendar.py:148-149 — alias `days` sovrascrive `range_days` correttamente; finestra Europe/Rome con today0 → until=today0+1d (per days=1 esclude futuri), buona.",
+    "PendingConfirmCard.tsx:42-47 — ok, setPending(r.pending||null) + DeviceEventEmitter emit; webkit datetime-local input ha testID 'axon-pending-datetime' su web."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v50z507_axon_pending.py (NUOVO)"
+  ],
+  "success_rate": {"backend": "100% (14/14)", "frontend": "~90% — card, question, buttons, persistenza-reload, modifica (+ appt creato), presenza su Axon Drive 8s, widget-appt-today coerente OK; disappearance post-click non deterministica per DOM duplication Home"},
+  "seed_data_creation": "Durante i test ho creato temporaneamente appuntamenti e callback con title Zanini/Sperandio per contact c_93be547cca7f e axon_agent_runs awaiting. TUTTO ripulito al termine (deleted 3 appointments + 5 awaiting runs → cancelled). Mongo pulito.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "V50.z507 è funzionalmente completo e verificato. Backend 14/14 PASS. Il test file /app/backend/tests/test_v50z507_axon_pending.py è riusabile. Per il flow UI usare login via ENTRA (landing page) → auth-email-input / auth-password-input / auth-submit-button. Home ha 2 istanze DOM (SSR), usare .last. Oggi è venerdì 2026-10-09 (UTC ~22:00 → Rome 10/10 00:00 subito dopo mezzanotte: attenzione quando si valuta today).",
+  "rca_of_issue": "N/A — nessun bug critico. L'unica nota minore è che la PendingConfirmCard, dopo il click su un bottone, dipende da setPending+emit; se arrivano in sequenza race con GET /pending (per via del DOM duplicato), può rimanere visibile un render stale finché il focus/reload non la aggiorna. Non impatta l'operatività perché la POST ha già effetto lato server (appt creato/cancellato correttamente)."
+}

@@ -142,8 +142,11 @@ async def create_appointment(body: AppointmentIn, user=Depends(get_current_user)
 @api_router.get("/appointments/stats")
 async def appointments_stats(
     range_days: int = 30,
+    days: Optional[int] = None,  # V50.z507 — BUG: la Home chiamava ?days=1 ma il parametro era range_days → contava 30 giorni
     user=Depends(get_current_user),
 ):
+    if days is not None:
+        range_days = days
     """Return counts done/undone per user (self + team) over the last N days.
     Owner/admin see all tenant members; members see only their own row."""
     tid = tenant_id(user)

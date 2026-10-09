@@ -34,6 +34,7 @@ import { HomeBlocksGrid } from "@/src/home/HomeBlocksGrid"; // V50.z505 — Home
 import { useHomeLayout } from "@/src/home/homeLayout";
 import { MonthCalendarCompact } from "@/src/home/MonthCalendarCompact"; // V50.z505 — calendario mensile compatto
 import { CallsTodayBlock } from "@/src/home/CallsTodayBlock"; // V50.z506 — CALL DI OGGI
+import { PendingConfirmCard } from "@/src/axon/PendingConfirmCard"; // V50.z507
 import { useOrgBranding } from "@/src/BrandHeaderImage"; // logo aziendale (Personalizzazione Aziendale) nella barra
 import { HT } from "@/src/homeTheme";
 import { ViolaHeaderDot } from "@/src/violawake/ViolaHeaderDot";
@@ -555,6 +556,7 @@ export default function HomeScreen() {
 
         {/* ── 2b) Banner Evento ── */}
         <HomeEventBanner />
+        <PendingConfirmCard />{/* V50.z507 — conferma doppione Axon in sospeso (resta finché non si sceglie) */}
 
         {/* V50.z505 — Home personalizzabile: ordine, visibilità e posizione (sinistra/destra/intera) dei blocchi da GET /home/layout
              (modificabile dal Super Master in Impostazioni › Preferenze generali). Default: Master, PUN, Ritelefonate | Appuntamenti,
