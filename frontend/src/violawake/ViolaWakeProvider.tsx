@@ -10,7 +10,8 @@ import * as Haptics from "expo-haptics";
 import { useAuth } from "@/src/auth";
 import { api } from "@/src/api";
 import { openAxonChat } from "@/src/axonProactive";
-import { playActivationEffect, startFindPhone, stopFindPhone } from "@/src/activation/events"; // V50.z318
+import { playActivationEffect } from "@/src/activation/events";
+import { triggerFindPhone, stopFindPhoneEverywhere } from "@/src/findPhone/findPhoneClient"; // V50.z492 // V50.z318
 import { playAudioBase64 } from "@/src/utils/audioPlayback";
 import { violaApi } from "./api";
 import { createWakeEngine, WAKE_ENGINE_SUPPORTED } from "./wakeEngine";
@@ -186,7 +187,7 @@ export function ViolaWakeProvider({ children }: { children: React.ReactNode }) {
     }
     if (route.mode === "cancel") {
       void violaApi.logEvent("cancelled", { transcript });
-      stopFindPhone(); // «stop» ferma anche «trova il mio telefono»
+      void stopFindPhoneEverywhere(); // «stop» ferma anche «trova il mio telefono» (locale + remoto, V50.z492)
       await speak("OK!");
       settle();
       return;
@@ -200,8 +201,9 @@ export function ViolaWakeProvider({ children }: { children: React.ReactNode }) {
     }
     if (route.mode === "find_phone") {
       void violaApi.logEvent("find_phone", { transcript });
-      const us = await api<{ assistant_name?: string }>("/user-settings").catch(() => ({} as any));
-      startFindPhone(us?.assistant_name || "Axon");
+      // V50.z492 — mai squillare se stesso: il backend sceglie l'altro dispositivo (telefono → tablet, tablet/pc/CarPlay → telefono)
+      const r = await triggerFindPhone(transcript, { mode: (route as any).ring_mode === "vibrate" ? "vibrate" : undefined });
+      await speak(r.ok ? (r.result?.mode === "vibrate" ? `Faccio vibrare ${r.result.target.name}.` : `Faccio squillare ${r.result?.target.name || "il telefono"}.`) : "Non trovo un altro dispositivo da far squillare.");
       settle();
       return;
     }

@@ -43,7 +43,8 @@ import { ChatQueueInline } from "@/src/ChatQueueInline"; // V50.z301 — bozze i
 import { ChoiceButtons, extractChoices } from "@/src/axon-choice-buttons"; // V50.z304 — pulsanti A)/B) e azioni «ORA»
 import { consumePendingPrompt, consumePendingVoice, AXON_OPEN_CHAT_EVENT } from "@/src/axonProactive";
 import { flagAxonUnread, markAxonRead } from "@/src/axonUnread"; // V50.z383 — risposta arrivata a chat chiusa → FAB verde lampeggiante
-import { matchLocalCommand, playActivationEffect, startFindPhone, stopFindPhone } from "@/src/activation/events"; // V50.z318
+import { matchLocalCommand, playActivationEffect } from "@/src/activation/events";
+import { triggerFindPhone, stopFindPhoneEverywhere } from "@/src/findPhone/findPhoneClient"; // V50.z492 // V50.z318
 import { ActivationOverlay } from "@/src/activation/ActivationOverlay"; // V50.z318 — mirror dentro il Modal chat // V50.z196 — Blocco 9 apertura chat proattiva
 import { syncAlarmNotifs } from "@/src/alarmNotifs";
 import { notify } from "@/src/utils/notify";
@@ -722,10 +723,11 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     const stripName = (s: string) => (s.toLowerCase().startsWith(assistantName.toLowerCase()) ? s.slice(assistantName.length).replace(/^[,!\s]+/, "") : s);
     const local = !attachmentsPayload.length ? matchLocalCommand(stripName(msg)) : null;
     if (local) {
+      // V50.z492 — «trova il mio telefono»: NON squilla questo dispositivo, fa squillare l'altro (pc/tablet → telefono, telefono → tablet) via VPS
       const reply =
         local === "effect" ? (playActivationEffect({ name: assistantName, voice: assistantVoice, greet: true }), `✨ Ecco l'effetto di attivazione.`) :
-        local === "find_phone" ? (startFindPhone(assistantName), `📍 Sono qui! Vibro e suono finché non tocchi lo schermo o dici «stop».`) :
-        (stopFindPhone(), "OK!");
+        local === "find_phone" ? (await triggerFindPhone(stripName(msg))).message :
+        (await stopFindPhoneEverywhere(), "OK!");
       setMessages((prev) => [...prev, { role: "assistant", content: reply, created_at: new Date().toISOString() }]);
       sendingRef.current = false;
       setSending(false);

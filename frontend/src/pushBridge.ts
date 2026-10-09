@@ -45,6 +45,20 @@ if (Platform.OS === "android") {
     showBadge: true,
     lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
   }).catch(() => {});
+  // V50.z492 — «Trova il mio telefono»: sveglia il telefono a schermo spento, suono dedicato (find_phone.wav bundlato via app.json), vibrazione lunga, bypass DND
+  Notifications.setNotificationChannelAsync("find_phone", {
+    name: "Trova il mio telefono",
+    description: "Squillo dedicato quando chiedi ad Axon «dove sei?» da un altro dispositivo.",
+    importance: Notifications.AndroidImportance.MAX,
+    sound: "find_phone.wav",
+    vibrationPattern: [0, 1500, 150, 1500, 150, 1500],
+    enableLights: true,
+    lightColor: "#EA580C",
+    enableVibrate: true,
+    bypassDnd: true,
+    showBadge: false,
+    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+  }).catch(() => {});
   Notifications.setNotificationChannelAsync("standard_alerts", {
     name: "Notifiche standard",
     description: "Task completati, messaggi del team, aggiornamenti.",

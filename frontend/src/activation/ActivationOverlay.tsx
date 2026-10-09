@@ -9,6 +9,7 @@ import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { playAudioBase64 } from "@/src/utils/audioPlayback";
+import { findPhoneRingBase64 } from "@/src/findPhone/findPhoneClient"; // V50.z492 — squillo dedicato
 import { theme } from "@/src/theme";
 import { AXON_ACTIVATION_EVENT, AXON_ACTIVATION_HIDE_EVENT, AXON_FIND_PHONE_EVENT, AXON_FIND_PHONE_STOP_EVENT, stopFindPhone, type ActivationPayload } from "./events";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
@@ -131,7 +132,7 @@ function Core({ pulseMs = 900, shake = false }: { pulseMs?: number; shake?: bool
 export function ActivationOverlay({ mirror = false }: { mirror?: boolean }) {
   const { width, height } = useWindowDimensions();
   const [wave, setWave] = useState<ActivationPayload | null>(null);
-  const [find, setFind] = useState<{ name: string } | null>(null);
+  const [find, setFind] = useState<{ name: string; mode?: "ring" | "vibrate" } | null>(null);
   const [phase, setPhase] = useState(0); // V50.z335 — 0 «sta prendendo vita» → 1 «connessione stabilita» → 2 «pronto»
   const [pulse, setPulse] = useState(false); // V50.z337 — onde + vibrazione partono insieme dopo BUZZ_DELAY_MS
   const findRef = useRef(false);
@@ -170,21 +171,29 @@ export function ActivationOverlay({ mirror = false }: { mirror?: boolean }) {
 
   // TROVA IL MIO TELEFONO: pattern ritmico + suono identitario in loop
   useEffect(() => {
-    const start = DeviceEventEmitter.addListener(AXON_FIND_PHONE_EVENT, (p: { name?: string }) => {
+    const start = DeviceEventEmitter.addListener(AXON_FIND_PHONE_EVENT, (p: { name?: string; mode?: "ring" | "vibrate" }) => {
       if (findRef.current) return;
       findRef.current = true;
-      setFind({ name: p?.name || "Axon" });
+      const mode = p?.mode === "vibrate" ? "vibrate" : "ring";
+      setFind({ name: p?.name || "Axon", mode });
       if (mirror) return;
-      const buzz = () => {
-        if (Platform.OS === "android") Vibration.vibrate([0, 200, 100, 200, 100, 500], false);
-        else if (Platform.OS === "ios") { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {}); setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {}), 300); }
-      };
+      // V50.z492 — «vibrate»: vibrazione CONTINUA e lunga (non un pattern breve) finché non si ferma
+      if (mode === "vibrate") {
+        if (Platform.OS === "android") Vibration.vibrate([0, 1500, 150], true);
+        else if (Platform.OS === "ios") {
+          const hv = async () => { while (findRef.current) { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {}); await new Promise((r) => setTimeout(r, 180)); } };
+          void hv();
+        }
+        return;
+      }
+      // «ring»: squillo DEDICATO (motivo sintetico find_phone, non la suoneria di chiamata) in loop + vibrazione leggera di accompagnamento
       const loop = async () => {
+        const ring = findPhoneRingBase64();
         while (findRef.current) {
-          buzz();
-          await tts(`Sono qui! Sono qui, ${p?.name ? "sono " + p.name : "sono Axon"}!`);
+          if (Platform.OS === "android") Vibration.vibrate([0, 200, 100, 200], false);
+          await new Promise<void>((res) => { playAudioBase64(ring, "audio/wav", () => res()).catch(() => res()); });
           if (!findRef.current) break;
-          await new Promise((r) => setTimeout(r, 900));
+          await new Promise((r) => setTimeout(r, 250));
         }
       };
       void loop();

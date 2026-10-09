@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-09 | D2026.10.09-1347 | V50.z492 Trova il mio telefono via push/VPS (gerarchia dispositivi, squillo dedicato, vibrazione continua, stop remoto) |
 | 2026-10-09 | D2026.10.09-1117 | V50.z491 anteprima duplicati + unione, ritorno alla scheda, UI Nuovo contatto |
 | 2026-10-09 | D2026.10.09-1053 | V50.z490 Nuovo contatto: bottone Importa |
 | 2026-10-09 | D2026.10.09-1027 | V50.z489 web: menu nella sidebar + pannello Azioni rapide su desktop |

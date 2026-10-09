@@ -94,7 +94,7 @@ def _vw_route(transcript: str) -> dict:
     if re.search(r"\bfai (l'|lo |l )?effetto\b|\beffetto di attivazione\b|\battivati\b", low):
         return {"mode": "effect", "prompt": cmd}
     if re.search(r"\bdove sei\b|\btrova il (mio )?telefono\b|\bdov'è il (mio )?telefono\b|\bcerca il (mio )?telefono\b", low):
-        return {"mode": "find_phone", "prompt": cmd}
+        return {"mode": "find_phone", "prompt": cmd, "ring_mode": "vibrate" if re.search(r"\bvibra\w*|senza suono|silenzios\w*", low) else "ring"}  # V50.z492 — «fallo vibrare» → vibrazione continua sul dispositivo bersaglio
     for action, keys in VW_TRIGGER_RULES:
         if any(k in low for k in keys):
             return {"mode": "trigger", "action": action, "prompt": cmd}

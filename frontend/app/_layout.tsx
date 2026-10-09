@@ -23,6 +23,7 @@ import { ViolaWakeProvider } from "@/src/violawake/ViolaWakeProvider"; // V50.z3
 import { ViolaStatusPill } from "@/src/violawake/ViolaStatusPill";
 import { VoiceGuardSheet } from "@/src/violawake/VoiceGuardSheet"; // V50.z371
 import { ActivationOverlay } from "@/src/activation/ActivationOverlay"; // V50.z318 — onda di energia + trova il telefono
+import { FindPhoneReceiver } from "@/src/findPhone/FindPhoneReceiver"; // V50.z492 — lato bersaglio di «trova il mio telefono» (push + coda)
 import { startScannerResumeWatcher } from "@/src/scannerOffline"; // V50.z337 — scanner: ripresa automatica del PDF al ritorno della rete
 
 function ScannerResumeBridge({ enabled }: { enabled: boolean }) {
@@ -266,6 +267,7 @@ function StackWithCallBar() {
       {user && !inTour ? <ViolaStatusPill /> : null}
       <VoiceGuardSheet />{/* V50.z371 — PIN comandi critici vocali */}
       {user ? <ActivationOverlay /> : null}
+      {user ? <FindPhoneReceiver /> : null}
       {/* V50.z147 — Rimosso il bottone Help/Support Center dalle top header di tutte le pagine
           (`<SupportFab />`, V49.j/k): ridondante con il tab "Help" della bottom bar (V50.z141).
           Il componente resta in `src/SupportFab.tsx` per eventuale riuso. */}

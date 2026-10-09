@@ -116,7 +116,8 @@
         "expo-notifications",
         {
           "icon": "./assets/images/icon.png",
-          "color": "#EA580C"
+          "color": "#EA580C",
+          "sounds": ["./assets/sounds/find_phone.wav"]
         }
       ],
       "expo-asset",

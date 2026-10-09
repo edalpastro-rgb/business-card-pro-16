@@ -589,3 +589,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z491 — contact_import_dedupe.py: duplicati (analyze/duplicates/commit merge_into_contact_id; CSV check-duplicates + execute duplicate_strategy + contact_ids). Frontend import-folder (card duplicati + auto-apertura scheda) e contacts-import (strategia duplicati, apertura scheda se 1). UI Nuovo contatto: icona cartella, sottotitolo Documento, spazio banner. Test 3/3 + screenshot."
+
+  - agent: "main"
+    message: "V50.z492 — axon_find_phone.py (trigger con gerarchia dispositivi, coda pending, ack, stop, status) + send_push relay con target_device_id; frontend findPhoneClient/FindPhoneReceiver/ActivationOverlay mode ring|vibrate, canale find_phone + find_phone.wav. Test 4/4; web chat verificata (nessun overlay locale, trigger+stop inviati). Push reale richiede build nativa + EMERGENT_PUSH_KEY sul VPS."
