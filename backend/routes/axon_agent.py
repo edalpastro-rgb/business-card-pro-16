@@ -15,7 +15,7 @@ from typing import Any as _ag_Any, Dict as _ag_Dict, List as _ag_List, Optional 
 from urllib.parse import quote as _ag_quote
 
 _AG_ROME = _ag_zi.ZoneInfo("Europe/Rome")
-_AG_ACTIONS = ("create_appointment", "update_appointment", "update_contact_status", "send_whatsapp", "send_email", "create_callback", "create_reminder")
+_AG_ACTIONS = ("create_appointment", "update_appointment", "update_contact_status", "send_whatsapp", "send_email", "create_callback", "create_reminder", "create_contact", "add_note")  # V50.z499 — + contatto, nota
 _AG_STATUS_IT = {"client": "Cliente", "prospect": "Prospect", "collaborator": "Collaboratore"}
 
 # Verbi/oggetti che indicano un'azione eseguibile; serve ≥2 azioni distinte + un connettore per attivare l'agente.
@@ -27,7 +27,9 @@ _AG_VERB_RX = _ag_re.compile(
     r"(mand\w*|invi\w*|scriv\w*|gir\w*)\w*\s+(gli|le|un|una|il|la|lo|al|allo|alla)?\s*(whatsapp|messaggio|mail|e-?mail|preventivo|offerta|riepilogo|conferma|promemoria)|"
     r"(mand\w*|invi\w*)(gli|le|ci)\s+(il|un|la|una|lo)\s+\w+|whatsapp|e-?mail\s+(a|per)|"
     r"(crea|imposta|metti|aggiungi|segna)\w*\s+(un\s+|una\s+|il\s+|la\s+)?(promemoria|richiamat\w*|ritelefonat\w*|reminder|callback)|"
-    r"ricorda(mi|ti)?\s+di|richiama\w*|ritelefona\w*|promemoria\s+per)\b", _ag_re.I)
+    r"ricorda(mi|ti)?\s+di|richiama\w*|ritelefona\w*|promemoria\s+per|"
+    r"(crea|aggiungi|inserisci|registra|salva|nuovo)\w*\s+(un\s+|il\s+|nuovo\s+)?(contatto|cliente|prospect|lead)|"
+    r"(aggiungi|scrivi|metti|salva|inserisci|crea)\w*\s+(una\s+|la\s+|questa\s+)?nota|nota\s+(su|per|a)\s)\b", _ag_re.I)  # V50.z499
 _AG_CONNECTOR_RX = _ag_re.compile(r"\b(e|ed|poi|dopo|quindi|inoltre|infine|successivamente)\b|[,;]")
 _AG_RESUME_RX = {
     "skip": _ag_re.compile(r"^\s*(salta\w*|skip|vai avanti|continua|procedi|prosegui|passa (alla|oltre)|avanti)\b", _ag_re.I),
@@ -41,7 +43,12 @@ def _agent_looks_multistep(msg: str) -> bool:
     if not t or len(t) > 700 or "?" in t[-3:]:
         return False
     hits = {m.group(0).lower()[:14] for m in _AG_VERB_RX.finditer(t)}
-    return len(hits) >= 2 and bool(_AG_CONNECTOR_RX.search(t))
+    if len(hits) >= 2 and bool(_AG_CONNECTOR_RX.search(t)):
+        return True
+    # V50.z499 — BUG STRUTTURALE: un comando con UNA sola azione («crea un appuntamento con Rossi domani alle 10», «programma una
+    # richiamata a Zanini lunedì», «crea contatto Mario Rossi», «aggiungi nota su Rossi…») non entrava nell'agente e finiva all'LLM
+    # conversazionale, che rispondeva «Fatto» senza scrivere nulla. Ora basta un verbo d'azione in forma imperativa.
+    return len(hits) >= 1 and bool(_ag_re.match(r"^\s*(axon[,!]?\s+)?(per favore\s+)?(crea|fissa|prenota|programma|imposta|metti|aggiungi|inserisci|registra|salva|segna|scrivi|manda|invia|ricorda|richiama|ritelefona|sposta|rimanda|anticipa|posticipa|chiudi|aggiorna|cambia|converti|nuovo|nuova)\w*\b", t, _ag_re.I))
 
 
 # ---- pianificazione (LLM) ------------------------------------------------------------------------------------------------
@@ -78,6 +85,8 @@ async def _agent_plan(msg: str, user: dict) -> _ag_Optional[dict]:
         "- send_email: {subject: str, body: str} — email completa (saluto, corpo, firma). «mandagli il preventivo» → email che accompagna il preventivo (dì che è allegato/segue), NON inventare cifre.\n"
         "- create_callback: {scheduled_at: 'YYYY-MM-DDTHH:MM', title: str, note: str} — «richiamalo tra 30 giorni», «ritelefonata». Senza orario usa 10:00.\n"
         "- create_reminder: {label: str (max 60), trigger_at: 'YYYY-MM-DDTHH:MM'} — «ricordami di…», «promemoria per…» NON legato a una telefonata al cliente. Se il promemoria è per RICHIAMARE un cliente usa create_callback.\n"
+        "- create_contact: {first_name: str, last_name: str, phone: str, email: str, city: str, company: str, area: 'energy'|'network'} — «crea contatto Mario Rossi 333 1234567 Milano»; 'contact' = null (il contatto NON esiste ancora).\n"
+        "- add_note: {text: str} — «aggiungi nota su Rossi: vuole il preventivo» → 'contact' = Rossi, text = il contenuto della nota (senza il nome).\n"
         "REGOLE: mantieni l'ordine indicato dall'utente; ogni azione che riguarda una persona ha 'contact' = nome come lo ha detto l'utente "
         "(risolvi su un nome dell'elenco CRM se evidente, es. «Mario» → «Mario Rossi» se è l'unico Mario); date relative calcolate dall'ORA ATTUALE; "
         "orari sempre nel futuro; nessuna azione fuori elenco (se l'utente chiede altro, mettila in 'unsupported'). Se manca un dato "
@@ -165,6 +174,39 @@ async def _agent_exec_step(user: dict, step: dict, contact: _ag_Optional[dict]) 
                 "created_at": now, "source": "axon_agent", "created_by": user["user_id"]}}})
         return {"text": f"{note or 'Stato aggiornato'} per {cname}: stato → **{_AG_STATUS_IT[status]}**", "chip": None}
 
+    if action == "create_contact":
+        fn = (p.get("first_name") or "").strip(); ln = (p.get("last_name") or "").strip()
+        if not fn and not ln:
+            raise _AgentStepError("manca il nome del nuovo contatto")
+        # V50.z499 — STESSA funzione del form «Nuovo contatto» (07_contacts.create_contact): contact_id, contact_code, created_by, dedup…
+        created = await create_contact(ContactIn(  # noqa: F821
+            first_name=fn or ln, last_name=ln if fn else "", phone=(p.get("phone") or "").strip(), email=(p.get("email") or "").strip(),
+            address_city=(p.get("city") or "").strip(), company=(p.get("company") or "").strip(),
+            area=p.get("area") if p.get("area") in ("energy", "network") else "energy",
+        ), user)
+        if not await db.contacts.find_one({"contact_id": created["contact_id"]}, {"_id": 0, "contact_id": 1}):  # noqa: F821
+            raise _AgentStepError("il contatto non risulta salvato")
+        return {"text": f"Nuovo contatto **{fn} {ln}**".strip() + (f" · {p.get('phone')}" if p.get("phone") else "") + f" [[NAV:/contact/{created['contact_id']}|Apri scheda]]", "chip": None}
+
+    if action == "add_note":
+        if not contact:
+            raise _AgentStepError("non ho capito a quale contatto aggiungere la nota")
+        text = (p.get("text") or "").strip()
+        if not text:
+            raise _AgentStepError("manca il testo della nota")
+        # V50.z499 — STESSA funzione della scheda (07_contacts.add_note → contacts.notes[])
+        bg = BackgroundTasks()  # noqa: F821
+        note = await add_note(contact["contact_id"], ContactNote(kind="text", text=text), bg, user)  # noqa: F821
+        for t in bg.tasks:
+            try:
+                asyncio.create_task(t()) if asyncio.iscoroutinefunction(t.func) else t.func(*t.args, **t.kwargs)  # noqa: F821
+            except Exception:  # noqa: BLE001
+                pass
+        chk = await db.contacts.find_one({"contact_id": contact["contact_id"], "notes.id": note.get("id")}, {"_id": 0, "contact_id": 1})  # noqa: F821
+        if not chk:
+            raise _AgentStepError("la nota non risulta salvata")
+        return {"text": f"Nota aggiunta a {cname}: «{text[:90]}»", "chip": None}
+
     if action == "create_appointment":
         start = _ag_local(p.get("start_at"))
         if not start:
@@ -173,13 +215,14 @@ async def _agent_exec_step(user: dict, step: dict, contact: _ag_Optional[dict]) 
             raise _AgentStepError(f"la data indicata ({_ag_fmt(start)}) è già passata")
         dur = int(p.get("duration_min") or 60)
         title = (p.get("title") or "").strip() or (f"Appuntamento con {cname}" if cname else "Appuntamento")
-        aid = f"a_{_ag_uuid.uuid4().hex[:12]}"
-        doc = {"appointment_id": aid, "user_id": tid, "created_by": user["user_id"], "contact_id": contact["contact_id"] if contact else None,
-               "title": title, "area": (contact or {}).get("area") or "energy", "start_at": start.astimezone(_ag_tz.utc), "end_at": (start + _ag_td(minutes=dur)).astimezone(_ag_tz.utc),
-               "duration_min": dur, "is_phone": bool(p.get("is_phone")), "phone_mobile": (contact or {}).get("phone") or "", "phone_work": "", "phone_target": "",
-               "email": (contact or {}).get("email") or "", "location": (p.get("location") or "").strip(), "done": False, "outcome_tags": [], "outcome_notes": "",
-               "products_sold": 0, "contract_signed": False, "created_at": now, "updated_at": now, "source": "axon_agent"}
-        await db.appointments.insert_one(doc)  # noqa: F821
+        # V50.z499 — STESSA funzione del form «Nuovo appuntamento» (08_calendar.create_appointment): id, created_by, broadcast, indirizzo…
+        created = await create_appointment(AppointmentIn(  # noqa: F821
+            contact_id=contact["contact_id"] if contact else None, title=title, area=(contact or {}).get("area") if (contact or {}).get("area") in ("energy", "network") else "energy",
+            start_at=start.astimezone(_ag_tz.utc), end_at=(start + _ag_td(minutes=dur)).astimezone(_ag_tz.utc), duration_min=dur, is_phone=bool(p.get("is_phone")),
+            phone_mobile=(contact or {}).get("phone") or "", email=(contact or {}).get("email") or "", location=(p.get("location") or "").strip(),
+            full_address=(p.get("location") or "").strip() or (contact or {}).get("address") or "", notes=(p.get("note") or "").strip(),
+        ), user)
+        aid = created["appointment_id"]
         if not await db.appointments.find_one({"appointment_id": aid}, {"_id": 0, "appointment_id": 1}):  # noqa: F821
             raise _AgentStepError("l'appuntamento non risulta salvato")
         return {"text": f"Appuntamento «{title}» il {_ag_fmt(start)}" + (f" ({doc['location']})" if doc["location"] else ""), "chip": None}
@@ -239,11 +282,12 @@ async def _agent_exec_step(user: dict, step: dict, contact: _ag_Optional[dict]) 
         if when <= now.astimezone(_AG_ROME):
             raise _AgentStepError(f"la data indicata ({_ag_fmt(when)}) è già passata")
         title = (p.get("title") or "").strip() or (f"Richiamare {cname}" if cname else "Richiamata")
-        cbid = f"cb_{_ag_uuid.uuid4().hex[:12]}"
-        doc = {"callback_id": cbid, "user_id": tid, "created_by": user["user_id"], "contact_id": contact["contact_id"] if contact else None, "title": title,
-               "area": (contact or {}).get("area") or "energy", "scheduled_at": when.astimezone(_ag_tz.utc), "note": (p.get("note") or "").strip(),
-               "phone": (contact or {}).get("phone") or None, "notify": True, "notify_advance_min": None, "done": False, "created_at": now, "source": "axon_agent"}
-        await db.callbacks.insert_one(doc)  # noqa: F821
+        # V50.z499 — STESSA funzione del form «Nuova ritelefonata» (09_callbacks.create_callback)
+        created = await create_callback(CallbackIn(  # noqa: F821
+            contact_id=contact["contact_id"] if contact else None, title=title, area=(contact or {}).get("area") if (contact or {}).get("area") in ("energy", "network") else "energy",
+            scheduled_at=when.astimezone(_ag_tz.utc), note=(p.get("note") or "").strip(), phone=(contact or {}).get("phone") or None,
+        ), user)
+        cbid = created["callback_id"]
         if not await db.callbacks.find_one({"callback_id": cbid}, {"_id": 0, "callback_id": 1}):  # noqa: F821
             raise _AgentStepError("la richiamata non risulta salvata")
         return {"text": f"Richiamata «{title}» il {_ag_fmt(when)}", "chip": None}
@@ -381,8 +425,10 @@ async def _maybe_agent_command(msg: str, user: dict) -> _ag_Optional[dict]:
             return None
         if plan.get("clarify") and not plan.get("steps"):
             return {"reply": f"🤖 {plan['clarify']}", "cmd": "agent_clarify"}
-        if len(plan.get("steps") or []) < 2:
-            return None  # una sola azione → la gestiscono gli intercettori/LLM normali
+        if not plan.get("steps"):
+            return None
+        # V50.z499 — prima: «una sola azione → la gestiscono gli intercettori/LLM normali» → l'LLM diceva «Fatto» senza salvare.
+        # Ora anche UNA sola azione viene eseguita qui, con scrittura reale e verifica.
         run = {"run_id": f"agr_{_ag_uuid.uuid4().hex[:12]}", "user_id": user["user_id"], "tenant_id": tenant_id(user), "message": msg,  # noqa: F821
                "steps": [{"action": s["action"], "contact": s.get("contact"), "label": (s.get("label") or "").strip()[:90], "params": s.get("params") or {}, "status": "pending"} for s in plan["steps"]],
                "unsupported": [str(u) for u in (plan.get("unsupported") or [])][:3], "status": "running", "created_at": utcnow(), "updated_at": utcnow()}  # noqa: F821

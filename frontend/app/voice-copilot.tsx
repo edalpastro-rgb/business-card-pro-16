@@ -36,7 +36,7 @@ import { ensureDevicePermission } from "@/src/permissions/devicePermissions"; //
 // V50.z495 — modalità audio (Tocca per parlare / Sempre attivo), display dinamico, navigazione verso il cliente
 import { DriveModeButtons } from "@/src/drive/DriveModeButtons";
 import { DriveDisplay, type DriveDisplayData, type DriveAddressOption } from "@/src/drive/DriveDisplay";
-import { loadDriveMode, saveDriveMode, DRIVE_SILENCE_MS, DRIVE_NO_SPEECH_MS, DRIVE_IDLE_RESET_MS, type DriveAudioMode } from "@/src/drive/driveSettings";
+import { loadDriveMode, saveDriveMode, loadSuggestionsHidden, saveSuggestionsHidden, DRIVE_SILENCE_MS, DRIVE_NO_SPEECH_MS, DRIVE_IDLE_RESET_MS, type DriveAudioMode } from "@/src/drive/driveSettings";
 let _micRelease: null | (() => void) = null;
 
 type Phase = "idle" | "recording" | "transcribing" | "executing" | "speaking" | "error";
@@ -89,6 +89,10 @@ export default function VoiceCopilotScreen() {
     if (m === "tap" && alwaysOnRef.current) { setAlwaysOn(false); if (phaseRef.current === "recording") void stopAndProcess(); }
   };
   useEffect(() => { void loadDriveMode().then((m) => { modeRef.current = m; setMode(m); }); }, []);
+  // V50.z500 — X su «Cosa puoi dirmi»: suggerimenti nascosti per sempre (preferenza memorizzata)
+  const [suggestionsHidden, setSuggestionsHidden] = useState(false);
+  useEffect(() => { void loadSuggestionsHidden().then(setSuggestionsHidden); }, []);
+  const hideSuggestions = () => { setSuggestionsHidden(true); void saveSuggestionsHidden(true); };
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [permission, setPermission] = useState<boolean | null>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -395,7 +399,7 @@ export default function VoiceCopilotScreen() {
     error: "#EF4444",
   };
   const listening = phase === "recording";
-  const statusLine = listening ? (liveText || "Ti ascolto…") : phase === "idle" ? (currentConfirm || phaseLabel.idle) : (currentConfirm && phase === "speaking" ? currentConfirm : phaseLabel[phase]);
+  const statusLine = listening ? (liveText || "Ti ascolto…") : phase === "idle" ? currentConfirm : (currentConfirm && phase === "speaking" ? currentConfirm : phaseLabel[phase]);
 
   return (
     <View style={styles.root}>
@@ -417,18 +421,20 @@ export default function VoiceCopilotScreen() {
           </Animated.View>
         </View>
 
-        {/* Stato / trascrizione live / risposta di Axon: UNA riga, niente bolle che scorrono */}
-        <View style={styles.statusRow} testID="drive-status">
-          <View style={[styles.statusDot, { backgroundColor: phaseColor[phase] }]} />
-          <Text style={[styles.statusText, { color: listening ? "#FFF" : phaseColor[phase] }]} numberOfLines={2}>
-            {cancelledFlash ? "Messaggio cancellato — dimmi il nuovo comando" : statusLine}
-          </Text>
-          {phase === "transcribing" || phase === "executing" ? <ActivityIndicator size="small" color={phaseColor[phase]} /> : null}
-        </View>
+        {/* Stato / trascrizione live / risposta di Axon — V50.z500: in attesa NESSUN testo (niente «Tocca … e parla») */}
+        {phase !== "idle" || currentConfirm || cancelledFlash ? (
+          <View style={styles.statusRow} testID="drive-status">
+            <View style={[styles.statusDot, { backgroundColor: phaseColor[phase] }]} />
+            <Text style={[styles.statusText, { color: listening ? "#FFF" : phaseColor[phase] }]} numberOfLines={2}>
+              {cancelledFlash ? "Messaggio cancellato — dimmi il nuovo comando" : statusLine}
+            </Text>
+            {phase === "transcribing" || phase === "executing" ? <ActivityIndicator size="small" color={phaseColor[phase]} /> : null}
+          </View>
+        ) : null}
 
         {/* DISPLAY DINAMICO CENTRALE: suggerimenti → mappa / foto / elenco / nota → (5 s) suggerimenti */}
         <View style={styles.display}>
-          <DriveDisplay data={display} onPickAddress={pickAddress} />
+          <DriveDisplay data={display} onPickAddress={pickAddress} suggestionsHidden={suggestionsHidden} onHideSuggestions={hideSuggestions} />
         </View>
 
         {/* In basso SOLO i due bottoni, grandi e affiancati */}

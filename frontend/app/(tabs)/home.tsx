@@ -191,26 +191,8 @@ export default function HomeScreen() {
     }, 450);
     return () => clearTimeout(t);
   }, [sectionParam]);
-  // V50.z25 — Sezione "Azioni rapide" collassabile (a scomparsa) con persistenza
-  const [qaOpen, setQaOpen] = useState<boolean>(true);
   // V50.z35 — Drawer laterale con 6 categorie
   const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
-  useEffect(() => {
-    (async () => {
-      try {
-        const v = await AsyncStorage.getItem("home_qa_open_v1");
-        if (v === "0") setQaOpen(false);
-      } catch { /* silent */ }
-    })();
-  }, []);
-  const toggleQa = useCallback(() => {
-    setQaOpen((prev) => {
-      const next = !prev;
-      AsyncStorage.setItem("home_qa_open_v1", next ? "1" : "0").catch(() => {});
-      return next;
-    });
-  }, []);
-
   // V50.z111 — Tour guidato al primo avvio (per-utente, non per-device).
   // Fonte di verità: `user-settings.onboarding_done` lato server (sopravvive a
   // reinstall/cambio telefono); cache locale `onboarding_done_${user_id}` per
@@ -595,12 +577,12 @@ export default function HomeScreen() {
         <DashboardWidgetsSection exclude={APPT_TODAY_WIDGET} />
         <BetaProgramCard />{/* V50.z475 — Programma Beta: missione della settimana + Diario del venerdì (solo se avviato dal Master) */}
 
-        {/* V50.z409/z479 — Desktop: Ritelefonate + Azioni rapide a sinistra, Appuntamenti + Scadenze + Statistiche a destra (assign esplicito) */}
-        <DesktopGrid gap={16} assign={[0, 1, 0, 1, 1]}>
+        {/* V50.z500 — Desktop: griglia FISSA a righe (Ritelefonate | Appuntamenti, Scadenze | Statistiche): card della stessa riga a pari altezza */}
+        <DesktopGrid gap={16} rows>
         {/* ── 4) Ritelefonate di oggi ── */}
         <View style={styles.section} onLayout={onSectionLayout("ritelefonate")}>
           <View style={styles.sectionHead}>
-            <Text style={styles.sectionTitle}>Ritelefonate di oggi</Text>
+            <Text style={styles.sectionTitle}>RITELEFONATE DI OGGI</Text>
             <View style={styles.pill}><Text style={styles.pillTxt}>{cbTodayTotal}</Text></View>
             <View style={{ flex: 1 }} />
             {/* V50.z334 — bottone compatto (era un blocco arancione a tutta larghezza) */}
@@ -662,61 +644,7 @@ export default function HomeScreen() {
         {/* V50.z132 — Banner "Appuntamenti di oggi" SOTTO Ritelefonate */}
         <View onLayout={onSectionLayout("appuntamenti")}><DashboardWidgetsSection only={APPT_TODAY_WIDGET} /></View>
 
-        {/* ── 5) Azioni rapide (a scomparsa) ── */}
-        <View style={styles.section} onLayout={onSectionLayout("azioni")}>
-          <Pressable onPress={toggleQa} style={styles.qaHeader} hitSlop={8}>
-            <Text style={styles.sectionTitle}>Azioni rapide</Text>
-            <Ionicons name={qaOpen ? "chevron-up" : "chevron-down"} size={20} color={C.navy} />
-          </Pressable>
-          {qaOpen ? (
-            <View style={styles.quickRow}>
-              <Pressable testID="qa-new-appt" style={styles.quick} onPress={() => router.push("/appointment/new")}>
-                <View style={[styles.quickIcon, { backgroundColor: '#0EA5E9' /* V50.z34 CRM Core */ }]}>
-                  <Ionicons name="calendar-outline" size={22} color="#FFF" />
-                </View>
-                <Text style={styles.quickTxt} numberOfLines={2}>Nuovo appuntamento</Text>
-              </Pressable>
-              <Pressable testID="qa-new-contact" style={styles.quick} onPress={() => router.push("/contact/new")}>
-                <View style={[styles.quickIcon, { backgroundColor: '#0EA5E9' /* V50.z34 CRM Core */ }]}>
-                  <Ionicons name="person-add-outline" size={22} color="#FFF" />
-                </View>
-                <Text style={styles.quickTxt} numberOfLines={2}>Nuovo contatto</Text>
-              </Pressable>
-              <Pressable testID="qa-axon-hub" style={styles.quick} onPress={() => router.push("/axon-hub" as any)}>
-                <View style={[styles.quickIcon, { backgroundColor: '#7C3AED' }]}>
-                  <Ionicons name="sparkles" size={22} color="#FFF" />
-                </View>
-                <Text style={styles.quickTxt} numberOfLines={2}>Axon HUB</Text>
-              </Pressable>
-              <Pressable testID="qa-wake-training" style={styles.quick} onPress={() => router.push("/wake-word-training" as any)}>
-                <View style={[styles.quickIcon, { backgroundColor: '#7C3AED' }]}>
-                  <Ionicons name="mic-circle" size={22} color="#FFF" />
-                </View>
-                <Text style={styles.quickTxt} numberOfLines={2}>Addestramento wake-word Axon</Text>
-              </Pressable>
-              <Pressable testID="qa-voice-copilot" style={styles.quick} onPress={() => router.push("/voice-copilot")}>
-                <View style={[styles.quickIcon, { backgroundColor: '#7C3AED' /* V50.z34 AI & Axon */ }]}>
-                  <Ionicons name="car-sport" size={22} color="#FFF" />
-                </View>
-                <Text style={styles.quickTxt} numberOfLines={2}>Axon Drive</Text>
-              </Pressable>
-              {/* V50.z253 — Resoconto Km (note spese) */}
-              <Pressable testID="qa-km-report" style={styles.quick} onPress={() => router.push("/km-report" as any)}>
-                <View style={[styles.quickIcon, { backgroundColor: '#0EA5E9' /* CRM Core */ }]}>
-                  <Ionicons name="speedometer-outline" size={22} color="#FFF" />
-                </View>
-                <Text style={styles.quickTxt} numberOfLines={2}>Resoconto Km</Text>
-              </Pressable>
-              {/* V50.z25 — Caselle mail (IMAP) — categoria Comunicazioni */}
-              <Pressable testID="qa-email-accounts" style={styles.quick} onPress={() => router.push("/email-accounts")}>
-                <View style={[styles.quickIcon, { backgroundColor: '#F97316' /* V50.z34 Comunicazioni */ }]}>
-                  <Ionicons name="mail-outline" size={22} color="#FFF" />
-                </View>
-                <Text style={styles.quickTxt} numberOfLines={2}>Caselle mail</Text>
-              </Pressable>
-            </View>
-          ) : null}
-        </View>
+        {/* V50.z500 — «Azioni rapide» rimossa dalla Home (le voci sono nel menu laterale) */}
 
         {/* ── V29 · Scadenze imminenti ── */}
         <View style={styles.section} onLayout={onSectionLayout("scadenze")}>
@@ -760,7 +688,7 @@ export default function HomeScreen() {
 
         {/* ── 6) Statistiche ── */}
         <View style={styles.section} onLayout={onSectionLayout("statistiche")}>
-          <Text style={styles.sectionTitle}>Statistiche</Text>
+          <Text style={styles.sectionTitle}>STATISTICHE</Text>
 
           {/* KPI cards 2×2 */}
           <View style={styles.kpiRow}>
@@ -1337,7 +1265,7 @@ const styles = StyleSheet.create({
   /* Section */
   section: { marginTop: 22 },
   sectionHead: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
-  sectionTitle: { fontSize: 17, fontWeight: "800", color: C.text, letterSpacing: -0.3 },
+  sectionTitle: { fontSize: 18, fontWeight: "900", color: C.text, letterSpacing: 2, textTransform: "uppercase" }, // V50.z500 — stesso stile di «SCADENZE»
   pill: { backgroundColor: C.primarySoft, paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999 },
   pillTxt: { color: C.primary, fontWeight: "800", fontSize: 12 },
 
@@ -1378,9 +1306,9 @@ const styles = StyleSheet.create({
   /* V29 · Scadenze */
   dlChipsRow: { flexDirection: "row", gap: 6 },
   // V50.s — Header "SCADENZE" con chips centrati sotto
-  dlHeader: { alignItems: "center", gap: 10, marginBottom: 12 },
-  dlSectionTitle: { fontSize: 18, fontWeight: "900", color: C.text, letterSpacing: 2, textAlign: "center" },
-  dlChipsRowCentered: { flexDirection: "row", gap: 8, justifyContent: "center", alignItems: "center", flexWrap: "wrap" },
+  dlHeader: { alignItems: "flex-start", gap: 10, marginBottom: 12 }, // V50.z500 — allineato a sinistra come gli altri titoli
+  dlSectionTitle: { fontSize: 18, fontWeight: "900", color: C.text, letterSpacing: 2, textAlign: "left" },
+  dlChipsRowCentered: { flexDirection: "row", gap: 8, justifyContent: "flex-start", alignItems: "center", flexWrap: "wrap" },
   dlChip: { flexDirection: "row", alignItems: "center", paddingHorizontal: 9, paddingVertical: 5, minHeight: 28, borderRadius: 999, backgroundColor: C.card, borderWidth: 1, borderColor: C.border },
   dlCollapsedHint: { fontSize: 11, color: C.muted, textAlign: "center", paddingVertical: 8, fontStyle: "italic" },
   dlChipActive: { backgroundColor: C.primarySoft, borderColor: C.primary },

@@ -25,15 +25,21 @@ export const DRIVE_SUGGESTIONS = [
   { emoji: "💬", title: "Chiedi qualcosa ad Axon", sample: "Portami da Rossi · Mostrami le ritelefonate di oggi · Leggimi l'ultima nota su Rossi" },
 ];
 
-type Props = { data: DriveDisplayData | null; onPickAddress?: (opt: DriveAddressOption) => void };
+type Props = { data: DriveDisplayData | null; onPickAddress?: (opt: DriveAddressOption) => void; suggestionsHidden?: boolean; onHideSuggestions?: () => void };
 
 const MAX_ROWS = 6;
 
-export function DriveDisplay({ data, onPickAddress }: Props) {
+export function DriveDisplay({ data, onPickAddress, suggestionsHidden, onHideSuggestions }: Props) {
   if (!data) {
+    if (suggestionsHidden) return <View style={styles.fill} testID="drive-display-empty" />; // V50.z500 — spazio libero per il display dinamico
     return (
       <View style={styles.panel} testID="drive-examples">
-        <Text style={styles.panelTitle}>Cosa puoi dirmi</Text>
+        <View style={styles.head}>
+          <Text style={[styles.panelTitle, { marginBottom: 0 }]}>Cosa puoi dirmi</Text>
+          <Pressable onPress={onHideSuggestions} hitSlop={12} style={styles.closeX} accessibilityLabel="Nascondi suggerimenti" testID="drive-examples-close">
+            <Ionicons name="close" size={20} color="#FFF" />
+          </Pressable>
+        </View>
         {DRIVE_SUGGESTIONS.map((ex) => (
           <View key={ex.title} style={styles.exRow}>
             <Text style={styles.exEmoji}>{ex.emoji}</Text>
@@ -135,6 +141,7 @@ const styles = StyleSheet.create({
   centerPanel: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10 },
   panelTitle: { color: "rgba(255,255,255,0.7)", fontSize: 12, fontWeight: "800", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 },
   head: { flexDirection: "row", alignItems: "center", gap: 8 },
+  closeX: { marginLeft: "auto", width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.16)", alignItems: "center", justifyContent: "center" },
   count: { marginLeft: "auto", color: "#FFF", fontWeight: "900", fontSize: 14, backgroundColor: "rgba(255,255,255,0.14)", paddingHorizontal: 10, paddingVertical: 2, borderRadius: 999 },
   sub: { color: "rgba(255,255,255,0.75)", fontSize: 14, textAlign: "center" },
   bigTxt: { color: "#FFF", fontSize: 24, fontWeight: "900", textAlign: "center" },

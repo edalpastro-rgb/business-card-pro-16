@@ -910,6 +910,10 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 - Regola: nessuna schermata bianca — error boundary su moduli chart/table, timeout visibili.
 
 ## 13. Infrastruttura / Backend
+- **V50.z499** — Axon agent: anche i comandi a UNA azione vengono eseguiti e salvati tramite le funzioni standard dei form (contatto, nota,
+  appuntamento, richiamata); prima l'LLM rispondeva «Fatto» senza scrivere. Test 4/4.
+- **V50.z500** — Home web: via «Azioni rapide», titoli uniformi stile SCADENZE, griglia a righe a pari altezza. Axon Drive: niente testo in
+  attesa, X per nascondere i suggerimenti (memorizzata).
 - **V50.z496** — Allarme prioritario eventi critici (`routes/axon_critical_events.py`, `src/critical/CriticalBanner.tsx`): `axon_critical_alert(...)`
   → (1) banner rosso in cima alla Home finché non chiuso (`/axon/critical-events/*`), (2) push CRITICAL non silenziabile (kind `system_critical`,
   canale urgent_alerts), (3) Axon lo dice a voce all'inizio della prima risposta successiva (chat + stream, chip «Vedi dettagli»). Sorgenti:

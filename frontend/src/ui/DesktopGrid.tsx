@@ -6,9 +6,9 @@ import React from "react";
 import { View, StyleSheet } from "react-native";
 import { useResponsive } from "@/src/hooks/useResponsive";
 
-type Props = { children: React.ReactNode; gap?: number; columns?: number; style?: any; assign?: number[] };
+type Props = { children: React.ReactNode; gap?: number; columns?: number; style?: any; assign?: number[]; rows?: boolean };
 
-export function DesktopGrid({ children, gap = 16, columns, style, assign }: Props) {
+export function DesktopGrid({ children, gap = 16, columns, style, assign, rows }: Props) {
   const { isDesktop } = useResponsive();
   const items = React.Children.toArray(children).filter(Boolean);
   const cols = isDesktop ? Math.max(1, columns ?? 2) : 1;
@@ -19,6 +19,22 @@ export function DesktopGrid({ children, gap = 16, columns, style, assign }: Prop
   // V50.z479 — Le colonne si estendono alla stessa altezza (stretch) e l'ULTIMA sezione di ogni colonna cresce (flexGrow)
   // fino al fondo: niente spazio bianco a destra quando la colonna sinistra è più lunga (Home web).
   const grow = (it: React.ReactNode) => (React.isValidElement(it) ? React.cloneElement(it as React.ReactElement<any>, { style: [(it as React.ReactElement<any>).props.style, styles.grow] }) : it);
+  if (rows) {
+    // V50.z500 — griglia FISSA a righe: i figli riempiono le righe da sinistra a destra; le card della stessa riga hanno la stessa altezza
+    // (stretch) e margini uniformi: lettura ordinata sinistra→destra, alto→basso.
+    const lines: React.ReactNode[][] = [];
+    items.forEach((it, i) => { if (i % cols === 0) lines.push([]); lines[lines.length - 1].push(it); });
+    return (
+      <View style={[{ gap }, style]} testID="desktop-grid">
+        {lines.map((line, r) => (
+          <View key={r} style={[styles.row, { gap }]}>
+            {line.map((it, c) => <View key={c} style={styles.cell}>{grow(it)}</View>)}
+            {line.length < cols ? Array.from({ length: cols - line.length }).map((_, k) => <View key={`pad${k}`} style={styles.cell} />) : null}
+          </View>
+        ))}
+      </View>
+    );
+  }
   return (
     <View style={[styles.row, { gap }, style]} testID="desktop-grid">
       {buckets.map((b, i) => (
@@ -31,5 +47,6 @@ export function DesktopGrid({ children, gap = 16, columns, style, assign }: Prop
 const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "stretch" },
   col: { flex: 1, minWidth: 0 },
+  cell: { flex: 1, minWidth: 0, flexDirection: "column" },
   grow: { flexGrow: 1 },
 });

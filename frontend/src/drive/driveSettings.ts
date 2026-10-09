@@ -22,3 +22,12 @@ export async function loadDriveMode(): Promise<DriveAudioMode> {
 export async function saveDriveMode(mode: DriveAudioMode): Promise<void> {
   try { await AsyncStorage.setItem(DRIVE_MODE_KEY, mode); } catch { /* ignore */ }
 }
+
+// V50.z500 — «Cosa puoi dirmi» chiuso con la X → non si mostra più nelle sessioni successive
+export const DRIVE_SUGGESTIONS_HIDDEN_KEY = "axon_drive_suggestions_hidden_v1";
+export async function loadSuggestionsHidden(): Promise<boolean> {
+  try { return (await AsyncStorage.getItem(DRIVE_SUGGESTIONS_HIDDEN_KEY)) === "1"; } catch { return false; }
+}
+export async function saveSuggestionsHidden(v: boolean): Promise<void> {
+  try { await AsyncStorage.setItem(DRIVE_SUGGESTIONS_HIDDEN_KEY, v ? "1" : "0"); } catch { /* ignore */ }
+}
