@@ -24,6 +24,7 @@ MODULES = [
     "10_invites_groups_smtp_bulk.py",
     "11_team_chat_vcard_mything.py",
     "12_ai_contact_copilot.py",
+    "voice_drive.py",  # V50.z495 — Axon Drive: helper copilot vocale (cliente condiviso, ritelefonate del giorno, ultima nota, navigazione verso il cliente)
     "13_bills.py",
     "14_deadlines_axon_analysis.py",
     "15_cte_quick_bills.py",

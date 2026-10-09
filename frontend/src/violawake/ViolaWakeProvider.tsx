@@ -6,6 +6,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { isMicLeased, onMicLease } from "@/src/utils/micLease"; // V50.z483 — pausa wake-word mentre l'app registra
 import { loadTtsMuted } from "@/src/utils/ttsGate"; // V50.z453
 import { AppState, Platform, Linking } from "react-native";
+import { router } from "expo-router"; // V50.z495 — apertura schermate da comando vocale («modalità drive»)
 import * as Haptics from "expo-haptics";
 import { useAuth } from "@/src/auth";
 import { api } from "@/src/api";
@@ -204,6 +205,14 @@ export function ViolaWakeProvider({ children }: { children: React.ReactNode }) {
       // V50.z492 — mai squillare se stesso: il backend sceglie l'altro dispositivo (telefono → tablet, tablet/pc/CarPlay → telefono)
       const r = await triggerFindPhone(transcript, { mode: (route as any).ring_mode === "vibrate" ? "vibrate" : undefined });
       await speak(r.ok ? (r.result?.mode === "vibrate" ? `Faccio vibrare ${r.result.target.name}.` : `Faccio squillare ${r.result?.target.name || "il telefono"}.`) : "Non trovo un altro dispositivo da far squillare.");
+      settle();
+      return;
+    }
+    if (route.mode === "navigate") {
+      // V50.z495 — «Axon, modalità drive» → Axon Drive a schermo intero, subito
+      void violaApi.logEvent("navigate", { transcript, detail: route.route });
+      try { router.push(route.route as any); } catch { /* noop */ }
+      await speak(route.reply || "Fatto.");
       settle();
       return;
     }

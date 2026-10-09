@@ -1,0 +1,1 @@
+__d(function(g,r,i,a,m,_e,d){"use strict";Object.defineProperty(_e,'__esModule',{value:!0}),Object.defineProperty(_e,"default",{enumerable:!0,get:function(){return l}});var e,t=r(d[0]),s=(e=t)&&e.__esModule?e:{default:e};const{RNRestart:u}=s.default,n=e=>{e?u.Restart(e):u.Restart(null)};var l=Object.assign({},u,{restart:n,Restart:n})},2128,[456]);

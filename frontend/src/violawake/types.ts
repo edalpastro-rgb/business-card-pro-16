@@ -34,6 +34,7 @@ export type ViolaRoute =
   | { mode: "trigger"; action: "briefing" | "weekly_report" | "scan"; prompt: string }
   | { mode: "effect"; prompt: string }      // V50.z318 — «fai l'effetto»
   | { mode: "find_phone"; prompt: string }  // V50.z318 — «dove sei» / «trova il mio telefono»
+  | { mode: "navigate"; route: string; prompt: string; reply?: string } // V50.z495 — «modalità drive» → apre una schermata
   | { mode: "guard"; category: string; prompt: string; message: string } // V50.z371 — comando critico: serve PIN/impronta
   | { mode: "denied"; category: string; prompt: string; reply: string; speaker?: string } // V50.z372 — voce secondaria senza permesso
   | { mode: "chat"; prompt: string };

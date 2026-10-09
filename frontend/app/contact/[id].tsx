@@ -30,6 +30,7 @@ import { FileViewer } from "@/src/FileViewer";
 import { VoiceDictationButton } from "@/src/VoiceDictationButton";
 import { ContactAudioSection } from "@/src/ContactAudioSection";
 import { CallTranscriptSection } from "@/src/CallTranscriptSection"; // V50.z459 — Prompt 20: trascrizione chiamate
+import { ContactCallbacksCard } from "@/src/ContactCallbacksCard"; // V50.z495 — ritelefonate programmate del contatto
 import { ContactCallsSection } from "@/src/ContactCallsSection";
 import { ContactAppointmentsSection } from "@/src/ContactAppointmentsSection";
 import { ContactReferralsSection } from "@/src/ContactReferralsSection";
@@ -854,7 +855,10 @@ function ContactDetail() {
       ) : tab === "audio" ? (
         <ContactAudioSection contactId={id} />
       ) : tab === "transcripts" ? (
-        <CallTranscriptSection contactId={id} onContactChanged={load} />
+        <View style={{ gap: 12 }}>
+          <ContactCallbacksCard contactId={id} />{/* V50.z495 — ritelefonate programmate (manuali, Axon chat, Axon Drive) */}
+          <CallTranscriptSection contactId={id} onContactChanged={load} />
+        </View>
       ) : tab === "calls" ? (
         <ContactCallsSection
           contactId={id}

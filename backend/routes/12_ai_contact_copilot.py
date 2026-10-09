@@ -502,6 +502,7 @@ class VoiceCopilotIn(BaseModel):
     guard_token: Optional[str] = None          # V50.z371 — conferma PIN/biometria per comandi critici
     want_audio: bool = True                    # V50.z368 — TTS nella stessa risposta (voce del profilo Axon), niente 2° round-trip
     speaker_profile_id: Optional[str] = None   # V50.z372 — voce riconosciuta (permessi voci secondarie)
+    pending_nav_contact_id: Optional[str] = None  # V50.z495 — Axon Drive: scelta indirizzo in sospeso («casa o lavoro?»)
 
 
 # V50.z368 — PRIORITÀ CRM: prima di qualsiasi ragionamento si cercano i NOMI presenti nella frase tra contatti/clienti del tenant
@@ -553,21 +554,29 @@ Data una trascrizione vocale dell'utente (consulente energetico in auto),
 identifica l'intent tra:
 - create_contact: creare un NUOVO cliente/contatto
 - add_note: aggiungere una nota a un cliente ESISTENTE
-- schedule_call: programmare una telefonata di richiamo
+- schedule_call: programmare una telefonata di richiamo (richiamata/ritelefonata)
+- list_callbacks: MOSTRARE/elencare le ritelefonate (richiamate) programmate («mostrami le ritelefonate di oggi», «che richiamate ho domani»)
+- read_note: leggere l'ULTIMA nota di un cliente («leggimi l'ultima nota su Zanini», «cosa ho scritto su Rossi»)
+- navigate_to: portare l'utente da un cliente / indicazioni stradali («portami da Zanini», «dammi le indicazioni per Rossi», «naviga verso Bianchi»)
 - query: qualsiasi altra domanda o richiesta informativa
 
 Rispondi SOLO con un JSON valido in questo formato esatto:
 {
-  "intent": "create_contact" | "add_note" | "schedule_call" | "query" | "confirm_contact",
+  "intent": "create_contact" | "add_note" | "schedule_call" | "list_callbacks" | "read_note" | "navigate_to" | "query" | "confirm_contact",
   "params": {
     // per create_contact: first_name, last_name, phone, email, city, area (energy/network)
-    // per add_note: contact_query (nome/cognome cercabile), note_text
-    // per schedule_call: contact_query, when_iso (ISO8601 con timezone Europe/Rome), notes
+    // per add_note: contact_query (nome/cognome cercabile), contact_id (id dal CRM se presente), note_text
+    // per schedule_call: contact_query, contact_id (id dal CRM se presente), when_iso (ISO8601 con timezone Europe/Rome), notes
+    // per list_callbacks: day ("today" | "tomorrow" | "YYYY-MM-DD"; default today)
+    // per read_note: contact_query, contact_id (id dal CRM se presente)
+    // per navigate_to: contact_query, contact_id (id dal CRM se presente), nav_app ("waze" | "google" solo se l'utente lo nomina)
     // per query: question, answer (RISPOSTA COMPLETA da leggere a voce, max 45 parole, usando SOLO i dati CRM forniti)
     // per confirm_contact: contact_id, contact_name (quando il nome detto corrisponde solo PARZIALMENTE a un cliente)
   },
   "confirmation": "frase in italiano da leggere all'utente (max 15 parole; per confirm_contact ESATTAMENTE: Intendi il tuo cliente <Nome Cognome>?)"
 }
+
+Per schedule_call / add_note / read_note / navigate_to con un cliente presente nel CRM (score ≥ 0.62): usa SEMPRE il suo id in contact_id.
 
 PRIORITÀ CRM (obbligatoria): se la frase contiene un nome di persona/azienda, la fonte è SOLO la sezione CONTATTI CRM qui sotto.
 - Match forte (score ≥ 0.9): rispondi subito con i dati del CRM (intent "query" + "answer").
@@ -575,7 +584,9 @@ PRIORITÀ CRM (obbligatoria): se la frase contiene un nome di persona/azienda, l
 - Nessun candidato: di' che nel CRM non c'è un cliente con quel nome e proponi di crearlo. MAI Google o fonti esterne.
 
 Regole:
-- Se una data è "domani alle 10", calcola l'ISO8601 rispetto a ORA (%s).
+- ORA in Italia (Europe/Rome): %s. Calcola TUTTE le date rispetto a questo momento. «domani alle 10» = giorno successivo ore 10:00;
+  un giorno della settimana («lunedì alle 9») = la PROSSIMA occorrenza futura di quel giorno (mai nel passato); senza ora → 09:00.
+  when_iso deve avere l'offset di Roma (es. 2026-10-12T09:00:00+02:00).
 - Se un campo manca, ometti la chiave (non mettere null o stringa vuota).
 - La confirmation deve essere naturale e concisa, es. "Ho creato Mario Rossi con numero 3331234567".
 
@@ -583,11 +594,16 @@ Regole:
 
 
 @api_router.post("/voice/copilot/execute")
-async def voice_copilot_execute(body: VoiceCopilotIn, user=Depends(get_current_user)):
+async def voice_copilot_execute(body: VoiceCopilotIn, background: BackgroundTasks, user=Depends(get_current_user)):
     """V50.o — Copilot vocale hands-free: intent parsing + execution."""
     transcript = (body.transcript or "").strip()
     if not transcript:
         raise HTTPException(status_code=400, detail="Trascrizione vuota")
+    # V50.z495 — scelta indirizzo in sospeso («casa o lavoro?») → risposta deterministica, nessun LLM
+    if body.pending_nav_contact_id:
+        nav_pick = await _vd_pick_address(user, body.pending_nav_contact_id, transcript, body.want_audio)
+        if nav_pick:
+            return {**nav_pick, "transcript": transcript}
     # V50.z371 — comandi critici mai eseguiti solo su voce: serve conferma PIN/impronta (token monouso 90 s)
     g_cat = vg_is_critical(transcript)  # noqa: F821
     # V50.z372 — voce secondaria: permessi (Drive = dati CRM; critici solo se abilitati, e comunque con PIN)
@@ -628,7 +644,7 @@ async def voice_copilot_execute(body: VoiceCopilotIn, user=Depends(get_current_u
         return {"spoken": _ag_spoken, "audio_base64": _ag_audio, "audio_mime": _ag_mime, "intent": "agent", "params": {}, "confirmation": _ag_spoken,
                 "extra": {"reply": _ag["reply"], "cmd": _ag.get("cmd"), "agent_status": _ag.get("agent_status")}, "transcript": transcript}
 
-    now_iso = utcnow().isoformat()
+    now_iso = _vd_fmt_now(_vd_now_rome())  # noqa: F821 — V50.z495 — giorno della settimana + ora locale Roma: «lunedì alle 9» calcolato bene
     # V50.z368 — CRM-first: candidati dal CRM (o cliente in attesa di conferma) nel prompt, prima di tutto il resto
     candidates = await _vc_crm_candidates(user, transcript)
     if body.pending_contact_id:
@@ -693,91 +709,56 @@ async def voice_copilot_execute(body: VoiceCopilotIn, user=Depends(get_current_u
             last_name = (params.get("last_name") or "").strip()
             if not first_name and not last_name:
                 raise HTTPException(status_code=422, detail="Nome/cognome mancanti nella trascrizione")
-            contact_doc = {
-                "id": uuid.uuid4().hex,
-                "tenant_id": tenant,
-                "user_id": user["user_id"],
-                "first_name": first_name,
-                "last_name": last_name,
-                "phone": (params.get("phone") or "").strip(),
-                "email": (params.get("email") or "").strip(),
-                "city": (params.get("city") or "").strip(),
-                "area": params.get("area") if params.get("area") in ("energy", "network") else "energy",
-                "created_at": utcnow(),
-                "updated_at": utcnow(),
-                "source": "voice_copilot",
-            }
-            await db.contacts.insert_one(contact_doc)
-            result_extra = {"contact_id": contact_doc["id"], "name": f"{first_name} {last_name}".strip()}
+            # V50.z495 — stesso percorso del «Nuovo contatto» manuale (contact_id, created_by, contact_code, notes/files…)
+            new_c = await create_contact(ContactIn(  # noqa: F821
+                first_name=first_name or last_name, last_name=last_name if first_name else "",
+                phone=(params.get("phone") or "").strip(), email=(params.get("email") or "").strip(),
+                address_city=(params.get("city") or "").strip(),
+                area=params.get("area") if params.get("area") in ("energy", "network") else "energy",
+            ), user)
+            result_extra = {"contact_id": new_c["contact_id"], "name": f"{first_name} {last_name}".strip()}
 
         elif intent == "add_note":
-            if body.pending_contact_id and candidates:
-                params["contact_query"] = candidates[0]["name"]  # V50.z368 — cliente appena confermato
-            q = (params.get("contact_query") or "").strip()
             note_text = (params.get("note_text") or "").strip()
-            if not q or not note_text:
-                raise HTTPException(status_code=422, detail="Nome cliente o testo nota mancanti")
-            # V50.o — Match fuzzy: split query per parole e cerca ognuna in first/last_name
-            q_tokens = [t for t in re.split(r"\s+", q) if t]
-            or_conds: List[dict] = []
-            for t in q_tokens:
-                or_conds.append({"first_name": {"$regex": t, "$options": "i"}})
-                or_conds.append({"last_name": {"$regex": t, "$options": "i"}})
-            contact = await db.contacts.find_one(
-                {"user_id": tenant, "$or": or_conds or [{"_": None}]},
-                {"_id": 0, "contact_id": 1, "first_name": 1, "last_name": 1},
-            )
-            if not contact:
-                raise HTTPException(status_code=404, detail=f"Cliente '{q}' non trovato")
-            note_doc = {
-                "id": uuid.uuid4().hex,
-                "contact_id": contact["contact_id"],
-                "tenant_id": tenant,
-                "user_id": user["user_id"],
-                "text": note_text,
-                "created_at": utcnow(),
-                "source": "voice_copilot",
-            }
-            await db.contact_notes.insert_one(note_doc)
-            result_extra = {"contact_id": contact["contact_id"], "note_id": note_doc["id"]}
+            if not note_text:
+                raise HTTPException(status_code=422, detail="Testo nota mancante")
+            contact = await _vd_find_contact(user, params, candidates, body.pending_contact_id)
+            # V50.z495 — la nota va nell'array contacts.notes (come dalla scheda), non in una collezione separata invisibile
+            note = await add_note(contact["contact_id"], ContactNote(kind="text", text=note_text), background, user)  # noqa: F821
+            result_extra = {"contact_id": contact["contact_id"], "note_id": note.get("id")}
 
         elif intent == "schedule_call":
-            if body.pending_contact_id and candidates:
-                params["contact_query"] = candidates[0]["name"]
-            q = (params.get("contact_query") or "").strip()
             when_iso = (params.get("when_iso") or "").strip()
-            if not q or not when_iso:
-                raise HTTPException(status_code=422, detail="Nome cliente o data mancanti")
+            if not when_iso:
+                raise HTTPException(status_code=422, detail="Data mancante")
             try:
                 when_dt = datetime.fromisoformat(when_iso.replace("Z", "+00:00"))
             except Exception:
                 raise HTTPException(status_code=422, detail=f"Data non parsabile: {when_iso}")
-            # V50.o — Fuzzy match per parole
-            q_tokens = [t for t in re.split(r"\s+", q) if t]
-            or_conds: List[dict] = []
-            for t in q_tokens:
-                or_conds.append({"first_name": {"$regex": t, "$options": "i"}})
-                or_conds.append({"last_name": {"$regex": t, "$options": "i"}})
-            contact = await db.contacts.find_one(
-                {"user_id": tenant, "$or": or_conds or [{"_": None}]},
-                {"_id": 0, "contact_id": 1, "first_name": 1, "last_name": 1, "phone": 1},
-            )
-            if not contact:
-                raise HTTPException(status_code=404, detail=f"Cliente '{q}' non trovato")
-            cb_doc = {
-                "id": uuid.uuid4().hex,
-                "contact_id": contact["contact_id"],
-                "tenant_id": tenant,
-                "user_id": user["user_id"],
-                "phone": contact.get("phone", ""),
-                "scheduled_at": when_dt,
-                "notes": (params.get("notes") or "").strip(),
-                "created_at": utcnow(),
-                "status": "scheduled",
-                "source": "voice_copilot",
-            }
-            await db.callbacks.insert_one(cb_doc)
-            result_extra = {"callback_id": cb_doc["id"], "contact_id": contact["contact_id"]}
+            if when_dt.tzinfo is None:
+                when_dt = when_dt.replace(tzinfo=_vd_zoneinfo.ZoneInfo("Europe/Rome"))
+            contact = await _vd_find_contact(user, params, candidates, body.pending_contact_id)
+            cname = f"{contact.get('first_name') or ''} {contact.get('last_name') or ''}".strip()
+            # V50.z495 — BUG: la richiamata era scritta con campi propri (id/notes/status, senza callback_id/title/area/done/created_by)
+            # → invisibile in Home e nella scheda. Ora passa dallo STESSO create_callback del form manuale.
+            cb = await create_callback(CallbackIn(  # noqa: F821
+                contact_id=contact["contact_id"], title=cname or "Ritelefonata",
+                area=contact.get("area") if contact.get("area") in ("energy", "network") else "energy",
+                scheduled_at=when_dt, note=(params.get("notes") or "").strip(), phone=contact.get("phone") or contact.get("phone_alt") or None,
+            ), user)
+            result_extra = {"callback_id": cb["callback_id"], "contact_id": contact["contact_id"], "scheduled_at": when_dt.isoformat()}
+
+        elif intent == "list_callbacks":
+            # V50.z495 — display dinamico Axon Drive: elenco ritelefonate del giorno
+            result_extra = await _vd_list_callbacks(user, (params.get("day") or "today").strip())
+
+        elif intent == "read_note":
+            contact = await _vd_find_contact(user, params, candidates, body.pending_contact_id)
+            result_extra = _vd_last_note(contact)
+
+        elif intent == "navigate_to":
+            contact = await _vd_find_contact(user, params, candidates, body.pending_contact_id)
+            result_extra = _vd_navigate(contact, (params.get("nav_app") or "").strip().lower() or None)
 
         elif intent == "query":
             # V50.z368 — risposta diretta (CRM-first) già nel JSON; nessun 2° giro LLM

@@ -1,6 +1,9 @@
 /**
  * V50.o — Axon Drive (ex "Copilot Vocale · Modalità Auto") — hands-free in auto
  * V50.z177 — solo UI: sfondo interno auto, volante centrale, esempi in primo piano (logica invariata)
+ * V50.z495 — modalità audio «Tocca per parlare» (silenzio 1-2 s → invio automatico) / «Sempre attivo» (ascolto continuo),
+ *            display dinamico contestuale (ritelefonate, ultima nota, navigazione verso il cliente), schermo intero (monitor auto/CarPlay),
+ *            apertura con wake word «Axon, modalità drive».
  *
  * Modalità full-screen con grande pulsante microfono per uso hands-free
  * (mentre l'utente guida). Flusso:
@@ -30,6 +33,10 @@ import { useNativeBargeIn } from "@/src/voice/useNativeBargeIn";
 import { ensureVoiceAudioMode } from "@/src/voice/voiceAudioMode";
 import { acquireMicLease } from "@/src/utils/micLease"; // V50.z483 — pausa wake-word mentre si registra
 import { ensureDevicePermission } from "@/src/permissions/devicePermissions"; // V50.z484 — alert permesso di sistema mancante
+// V50.z495 — modalità audio (Tocca per parlare / Sempre attivo), display dinamico, navigazione verso il cliente
+import { DriveModeButtons } from "@/src/drive/DriveModeButtons";
+import { DriveDisplay, openDriveNavigation, type DriveDisplayData, type DriveAddressOption } from "@/src/drive/DriveDisplay";
+import { loadDriveMode, saveDriveMode, DRIVE_SILENCE_MS, DRIVE_NO_SPEECH_MS, DRIVE_IDLE_RESET_MS, type DriveAudioMode } from "@/src/drive/driveSettings";
 let _micRelease: null | (() => void) = null;
 
 type Phase = "idle" | "recording" | "transcribing" | "executing" | "speaking" | "error";
@@ -61,6 +68,27 @@ export default function VoiceCopilotScreen() {
   const [currentTranscript, setCurrentTranscript] = useState("");
   const [currentConfirm, setCurrentConfirm] = useState("");
   const pendingRef = useRef<{ contact_id: string; question: string } | null>(null); // V50.z368 — «Intendi il tuo cliente X?»
+  const pendingNavRef = useRef<string | null>(null); // V50.z495 — scelta indirizzo in sospeso («casa o lavoro?»)
+  // V50.z495 — modalità audio + display dinamico
+  const [mode, setMode] = useState<DriveAudioMode>("tap");
+  const modeRef = useRef<DriveAudioMode>("tap");
+  const [alwaysOn, setAlwaysOnState] = useState(false);
+  const alwaysOnRef = useRef(false);
+  const setAlwaysOn = (v: boolean) => { alwaysOnRef.current = v; setAlwaysOnState(v); };
+  const [display, setDisplay] = useState<DriveDisplayData | null>(null);
+  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const noSpeechTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const idleResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearListenTimers = () => {
+    if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
+    if (noSpeechTimerRef.current) { clearTimeout(noSpeechTimerRef.current); noSpeechTimerRef.current = null; }
+  };
+  const changeMode = (m: DriveAudioMode) => {
+    modeRef.current = m; setMode(m); void saveDriveMode(m);
+    if (m === "tap" && alwaysOnRef.current) { setAlwaysOn(false); if (phaseRef.current === "recording") void stopAndProcess(); }
+  };
+  useEffect(() => { void loadDriveMode().then((m) => { modeRef.current = m; setMode(m); }); }, []);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [permission, setPermission] = useState<boolean | null>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -149,9 +177,25 @@ export default function VoiceCopilotScreen() {
     ExpoSpeechRecognitionModule.start({
       lang: "it-IT", interimResults: true, continuous: true, maxAlternatives: 1,
       recordingOptions: { persist: true, outputFileName: `drive_${Date.now()}.wav` },
-      androidIntentOptions: { EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS: 4000, EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS: 4000 },
+      // V50.z495 — 1-2 s di silenzio → il comando parte da solo (il timer JS qui sotto copre anche iOS/web)
+      androidIntentOptions: { EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS: DRIVE_SILENCE_MS, EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS: DRIVE_SILENCE_MS },
     });
     _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
+    clearListenTimers();
+    // nessuna parola entro N secondi → chiudo l'ascolto senza inviare (in «Sempre attivo» riparte da solo)
+    noSpeechTimerRef.current = setTimeout(() => {
+      if (phaseRef.current !== "recording" || liveRef.current.trim()) return;
+      try { ExpoSpeechRecognitionModule.abort(); } catch { /* noop */ }
+      _micRelease?.(); _micRelease = null;
+      setPhase("idle");
+    }, DRIVE_NO_SPEECH_MS);
+  };
+  const armSilenceTimer = () => {
+    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+    silenceTimerRef.current = setTimeout(() => {
+      silenceTimerRef.current = null;
+      if (phaseRef.current === "recording" && (finalRef.current || liveRef.current).trim()) void stopAndProcess();
+    }, DRIVE_SILENCE_MS);
   };
 
   // «INTERROMPI» → butta via quello detto finora e riparte subito l'ascolto per il nuovo comando
@@ -171,6 +215,7 @@ export default function VoiceCopilotScreen() {
     if (/\binterromp\w*\b/i.test(t) || /\bcancella (il )?messaggio\b/i.test(t)) { void cancelAndRestart(); return; }
     liveRef.current = t; setLiveText(t);
     if (ev.isFinal && t) finalRef.current = t;
+    if (t) armSilenceTimer(); // V50.z495 — ogni parola nuova riarma il timer: 1-2 s di silenzio → invio automatico
   });
   useSpeechRecognitionEvent("audiostart", (ev) => { if (ev.uri) recUriRef.current = ev.uri; });
   useSpeechRecognitionEvent("audioend", (ev) => { if (ev.uri) recUriRef.current = ev.uri; });
@@ -181,7 +226,11 @@ export default function VoiceCopilotScreen() {
     if (!w.length && !restartingRef.current && phaseRef.current === "recording") void stopAndProcess();
   });
   useSpeechRecognitionEvent("error", (ev) => {
-    if (ev.error === "aborted" || ev.error === "no-speech") return;
+    if (ev.error === "aborted") return;
+    if (ev.error === "no-speech") { // V50.z495 — nessuna parola: torno in attesa (in «Sempre attivo» riparte da solo)
+      if (phaseRef.current === "recording" && !liveRef.current.trim()) { clearListenTimers(); _micRelease?.(); _micRelease = null; setPhase("idle"); }
+      return;
+    }
     if (phaseRef.current === "recording") { setPhase("error"); notify("Axon Drive", `Ascolto interrotto: ${ev.message || ev.error}`); _micRelease?.(); _micRelease = null; }
   });
   const waitEnd = (ms: number) => new Promise<void>((resolve) => { if (endedRef.current) { resolve(); return; } const t = setTimeout(resolve, ms); endWaitersRef.current.push(() => { clearTimeout(t); resolve(); }); });
@@ -191,7 +240,8 @@ export default function VoiceCopilotScreen() {
       notify("Microfono", "Permesso microfono negato. Vai in Impostazioni per abilitarlo.");
       return;
     }
-    if (phase !== "idle") return;
+    if (phaseRef.current !== "idle" && phaseRef.current !== "error") return;
+    if (idleResetRef.current) { clearTimeout(idleResetRef.current); idleResetRef.current = null; }
     setCurrentTranscript("");
     setCurrentConfirm("");
     setPhase("recording");
@@ -207,7 +257,8 @@ export default function VoiceCopilotScreen() {
   };
 
   const stopAndProcess = async () => {
-    if (phase !== "recording") return;
+    if (phaseRef.current !== "recording") return;
+    clearListenTimers();
     setPhase("transcribing");
     try {
       const endP = waitEnd(4000);
@@ -228,13 +279,14 @@ export default function VoiceCopilotScreen() {
           if (dg) transcript = dg;
         } catch { /* fallback: testo live del riconoscitore */ }
       }
-      if (!transcript) throw new Error("Non ho sentito nulla: riprova parlando più vicino al telefono.");
+      if (!transcript) { setPhase("idle"); return; } // V50.z495 — silenzio/rumore: niente errore parlato, si torna in attesa (in «Sempre attivo» riparte)
       setCurrentTranscript(transcript); setLiveText("");
 
       // Execute intent
       setPhase("executing");
       const pend = pendingRef.current;
-      const execBody = { transcript, want_audio: true, ...(tRes?.speaker?.profile_id ? { speaker_profile_id: tRes.speaker.profile_id } : {}), ...(pend ? { pending_contact_id: pend.contact_id, pending_question: pend.question } : {}) };
+      const pendNav = pendingNavRef.current;
+      const execBody = { transcript, want_audio: true, ...(tRes?.speaker?.profile_id ? { speaker_profile_id: tRes.speaker.profile_id } : {}), ...(pend ? { pending_contact_id: pend.contact_id, pending_question: pend.question } : {}), ...(pendNav ? { pending_nav_contact_id: pendNav } : {}) };
       let eRes: any = await api("/voice/copilot/execute", { method: "POST", body: execBody });
       let j = eRes?.data || eRes;
       if (j?.intent === "guard_required") { // V50.z371 — comando critico: impronta/Face ID o PIN, poi riesecuzione
@@ -247,6 +299,11 @@ export default function VoiceCopilotScreen() {
       const confirmation = j?.spoken || j?.extra?.answer || j?.confirmation || "Fatto.";
       const intent = j?.intent || "";
       pendingRef.current = intent === "confirm_contact" && j?.extra?.pending_contact_id ? { contact_id: j.extra.pending_contact_id, question: j.extra.pending_question || transcript } : null;
+      // V50.z495 — display dinamico: ritelefonate / nota / navigazione al posto dei suggerimenti
+      const disp: DriveDisplayData | null = j?.extra?.display || null;
+      pendingNavRef.current = disp?.type === "navigate_choice" ? (j?.extra?.pending_nav_contact_id || disp.contact_id || null) : null;
+      setDisplay(disp);
+      if (disp?.type === "navigate" && disp.address) void openDriveNavigation(disp.nav_app || "google", disp.address, disp.contact_name);
       setCurrentConfirm(confirmation);
       setHistory(prev => [{
         id: `h-${Date.now()}`,
@@ -271,12 +328,59 @@ export default function VoiceCopilotScreen() {
   };
 
   const phaseLabel: Record<Phase, string> = {
-    idle: "Tocca il microfono e parla",
-    recording: "Sto ascoltando…",
+    idle: mode === "always" ? (alwaysOn ? "Riprendo l'ascolto…" : "Tocca il microfono: ascolto continuo") : "Tocca il microfono e parla",
+    recording: mode === "always" ? "Ti ascolto — parla pure" : "Sto ascoltando… (invio dopo una pausa)",
     transcribing: "Sto trascrivendo…",
     executing: "Sto eseguendo…",
     speaking: "Conferma vocale…",
     error: "Errore — riprova",
+  };
+
+  // V50.z495 — «Sempre attivo»: finita la risposta (o dopo un errore) il microfono si riapre da solo
+  useEffect(() => {
+    if (resumeTimerRef.current) { clearTimeout(resumeTimerRef.current); resumeTimerRef.current = null; }
+    if ((phase === "idle" || phase === "error") && modeRef.current === "always" && alwaysOnRef.current) {
+      resumeTimerRef.current = setTimeout(() => { if (alwaysOnRef.current && (phaseRef.current === "idle" || phaseRef.current === "error")) void startRecording(); }, phase === "error" ? 2500 : 600);
+    }
+    return () => { if (resumeTimerRef.current) { clearTimeout(resumeTimerRef.current); resumeTimerRef.current = null; } };
+  }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // V50.z495 — dopo 5 s di inattività (risposta finita) si torna ai comandi suggeriti
+  useEffect(() => {
+    if (idleResetRef.current) { clearTimeout(idleResetRef.current); idleResetRef.current = null; }
+    if (phase === "idle" && (display || currentConfirm || currentTranscript) && !pendingNavRef.current && !pendingRef.current) {
+      idleResetRef.current = setTimeout(() => { setDisplay(null); setCurrentConfirm(""); setCurrentTranscript(""); }, DRIVE_IDLE_RESET_MS);
+    }
+    return () => { if (idleResetRef.current) { clearTimeout(idleResetRef.current); idleResetRef.current = null; } };
+  }, [phase, display, currentConfirm, currentTranscript]);
+
+  // uscita dalla schermata: fermo tutto
+  useEffect(() => () => {
+    alwaysOnRef.current = false;
+    clearListenTimers();
+    try { ExpoSpeechRecognitionModule.abort(); } catch { /* noop */ }
+    _micRelease?.(); _micRelease = null;
+    const p = ttsPlayerRef.current; ttsPlayerRef.current = null;
+    try { p?.pause?.(); p?.release?.(); } catch { /* noop */ }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const pickAddress = (opt: DriveAddressOption) => {
+    const d = display?.type === "navigate_choice" ? display : null;
+    if (!d) return;
+    pendingNavRef.current = null;
+    const next: DriveDisplayData = { type: "navigate", contact_name: d.contact_name, contact_id: d.contact_id, address: opt.address, address_label: opt.label, nav_app: d.nav_app };
+    setDisplay(next);
+    void openDriveNavigation(d.nav_app || "google", opt.address, d.contact_name);
+    void speak(`Ti porto da ${d.contact_name}: ${opt.address}.`);
+  };
+
+  const onMicPress = () => {
+    if (modeRef.current === "always") {
+      if (alwaysOnRef.current) { setAlwaysOn(false); if (phaseRef.current === "recording") void stopAndProcess(); else if (phaseRef.current === "speaking") stopSpeaking(); }
+      else { setAlwaysOn(true); void startRecording(); }
+      return;
+    }
+    if (phaseRef.current === "recording") void stopAndProcess(); else void startRecording();
   };
 
   const phaseColor: Record<Phase, string> = {
@@ -322,11 +426,14 @@ export default function VoiceCopilotScreen() {
             <Text style={[styles.statusText, { color: phaseColor[phase] }]}>{phaseLabel[phase]}</Text>
           </View>
 
+          {/* V50.z495 — modalità audio: due bottoni grandi */}
+          <DriveModeButtons mode={mode} onChange={changeMode} />
+
           {phase === "recording" ? (
             <View style={[styles.bubble, { borderColor: "#38BDF8", borderStyle: "dashed" }]} testID="drive-live">
               <Text style={[styles.bubbleLabel, { color: "#38BDF8" }]}>{cancelledFlash ? "Messaggio cancellato — dimmi il nuovo comando" : "Sto scrivendo quello che dici…"}</Text>
               <Text style={styles.bubbleText}>{liveText || "…"}</Text>
-              <Text style={styles.liveHint}>Hai sbagliato? Pronuncia «INTERROMPI»: cancello e riparto da capo.</Text>
+              <Text style={styles.liveHint}>Fai una pausa e invio da solo. Hai sbagliato? Pronuncia «INTERROMPI».</Text>
             </View>
           ) : null}
           {currentTranscript ? (
@@ -337,55 +444,40 @@ export default function VoiceCopilotScreen() {
           ) : null}
 
           {currentConfirm ? (
-            <View style={[styles.bubble, { borderColor: "#10B981", backgroundColor: "rgba(16,185,129,0.16)" }]}>
-              <Text style={[styles.bubbleLabel, { color: "#10B981" }]}>Fatto ✓</Text>
+            <View style={[styles.bubble, { borderColor: "#10B981", backgroundColor: "rgba(16,185,129,0.16)" }]} testID="drive-confirm">
+              <Text style={[styles.bubbleLabel, { color: "#10B981" }]}>Axon</Text>
               <Text style={styles.bubbleText}>{currentConfirm}</Text>
             </View>
           ) : null}
 
-          {/* Esempi in primo piano: testo grande, icona a fianco */}
-          <View style={styles.examples} testID="drive-examples">
-            {EXAMPLES.map((ex) => (
-              <View key={ex.title} style={styles.exRow}>
-                <Text style={styles.exEmoji}>{ex.emoji}</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.exTitle}>{ex.title}</Text>
-                  <Text style={styles.exSample} numberOfLines={2}>&ldquo;{ex.sample}&rdquo;</Text>
-                </View>
-              </View>
-            ))}
-          </View>
+          {/* V50.z495 — display dinamico contestuale: suggerimenti → contenuto della richiesta → (5 s) suggerimenti */}
+          <DriveDisplay data={display} onPickAddress={pickAddress} />
         </ScrollView>
 
         {/* Microfono centrale e prominente */}
         <View style={styles.footer}>
           <Animated.View style={{ transform: [{ scale: listening ? pulseAnim : 1 }] }}>
             <Pressable
-              onPress={listening ? stopAndProcess : startRecording}
-              disabled={busy}
-              style={[styles.mic, { backgroundColor: listening ? "#DC2626" : "#38BDF8", shadowColor: listening ? "#DC2626" : "#38BDF8" }, busy && { opacity: 0.55 }]}
+              onPress={onMicPress}
+              disabled={busy && mode !== "always"}
+              style={[styles.mic, { backgroundColor: listening || (mode === "always" && alwaysOn) ? "#DC2626" : mode === "always" ? "#10B981" : "#38BDF8", shadowColor: listening ? "#DC2626" : "#38BDF8" }, busy && mode !== "always" && { opacity: 0.55 }]}
               testID="voice-mic-button"
             >
-              {busy ? (
+              {busy && !(mode === "always" && alwaysOn) ? (
                 <ActivityIndicator size="large" color="#FFF" />
               ) : (
-                <Ionicons name={listening ? "stop" : "mic"} size={64} color="#FFF" />
+                <Ionicons name={mode === "always" ? (alwaysOn ? "stop" : "infinite") : listening ? "stop" : "mic"} size={64} color="#FFF" />
               )}
             </Pressable>
           </Animated.View>
-          <Text style={styles.footerHint}>{listening ? "Tocca per fermare e inviare" : "Tocca per parlare"}</Text>
+          <Text style={styles.footerHint}>
+            {mode === "always" ? (alwaysOn ? "Ascolto continuo attivo — tocca per fermare" : "Tocca per avviare l'ascolto continuo") : listening ? "Parla… invio da solo dopo una pausa (o tocca)" : "Tocca per parlare"}
+          </Text>
         </View>
       </SafeAreaView>
     </View>
   );
 }
-
-const EXAMPLES = [
-  { emoji: "🧑", title: "Crea un contatto", sample: "Crea contatto Mario Rossi 333 1234567 Milano energia" },
-  { emoji: "📝", title: "Aggiungi una nota", sample: "Aggiungi nota su Rossi: proposta gas entro venerdì" },
-  { emoji: "📞", title: "Programma una richiamata", sample: "Programma richiamata a Rossi domani alle 15" },
-  { emoji: "💬", title: "Chiedi qualcosa ad Axon", sample: "Che appuntamenti ho oggi? Che tempo fa a Padova?" },
-];
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#060E1A" },
@@ -405,11 +497,6 @@ const styles = StyleSheet.create({
   bubbleLabel: { color: "#38BDF8", fontSize: 11, fontWeight: "800", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 },
   liveHint: { marginTop: 6, fontSize: 12, color: "#94A3B8", fontStyle: "italic" },
   bubbleText: { color: "#FFF", fontSize: 17, lineHeight: 23, fontWeight: "600" },
-  examples: { alignSelf: "stretch", backgroundColor: "rgba(6,14,26,0.66)", borderRadius: 18, padding: 12, gap: 6, borderWidth: 1, borderColor: "rgba(255,255,255,0.12)" },
-  exRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 8, paddingHorizontal: 6, minHeight: 56 },
-  exEmoji: { fontSize: 30, width: 40, textAlign: "center" },
-  exTitle: { color: "#FFF", fontSize: 18, fontWeight: "800" },
-  exSample: { color: "rgba(255,255,255,0.72)", fontSize: 13, lineHeight: 18, marginTop: 2 },
   footer: { alignItems: "center", paddingTop: 10, paddingBottom: 16, gap: 10 },
   mic: { width: 140, height: 140, borderRadius: 70, alignItems: "center", justifyContent: "center", borderWidth: 4, borderColor: "rgba(255,255,255,0.35)", shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.6, shadowRadius: 30, elevation: 20 },
   footerHint: { color: "rgba(255,255,255,0.85)", fontSize: 14, fontWeight: "700" },

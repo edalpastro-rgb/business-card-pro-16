@@ -187,6 +187,15 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   automatica sequenziale). Fix `cq_next` → `return_document=ReturnDocument.AFTER` (status `processing` nella risposta).
 - **V50.z225** — Bozze fallite: sezione «🔴 Non riuscite (N)» in testa al pannello Coda con errore, n. tentativi, [Riprova] (→ pending, stessa
   priorità/created_at, `retry_count+1`, riparte da sola) / [Cancella] / [Riprova tutte]; badge rosso sul tab «Coda». `recent_done` ora solo `done`.
+- **V50.z495** — Axon Drive (`/voice-copilot`): (1) BUG richiamata vocale non salvata → `/voice/copilot/execute` ora usa `create_callback`/
+  `add_note`/`create_contact` del form manuale (prima scriveva `id/notes/status` senza `callback_id/title/area/done/created_by` → invisibile in
+  Home e scheda; nota in collezione fantasma `contact_notes`); migrazione all'avvio delle richiamate legacy; data con giorno della settimana in
+  ora di Roma («lunedì alle 9» corretto). (2) Modalità audio «Tocca per parlare» (silenzio 1,6 s → invio) / «Sempre attivo» (loop ascolta →
+  risponde → riascolta), memorizzata in AsyncStorage. (3) Display dinamico: intent `list_callbacks`, `read_note`, `navigate_to` (+ scelta
+  indirizzo casa/lavoro, apre Google Maps/Waze con coordinate Places), ritorno ai suggerimenti dopo 5 s. (4) Wake word «Axon, modalità drive»
+  → `viola_wake._vw_route` mode `navigate` → `router.push("/voice-copilot")`; schermo intero (niente sidebar/FAB/tab bar). (5) Scheda cliente ›
+  Chiamate: card «Ritelefonate programmate» (`GET /callbacks?contact_id=`). Test `tests/test_v50z495_voice_drive.py` 4/4.
+
 
 
 ## 6. Timer, Sveglie, Promemoria (Axon Alarms)

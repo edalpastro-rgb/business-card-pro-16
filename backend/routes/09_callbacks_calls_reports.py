@@ -8,9 +8,12 @@ async def list_callbacks(
     day: Optional[str] = None,
     area: Optional[str] = None,
     include_done: bool = False,
+    contact_id: Optional[str] = None,  # V50.z495 — scheda cliente › Chiamate: ritelefonate programmate del contatto
     user=Depends(get_current_user),
 ):
     q: Dict[str, Any] = scope_query(user)
+    if contact_id:
+        q["contact_id"] = contact_id
     if area in ("energy", "network"):
         q["area"] = area
     if not include_done:
