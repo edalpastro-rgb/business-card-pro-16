@@ -17,7 +17,7 @@
  * niente tastiera, niente scorrimento fine.
  */
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ActivityIndicator, Platform, Animated, Image, ScrollView } from "react-native";
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, Platform, Animated, Image } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -35,7 +35,7 @@ import { acquireMicLease } from "@/src/utils/micLease"; // V50.z483 — pausa wa
 import { ensureDevicePermission } from "@/src/permissions/devicePermissions"; // V50.z484 — alert permesso di sistema mancante
 // V50.z495 — modalità audio (Tocca per parlare / Sempre attivo), display dinamico, navigazione verso il cliente
 import { DriveModeButtons } from "@/src/drive/DriveModeButtons";
-import { DriveDisplay, openDriveNavigation, type DriveDisplayData, type DriveAddressOption } from "@/src/drive/DriveDisplay";
+import { DriveDisplay, type DriveDisplayData, type DriveAddressOption } from "@/src/drive/DriveDisplay";
 import { loadDriveMode, saveDriveMode, DRIVE_SILENCE_MS, DRIVE_NO_SPEECH_MS, DRIVE_IDLE_RESET_MS, type DriveAudioMode } from "@/src/drive/driveSettings";
 let _micRelease: null | (() => void) = null;
 
@@ -303,7 +303,6 @@ export default function VoiceCopilotScreen() {
       const disp: DriveDisplayData | null = j?.extra?.display || null;
       pendingNavRef.current = disp?.type === "navigate_choice" ? (j?.extra?.pending_nav_contact_id || disp.contact_id || null) : null;
       setDisplay(disp);
-      if (disp?.type === "navigate" && disp.address) void openDriveNavigation(disp.nav_app || "google", disp.address, disp.contact_name);
       setCurrentConfirm(confirmation);
       setHistory(prev => [{
         id: `h-${Date.now()}`,
@@ -328,7 +327,7 @@ export default function VoiceCopilotScreen() {
   };
 
   const phaseLabel: Record<Phase, string> = {
-    idle: mode === "always" ? (alwaysOn ? "Riprendo l'ascolto…" : "Tocca il microfono: ascolto continuo") : "Tocca il microfono e parla",
+    idle: mode === "always" ? (alwaysOn ? "Riprendo l'ascolto…" : "Tocca «Sempre attivo» per l'ascolto continuo") : "Tocca «Tocca per parlare» e parla",
     recording: mode === "always" ? "Ti ascolto — parla pure" : "Sto ascoltando… (invio dopo una pausa)",
     transcribing: "Sto trascrivendo…",
     executing: "Sto eseguendo…",
@@ -348,7 +347,7 @@ export default function VoiceCopilotScreen() {
   // V50.z495 — dopo 5 s di inattività (risposta finita) si torna ai comandi suggeriti
   useEffect(() => {
     if (idleResetRef.current) { clearTimeout(idleResetRef.current); idleResetRef.current = null; }
-    if (phase === "idle" && (display || currentConfirm || currentTranscript) && !pendingNavRef.current && !pendingRef.current) {
+    if (phase === "idle" && (display || currentConfirm || currentTranscript) && display?.type !== "navigate" && !pendingNavRef.current && !pendingRef.current) { // V50.z497 — la mappa resta attiva finché guidi (nuovo comando la sostituisce)
       idleResetRef.current = setTimeout(() => { setDisplay(null); setCurrentConfirm(""); setCurrentTranscript(""); }, DRIVE_IDLE_RESET_MS);
     }
     return () => { if (idleResetRef.current) { clearTimeout(idleResetRef.current); idleResetRef.current = null; } };
@@ -370,17 +369,21 @@ export default function VoiceCopilotScreen() {
     pendingNavRef.current = null;
     const next: DriveDisplayData = { type: "navigate", contact_name: d.contact_name, contact_id: d.contact_id, address: opt.address, address_label: opt.label, nav_app: d.nav_app };
     setDisplay(next);
-    void openDriveNavigation(d.nav_app || "google", opt.address, d.contact_name);
     void speak(`Ti porto da ${d.contact_name}: ${opt.address}.`);
   };
 
-  const onMicPress = () => {
-    if (modeRef.current === "always") {
-      if (alwaysOnRef.current) { setAlwaysOn(false); if (phaseRef.current === "recording") void stopAndProcess(); else if (phaseRef.current === "speaking") stopSpeaking(); }
-      else { setAlwaysOn(true); void startRecording(); }
+  // V50.z497 — i due bottoni in basso sono ANCHE il comando: «Tocca per parlare» = tocca → parli → invio dopo la pausa (ri-tocco = invia subito);
+  // «Sempre attivo» = avvia/ferma l'ascolto continuo. Nessun microfono centrale.
+  const onModePress = (m: DriveAudioMode) => {
+    if (m !== modeRef.current) changeMode(m);
+    if (m === "tap") {
+      if (phaseRef.current === "recording") void stopAndProcess();
+      else if (phaseRef.current === "speaking") stopSpeaking();
+      else void startRecording();
       return;
     }
-    if (phaseRef.current === "recording") void stopAndProcess(); else void startRecording();
+    if (alwaysOnRef.current) { setAlwaysOn(false); if (phaseRef.current === "recording") void stopAndProcess(); else if (phaseRef.current === "speaking") stopSpeaking(); }
+    else { setAlwaysOn(true); void startRecording(); }
   };
 
   const phaseColor: Record<Phase, string> = {
@@ -391,9 +394,8 @@ export default function VoiceCopilotScreen() {
     speaking: "#10B981",
     error: "#EF4444",
   };
-
-  const busy = phase === "transcribing" || phase === "executing" || phase === "speaking";
   const listening = phase === "recording";
+  const statusLine = listening ? (liveText || "Ti ascolto…") : phase === "idle" ? (currentConfirm || phaseLabel.idle) : (currentConfirm && phase === "speaking" ? currentConfirm : phaseLabel[phase]);
 
   return (
     <View style={styles.root}>
@@ -410,69 +412,28 @@ export default function VoiceCopilotScreen() {
             <Ionicons name="car-sport" size={18} color="#A78BFA" />
             <Text style={styles.headerTitle}>Axon Drive</Text>
           </View>
-          <View style={{ width: 40 }} />
+          <Animated.View style={[styles.wheelMini, { transform: [{ scale: listening ? pulseAnim : 1 }], borderColor: phaseColor[phase] }]} testID="drive-wheel">
+            <MaterialCommunityIcons name="steering" size={22} color="rgba(255,255,255,0.92)" />
+          </Animated.View>
         </View>
 
-        <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false} bounces={false}>
-          {/* Volante grande al centro */}
-          <View style={styles.wheelWrap} testID="drive-wheel">
-            <View style={[styles.wheelGlow, { shadowColor: phaseColor[phase] }]} />
-            <MaterialCommunityIcons name="steering" size={112} color="rgba(255,255,255,0.92)" />
-          </View>
-
-          <Text style={styles.headline} testID="drive-headline">Parla con Axon mentre guidi</Text>
-          <View style={styles.statusRow}>
-            <View style={[styles.statusDot, { backgroundColor: phaseColor[phase] }]} />
-            <Text style={[styles.statusText, { color: phaseColor[phase] }]}>{phaseLabel[phase]}</Text>
-          </View>
-
-          {/* V50.z495 — modalità audio: due bottoni grandi */}
-          <DriveModeButtons mode={mode} onChange={changeMode} />
-
-          {phase === "recording" ? (
-            <View style={[styles.bubble, { borderColor: "#38BDF8", borderStyle: "dashed" }]} testID="drive-live">
-              <Text style={[styles.bubbleLabel, { color: "#38BDF8" }]}>{cancelledFlash ? "Messaggio cancellato — dimmi il nuovo comando" : "Sto scrivendo quello che dici…"}</Text>
-              <Text style={styles.bubbleText}>{liveText || "…"}</Text>
-              <Text style={styles.liveHint}>Fai una pausa e invio da solo. Hai sbagliato? Pronuncia «INTERROMPI».</Text>
-            </View>
-          ) : null}
-          {currentTranscript ? (
-            <View style={styles.bubble}>
-              <Text style={styles.bubbleLabel}>Tu hai detto</Text>
-              <Text style={styles.bubbleText}>{currentTranscript}</Text>
-            </View>
-          ) : null}
-
-          {currentConfirm ? (
-            <View style={[styles.bubble, { borderColor: "#10B981", backgroundColor: "rgba(16,185,129,0.16)" }]} testID="drive-confirm">
-              <Text style={[styles.bubbleLabel, { color: "#10B981" }]}>Axon</Text>
-              <Text style={styles.bubbleText}>{currentConfirm}</Text>
-            </View>
-          ) : null}
-
-          {/* V50.z495 — display dinamico contestuale: suggerimenti → contenuto della richiesta → (5 s) suggerimenti */}
-          <DriveDisplay data={display} onPickAddress={pickAddress} />
-        </ScrollView>
-
-        {/* Microfono centrale e prominente */}
-        <View style={styles.footer}>
-          <Animated.View style={{ transform: [{ scale: listening ? pulseAnim : 1 }] }}>
-            <Pressable
-              onPress={onMicPress}
-              disabled={busy && mode !== "always"}
-              style={[styles.mic, { backgroundColor: listening || (mode === "always" && alwaysOn) ? "#DC2626" : mode === "always" ? "#10B981" : "#38BDF8", shadowColor: listening ? "#DC2626" : "#38BDF8" }, busy && mode !== "always" && { opacity: 0.55 }]}
-              testID="voice-mic-button"
-            >
-              {busy && !(mode === "always" && alwaysOn) ? (
-                <ActivityIndicator size="large" color="#FFF" />
-              ) : (
-                <Ionicons name={mode === "always" ? (alwaysOn ? "stop" : "infinite") : listening ? "stop" : "mic"} size={64} color="#FFF" />
-              )}
-            </Pressable>
-          </Animated.View>
-          <Text style={styles.footerHint}>
-            {mode === "always" ? (alwaysOn ? "Ascolto continuo attivo — tocca per fermare" : "Tocca per avviare l'ascolto continuo") : listening ? "Parla… invio da solo dopo una pausa (o tocca)" : "Tocca per parlare"}
+        {/* Stato / trascrizione live / risposta di Axon: UNA riga, niente bolle che scorrono */}
+        <View style={styles.statusRow} testID="drive-status">
+          <View style={[styles.statusDot, { backgroundColor: phaseColor[phase] }]} />
+          <Text style={[styles.statusText, { color: listening ? "#FFF" : phaseColor[phase] }]} numberOfLines={2}>
+            {cancelledFlash ? "Messaggio cancellato — dimmi il nuovo comando" : statusLine}
           </Text>
+          {phase === "transcribing" || phase === "executing" ? <ActivityIndicator size="small" color={phaseColor[phase]} /> : null}
+        </View>
+
+        {/* DISPLAY DINAMICO CENTRALE: suggerimenti → mappa / foto / elenco / nota → (5 s) suggerimenti */}
+        <View style={styles.display}>
+          <DriveDisplay data={display} onPickAddress={pickAddress} />
+        </View>
+
+        {/* In basso SOLO i due bottoni, grandi e affiancati */}
+        <View style={styles.footer}>
+          <DriveModeButtons mode={mode} onPress={onModePress} listening={listening} alwaysOn={alwaysOn} busy={phase === "transcribing" || phase === "executing"} />
         </View>
       </SafeAreaView>
     </View>
@@ -482,22 +443,14 @@ export default function VoiceCopilotScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#060E1A" },
   bg: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, width: "100%", height: "100%" },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 10 },
   headerBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.14)", alignItems: "center", justifyContent: "center" },
   headerTitleRow: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "rgba(6,14,26,0.55)", paddingHorizontal: 14, paddingVertical: 6, borderRadius: 999 },
   headerTitle: { color: "#FFF", fontSize: 17, fontWeight: "900", letterSpacing: 0.3 },
-  body: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12, gap: 14, alignItems: "center" },
-  wheelWrap: { width: 146, height: 146, borderRadius: 73, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(6,14,26,0.45)", borderWidth: 1, borderColor: "rgba(255,255,255,0.18)", marginTop: 4 },
-  wheelGlow: { position: "absolute", width: 128, height: 128, borderRadius: 64, backgroundColor: "rgba(56,189,248,0.10)", shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.9, shadowRadius: 30, elevation: 0 },
-  headline: { color: "#FFF", fontSize: 24, fontWeight: "900", textAlign: "center", lineHeight: 32, textShadowColor: "rgba(0,0,0,0.6)", textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 8 },
-  statusRow: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "rgba(6,14,26,0.6)", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999 },
+  wheelMini: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(6,14,26,0.55)", borderWidth: 2 },
+  statusRow: { flexDirection: "row", alignItems: "center", gap: 10, marginHorizontal: 16, marginBottom: 10, backgroundColor: "rgba(6,14,26,0.66)", paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, minHeight: 48 },
   statusDot: { width: 10, height: 10, borderRadius: 5 },
-  statusText: { fontSize: 14, fontWeight: "800" },
-  bubble: { alignSelf: "stretch", borderWidth: 1.5, borderColor: "#38BDF8", backgroundColor: "rgba(56,189,248,0.16)", borderRadius: 14, padding: 14 },
-  bubbleLabel: { color: "#38BDF8", fontSize: 11, fontWeight: "800", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 },
-  liveHint: { marginTop: 6, fontSize: 12, color: "#94A3B8", fontStyle: "italic" },
-  bubbleText: { color: "#FFF", fontSize: 17, lineHeight: 23, fontWeight: "600" },
-  footer: { alignItems: "center", paddingTop: 10, paddingBottom: 16, gap: 10 },
-  mic: { width: 140, height: 140, borderRadius: 70, alignItems: "center", justifyContent: "center", borderWidth: 4, borderColor: "rgba(255,255,255,0.35)", shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.6, shadowRadius: 30, elevation: 20 },
-  footerHint: { color: "rgba(255,255,255,0.85)", fontSize: 14, fontWeight: "700" },
+  statusText: { flex: 1, fontSize: 15, fontWeight: "800", lineHeight: 20 },
+  display: { flex: 1, marginHorizontal: 16, marginBottom: 12 },
+  footer: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 12 },
 });

@@ -94,6 +94,46 @@ async def _vd_list_callbacks(user: dict, day: str) -> dict:
     return {"answer": spoken, "display": {"type": "callbacks", "label": f"Ritelefonate di {label}", "items": items}}
 
 
+async def _vd_list_appointments(user: dict, day: str) -> dict:
+    """V50.z497 — display Drive: appuntamenti del giorno (ora, titolo, cliente, luogo)."""
+    start, end, label = _vd_day_range(day)
+    q = scope_query(user, {"start_at": {"$gte": start, "$lt": end}})  # noqa: F821
+    rows = await db.appointments.find(q, {"_id": 0}).sort("start_at", 1).to_list(200)  # noqa: F821
+    cids = [r["contact_id"] for r in rows if r.get("contact_id")]
+    names = {}
+    if cids:
+        async for c in db.contacts.find({"contact_id": {"$in": cids}}, {"_id": 0, "contact_id": 1, "first_name": 1, "last_name": 1, "company": 1}):  # noqa: F821
+            names[c["contact_id"]] = _vd_name(c)
+    items = []
+    for r in rows:
+        sa = r.get("start_at")
+        if isinstance(sa, _vd_dt):
+            sa = (sa if sa.tzinfo else sa.replace(tzinfo=_vd_tz.utc)).astimezone(_VD_ROME)
+        items.append({"appointment_id": r.get("appointment_id") or r.get("id"), "contact_id": r.get("contact_id"), "title": r.get("title") or "Appuntamento",
+                      "contact_name": names.get(r.get("contact_id")), "time": sa.strftime("%H:%M") if isinstance(sa, _vd_dt) else "",
+                      "place": r.get("full_address") or r.get("map_address") or r.get("location") or "", "area": r.get("area") or "energy"})
+    if not items:
+        spoken = f"Nessun appuntamento {label}."
+    else:
+        parts = [f"alle {i['time']} {i['title']}{(' con ' + i['contact_name']) if i['contact_name'] and i['contact_name'].lower() not in i['title'].lower() else ''}" for i in items[:5]]
+        more = f" e altri {len(items) - 5}" if len(items) > 5 else ""
+        spoken = f"Hai {len(items)} appuntament{'o' if len(items) == 1 else 'i'} {label}: " + ", ".join(parts) + more + "."
+    return {"answer": spoken, "display": {"type": "appointments", "label": f"Appuntamenti di {label}", "items": items}}
+
+
+async def _vd_show_photo(contact: dict) -> dict:
+    """V50.z497 — display Drive: foto del cliente (avatar della scheda, data URI)."""
+    name = _vd_name(contact)
+    full = await db.contacts.find_one({"contact_id": contact.get("contact_id")}, {"_id": 0, "avatar_base64": 1, "company": 1, "phone": 1, "address_city": 1})  # noqa: F821
+    photo = (full or {}).get("avatar_base64") or ""
+    if photo and not photo.startswith("data:"):
+        photo = f"data:image/jpeg;base64,{photo}"
+    sub = " · ".join(x for x in [(full or {}).get("company"), (full or {}).get("address_city")] if x)
+    if not photo:
+        return {"answer": f"Nella scheda di {name} non c'è una foto.", "display": {"type": "photo", "contact_name": name, "contact_id": contact.get("contact_id"), "photo": "", "subtitle": sub}}
+    return {"answer": f"Ecco la foto di {name}.", "display": {"type": "photo", "contact_name": name, "contact_id": contact.get("contact_id"), "photo": photo, "subtitle": sub}}
+
+
 def _vd_last_note(contact: dict) -> dict:
     notes = [n for n in (contact.get("notes") or []) if isinstance(n, dict) and (n.get("text") or "").strip()]
     name = _vd_name(contact)

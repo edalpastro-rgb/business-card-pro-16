@@ -1,52 +1,58 @@
-// DriveModeButtons.tsx — V50.z495 — Axon Drive: due bottoni grandi per la modalità di ascolto.
-//  «Tocca per parlare»: tocchi il mic, parli, il silenzio (1-2 s) invia da solo.
-//  «Sempre attivo»: microfono sempre aperto, Axon ascolta → risponde → riascolta, senza toccare nulla.
+// DriveModeButtons.tsx — V50.z495/z497 — Axon Drive: i DUE bottoni in fondo alla schermata (nient'altro in basso).
+//  «Tocca per parlare»: tocchi → parli → il silenzio (1-2 s) invia da solo (ri-tocco = invia subito). Pulsa in rosso mentre ascolta.
+//  «Sempre attivo»: avvia/ferma l'ascolto continuo (Axon ascolta → risponde → riascolta).
 import React from "react";
-import { View, Text, StyleSheet, Pressable } from "react-native";
+import { View, Text, StyleSheet, Pressable, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { DriveAudioMode } from "./driveSettings";
 
-type Props = { mode: DriveAudioMode; onChange: (m: DriveAudioMode) => void; disabled?: boolean };
+type Props = { mode: DriveAudioMode; onPress: (m: DriveAudioMode) => void; listening: boolean; alwaysOn: boolean; busy?: boolean };
 
-const OPTIONS: Array<{ id: DriveAudioMode; title: string; sub: string; icon: any; color: string }> = [
-  { id: "tap", title: "Tocca per parlare", sub: "Tocchi, parli, invia da solo", icon: "hand-left", color: "#38BDF8" },
-  { id: "always", title: "Sempre attivo", sub: "Ascolto continuo, mani libere", icon: "infinite", color: "#10B981" },
-];
-
-export function DriveModeButtons({ mode, onChange, disabled }: Props) {
+export function DriveModeButtons({ mode, onPress, listening, alwaysOn, busy }: Props) {
+  const tapActive = mode === "tap" && listening;
+  const alwaysActive = mode === "always" && alwaysOn;
   return (
     <View style={styles.row} testID="drive-mode-buttons">
-      {OPTIONS.map((o) => {
-        const on = mode === o.id;
-        return (
-          <Pressable
-            key={o.id}
-            onPress={() => onChange(o.id)}
-            disabled={disabled}
-            accessibilityRole="button"
-            accessibilityState={{ selected: on }}
-            style={({ pressed }) => [styles.btn, on && { borderColor: o.color, backgroundColor: `${o.color}33` }, pressed && { opacity: 0.85 }, disabled && { opacity: 0.6 }]}
-            testID={`drive-mode-${o.id}`}
-          >
-            <View style={[styles.iconWrap, { backgroundColor: on ? o.color : "rgba(255,255,255,0.14)" }]}>
-              <Ionicons name={o.icon} size={26} color="#FFF" />
-            </View>
-            <Text style={[styles.title, on && { color: o.color }]} numberOfLines={1}>{o.title}</Text>
-            <Text style={styles.sub} numberOfLines={2}>{o.sub}</Text>
-            {on ? <View style={[styles.badge, { backgroundColor: o.color }]}><Text style={styles.badgeTxt}>ATTIVA</Text></View> : null}
-          </Pressable>
-        );
-      })}
+      <Pressable
+        onPress={() => onPress("tap")}
+        accessibilityRole="button"
+        accessibilityState={{ selected: mode === "tap" }}
+        style={({ pressed }) => [styles.btn, mode === "tap" && styles.btnTap, tapActive && styles.btnTapLive, pressed && { opacity: 0.85 }]}
+        testID="drive-mode-tap"
+      >
+        <View style={[styles.iconWrap, { backgroundColor: tapActive ? "#DC2626" : mode === "tap" ? "#38BDF8" : "rgba(255,255,255,0.14)" }]}>
+          {busy && mode === "tap" ? <ActivityIndicator color="#FFF" /> : <Ionicons name={tapActive ? "stop" : "mic"} size={30} color="#FFF" />}
+        </View>
+        <Text style={[styles.title, mode === "tap" && { color: tapActive ? "#FCA5A5" : "#38BDF8" }]} numberOfLines={1}>Tocca per parlare</Text>
+        <Text style={styles.sub} numberOfLines={1}>{tapActive ? "Ti ascolto… tocca per inviare" : "Tocchi, parli, invia da solo"}</Text>
+      </Pressable>
+      <Pressable
+        onPress={() => onPress("always")}
+        accessibilityRole="button"
+        accessibilityState={{ selected: mode === "always" }}
+        style={({ pressed }) => [styles.btn, mode === "always" && styles.btnAlways, alwaysActive && styles.btnAlwaysLive, pressed && { opacity: 0.85 }]}
+        testID="drive-mode-always"
+      >
+        <View style={[styles.iconWrap, { backgroundColor: alwaysActive ? "#10B981" : mode === "always" ? "#10B981" : "rgba(255,255,255,0.14)" }]}>
+          <Ionicons name={alwaysActive ? "stop" : "infinite"} size={30} color="#FFF" />
+        </View>
+        <Text style={[styles.title, mode === "always" && { color: "#34D399" }]} numberOfLines={1}>Sempre attivo</Text>
+        <Text style={styles.sub} numberOfLines={1}>{alwaysActive ? "Ascolto continuo · tocca per fermare" : "Mani libere, ascolto continuo"}</Text>
+        {alwaysActive ? <View style={styles.liveDot} /> : null}
+      </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   row: { flexDirection: "row", gap: 12, alignSelf: "stretch" },
-  btn: { flex: 1, minHeight: 124, borderRadius: 20, borderWidth: 2, borderColor: "rgba(255,255,255,0.18)", backgroundColor: "rgba(6,14,26,0.66)", padding: 14, alignItems: "center", justifyContent: "center", gap: 6 },
-  iconWrap: { width: 52, height: 52, borderRadius: 26, alignItems: "center", justifyContent: "center" },
-  title: { color: "#FFF", fontSize: 16, fontWeight: "900", textAlign: "center" },
-  sub: { color: "rgba(255,255,255,0.72)", fontSize: 12, textAlign: "center", lineHeight: 16 },
-  badge: { position: "absolute", top: 8, right: 8, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 },
-  badgeTxt: { color: "#FFF", fontSize: 10, fontWeight: "900", letterSpacing: 1 },
+  btn: { flex: 1, minHeight: 132, borderRadius: 22, borderWidth: 2, borderColor: "rgba(255,255,255,0.18)", backgroundColor: "rgba(6,14,26,0.72)", padding: 14, alignItems: "center", justifyContent: "center", gap: 6 },
+  btnTap: { borderColor: "#38BDF8", backgroundColor: "rgba(56,189,248,0.18)" },
+  btnTapLive: { borderColor: "#DC2626", backgroundColor: "rgba(220,38,38,0.22)" },
+  btnAlways: { borderColor: "#10B981", backgroundColor: "rgba(16,185,129,0.18)" },
+  btnAlwaysLive: { borderColor: "#34D399", backgroundColor: "rgba(16,185,129,0.3)" },
+  iconWrap: { width: 60, height: 60, borderRadius: 30, alignItems: "center", justifyContent: "center" },
+  title: { color: "#FFF", fontSize: 17, fontWeight: "900", textAlign: "center" },
+  sub: { color: "rgba(255,255,255,0.72)", fontSize: 12, textAlign: "center" },
+  liveDot: { position: "absolute", top: 10, right: 10, width: 12, height: 12, borderRadius: 6, backgroundColor: "#34D399" },
 });

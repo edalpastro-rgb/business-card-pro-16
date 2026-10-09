@@ -556,18 +556,21 @@ identifica l'intent tra:
 - add_note: aggiungere una nota a un cliente ESISTENTE
 - schedule_call: programmare una telefonata di richiamo (richiamata/ritelefonata)
 - list_callbacks: MOSTRARE/elencare le ritelefonate (richiamate) programmate («mostrami le ritelefonate di oggi», «che richiamate ho domani»)
+- list_appointments: MOSTRARE/elencare gli appuntamenti («mostrami gli appuntamenti», «che appuntamenti ho oggi/domani»)
+- show_photo: mostrare la FOTO di un cliente («mostrami la foto di Zanini», «fammi vedere Rossi»)
 - read_note: leggere l'ULTIMA nota di un cliente («leggimi l'ultima nota su Zanini», «cosa ho scritto su Rossi»)
 - navigate_to: portare l'utente da un cliente / indicazioni stradali («portami da Zanini», «dammi le indicazioni per Rossi», «naviga verso Bianchi»)
 - query: qualsiasi altra domanda o richiesta informativa
 
 Rispondi SOLO con un JSON valido in questo formato esatto:
 {
-  "intent": "create_contact" | "add_note" | "schedule_call" | "list_callbacks" | "read_note" | "navigate_to" | "query" | "confirm_contact",
+  "intent": "create_contact" | "add_note" | "schedule_call" | "list_callbacks" | "list_appointments" | "show_photo" | "read_note" | "navigate_to" | "query" | "confirm_contact",
   "params": {
     // per create_contact: first_name, last_name, phone, email, city, area (energy/network)
     // per add_note: contact_query (nome/cognome cercabile), contact_id (id dal CRM se presente), note_text
     // per schedule_call: contact_query, contact_id (id dal CRM se presente), when_iso (ISO8601 con timezone Europe/Rome), notes
-    // per list_callbacks: day ("today" | "tomorrow" | "YYYY-MM-DD"; default today)
+    // per list_callbacks / list_appointments: day ("today" | "tomorrow" | "YYYY-MM-DD"; default today)
+    // per show_photo: contact_query, contact_id (id dal CRM se presente)
     // per read_note: contact_query, contact_id (id dal CRM se presente)
     // per navigate_to: contact_query, contact_id (id dal CRM se presente), nav_app ("waze" | "google" solo se l'utente lo nomina)
     // per query: question, answer (RISPOSTA COMPLETA da leggere a voce, max 45 parole, usando SOLO i dati CRM forniti)
@@ -576,7 +579,7 @@ Rispondi SOLO con un JSON valido in questo formato esatto:
   "confirmation": "frase in italiano da leggere all'utente (max 15 parole; per confirm_contact ESATTAMENTE: Intendi il tuo cliente <Nome Cognome>?)"
 }
 
-Per schedule_call / add_note / read_note / navigate_to con un cliente presente nel CRM (score ≥ 0.62): usa SEMPRE il suo id in contact_id.
+Per schedule_call / add_note / read_note / navigate_to / show_photo con un cliente presente nel CRM (score ≥ 0.62): usa SEMPRE il suo id in contact_id.
 
 PRIORITÀ CRM (obbligatoria): se la frase contiene un nome di persona/azienda, la fonte è SOLO la sezione CONTATTI CRM qui sotto.
 - Match forte (score ≥ 0.9): rispondi subito con i dati del CRM (intent "query" + "answer").
@@ -751,6 +754,13 @@ async def voice_copilot_execute(body: VoiceCopilotIn, background: BackgroundTask
         elif intent == "list_callbacks":
             # V50.z495 — display dinamico Axon Drive: elenco ritelefonate del giorno
             result_extra = await _vd_list_callbacks(user, (params.get("day") or "today").strip())
+
+        elif intent == "list_appointments":
+            result_extra = await _vd_list_appointments(user, (params.get("day") or "today").strip())
+
+        elif intent == "show_photo":
+            contact = await _vd_find_contact(user, params, candidates, body.pending_contact_id)
+            result_extra = await _vd_show_photo(contact)
 
         elif intent == "read_note":
             contact = await _vd_find_contact(user, params, candidates, body.pending_contact_id)

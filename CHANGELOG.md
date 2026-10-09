@@ -187,6 +187,10 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
   automatica sequenziale). Fix `cq_next` → `return_document=ReturnDocument.AFTER` (status `processing` nella risposta).
 - **V50.z225** — Bozze fallite: sezione «🔴 Non riuscite (N)» in testa al pannello Coda con errore, n. tentativi, [Riprova] (→ pending, stessa
   priorità/created_at, `retry_count+1`, riparte da sola) / [Cancella] / [Riprova tutte]; badge rosso sul tab «Coda». `recent_done` ora solo `done`.
+- **V50.z497** — Axon Drive: schermata fissa senza scroll; rimosso il mic centrale, in basso SOLO i due bottoni grandi «Tocca per parlare» /
+  «Sempre attivo» (sono anche il comando); display centrale dinamico: 4 suggerimenti → mappa Google embedded (navigazione verso il cliente,
+  `src/drive/DriveMap.tsx`) · foto del cliente (intent `show_photo`) · elenchi ritelefonate/appuntamenti (intent `list_appointments`) · nota;
+  ritorno ai suggerimenti dopo 5 s (la mappa resta).
 - **V50.z495** — Axon Drive (`/voice-copilot`): (1) BUG richiamata vocale non salvata → `/voice/copilot/execute` ora usa `create_callback`/
   `add_note`/`create_contact` del form manuale (prima scriveva `id/notes/status` senza `callback_id/title/area/done/created_by` → invisibile in
   Home e scheda; nota in collezione fantasma `contact_notes`); migrazione all'avvio delle richiamate legacy; data con giorno della settimana in
