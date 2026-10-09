@@ -7633,3 +7633,6 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 ## V50.z468 (Giu 2026) — Feature 11/15: WhatsApp e Mail da «Comunica con l'azienda»
 - `src/CompanyContactSheet.tsx`: per ogni numero, accanto al badge verde chiamata: cellulare (3xx) → badge WhatsApp (`company-sheet-wa-<id>`) che apre `composeBox` con TextInput, «Chiedi ad Axon» (POST /assistant/chat non-stream → testo) e «Invia su WhatsApp» (`wa.me/<39…>?text=`); fisso → badge Mail (`company-sheet-mail-<id>`) con campo destinatario precompilato da `communica_azienda_email` (modificabile) e «Apri email precompilata» (mailto + oggetto).
 - RESTANO in coda: 5 PUN cliccabile/storico PDF · 6 Google Places · 7 rubrica telefono · 8 watchdog · 12 Libretto ricerca/FAQ · 13-14 Spazio Personale Super Master · 15 antivirus ClamAV.
+
+## D2026.10.09-1749 — Pacchetto VPS unificato 09/10/2026
+- Rigenerati `axon-core-pkg.tgz` (42 MB, 201 file) e `axon-web-pkg.tgz` (5.6 MB) dal codice corrente: contengono tutti i lavori del 09/10 (azioni Axon, Axon Drive completo, allarme critico 3 livelli, Timer & Sveglie + timer fantasma, /landing, Home web, sync header/menu). Riga unica riepilogativa nel DEPLOY_CHANGELOG. Download verificati 200 via `/api/pkg/{axon-core-pkg|axon-web-pkg|upgrade-vps}?key=…`.
