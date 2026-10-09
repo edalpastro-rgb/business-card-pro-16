@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-09 | D2026.10.09-1053 | V50.z490 Nuovo contatto: bottone Importa |
 | 2026-10-09 | D2026.10.09-1027 | V50.z489 web: menu nella sidebar + pannello Azioni rapide su desktop |
 | 2026-10-09 | D2026.10.09 | V50.z488 navigazione Waze/Maps con coordinate precise (GPS al tap + Google Places) |
 | 2026-10-08 | D2026.10.08-2306 | V50.z487 GPS reale + bottoni Chiama/WhatsApp/Waze/Maps + Scansiona documento + link NAV mai rotti |

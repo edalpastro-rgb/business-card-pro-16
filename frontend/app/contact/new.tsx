@@ -1279,7 +1279,14 @@ function NewContactScreen() {
             <Text style={styles.importBtnTxt}>Importa dalla rubrica telefono</Text>
           </Pressable>
 
-          <View style={{ flexDirection: "row", gap: 6, marginBottom: 10 }}>
+          <View style={{ flexDirection: "row", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
+            {/* V50.z490 — stesso flusso «Importazione clienti» della pagina Contatti: file singoli, cartelle e sottocartelle, CSV/Excel, Google Drive */}
+            {!isEdit && (
+              <Pressable testID="ai-import-btn" onPress={() => router.push("/contact/import-folder" as any)} style={[styles.aiBtn, { backgroundColor: HT.brand }]}>
+                <Ionicons name="cloud-upload-outline" size={16} color="#FFF" />
+                <Text style={styles.aiBtnTxt}>Importa</Text>
+              </Pressable>
+            )}
             <Pressable testID="ai-doc-btn" onPress={() => openAI("doc")} style={[styles.aiBtn, { backgroundColor: HT.violet }]}>
               <Ionicons name="id-card" size={16} color="#FFF" />
               <Text style={styles.aiBtnTxt}>Documento</Text>
@@ -2684,7 +2691,7 @@ const styles = StyleSheet.create({
   toggleMore: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 14, paddingVertical: 10 },
   toggleMoreTxt: { color: HT.brand, fontWeight: "700", fontSize: 13 },
   importBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: HT.card, padding: 12, borderRadius: theme.radius.md, borderWidth: 1, borderColor: HT.brand, borderStyle: "dashed" },
-  aiBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 10, borderRadius: theme.radius.md },
+  aiBtn: { flex: 1, minWidth: 96, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 10, minHeight: 44, borderRadius: theme.radius.md },
   aiBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 12 },
   importBtnTxt: { color: HT.brand, fontWeight: "700", fontSize: 14 },
   photoRow: { flexDirection: "row", gap: 10 },

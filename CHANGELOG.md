@@ -927,6 +927,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z490 | Giu 2026 | **Nuovo contatto → «Importa»**: bottone nella fila in cima che apre lo stesso flusso «Importazione clienti» della pagina Contatti (cartelle/sottocartelle, file, CSV/Excel, Google Drive). |
 | V50.z489 | Giu 2026 | **Web**: sidebar sinistra con «Interfaccia Master» (Agenda · Contatti · Contratti · Team) e «Menu completo» sotto Profilo, visibili in tutte le pagine · pannello destro «Azioni rapide» ripristinato anche su desktop (come sul telefono). |
 | V50.z488 | Giu 2026 | **Navigazione con coordinate precise**: al tap su Waze/Google Maps (chat Axon, scheda contatto, appuntamento, mappa, giro) il GPS viene letto in quell'istante e la destinazione è risolta in lat/lon via Google Places (`waze://?ll=…`, `maps/dir?origin=…&destination=…`). Diagnostica API Google (`/geo/google-apis-status`). |
 | V50.z487 | Giu 2026 | **GPS in tempo reale** (posizione corrente, non più last-known; Axon riceve le coordinate reali e sa i clienti vicini) · **Bottoni automatici** Chiama/WhatsApp sui numeri e Waze/Google Maps sugli indirizzi nelle risposte di Axon · **Scansiona documento** (CI/passaporto/patente/biglietto) in Set Up and Go › Chi sei e in Nuovo contatto · **Link interni di Axon mai rotti** (route verificate su schermate reali, alias, altrimenti istruzioni a parole) · Impostazioni → Generale → «Permessi del dispositivo». |

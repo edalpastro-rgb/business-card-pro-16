@@ -583,3 +583,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z489 — Web: DesktopSidebar con blocco Interfaccia Master (Agenda/Contatti/Contratti/Team) + Menu completo (voci DrawerMenu per categoria) sotto Profilo; EdgePanel (Azioni rapide) montato anche su desktop con overflow:hidden sulla root. Verificato via screenshot a 1280px: nessun overflow orizzontale, sidebar visibile su /crt, pannello destro apribile."
+
+  - agent: "main"
+    message: "V50.z490 — Nuovo contatto: bottone Importa (ai-import-btn) → /contact/import-folder (stesso flusso Importazione clienti). Verificato via screenshot."
