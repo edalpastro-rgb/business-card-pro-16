@@ -24,6 +24,8 @@ _AG_VERB_RX = _ag_re.compile(
     r"\b(chiud\w*\s+(la\s+)?trattativ\w*|trattativ\w*\s+(chius\w*|vint\w*|pers\w*)|segna\w*\s+(come\s+)?(cliente|chius\w*|vint\w*|pers\w*|prospect)|"
     r"(aggiorn\w*|cambi\w*|imposta\w*|metti\w*)\s+(lo\s+)?stato|diventa\w*\s+cliente|convert\w*\s+in\s+cliente|"
     r"fiss\w*\s+(un\s+|l')?appuntament\w*|(crea|aggiungi|metti|prenota|programma)\w*\s+(un\s+|l')?appuntament\w*|appuntament\w*\s+(con|per)|"
+    r"(fiss|cre|prenot|programm|mett|segn|organizz|pianific)\w*\s+(una\s+|la\s+|un\s+|il\s+)?(telefonat\w*|chiamat\w*|call|videochiamat\w*|video\s?call)\b|(telefonat\w*|chiamat\w*|call)\s+(con|a|per)\s|"  # V50.z506 — telefonata/chiamata/call → appuntamento tipo telefonata
+
     r"(spost\w*|rimand\w*|anticip\w*|posticip\w*)\s+(l'|il\s+|lo\s+)?appuntament\w*|"
     r"(mand\w*|invi\w*|scriv\w*|gir\w*)\w*\s+(gli|le|un|una|il|la|lo|al|allo|alla)?\s*(whatsapp|messaggio|mail|e-?mail|preventivo|offerta|riepilogo|conferma|promemoria)|"
     r"(mand\w*|invi\w*)(gli|le|ci)\s+(il|un|la|una|lo)\s+\w+|whatsapp|e-?mail\s+(a|per)|"
@@ -39,6 +41,7 @@ _AG_RESUME_RX = {
     "skip": _ag_re.compile(r"^\s*(salta\w*|skip|vai avanti|continua|procedi|prosegui|passa (alla|oltre)|avanti)\b", _ag_re.I),
     "retry": _ag_re.compile(r"^\s*(riprova\w*|ritenta\w*|retry|rifai|riprovaci)\b", _ag_re.I),
     "cancel": _ag_re.compile(r"^\s*(annulla\w*|cancella tutto|stop|basta|lascia (stare|perdere)|ferma\w*|interrompi)\b", _ag_re.I),
+    "confirm": _ag_re.compile(r"^\s*(s[iì]\b|certo|esatto|conferm\w*|ok\b|va bene|procedi|crea\w* (comunque|lo stesso)|vai)\b", _ag_re.I),  # V50.z506 — conferma doppione
 }
 
 
@@ -52,7 +55,7 @@ def _agent_looks_multistep(msg: str) -> bool:
     # V50.z499 — BUG STRUTTURALE: un comando con UNA sola azione («crea un appuntamento con Rossi domani alle 10», «programma una
     # richiamata a Zanini lunedì», «crea contatto Mario Rossi», «aggiungi nota su Rossi…») non entrava nell'agente e finiva all'LLM
     # conversazionale, che rispondeva «Fatto» senza scrivere nulla. Ora basta un verbo d'azione in forma imperativa.
-    return len(hits) >= 1 and bool(_ag_re.match(r"^\s*(axon[,!]?\s+)?(per favore\s+)?(crea|fissa|prenota|programma|imposta|metti|aggiungi|inserisci|registra|salva|segna|scrivi|manda|invia|ricorda|richiama|ritelefona|sposta|rimanda|anticipa|posticipa|riprogramma|chiudi|aggiorna|cambia|converti|nuovo|nuova|cancella|elimina|annulla|rimuovi|disdici|modifica|correggi|sostituisci|chiama|telefona)\w*\b", t, _ag_re.I))
+    return len(hits) >= 1 and bool(_ag_re.match(r"^\s*(axon[,!]?\s+)?(per favore\s+)?(crea|fissa|prenota|programma|imposta|metti|aggiungi|inserisci|registra|salva|segna|scrivi|manda|invia|ricorda|richiama|ritelefona|sposta|rimanda|anticipa|posticipa|riprogramma|chiudi|aggiorna|cambia|converti|nuovo|nuova|cancella|elimina|annulla|rimuovi|disdici|modifica|correggi|sostituisci|chiama|telefona|organizza|pianifica)\w*\b", t, _ag_re.I))
 
 
 # ---- pianificazione (LLM) ------------------------------------------------------------------------------------------------
@@ -83,11 +86,12 @@ async def _agent_plan(msg: str, user: dict) -> _ag_Optional[dict]:
         "vocale, con possibili errori) in una SEQUENZA ordinata di azioni eseguibili. Rispondi SOLO con JSON valido, senza testo attorno.\n"
         "AZIONI AMMESSE e parametri:\n"
         "- update_contact_status: {status: 'client'|'prospect'|'collaborator', note: str} — «chiudi la trattativa», «segna come cliente», «è diventato cliente» → status 'client', note 'Trattativa chiusa'; «trattativa persa» → status 'prospect', note 'Trattativa persa'.\n"
-        "- create_appointment: {title: str, start_at: 'YYYY-MM-DDTHH:MM' (ora locale Europe/Rome), duration_min: int (default 60), location: str, is_phone: bool}\n"
+        "- create_appointment: {title: str, start_at: 'YYYY-MM-DDTHH:MM' (ora locale Europe/Rome), duration_min: int (default 60; 30 per le telefonate), location: str, is_phone: bool} — "
+        "«telefonata/chiamata/call con X» → create_appointment con is_phone TRUE e titolo «Telefonata con X» (tipo TELEFONATA, va nel modulo Call); «appuntamento/incontro/visita» → is_phone false.\n"
         "- update_appointment: {new_start_at: 'YYYY-MM-DDTHH:MM', match: str|null (parola del titolo se indicata)} — «sposta l'appuntamento con X a venerdì alle 15».\n"
         "- send_whatsapp: {message: str} — testo completo pronto da inviare, in italiano, cordiale, firmato con il nome del consulente se noto.\n"
         "- send_email: {subject: str, body: str} — email completa (saluto, corpo, firma). «mandagli il preventivo» → email che accompagna il preventivo (dì che è allegato/segue), NON inventare cifre.\n"
-        "- create_callback: {scheduled_at: 'YYYY-MM-DDTHH:MM', title: str, note: str} — «richiamalo tra 30 giorni», «ritelefonata». Senza orario usa 10:00.\n"
+        "- create_callback: {scheduled_at: 'YYYY-MM-DDTHH:MM', title: str, note: str} — SOLO per «richiamalo», «richiamata», «ritelefonata», «ritelefona a» (promemoria di richiamo). Senza orario usa 10:00. NON usarla per «telefonata/chiamata/call» (quelle sono create_appointment is_phone).\n"
         "- create_reminder: {label: str (max 60), trigger_at: 'YYYY-MM-DDTHH:MM'} — «ricordami di…», «promemoria per…» NON legato a una telefonata al cliente. Se il promemoria è per RICHIAMARE un cliente usa create_callback.\n"
         "- create_contact: {first_name: str, last_name: str, phone: str, email: str, city: str, company: str, area: 'energy'|'network'} — «crea contatto Mario Rossi 333 1234567 Milano»; 'contact' = null (il contatto NON esiste ancora).\n"
         "- add_note: {text: str} — «aggiungi nota su Rossi: vuole il preventivo» → 'contact' = Rossi, text = il contenuto della nota (senza il nome).\n"
@@ -98,7 +102,7 @@ async def _agent_plan(msg: str, user: dict) -> _ag_Optional[dict]:
         "- delete_callback: {} — «cancella la richiamata di Rossi», «annulla la ritelefonata a Bianchi».\n"
         "- call_contact: {} — «chiama Rossi», «telefona a Bianchi» → avvia la telefonata (il telefono compone il numero).\n"
         "REGOLE: mantieni l'ordine indicato dall'utente; ogni azione che riguarda una persona ha 'contact' = nome come lo ha detto l'utente "
-        "(risolvi su un nome dell'elenco CRM se evidente, es. «Mario» → «Mario Rossi» se è l'unico Mario); date relative calcolate dall'ORA ATTUALE; "
+        "(risolvi su un nome dell'elenco CRM se evidente, es. «Mario» → «Mario Rossi» se è l'unico Mario); date relative calcolate dall'ORA ATTUALE (giorno della settimana = la PROSSIMA occorrenza futura: se oggi è venerdì, «martedì» = il martedì tra 4 giorni, MAI lunedì); "
         "orari sempre nel futuro; nessuna azione fuori elenco (se l'utente chiede altro, mettila in 'unsupported'). Se manca un dato "
         "indispensabile (es. quale cliente) e non è deducibile, compila 'clarify' con UNA domanda e lascia steps vuoto."
     )
@@ -168,6 +172,15 @@ async def _agent_exec_step(user: dict, step: dict, contact: _ag_Optional[dict]) 
     tid = tenant_id(user)  # noqa: F821
     now = utcnow()  # noqa: F821
     cname = _ag_cname(contact) if contact else None
+    # V50.z506 — BUG 4: le date relative in italiano («martedì», «domani alle 9», «13 ottobre») sono calcolate in modo deterministico
+    # (Europe/Rome) dalla frase dell'utente e CORREGGONO la proposta dell'LLM (che a volte sbaglia giorno). Solo per comandi a un passo.
+    if step.get("src_text"):
+        _dkey = {"create_appointment": "start_at", "create_callback": "scheduled_at", "update_appointment": "new_start_at", "update_callback": "new_scheduled_at", "create_reminder": "trigger_at"}.get(action)
+        if _dkey:
+            fixed = it_fix_datetime(step["src_text"], _ag_local(p.get(_dkey)) if p.get(_dkey) else None, now)  # noqa: F821
+            if fixed is not None:
+                p[_dkey] = fixed.strftime("%Y-%m-%dT%H:%M")
+                step["params"] = p
 
     if action == "update_contact_status":
         if not contact:
@@ -308,19 +321,35 @@ async def _agent_exec_step(user: dict, step: dict, contact: _ag_Optional[dict]) 
             raise _AgentStepError("manca la data/ora dell'appuntamento")
         if start <= now.astimezone(_AG_ROME):
             raise _AgentStepError(f"la data indicata ({_ag_fmt(start)}) è già passata")
-        dur = int(p.get("duration_min") or 60)
-        title = (p.get("title") or "").strip() or (f"Appuntamento con {cname}" if cname else "Appuntamento")
+        dur = int(p.get("duration_min") or (30 if p.get("is_phone") else 60))
+        # V50.z506 — BUG 5: «telefonata/chiamata/call» → appuntamento di tipo TELEFONATA (is_phone), anche se il pianificatore lo dimentica
+        is_phone = bool(p.get("is_phone")) or bool(_ag_re.search(r"\b(telefonat\w*|chiamat\w*|call|telefonic\w*)\b", (step.get("src_text") or "") + " " + (p.get("title") or ""), _ag_re.I))
+        title = (p.get("title") or "").strip() or ((f"Telefonata con {cname}" if is_phone else f"Appuntamento con {cname}") if cname else ("Telefonata" if is_phone else "Appuntamento"))
+        # V50.z506 — BUG 3: stesso contatto, stesso giorno (Europe/Rome) → chiedo conferma prima di creare un doppione
+        if contact and not p.get("allow_duplicate"):
+            day0 = start.astimezone(_AG_ROME).replace(hour=0, minute=0, second=0, microsecond=0)
+            dup = await db.appointments.find_one({"user_id": tid, "contact_id": contact["contact_id"], "done": {"$ne": True},  # noqa: F821
+                                                  "start_at": {"$gte": day0.astimezone(_ag_tz.utc), "$lt": (day0 + _ag_td(days=1)).astimezone(_ag_tz.utc)}},
+                                                 {"_id": 0, "title": 1, "start_at": 1})
+            if dup:
+                d0 = dup.get("start_at"); d0 = d0.replace(tzinfo=_ag_tz.utc) if d0 and d0.tzinfo is None else d0
+                step["needs_confirm"] = True
+                raise _AgentStepError(f"⚠️ {cname} ha già un appuntamento quel giorno («{dup.get('title')}» alle {d0.astimezone(_AG_ROME).strftime('%H:%M') if d0 else '?'}). "
+                                      f"Vuoi crearne comunque un altro il {_ag_fmt(start)}? Rispondi «sì» per confermare o «annulla».")
         # V50.z499 — STESSA funzione del form «Nuovo appuntamento» (08_calendar.create_appointment): id, created_by, broadcast, indirizzo…
         created = await create_appointment(AppointmentIn(  # noqa: F821
             contact_id=contact["contact_id"] if contact else None, title=title, area=(contact or {}).get("area") if (contact or {}).get("area") in ("energy", "network") else "energy",
-            start_at=start.astimezone(_ag_tz.utc), end_at=(start + _ag_td(minutes=dur)).astimezone(_ag_tz.utc), duration_min=dur, is_phone=bool(p.get("is_phone")),
+            start_at=start.astimezone(_ag_tz.utc), end_at=(start + _ag_td(minutes=dur)).astimezone(_ag_tz.utc), duration_min=dur, is_phone=is_phone,
             phone_mobile=(contact or {}).get("phone") or "", email=(contact or {}).get("email") or "", location=(p.get("location") or "").strip(),
             full_address=(p.get("location") or "").strip() or (contact or {}).get("address") or "", notes=(p.get("note") or "").strip(),
         ), user)
         aid = created["appointment_id"]
         if not await db.appointments.find_one({"appointment_id": aid}, {"_id": 0, "appointment_id": 1}):  # noqa: F821
             raise _AgentStepError("l'appuntamento non risulta salvato")
-        return {"text": f"Appuntamento «{title}» il {_ag_fmt(start)}" + (f" ({doc['location']})" if doc["location"] else ""), "chip": None}
+        # V50.z506 — BUG 1/3: qui c'era `doc["location"]` (variabile inesistente) → l'appuntamento veniva SALVATO ma il passo risultava
+        # «errore interno» → l'utente riprovava → doppioni. Ora il riepilogo usa i dati reali.
+        loc = (created.get("location") or "").strip()
+        return {"text": f"{'Telefonata' if is_phone else 'Appuntamento'} «{title}» il {_ag_fmt(start)}" + (f" ({loc})" if loc else ""), "chip": None}
 
     if action == "update_appointment":
         new_start = _ag_local(p.get("new_start_at"))
@@ -430,7 +459,9 @@ def _agent_report(run: dict) -> str:
             chips.append(s["chip"])
     if run.get("unsupported"):
         lines.append("ℹ️ Non eseguibile da me: " + "; ".join(str(u) for u in run["unsupported"][:3]))
-    if failed_idx is not None and run.get("status") == "awaiting":
+    if failed_idx is not None and run.get("status") == "awaiting" and steps[failed_idx].get("needs_confirm"):
+        lines.append("\nRispondi **«sì»** per crearlo comunque oppure **«annulla»**.")
+    elif failed_idx is not None and run.get("status") == "awaiting":
         lines.append("\nCome procedo? Rispondi **«salta»** per passare alla successiva, **«riprova»** dopo aver sistemato il dato, oppure **«annulla»**.")
     if chips:
         lines.append("\n" + "\n".join(chips))
@@ -487,6 +518,12 @@ async def _agent_resume(msg: str, user: dict) -> _ag_Optional[dict]:
     idx = next((i for i, s in enumerate(run["steps"]) if s.get("status") == "failed"), None)
     if idx is None:
         return None
+    if verb == "confirm":
+        if not run["steps"][idx].get("needs_confirm"):
+            return None  # «sì» non riferito a una conferma in sospeso → conversazione normale
+        run["steps"][idx].setdefault("params", {})["allow_duplicate"] = True
+        run["steps"][idx].pop("needs_confirm", None)
+        verb = "retry"
     if verb == "cancel":
         run["status"] = "cancelled"
         run["steps"][idx]["status"] = "skipped"
@@ -525,7 +562,7 @@ async def _maybe_agent_command(msg: str, user: dict) -> _ag_Optional[dict]:
         # V50.z499 — prima: «una sola azione → la gestiscono gli intercettori/LLM normali» → l'LLM diceva «Fatto» senza salvare.
         # Ora anche UNA sola azione viene eseguita qui, con scrittura reale e verifica.
         run = {"run_id": f"agr_{_ag_uuid.uuid4().hex[:12]}", "user_id": user["user_id"], "tenant_id": tenant_id(user), "message": msg,  # noqa: F821
-               "steps": [{"action": s["action"], "contact": s.get("contact"), "label": (s.get("label") or "").strip()[:90], "params": s.get("params") or {}, "status": "pending"} for s in plan["steps"]],
+               "steps": [{"action": s["action"], "contact": s.get("contact"), "label": (s.get("label") or "").strip()[:90], "params": s.get("params") or {}, "status": "pending", **({"src_text": msg} if len(plan["steps"]) == 1 else {})} for s in plan["steps"]],  # V50.z506 src_text → date deterministiche
                "unsupported": [str(u) for u in (plan.get("unsupported") or [])][:3], "status": "running", "created_at": utcnow(), "updated_at": utcnow()}  # noqa: F821
         run = await _agent_run(run, user, 0)
         return {"reply": _agent_report(run), "cmd": "agent_run", "agent_run_id": run["run_id"], "agent_status": run["status"]}

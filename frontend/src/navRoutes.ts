@@ -9,7 +9,7 @@ export const KNOWN_ROUTES: ReadonlySet<string> = new Set([
   "/axon-cheatsheet", "/axon-expenses", "/axon-homeassistant", "/axon-hub", "/axon-insights", "/axon-integrations", "/axon-lab", "/axon-lab/business",
   "/axon-lab/delegates", "/axon-lab/rules", "/axon-lab/training", "/axon-media", "/axon-memory", "/axon-notifications", "/axon-proactive",
   "/axon-scripts-import", "/axon-scripts", "/axon-stress-report", "/axon-system", "/axon-voice", "/beta-diary", "/beta-nps", "/bill-quick", "/bug-report",
-  "/business-card-stats", "/business-card", "/call-script-config", "/callback/new", "/chat/new", "/contact/new", "/contact/import-folder", "/contacts-import",
+  "/business-card-stats", "/business-card", "/call", "/call-script-config", "/callback/new", "/chat/new", "/contact/new", "/contact/import-folder", "/contacts-import",
   "/contract/new", "/corporate/new", "/corporate-gym", "/corporate-gym/areas-edit", "/corporate-gym/assign", "/corporate-gym/coach-panel", "/corporate-gym/live",
   "/corporate-gym/manuals-config", "/corporate-gym/obiezioni", "/corporate-gym/ratings", "/corporate-gym/roleplay", "/corporate-gym/stats", "/corporate-gym/win-win",
   "/courses", "/courses/dashboard", "/courses/new", "/crt", "/cruscotto", "/custom-fields", "/dashboard-config", "/deadlines", "/devices", "/documenti-axon",
@@ -40,7 +40,7 @@ const ALIASES: Record<string, string> = {
   "/spese": "/axon-expenses", "/memoria": "/axon-memory", "/insegna": "/ai-teach", "/allarmi": "/axon-alarms", "/avvisi": "/axon-alerts", "/mail": "/email-accounts",
   "/email": "/email-accounts", "/collaboratori": "/team", "/corsi": "/courses", "/contratti": "/crt", "/pun": "/pun-storico", "/privacy": "/privacy-policy",
   "/dispositivi": "/devices", "/offline": "/offline-sync", "/aree": "/le-mie-aree", "/statistiche": "/home?section=statistiche", "/scadenze": "/deadlines",
-  "/ritelefonate": "/home?section=ritelefonate", "/biglietto": "/business-card",
+  "/ritelefonate": "/home?section=ritelefonate", "/biglietto": "/business-card", "/telefonate": "/call", "/chiamate": "/call",
 };
 
 function split(route: string): [string, string] {

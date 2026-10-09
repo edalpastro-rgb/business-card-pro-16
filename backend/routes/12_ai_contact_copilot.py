@@ -554,7 +554,7 @@ Data una trascrizione vocale dell'utente (consulente energetico in auto),
 identifica l'intent tra:
 - create_contact: creare un NUOVO cliente/contatto
 - add_note: aggiungere una nota a un cliente ESISTENTE
-- schedule_call: programmare una telefonata di richiamo (richiamata/ritelefonata)
+- schedule_call: programmare una telefonata/chiamata/call con un cliente (→ appuntamento di tipo telefonata) oppure una richiamata/ritelefonata (promemoria di richiamo); when_iso = data e ora dette dall'utente
 - list_callbacks: MOSTRARE/elencare le ritelefonate (richiamate) programmate («mostrami le ritelefonate di oggi», «che richiamate ho domani»)
 - list_appointments: MOSTRARE/elencare gli appuntamenti («mostrami gli appuntamenti», «che appuntamenti ho oggi/domani»)
 - show_photo: mostrare la FOTO di un cliente («mostrami la foto di Zanini», «fammi vedere Rossi»)
@@ -736,24 +736,48 @@ async def voice_copilot_execute(body: VoiceCopilotIn, background: BackgroundTask
 
         elif intent == "schedule_call":
             when_iso = (params.get("when_iso") or "").strip()
-            if not when_iso:
-                raise HTTPException(status_code=422, detail="Data mancante")
-            try:
-                when_dt = datetime.fromisoformat(when_iso.replace("Z", "+00:00"))
-            except Exception:
-                raise HTTPException(status_code=422, detail=f"Data non parsabile: {when_iso}")
-            if when_dt.tzinfo is None:
+            when_dt = None
+            if when_iso:
+                try:
+                    when_dt = datetime.fromisoformat(when_iso.replace("Z", "+00:00"))
+                except Exception:
+                    when_dt = None
+            if when_dt is not None and when_dt.tzinfo is None:
                 when_dt = when_dt.replace(tzinfo=_vd_zoneinfo.ZoneInfo("Europe/Rome"))
+            # V50.z506 — BUG 4: la data detta («martedì 13 ottobre alle 10:30») vince sulla proposta dell'LLM (Europe/Rome, deterministico)
+            when_dt = it_fix_datetime(transcript, when_dt, _vd_now_rome())  # noqa: F821
+            if not when_dt:
+                raise HTTPException(status_code=422, detail="Data mancante")
             contact = await _vd_find_contact(user, params, candidates, body.pending_contact_id)
             cname = f"{contact.get('first_name') or ''} {contact.get('last_name') or ''}".strip()
-            # V50.z495 — BUG: la richiamata era scritta con campi propri (id/notes/status, senza callback_id/title/area/done/created_by)
-            # → invisibile in Home e nella scheda. Ora passa dallo STESSO create_callback del form manuale.
-            cb = await create_callback(CallbackIn(  # noqa: F821
-                contact_id=contact["contact_id"], title=cname or "Ritelefonata",
-                area=contact.get("area") if contact.get("area") in ("energy", "network") else "energy",
-                scheduled_at=when_dt, note=(params.get("notes") or "").strip(), phone=contact.get("phone") or contact.get("phone_alt") or None,
-            ), user)
-            result_extra = {"callback_id": cb["callback_id"], "contact_id": contact["contact_id"], "scheduled_at": when_dt.isoformat()}
+            when_local = when_dt.astimezone(_vd_zoneinfo.ZoneInfo("Europe/Rome"))
+            if re.search(r"\b(richiam\w*|ritelefon\w*|callback)\b", transcript, re.I):
+                # Richiamata (promemoria di richiamo) → modulo Ritelefonate, STESSO create_callback del form manuale (V50.z495)
+                cb = await create_callback(CallbackIn(  # noqa: F821
+                    contact_id=contact["contact_id"], title=cname or "Ritelefonata",
+                    area=contact.get("area") if contact.get("area") in ("energy", "network") else "energy",
+                    scheduled_at=when_dt, note=(params.get("notes") or "").strip(), phone=contact.get("phone") or contact.get("phone_alt") or None,
+                ), user)
+                result_extra = {"callback_id": cb["callback_id"], "contact_id": contact["contact_id"], "scheduled_at": when_dt.isoformat()}
+                parsed["confirmation"] = f"Ritelefonata a {cname} segnata per {it_fmt_datetime(when_local)}."  # noqa: F821
+            else:
+                # V50.z506 — BUG 5: «telefonata/chiamata/call» = appuntamento di tipo TELEFONATA (is_phone) → Agenda + modulo Call.
+                # Passa dall'agente (stessa pipeline della chat): verifica doppione stesso giorno con conferma «sì/annulla», verifica salvataggio.
+                run = {"run_id": f"agr_{uuid.uuid4().hex[:12]}", "user_id": user["user_id"], "tenant_id": tenant, "message": transcript,
+                       "steps": [{"action": "create_appointment", "contact": cname, "label": f"Telefonata con {cname}", "status": "pending", "src_text": transcript,
+                                  "params": {"title": f"Telefonata con {cname}", "start_at": when_local.strftime("%Y-%m-%dT%H:%M"), "duration_min": 30, "is_phone": True,
+                                             "note": (params.get("notes") or "").strip()}}],
+                       "unsupported": [], "status": "running", "created_at": utcnow(), "updated_at": utcnow()}  # noqa: F821
+                run = await _agent_run(run, user, 0)  # noqa: F821
+                st = run["steps"][0]
+                result_extra = {"contact_id": contact["contact_id"], "scheduled_at": when_dt.isoformat(), "agent_run_id": run["run_id"], "agent_status": run["status"]}
+                if st.get("status") == "done":
+                    parsed["confirmation"] = f"Telefonata con {cname} fissata per {it_fmt_datetime(when_local)}."  # noqa: F821
+                elif st.get("needs_confirm"):
+                    intent = "confirm_duplicate"
+                    parsed["confirmation"] = st.get("error") or "Esiste già un appuntamento quel giorno: confermi?"
+                else:
+                    raise HTTPException(status_code=422, detail=st.get("error") or "Telefonata non salvata")
 
         elif intent == "list_callbacks":
             # V50.z495 — display dinamico Axon Drive: elenco ritelefonate del giorno

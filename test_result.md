@@ -598,3 +598,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z505 — Home web: titolo APPUNTAMENTI DI OGGI in corsivo, calendario mensile compatto (src/home/MonthCalendarCompact.tsx), ordine Master/PUN/Ritelefonate|Appuntamenti/Calendario/Statistiche/Scadenze/Comunica; tutti i titoli di sezione in corsivo. Home personalizzabile Super Master: routes/home_layout.py (GET/PUT/DELETE /home/layout, user_settings.home_layout), HomeBlocksGrid + useHomeLayout, card Impostazioni › Preferenze generali (HomeLayoutCard). Testing agent: backend 7/7, frontend desktop OK; mobile stacking verificato via screenshot (fix wrapper View)."
+
+  - agent: "main"
+    message: "V50.z506 — Fix: doc NameError in agente create_appointment (appuntamento salvato ma riportato come errore → doppioni), intercettori agente anche su /assistant/chat non-stream (axon_critical_events), regex gate telefonata/chiamata/call, date italiane deterministiche (axon_dates_it.py), stats per giorno Rome, conferma doppione sì/annulla, tipo telefonata is_phone. Modulo Call (calls_module.py, app/call.tsx, CallsTodayBlock). Testing agent: backend 12/12, frontend OK."

@@ -42,6 +42,7 @@ export const ITEMS: DrawerItem[] = [
   { label: "Nuovo Contatto",    icon: "person-add-outline",   href: "/contact/new",        categoryKey: "crm" },
   { label: "Appuntamenti",      icon: "calendar-outline",     href: "/calendario",         categoryKey: "crm" },
   { label: "Nuovo Appuntamento",icon: "add-circle-outline",   href: "/appointment/new",    categoryKey: "crm" },
+  { label: "Call",              icon: "call-outline",         href: "/call",               categoryKey: "crm" }, // V50.z506 — modulo Call (telefonate del giorno)
   { label: "Scadenze",          icon: "hourglass-outline",    href: "/deadlines",          categoryKey: "crm" },
   { label: "Contratti",         icon: "document-text-outline", href: "/crt",               categoryKey: "crm" }, // V50.z489 — anche nella sidebar web
   // AI & Axon (viola #7C3AED)

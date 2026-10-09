@@ -132,6 +132,7 @@ MODULES = [
     "axon_upload_guard.py",  # V50.z469 — Feature 15: whitelist upload per magic bytes (jpg/png/pdf + audio), limiti, antivirus ClamAV (clamd INSTREAM); wrap _put_object_sync/_upl_stream_to_temp/POST /master-files; GET /admin/upload-guard/status
     "axon_beta.py",  # V50.z474 — Beta sul campo: POST /beta/event, NPS (/beta/nps*), GET /admin/beta/dashboard (10 metriche), POST /admin/beta/nps-wave
     "axon_watchdog.py",  # V50.z469 — Feature 8: watchdog Axon (first-token 10s + retry, event-loop stall → riavvio processo, POST /axon/watchdog/recover, GET /axon/watchdog/status)
+    "axon_dates_it.py",  # V50.z506 — date relative italiane deterministiche (Europe/Rome): oggi/domani/lunedì…/13 ottobre + orario (usato da axon_agent e copilota vocale)
     "axon_agent.py",  # V50.z458 — Prompt 19: agenti autonomi multi-step (piano LLM → esecuzione sequenziale verificata → riepilogo; stop+«come procedo?» su errore; chat + voce)
     "axon_emergency.py",  # V50.z460 — Prompt 22: emergenze → ricalcolo agenda (slot liberi, scuse con tono personalità, roadmap, cascata, conferma unica, push prioritaria)
     "onboarding_tracking.py",  # V50.z461 — Prompt 23: checkpoint onboarding (profilo/anagrafica/primo cliente) + pannello titolare + solleciti email 3/7 gg
@@ -147,6 +148,7 @@ MODULES = [
     "user_prefs_sync.py",  # V50.z428 — GET/PUT /me/prefs: preferenze utente (PIN, tema, widget sidebar…) legate all account
     "axon_register_security.py",  # V50.z434 — «Fort Knox» registrazione (rate limit, honeypot, PoW, Turnstile, email usa-e-getta) + Email di benvenuto configurabile (Master)
     "pkg_delivery.py",  # V50.z424 — consegna pacchetti VPS, attivo SOLO se AXON_PKG_DOWNLOAD_KEY è nell .env (dev); in produzione risponde 404  # V50.z422 — Condividi Landing Page: GET /me/landing-link (ref = codice agente) + GET /public/advisor/{ref} → nome
+    "calls_module.py",  # V50.z506 — Modulo Call: GET /calls/today (appuntamenti is_phone del giorno + arretrate da fare), POST /calls/{id}/reschedule → ritelefonata (usa 02, 09)
     "home_layout.py",  # V50.z505 — Home personalizzabile (Super Master): blocchi visibili, ordine, posizione sinistra/destra/intera (GET/PUT/DELETE /home/layout; usa is_super_admin di 36)
     "axon_critical_events.py",  # V50.z496 — allarme prioritario eventi critici: banner Home + push CRITICAL + avviso vocale alla prima interazione (ri-avvolge /assistant/chat e /stream: ULTIMO strato)
     "37_app_startup_scheduler.py",

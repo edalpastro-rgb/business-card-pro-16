@@ -13,6 +13,7 @@ HOME_BLOCKS: _hl_List[dict] = [
     {"id": "pun",          "label": "PUN energia",               "hint": "PUN aggiornato e gli altri widget dashboard (allerte meteo, Corporate Gym)", "pos": "full"},
     {"id": "callbacks",    "label": "Ritelefonate di oggi",      "hint": "Elenco delle ritelefonate del giorno per area", "pos": "left"},
     {"id": "appointments", "label": "Appuntamenti di oggi",      "hint": "Conteggio appuntamenti di oggi → calendario", "pos": "right"},
+    {"id": "calls",        "label": "Call di oggi",              "hint": "Telefonate programmate del giorno (appuntamenti di tipo telefonata) + arretrate da fare", "pos": "full"},
     {"id": "calendar",     "label": "Calendario",                "hint": "Calendario mensile compatto con i giorni che hanno appuntamenti", "pos": "full"},
     {"id": "stats",        "label": "Statistiche",               "hint": "KPI e grafici di appuntamenti e ritelefonate", "pos": "full"},
     {"id": "deadlines",    "label": "Scadenze",                  "hint": "Scadenze bollette/contratti entro 30-180 giorni", "pos": "full"},

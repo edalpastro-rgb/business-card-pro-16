@@ -147,7 +147,13 @@ async def appointments_stats(
     """Return counts done/undone per user (self + team) over the last N days.
     Owner/admin see all tenant members; members see only their own row."""
     tid = tenant_id(user)
-    since = utcnow() - timedelta(days=max(1, min(range_days, 365)))
+    # V50.z506 — BUG 2: finestra per GIORNI DI CALENDARIO (Europe/Rome), non più «ultime 24h×N da adesso» senza limite superiore
+    # (il contatore «Appuntamenti di oggi» includeva anche i giorni futuri). days=1 → solo oggi 00:00–24:00 ora italiana.
+    from zoneinfo import ZoneInfo as _ZI
+    _rome = _ZI("Europe/Rome")
+    _today0 = utcnow().astimezone(_rome).replace(hour=0, minute=0, second=0, microsecond=0)
+    since = (_today0 - timedelta(days=max(1, min(range_days, 365)) - 1)).astimezone(timezone.utc)
+    until = (_today0 + timedelta(days=1)).astimezone(timezone.utc)
     # Fetch team members within tenant
     members = await db.users.find(
         {"$or": [{"user_id": tid}, {"parent_user_id": tid}]},
@@ -158,7 +164,7 @@ async def appointments_stats(
         members = [m for m in members if m["user_id"] == user["user_id"]]
     # Aggregate counts per created_by
     pipeline = [
-        {"$match": {"user_id": tid, "start_at": {"$gte": since}, "is_broadcast": {"$ne": True}}},
+        {"$match": {"user_id": tid, "start_at": {"$gte": since, "$lt": until}, "is_broadcast": {"$ne": True}}},
         {"$group": {
             "_id": "$created_by",
             "total": {"$sum": 1},

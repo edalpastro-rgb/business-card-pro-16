@@ -427,6 +427,7 @@ function AppointmentDetail() {
             <Ionicons name="time-outline" size={14} color={HT.muted} />
             <Text style={styles.metaTxt}>{new Date(a.start_at).toLocaleString("it-IT")}</Text>
             {a.is_phone && <><Ionicons name="call" size={14} color={color} /><Text style={[styles.metaTxt, { color }]}>Telefonico</Text></>}
+            {!!(a as any).moved_to_callback_id && <><Ionicons name="repeat" size={14} color={HT.warning} /><Text style={[styles.metaTxt, { color: HT.warning }]} testID="appt-moved-badge">Spostata in ritelefonata{(a as any).moved_to_scheduled_at ? ` → ${new Date((a as any).moved_to_scheduled_at).toLocaleDateString("it-IT")}` : ""}</Text></>}
           </View>
           {(a.appointment_type_tags || []).length > 0 && (
             <View style={[styles.metaRow, { flexWrap: "wrap", marginTop: 6 }]}>

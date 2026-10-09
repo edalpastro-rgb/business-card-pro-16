@@ -13,6 +13,7 @@ export const HOME_LAYOUT_DEFAULT_BLOCKS: HomeBlock[] = [
   { id: "pun", label: "PUN energia", visible: true, pos: "full", order: 1 },
   { id: "callbacks", label: "Ritelefonate di oggi", visible: true, pos: "left", order: 2 },
   { id: "appointments", label: "Appuntamenti di oggi", visible: true, pos: "right", order: 3 },
+  { id: "calls", label: "Call di oggi", visible: true, pos: "full", order: 4 },
   { id: "calendar", label: "Calendario", visible: true, pos: "full", order: 4 },
   { id: "stats", label: "Statistiche", visible: true, pos: "full", order: 5 },
   { id: "deadlines", label: "Scadenze", visible: true, pos: "full", order: 6 },

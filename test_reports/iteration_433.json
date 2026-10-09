@@ -1,0 +1,47 @@
+{
+  "summary": "V50.z506 — Modulo Call + 5 bug fix. Backend 11/12 PASS (91.7%). Frontend web 1280x900 OK: Home 'CALL DI OGGI' block, /call screen con KPI Tutte/Da fare/Fatte, call-row + toggle + move sheet (quick-1 + save) rendono correttamente, sidebar DrawerMenu include voce 'Call' (verificato in codice). BUG CRITICO: POST /api/assistant/chat (non-stream) NON invoca _maybe_agent_command → l'LLM allucina la risposta («Richiamata programmata per Fabio Zanini mercoledì 15/10 alle 11:00») senza creare nulla in Mongo, classifica 'telefonata' come 'richiamata' e sbaglia la data (15/10 è giovedì, non mercoledì). Il wrapper /assistant/chat/stream funziona perfettamente (reply contiene ✅ e crea appuntamento is_phone 14/10 09:00Z). TUTTO il resto funziona: date deterministiche IT (7 casi), voice/copilot/execute telefonata/doppione/annulla/richiamata, /appointments/stats?range_days=1 conta solo oggi, /calls/today filtra is_phone + today+overdue, POST /calls/{id}/reschedule crea callback e marca moved_to_callback_id, secondo reschedule e done=true → 400, GET /home/layout contiene blocco 'calls' con label 'Call di oggi'.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/assistant/chat (non-stream)",
+        "issue": "Non invoca _maybe_agent_command: la richiesta «programma una telefonata con Fabio Zanini mercoledì alle 11» passa all'LLM conversazionale che restituisce «Richiamata programmata per Fabio Zanini mercoledì 15/10 alle 11:00» (reply SENZA ✅, data sbagliata — 15/10 è giovedì, mercoledì sarebbe 14/10 — e classificazione come 'richiamata' invece di 'telefonata') SENZA creare appointments né callbacks in Mongo. Il wrapper /assistant/chat/stream (22_axon_alarm_commit_teach.py:712) invoca correttamente _maybe_agent_command e produce il risultato atteso: '🤖 Fatto: 1 azione... ✅ Telefonata «Telefonata con Fabio Zanini» il 14/10/2026 alle 11:00' con appointment is_phone creato. L'endpoint non-stream (wrapped da axon_critical_events + axon_navigator + axon_shared_learning + axon_nav_guard) va allineato al comportamento streaming.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "CallRow (call-toggle-<id>)",
+        "issue": "Il testID 'call-toggle-<id>' è duplicato 3 volte nel DOM web (strict mode violation Playwright). React Native Web probabilmente propaga testID su wrapper + Pressable + child. Non blocca l'uso, ma i test devono usare .first.",
+        "testID": "call-toggle-<id>",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v50z506_call_module.py",
+    "/app/test_reports/pytest/v50z506_results.xml"
+  ],
+  "action_items": [
+    "FIX /api/assistant/chat non-stream: aggiungere l'invocazione a _maybe_emergency_command e _maybe_agent_command (stessa catena del wrapper stream in 22_axon_alarm_commit_teach.py:710-712) prima del percorso LLM conversazionale. Senza questa fix la user story del bug 1 fallisce via chat testuale (anche se funziona via voce /voice/copilot/execute e via chat stream).",
+    "Opzionale: deduplicare il testID call-toggle-<id> nella CallRow (/app/frontend/src/calls/CallRow.tsx) per eliminare lo strict-mode violation."
+  ],
+  "critical_code_review_comments": [
+    "calls_module.py:68 — la nota include start_at.astimezone(_CM_ROME) senza verificare che start_at sia naive-aware; se Mongo restituisce naive datetime e il campo è None, il formatter produce stringa vuota, che va bene; comunque il codice è difensivo (isinstance check).",
+    "axon_dates_it.py — buona gestione dei casi di oggi/ora futura e dei giorni della settimana; nessun fix necessario."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v50z506_call_module.py (nuovo)"
+  ],
+  "success_rate": {"backend": "91.7% (11/12)", "frontend": "100% (sanity flow Home → /call → toggle/move)"},
+  "seed_data_creation": "Durante i test ho creato temporaneamente appointments is_phone per contact_id c_93be547cca7f (telefonata di oggi +2h, +1h, in 3 giorni, 13/10 10:30, 13/10 15:00, 14/10 11:00) + callback 15/10 09:00 Roma + axon_agent_runs (12 run). TUTTO pulito al termine (0 doc residui per contact_id c_93be547cca7f).",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Riprodurre il bug non-stream: POST /api/assistant/chat {message:'programma una telefonata con Fabio Zanini mercoledì alle 11', session_id:'x'}; la risposta DEVE contenere ✅ e in Mongo deve apparire appointments con is_phone=true e start_at=2026-10-14T09:00Z. Lo stream /assistant/chat/stream è OK (reference). Oggi è venerdì 2026-10-09 nel sistema (dal /calls/today day=2026-10-09).",
+  "rca_of_issue": "L'endpoint non-stream /assistant/chat è wrappato da più moduli (axon_critical_events.py linea 143, axon_navigator.py 1004, axon_shared_learning.py 140, axon_nav_guard.py 480) ma NESSUNO di questi wrapper chiama _maybe_emergency_command / _maybe_agent_command prima di delegare al percorso LLM. Solo il wrapper streaming in 22_axon_alarm_commit_teach.py:710-712 lo fa correttamente. Mitigazione: nel wrapper non-stream (axon_critical_events.py o axon_nav_guard.py, prima del call a _ce_orig_chat) aggiungere: `_ag = await _maybe_emergency_command(body.message or '', user) or await _maybe_agent_command(body.message or '', user); if _ag and _ag.get('reply'): persist + return {'session_id':..., 'reply': _ag['reply'], ...}`. Riproducibile al 100%."
+}

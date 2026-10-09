@@ -143,7 +143,29 @@ if _ce_orig_chat is not None:
     @api_router.post("/assistant/chat")  # noqa: F821
     async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):  # noqa: F811, F821
         pend = await _ce_take_pending_voice(user)
-        out = await _ce_orig_chat(body, user)
+        # V50.z506 — BUG 1 (chat NON-stream): gli intercettori imprevisto/agente (axon_emergency, axon_agent) erano agganciati SOLO allo
+        # stream (22) → qui «programma una telefonata con X martedì» arrivava all'LLM conversazionale che rispondeva «Fatto» senza salvare.
+        # Stessa catena dello stream: emergenza → agente (scrittura reale + verifica) → altrimenti percorso normale.
+        _ag = None
+        if not getattr(body, "no_cache", False):
+            try:
+                user["_client_ctx"] = getattr(body, "client_context", None)
+                _ag = (await _maybe_emergency_command(body.message or "", user)) or (await _maybe_agent_command(body.message or "", user))  # noqa: F821
+            except Exception as _exc:  # noqa: BLE001
+                logger.warning("[critical-events] agent intercept failed: %s", _exc)  # noqa: F821
+        if _ag and _ag.get("reply") is not None:
+            _sid = body.session_id or f"asst_{user['user_id']}_{uuid.uuid4().hex[:10]}"  # noqa: F821
+            _mid = uuid.uuid4().hex[:16]  # noqa: F821
+            try:
+                await db.assistant_messages.insert_many([  # noqa: F821
+                    {"user_id": user["user_id"], "session_id": _sid, "role": "user", "content": body.message or "", "created_at": utcnow()},  # noqa: F821
+                    {"message_id": _mid, "user_id": user["user_id"], "session_id": _sid, "role": "assistant", "content": _ag["reply"], "created_at": utcnow()},  # noqa: F821
+                ])
+            except Exception:  # noqa: BLE001
+                pass
+            out = {"session_id": _sid, "message_id": _mid, "reply": _ag["reply"], "used_web_search": False, "web_sources": [], "from_cache": False, "slash": _ag.get("cmd")}
+        else:
+            out = await _ce_orig_chat(body, user)
         if pend and isinstance(out, dict) and isinstance(out.get("reply"), str):
             out["reply"] = pend["text"] + out["reply"]
             out["critical_event_id"] = pend["event_id"]

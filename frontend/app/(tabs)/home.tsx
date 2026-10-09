@@ -33,6 +33,7 @@ import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { HomeBlocksGrid } from "@/src/home/HomeBlocksGrid"; // V50.z505 — Home personalizzabile (ordine/posizione blocchi da GET /home/layout)
 import { useHomeLayout } from "@/src/home/homeLayout";
 import { MonthCalendarCompact } from "@/src/home/MonthCalendarCompact"; // V50.z505 — calendario mensile compatto
+import { CallsTodayBlock } from "@/src/home/CallsTodayBlock"; // V50.z506 — CALL DI OGGI
 import { useOrgBranding } from "@/src/BrandHeaderImage"; // logo aziendale (Personalizzazione Aziendale) nella barra
 import { HT } from "@/src/homeTheme";
 import { ViolaHeaderDot } from "@/src/violawake/ViolaHeaderDot";
@@ -658,6 +659,12 @@ export default function HomeScreen() {
                 </Pressable>
               </View>
               <DashboardWidgetsSection only={APPT_TODAY_WIDGET} fill />
+            </View>
+          ),
+          /* ── Call di oggi (V50.z506 — appuntamenti di tipo telefonata) ── */
+          calls: () => (
+            <View style={styles.section} onLayout={onSectionLayout("call")}>
+              <CallsTodayBlock titleStyle={styles.sectionTitle} pillStyle={styles.pill} pillTxtStyle={styles.pillTxt} addBtnStyle={styles.addBtn} addBtnTxtStyle={styles.addBtnTxt} />
             </View>
           ),
           /* ── Calendario mensile compatto ── */
