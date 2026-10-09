@@ -203,6 +203,9 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 
 
 ## 6. Timer, Sveglie, Promemoria (Axon Alarms)
+- **V50.z503** — «Timer fantasma» = promemoria del wizard scadenze ricreato a ogni salvataggio/rollover: ora gli allarmi eliminati sono
+  soppressi e non rinascono; `DELETE /axon/alarms` + bottone «Elimina tutto»; wipe una tantum della collezione all'avvio (backup in
+  `axon_alarms_trash`); badge menu con il tipo («Promemoria tra 15h»). Home web: griglia a righe con card a pari altezza (stretch).
 - **V50.z498** — Cestino funzionante anche su web (`confirmAsync` al posto di `Alert.alert` con bottoni); nessun timer creato da domande o dallo
   stress test (`no_cache`); campo `source` su ogni allarme + log della creazione da chat.
 - CRUD `GET/POST/PUT/DELETE /api/axon/alarms` (kind timer | alarm | reminder), suoni custom base64 + preset, volume 0-100,

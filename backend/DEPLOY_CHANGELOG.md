@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-09 | D2026.10.09-1742 | Timer fantasma risolto (promemoria wizard scadenze non più ricreato; pulizia completa una tantum della collezione allarmi; Elimina tutto); Home web griglia a pari altezza |
 | 2026-10-09 | D2026.10.09-1730 | Axon: modifica/cancella contatti, appuntamenti, richiamate a voce con salvataggio garantito; «chiama Rossi» in chat e Axon Drive |
 | 2026-10-09 | D2026.10.09-1715 | Header sveglia e menu laterale si sincronizzano subito col DB dopo elimina/modifica timer (evento globale + poll 60s) |
 | 2026-10-09 | D2026.10.09-1708 | Axon salva davvero ogni azione (contatto, nota, appuntamento, richiamata) via funzioni standard; Drive: niente testo in attesa + X suggerimenti; Timer: cestino + nessuna creazione automatica; Home web: via Azioni rapide, titoli uniformi, griglia a righe |

@@ -135,13 +135,15 @@ export function AlarmHeaderIcon() {
 }
 
 /** Badge «tra 25m» accanto a «Timer & Sveglie» nel menu laterale. */
+const KIND_LABEL: Record<string, string> = { timer: "Timer", alarm: "Sveglia", reminder: "Promemoria" };
+
 export function AlarmDrawerBadge() {
   const next = useNextAlarm();
   if (!next) return null;
   return (
     <View style={styles.badge} testID="drawer-alarm-badge">
       <Ionicons name={iconFor(next.alarm.kind)} size={12} color={HT.warning} />
-      <Text style={styles.badgeTxt}>{relativeShort(next.when)}</Text>
+      <Text style={styles.badgeTxt}>{KIND_LABEL[next.alarm.kind] || ""} {relativeShort(next.when)}</Text>{/* V50.z503 — «Promemoria tra 15h»: chiaro che NON è un timer */}
     </View>
   );
 }

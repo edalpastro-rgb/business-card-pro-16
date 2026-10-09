@@ -20,7 +20,7 @@ type PunLatest = { available: boolean; month_name?: string; month_short?: string
 
 // V50.z132 — `only` / `exclude` permettono di renderizzare un sottoinsieme di
 // widget in punti diversi della Home (es. "Appuntamenti di oggi" sotto Ritelefonate).
-export function DashboardWidgetsSection({ only, exclude }: { only?: string[]; exclude?: string[] } = {}) {
+export function DashboardWidgetsSection({ only, exclude, fill }: { only?: string[]; exclude?: string[]; fill?: boolean } = {}) {
   const router = useRouter();
   const [widgets, setWidgets] = useState<Widget[]>([]);
   const [counts, setCounts] = useState<{ apptToday?: number }>({});
@@ -61,12 +61,12 @@ export function DashboardWidgetsSection({ only, exclude }: { only?: string[]; ex
   if (active.length === 0) return null;
 
   return (
-    <View style={styles.wrap} testID="home-dashboard-widgets">
+    <View style={[styles.wrap, fill && styles.fill]} testID="home-dashboard-widgets">{/* V50.z503 — fill: riempie la cella della griglia Home web */}
       {active.map((w) => {
         if (w.id === "weather") return <WeatherAlertsCard key="weather" />;
         if (w.id === "meteo") return <WeatherWidget key="meteo" />; // V50.z162 — visibile SOLO con allerte attive (la temperatura resta nel badge header)
         if (w.id === "appointments_today") {
-          return <MiniStatCard key="appointments_today" testID="widget-appt-today" icon="calendar" label="Appuntamenti di oggi" value={counts.apptToday ?? "…"} color="#7C3AED" onPress={() => router.push("/(tabs)/calendario" as any)} />;
+          return <MiniStatCard key="appointments_today" fill={fill} testID="widget-appt-today" icon="calendar" label="Appuntamenti di oggi" value={counts.apptToday ?? "…"} color="#7C3AED" onPress={() => router.push("/(tabs)/calendario" as any)} />;
         }
         if (w.id === "cgym") return <CgymWidget key="cgym" />; // Corporate Gym (Blocco 1)
         if (w.id === "pun") {
@@ -85,9 +85,9 @@ function pickIcon(id: string): keyof typeof Ionicons.glyphMap {
   return "square";
 }
 
-function MiniStatCard({ testID, icon, label, value, color, onPress }: { testID?: string; icon: keyof typeof Ionicons.glyphMap; label: string; value: number | string; color: string; onPress?: () => void }) {
+function MiniStatCard({ testID, icon, label, value, color, onPress, fill }: { testID?: string; icon: keyof typeof Ionicons.glyphMap; label: string; value: number | string; color: string; onPress?: () => void; fill?: boolean }) {
   return (
-    <Pressable testID={testID} onPress={onPress} style={({ pressed }) => [styles.card, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}>
+    <Pressable testID={testID} onPress={onPress} style={({ pressed }) => [styles.card, fill && styles.fill, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}>
       <View style={[styles.iconBadge, { backgroundColor: color + "22" }]}>
         <Ionicons name={icon} size={16} color={color} />
       </View>
@@ -175,6 +175,7 @@ function PunFascia({ label, value, delta, unit, bg, fg }: { label: string; value
 
 const styles = StyleSheet.create({
   wrap: { gap: 8, marginBottom: 8 },
+  fill: { flex: 1 },
   card: { ...HT.cardShadow, flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, borderRadius: 14, padding: 12 },
   coming: { backgroundColor: HT.card },
   iconBadge: { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },

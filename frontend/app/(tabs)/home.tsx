@@ -591,6 +591,7 @@ export default function HomeScreen() {
               <Text style={styles.addBtnTxt}>Telefonata</Text>
             </Pressable>
           </View>
+          <View style={styles.sectionBody}>{/* V50.z503 — corpo a riempimento: stessa altezza delle card sulla riga */}
           {callbacks.length === 0 && (
             <View style={styles.empty}>
               <Ionicons name="call-outline" size={28} color={C.muted} />
@@ -639,10 +640,11 @@ export default function HomeScreen() {
               </View>
             );
           })}
+          </View>
         </View>
 
         {/* V50.z132 — Banner "Appuntamenti di oggi" SOTTO Ritelefonate */}
-        <View onLayout={onSectionLayout("appuntamenti")}><DashboardWidgetsSection only={APPT_TODAY_WIDGET} /></View>
+        <View style={styles.section} onLayout={onSectionLayout("appuntamenti")}><DashboardWidgetsSection only={APPT_TODAY_WIDGET} fill /></View>{/* V50.z503 */}
 
         {/* V50.z500 — «Azioni rapide» rimossa dalla Home (le voci sono nel menu laterale) */}
 
@@ -674,6 +676,7 @@ export default function HomeScreen() {
               })}
             </View>
           </View>
+          <View style={styles.sectionBody}>
           {dlCollapsed ? (
             <Text style={styles.dlCollapsedHint}>Filtro chiuso · tocca un intervallo per vedere le scadenze</Text>
           ) : (
@@ -684,6 +687,7 @@ export default function HomeScreen() {
               onChanged={() => changeDeadlinesDays(deadlinesDays)}
             />
           )}
+          </View>
         </View>
 
         {/* ── 6) Statistiche ── */}
@@ -1186,7 +1190,7 @@ const styles = StyleSheet.create({
   bannerTxt: { flex: 1, fontWeight: "700", fontSize: 13, color: C.text },
 
   /* KPI */
-  kpiRow: { flexDirection: "row", gap: 12, marginTop: 8 },
+  kpiRow: { flexDirection: "row", gap: 12, marginTop: 8, flex: 1 }, // V50.z503 — 2×2 a riempimento
   kpi: { ...HT.cardShadow,
     flex: 1, backgroundColor: C.card, borderRadius: 18, padding: 14,
     borderWidth: 1, borderColor: C.border,
@@ -1263,7 +1267,8 @@ const styles = StyleSheet.create({
   },
 
   /* Section */
-  section: { marginTop: 22 },
+  section: { marginTop: 22, flex: 1 }, // V50.z503 — riempie la cella della griglia (pari altezza sulla riga)
+  sectionBody: { flex: 1 },
   sectionHead: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
   sectionTitle: { fontSize: 18, fontWeight: "900", color: C.text, letterSpacing: 2, textTransform: "uppercase" }, // V50.z500 — stesso stile di «SCADENZE»
   pill: { backgroundColor: C.primarySoft, paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999 },
@@ -1276,7 +1281,7 @@ const styles = StyleSheet.create({
   },
   addBtnTxt: { color: C.white, fontSize: 12.5, fontWeight: "800" },
 
-  empty: { alignItems: "center", padding: 22, gap: 8, backgroundColor: C.card, borderRadius: 14, borderWidth: 1, borderColor: C.border, borderStyle: "dashed" },
+  empty: { alignItems: "center", justifyContent: "center", flexGrow: 1, padding: 22, gap: 8, backgroundColor: C.card, borderRadius: 14, borderWidth: 1, borderColor: C.border, borderStyle: "dashed" },
   emptyTxt: { color: C.muted, fontWeight: "600" },
 
   areaBlock: { marginBottom: 8 },

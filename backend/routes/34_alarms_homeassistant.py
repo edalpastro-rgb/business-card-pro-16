@@ -214,13 +214,60 @@ async def toggle_axon_alarm(alarm_id: str, user=Depends(get_current_user)):
     return {"id": alarm_id, "enabled": new_val}
 
 
+async def _alarm_suppress(doc: dict) -> None:
+    """V50.z503 — promemoria generato dal wizard scadenze (area_key/deadline_label): memorizza che l'utente l'ha eliminato,
+    così `_aw_schedule_deadline` (salvataggio area, rollover annuale 08:30) non lo ricrea → era il «timer fantasma» di header/menu."""
+    if doc and doc.get("area_key") and doc.get("deadline_label"):
+        await db.axon_alarm_suppressions.update_one(
+            {"user_id": doc["user_id"], "area_key": doc["area_key"], "deadline_label": doc["deadline_label"], "trigger_at": doc.get("trigger_at")},
+            {"$set": {"deleted_at": utcnow(), "label": doc.get("label")}}, upsert=True)
+
+
+@api_router.delete("/axon/alarms")
+async def delete_all_axon_alarms(user=Depends(get_current_user)):
+    """V50.z503 — «Elimina tutto»: svuota timer, sveglie e promemoria dell'utente (con blocco della ricreazione automatica)."""
+    tenant = user["user_id"]
+    docs = await db.axon_alarms.find({"user_id": tenant}, {"_id": 0}).to_list(2000)
+    for d in docs:
+        await _alarm_suppress(d)
+    if docs:
+        await db.axon_alarms_trash.insert_many([{**d, "trashed_at": utcnow(), "reason": "delete_all"} for d in docs])
+    res = await db.axon_alarms.delete_many({"user_id": tenant})
+    logger.info("[axon-alarm] delete_all user=%s n=%d", tenant, res.deleted_count)
+    return {"ok": True, "deleted": res.deleted_count}
+
+
 @api_router.delete("/axon/alarms/{alarm_id}")
 async def delete_axon_alarm(alarm_id: str, user=Depends(get_current_user)):
     tenant = user["user_id"]
+    doc = await db.axon_alarms.find_one({"id": alarm_id, "user_id": tenant}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Sveglia non trovata")
+    await _alarm_suppress(doc)  # V50.z503
     res = await db.axon_alarms.delete_one({"id": alarm_id, "user_id": tenant})
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Sveglia non trovata")
+    logger.info("[axon-alarm] delete user=%s id=%s kind=%s label=%s source=%s", tenant, alarm_id, doc.get("kind"), doc.get("label"), doc.get("source"))
     return {"ok": True, "id": alarm_id}
+
+
+@app.on_event("startup")
+async def _alarms_wipe_once_v50z503():
+    """V50.z503 — PULIZIA COMPLETA una tantum richiesta dall'utente: svuota `axon_alarms` (copia in `axon_alarms_trash`) e blocca la
+    ricreazione dei promemoria del wizard scadenze. Marker in `axon_migrations` → gira una sola volta per database."""
+    try:
+        if await db.axon_migrations.find_one({"name": "wipe_alarms_v50z503"}, {"_id": 1}):
+            return
+        docs = await db.axon_alarms.find({}, {"_id": 0}).to_list(20000)
+        for d in docs:
+            await _alarm_suppress(d)
+        if docs:
+            await db.axon_alarms_trash.insert_many([{**d, "trashed_at": utcnow(), "reason": "wipe_v50z503"} for d in docs])
+        res = await db.axon_alarms.delete_many({})
+        await db.axon_migrations.insert_one({"name": "wipe_alarms_v50z503", "at": utcnow(), "deleted": res.deleted_count})
+        logger.warning("[axon-alarm] WIPE una tantum: %d allarmi rimossi (copia in axon_alarms_trash)", res.deleted_count)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[axon-alarm] wipe failed: %s", exc)
 
 
 # ─── Suoni personalizzati (upload mp3 base64) ──────────────────────────

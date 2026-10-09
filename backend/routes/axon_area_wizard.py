@@ -126,6 +126,9 @@ async def _aw_schedule_deadline(user: dict, area_key: str, label: str, date_val:
         if trig <= now:
             continue
         when = "oggi" if off == 0 else f"tra {off} giorni"
+        # V50.z503 — promemoria ELIMINATO dall'utente (cestino / svuota tutto) → non va ricreato né qui né dal rollover delle 08:30
+        if await db.axon_alarm_suppressions.find_one({"user_id": user["user_id"], "area_key": area_key, "deadline_label": label, "trigger_at": trig.isoformat()}, {"_id": 1}):
+            continue
         try:
             doc = await _create_axon_alarm_doc(user, {"kind": "reminder", "label": f"{label}: scade {when} ({d.strftime('%d/%m/%Y')})", "trigger_at": trig.isoformat(), "note": f"Area {_WS_AREA_TITLE.get(area_key, area_key)}"})
             await db.axon_alarms.update_one({"id": doc.get("id"), "user_id": user["user_id"]}, {"$set": {"area_key": area_key, "deadline_label": label}})

@@ -148,6 +148,19 @@ export default function AxonAlarmsScreen() {
     setCreating(kind);
   };
 
+  const onDeleteAll = async () => {
+    const ok = await confirmAsync("Elimina tutto", `Vuoi eliminare TUTTI i ${alarms.length} elementi (timer, sveglie e promemoria)? Non verranno ricreati automaticamente.`);
+    if (!ok) return;
+    try {
+      await api("/axon/alarms", { method: "DELETE" });
+      for (const a of alarms) await removeAlarmNotifs(a.id).catch(() => {});
+      setAlarms([]);
+      emitAlarmsChanged();
+    } catch (e: any) {
+      notify("Errore", e?.message || "Impossibile eliminare");
+    }
+  };
+
   const onSaved = async (saved: Alarm) => {
     emitAlarmsChanged();
     setAlarms((prev) => {
@@ -166,6 +179,12 @@ export default function AxonAlarmsScreen() {
           <Ionicons name="chevron-back" size={24} color="#FFF" />
         </Pressable>
         <Text style={styles.headerTitle}>Timer & Sveglie</Text>
+        {/* V50.z503 — Elimina tutto (timer + sveglie + promemoria, con blocco della ricreazione automatica) */}
+        {alarms.length > 0 ? (
+          <Pressable onPress={() => void onDeleteAll()} hitSlop={10} style={[styles.fmtBtn, { marginRight: 6 }]} testID="alarms-delete-all">
+            <Ionicons name="trash-outline" size={18} color="#FCA5A5" />
+          </Pressable>
+        ) : null}
         {/* V50.z10 — Toggle formato 12h/24h */}
         <Pressable
           onPress={() => setTimeFmt(timeFmt === "24h" ? "12h" : "24h")}
