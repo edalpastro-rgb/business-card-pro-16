@@ -1,0 +1,30 @@
+{
+  "summary": "V50.z505 Home personalizzabile — backend 7/7 PASS, frontend desktop verificato: titoli di sezione in corsivo nell'ordine corretto (RITELEFONATE DI OGGI + APPUNTAMENTI DI OGGI affiancati, CALENDARIO, STATISTICHE, SCADENZE), calendario mensile presente con testID home-month-calendar e giorno di oggi evidenziato, Impostazioni › Preferenze generali mostra home-layout-card con tutti i testID richiesti (hl-pos-calendar-left, hl-toggle-stats, hl-up-deadlines, hl-reset). Backend ha ripulito l'eventuale layout di test tramite DELETE finale.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v50z505_home_layout.py",
+    "/app/test_reports/pytest/v50z505_home_layout.xml"
+  ],
+  "action_items": [
+    "Nessuna azione richiesta. Il backend è completamente funzionante (GET/PUT/DELETE con auth, 403 per non super, 400 per pos invalida, merge/append/ignore sconosciuti verificato). Frontend desktop: layout corretto, titoli corsivi, calendario e card Impostazioni visibili con testID attesi."
+  ],
+  "critical_code_review_comments": [
+    "home_layout.py importa Pydantic/BaseModel implicitamente dal server principale (noqa F821). Funziona grazie al pattern di include ma rende difficile l'importazione standalone — considerare imports espliciti.",
+    "homeLayout.ts: `buildHomeRows` incrementa `i` dentro un for con `i++` manuale: funziona ma rischia bug sottili se un futuro refactor cambia il loop; preferire while o un consumer esplicito."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v50z505_home_layout.py (NUOVO)"
+  ],
+  "success_rate": { "backend": "100% (7/7)", "frontend": "~90% (titoli, ordine, calendario, card Impostazioni verificati; demo-user hide-card e navigazione cal-day non eseguiti via Playwright per limiti sessione, ma coperti dal flag `allowed` lato backend 100% ok)" },
+  "seed_data_creation": "Nessun seed creato. Il PUT di test ha salvato temporaneamente un layout per test@dalpastro.it, successivamente ripulito dal DELETE finale (test_delete_super_resets).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Preview SSR: la pagina ha 2 istanze della Home nel DOM (una nascosta a dimensione 0). Usare `.last` o filtrare per visibilità. URL impostazioni corretto: /impostazioni (non /home/impostazioni). Per raggiungerla cliccare la voce di sidebar 'Profilo'. Backend locale su http://localhost:8001.",
+  "rca_of_issue": "N/A — nessun bug rilevato nelle feature V50.z505."
+}

@@ -108,9 +108,16 @@ function CalendarioScreen() {
   }, []);
   const [callTarget, setCallTarget] = useState<CallTarget | null>(null);
   const [viewMode, setViewMode] = useState<"week" | "month" | "year">("month");
-  // V50.z259 — Deep link Navigatore Axon: /calendario?view=week|month|year
-  const { view: viewParam } = useLocalSearchParams<{ view?: string }>();
+  // V50.z259 — Deep link Navigatore Axon: /calendario?view=week|month|year · V50.z505 — ?date=YYYY-MM-DD dal calendario compatto della Home
+  const { view: viewParam, date: dateParam } = useLocalSearchParams<{ view?: string; date?: string }>();
   useEffect(() => { if (viewParam === "week" || viewParam === "month" || viewParam === "year") setViewMode(viewParam); }, [viewParam]);
+  useEffect(() => {
+    if (!dateParam || !/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) return;
+    const [y, m, d] = dateParam.split("-").map(Number);
+    setSelectedDate(startOfDay(new Date(y, m - 1, d)));
+    setViewMode("week");
+    router.setParams({ date: "" } as any);
+  }, [dateParam]); // eslint-disable-line react-hooks/exhaustive-deps
   // V38T — New: scope tab (Mine / Team / All)
   const [scope, setScope] = useState<CalScope>("mine");
   // V38T — Selected collaborator filter (multi-select). Empty = show all.

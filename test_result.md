@@ -595,3 +595,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z493 — landing pubblica senza chrome da loggati (inPublicPage in _layout, desktopSidebarHidden); box prodotto paritetici; axon_find_phone_extras.py (GET/PUT /axon/find-phone-sound, POST finder-photo) + FindPhoneSoundCard, findPhoneSound presets, CameraView frontale nell'overlay, modale foto lato sorgente. Test 6/6 + screenshot."
+
+  - agent: "main"
+    message: "V50.z505 — Home web: titolo APPUNTAMENTI DI OGGI in corsivo, calendario mensile compatto (src/home/MonthCalendarCompact.tsx), ordine Master/PUN/Ritelefonate|Appuntamenti/Calendario/Statistiche/Scadenze/Comunica; tutti i titoli di sezione in corsivo. Home personalizzabile Super Master: routes/home_layout.py (GET/PUT/DELETE /home/layout, user_settings.home_layout), HomeBlocksGrid + useHomeLayout, card Impostazioni › Preferenze generali (HomeLayoutCard). Testing agent: backend 7/7, frontend desktop OK; mobile stacking verificato via screenshot (fix wrapper View)."

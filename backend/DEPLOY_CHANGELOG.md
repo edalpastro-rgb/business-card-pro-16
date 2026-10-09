@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-09 | D2026.10.09-1837 | Home web: titolo APPUNTAMENTI DI OGGI in corsivo, calendario mensile compatto con giorni evidenziati, ordine Master, PUN, Ritelefonate + Appuntamenti affiancati, Calendario, Statistiche, Scadenze, Comunica; Home personalizzabile dal Super Master (Impostazioni - Preferenze generali: blocchi visibili, ordine, posizione sinistra/destra/intera, salvata nel DB) via GET/PUT/DELETE /home/layout |
 | 2026-10-09 | D2026.10.09-1749 | PACCHETTO UNIFICATO 09/10/2026: azioni Axon salvate via funzioni standard; Axon Drive completo (bottoni in basso, display dinamico, navigazione Maps/Waze, chiama, wake word «Axon, modalità drive»); allarme critico 3 livelli (banner, push urgente, voce); Timer & Sveglie (cestino, niente timer automatici, timer fantasma eliminato); routing /landing pubblico; Home web (titoli corsivo, via Azioni rapide, griglia allineata a pari altezza); header e menu laterale sincronizzati dopo eliminazione timer |
 | 2026-10-09 | D2026.10.09-1742 | Timer fantasma risolto (promemoria wizard scadenze non più ricreato; pulizia completa una tantum della collezione allarmi; Elimina tutto); Home web griglia a pari altezza |
 | 2026-10-09 | D2026.10.09-1730 | Axon: modifica/cancella contatti, appuntamenti, richiamate a voce con salvataggio garantito; «chiama Rossi» in chat e Axon Drive |

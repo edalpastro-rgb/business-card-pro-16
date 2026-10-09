@@ -30,7 +30,9 @@ import { ProactiveBubbles } from "@/src/ProactiveBubbles"; // V50.z196 — Blocc
 import { openAxonRecommendations } from "@/src/axonProactive"; // V50.z334 — «Consigli di Axon» → chat (card «Consigliato per te» rimossa dalla Home)
 import { SetupProcessingBadge } from "@/src/SetupProcessingBadge"; // V50.z216 — Blocco 5: «AxonOS sta leggendo i tuoi file…»
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
-import { DesktopGrid } from "@/src/ui/DesktopGrid"; // V50.z409 — desktop: sezioni dashboard su 2 colonne
+import { HomeBlocksGrid } from "@/src/home/HomeBlocksGrid"; // V50.z505 — Home personalizzabile (ordine/posizione blocchi da GET /home/layout)
+import { useHomeLayout } from "@/src/home/homeLayout";
+import { MonthCalendarCompact } from "@/src/home/MonthCalendarCompact"; // V50.z505 — calendario mensile compatto
 import { useOrgBranding } from "@/src/BrandHeaderImage"; // logo aziendale (Personalizzazione Aziendale) nella barra
 import { HT } from "@/src/homeTheme";
 import { ViolaHeaderDot } from "@/src/violawake/ViolaHeaderDot";
@@ -162,6 +164,7 @@ export default function HomeScreen() {
     return s.charAt(0).toUpperCase() + s.slice(1);
   }, [nowTick]);
   const orgBranding = useOrgBranding();
+  const homeLayout = useHomeLayout(); // V50.z505
   const [deadlinesLoading, setDeadlinesLoading] = useState<boolean>(true);
   // V49 — "Comunica con l'azienda" panel (nome, email, numeri di servizio)
   const [companySheetOpen, setCompanySheetOpen] = useState<boolean>(false);
@@ -184,7 +187,6 @@ export default function HomeScreen() {
   useEffect(() => {
     if (!sectionParam) return;
     if (sectionParam === "comunica") { setCompanySheetOpen(true); return; }
-    if (sectionParam === "azioni") setQaOpen(true);
     const t = setTimeout(() => {
       const y = sectionY.current[sectionParam];
       if (y != null) homeScrollRef.current?.scrollTo({ y: Math.max(0, y - 12), animated: true });
@@ -553,252 +555,272 @@ export default function HomeScreen() {
         {/* ── 2b) Banner Evento ── */}
         <HomeEventBanner />
 
-        {/* ── 3) Bottone Interfaccia Master ── */}
-        {!user?.parent_user_id && (
-          <Pressable testID="home-master-btn" onPress={() => router.push("/master" as any)} style={styles.masterCard}>
-            <View style={styles.masterIcon}>
-              <Ionicons name="grid" size={20} color={C.white} />
-            </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.masterTitle} numberOfLines={1}>Interfaccia Master</Text>
-            <Text style={styles.masterSub} numberOfLines={1}>Agenda · Contatti · Contratti · Team</Text>
-          </View>
-            <Ionicons name="chevron-forward" size={18} color={C.white} />
-          </Pressable>
-        )}
-
-        {/* V50.z334 — La card «Consigliato per te» è stata rimossa: i consigli del Tour vivono nella chat di Axon (icona ✨ in alto / menu). */}
-
-        {/* V50.z120 — Sezione widget dashboard (meteo, appuntamenti oggi, PUN, scadenze…)
-             spostata SOTTO il bottone Interfaccia Master su richiesta utente */}
-        {/* V50.z132 — "Appuntamenti di oggi" è renderizzato più in basso, sotto Ritelefonate */}
-        {/* V50.z216 — indicatore discreto: file/audio del wizard letti in background (sparisce da solo) */}
-        <View style={{ paddingHorizontal: 16, marginBottom: 8 }} onLayout={onSectionLayout("widgets")}><SetupProcessingBadge /></View>
-        <DashboardWidgetsSection exclude={APPT_TODAY_WIDGET} />
-        <BetaProgramCard />{/* V50.z475 — Programma Beta: missione della settimana + Diario del venerdì (solo se avviato dal Master) */}
-
-        {/* V50.z500 — Desktop: griglia FISSA a righe (Ritelefonate | Appuntamenti, Scadenze | Statistiche): card della stessa riga a pari altezza */}
-        <DesktopGrid gap={16} rows>
-        {/* ── 4) Ritelefonate di oggi ── */}
-        <View style={styles.section} onLayout={onSectionLayout("ritelefonate")}>
-          <View style={styles.sectionHead}>
-            <Text style={styles.sectionTitle}>RITELEFONATE DI OGGI</Text>
-            <View style={styles.pill}><Text style={styles.pillTxt}>{cbTodayTotal}</Text></View>
-            <View style={{ flex: 1 }} />
-            {/* V50.z334 — bottone compatto (era un blocco arancione a tutta larghezza) */}
-            <Pressable testID="add-callback-btn" onPress={() => router.push("/callback/new")} style={({ pressed }) => [styles.addBtn, pressed && { opacity: 0.85 }]} accessibilityLabel="Aggiungi telefonata">
-              <Ionicons name="add" size={16} color={C.white} />
-              <Text style={styles.addBtnTxt}>Telefonata</Text>
-            </Pressable>
-          </View>
-          <View style={styles.sectionBody}>{/* V50.z503 — corpo a riempimento: stessa altezza delle card sulla riga */}
-          {callbacks.length === 0 && (
-            <View style={styles.empty}>
-              <Ionicons name="call-outline" size={28} color={C.muted} />
-              <Text style={styles.emptyTxt}>Nessuna ritelefonata programmata</Text>
-            </View>
-          )}
-          {["energy", "network"].map((area) => {
-            const list = callbacks.filter((c) => c.area === area);
-            if (list.length === 0) return null;
-            const color = area === "energy" ? (settings?.energy_color || C.primary) : (settings?.network_color || C.navy);
-            const title = area === "energy" ? settings?.energy_title : settings?.network_title;
-            return (
-              <View key={area} style={styles.areaBlock}>
-                <View style={styles.areaHead}>
-                  <View style={[styles.dot, { backgroundColor: color }]} />
-                  <Text style={styles.areaTitle}>{title}</Text>
+        {/* V50.z505 — Home personalizzabile: ordine, visibilità e posizione (sinistra/destra/intera) dei blocchi da GET /home/layout
+             (modificabile dal Super Master in Impostazioni › Preferenze generali). Default: Master, PUN, Ritelefonate | Appuntamenti,
+             Calendario, Statistiche, Scadenze, Comunica con l'azienda. */}
+        <HomeBlocksGrid gap={16} blocks={homeLayout.blocks} render={{
+          /* ── Interfaccia Master ── */
+          master: () => (!user?.parent_user_id ? (
+              <Pressable testID="home-master-btn" onPress={() => router.push("/master" as any)} style={styles.masterCard}>
+                <View style={styles.masterIcon}>
+                  <Ionicons name="grid" size={20} color={C.white} />
                 </View>
-                {list.map((cb) => (
-                  <CallbackRow
-                    key={cb.callback_id}
-                    cb={cb}
-                    color={color}
-                    onOpen={() => {
-                      if (cb.contact_id) {
-                        router.push(`/contact/${cb.contact_id}`);
-                      } else if (cb.phone) {
-                        setCallTarget({ phone: cb.phone, contact_id: null, callback_id: cb.callback_id, display_name: cb.title });
-                      } else {
-                        if (Platform.OS === "web") {
-                          window.alert("Questa ritelefonata non ha un contatto collegato né un numero di telefono. Usa l'icona matita per aggiungerlo.");
-                        } else {
-                          Alert.alert("Nessun numero disponibile", "Questa ritelefonata non ha né contatto collegato né numero di telefono. Usa l'icona matita per modificarla.");
-                        }
-                      }
-                    }}
-                    onScript={() => setScriptTarget({ name: cb.title, phone: cb.phone })}
-                    onEdit={() => router.push(`/callback/${cb.callback_id}`)}
-                    onToggleDone={async () => {
-                      try {
-                        await api(`/callbacks/${cb.callback_id}`, { method: "PUT", body: { done: !cb.done } });
-                        await load();
-                      } catch (e: any) { console.warn("Errore toggle callback:", e?.message || e); }
-                    }}
-                  />
-                ))}
+              <View style={{ flex: 1 }}>
+                <Text style={styles.masterTitle} numberOfLines={1}>Interfaccia Master</Text>
+                <Text style={styles.masterSub} numberOfLines={1}>Agenda · Contatti · Contratti · Team</Text>
               </View>
-            );
-          })}
-          </View>
-        </View>
-
-        {/* V50.z132 — Banner "Appuntamenti di oggi" SOTTO Ritelefonate */}
-        <View style={styles.section} onLayout={onSectionLayout("appuntamenti")}><DashboardWidgetsSection only={APPT_TODAY_WIDGET} fill /></View>{/* V50.z503 */}
-
-        {/* V50.z500 — «Azioni rapide» rimossa dalla Home (le voci sono nel menu laterale) */}
-
-        {/* ── V29 · Scadenze imminenti ── */}
-        <View style={styles.section} onLayout={onSectionLayout("scadenze")}>
-          {/* V50.s — Titolo "SCADENZE" compatto + chips centrati sotto */}
-          <View style={styles.dlHeader}>
-            <Text style={styles.dlSectionTitle}>SCADENZE</Text>
-            <View style={styles.dlChipsRowCentered}>
-              {[30, 60, 90, 180].map((d) => {
-                const active = !dlCollapsed && d === deadlinesDays;
+                <Ionicons name="chevron-forward" size={18} color={C.white} />
+              </Pressable>
+          ) : null),
+          /* ── PUN energia + altri widget dashboard (allerte meteo, Corporate Gym) ── */
+          pun: () => (
+            <View onLayout={onSectionLayout("widgets")}>
+              <View style={{ paddingHorizontal: 16, marginBottom: 8 }}><SetupProcessingBadge /></View>{/* V50.z216 — indicatore discreto: file/audio del wizard letti in background */}
+              <DashboardWidgetsSection exclude={APPT_TODAY_WIDGET} />
+            </View>
+          ),
+          /* ── Programma Beta (solo se avviato dal Master) ── */
+          beta: () => <BetaProgramCard />,
+          /* ── Ritelefonate di oggi ── */
+          callbacks: () => (
+            <View style={styles.section} onLayout={onSectionLayout("ritelefonate")}>
+              <View style={styles.sectionHead}>
+                <Text style={styles.sectionTitle}>RITELEFONATE DI OGGI</Text>
+                <View style={styles.pill}><Text style={styles.pillTxt}>{cbTodayTotal}</Text></View>
+                <View style={{ flex: 1 }} />
+                {/* V50.z334 — bottone compatto (era un blocco arancione a tutta larghezza) */}
+                <Pressable testID="add-callback-btn" onPress={() => router.push("/callback/new")} style={({ pressed }) => [styles.addBtn, pressed && { opacity: 0.85 }]} accessibilityLabel="Aggiungi telefonata">
+                  <Ionicons name="add" size={16} color={C.white} />
+                  <Text style={styles.addBtnTxt}>Telefonata</Text>
+                </Pressable>
+              </View>
+              <View style={styles.sectionBody}>{/* V50.z503 — corpo a riempimento: stessa altezza delle card sulla riga */}
+              {callbacks.length === 0 && (
+                <View style={styles.empty}>
+                  <Ionicons name="call-outline" size={28} color={C.muted} />
+                  <Text style={styles.emptyTxt}>Nessuna ritelefonata programmata</Text>
+                </View>
+              )}
+              {["energy", "network"].map((area) => {
+                const list = callbacks.filter((c) => c.area === area);
+                if (list.length === 0) return null;
+                const color = area === "energy" ? (settings?.energy_color || C.primary) : (settings?.network_color || C.navy);
+                const title = area === "energy" ? settings?.energy_title : settings?.network_title;
                 return (
-                  <Pressable
-                    key={d}
-                    testID={`dl-window-${d}`}
-                    hitSlop={6}
-                    accessibilityLabel={active ? `Filtro ${d} giorni attivo: tocca per chiudere` : `Mostra scadenze entro ${d} giorni`}
-                    onPress={() => {
-                      if (active) { setDlCollapsed(true); return; }
-                      setDlCollapsed(false);
-                      if (d !== deadlinesDays) changeDeadlinesDays(d);
-                    }}
-                    style={[styles.dlChip, active && styles.dlChipActive]}
-                  >
-                    <Text style={[styles.dlChipTxt, active && styles.dlChipTxtActive]}>{d}gg</Text>
-                    {active && <Ionicons name="close" size={12} color={C.primary} style={{ marginLeft: 3 }} />}
-                  </Pressable>
+                  <View key={area} style={styles.areaBlock}>
+                    <View style={styles.areaHead}>
+                      <View style={[styles.dot, { backgroundColor: color }]} />
+                      <Text style={styles.areaTitle}>{title}</Text>
+                    </View>
+                    {list.map((cb) => (
+                      <CallbackRow
+                        key={cb.callback_id}
+                        cb={cb}
+                        color={color}
+                        onOpen={() => {
+                          if (cb.contact_id) {
+                            router.push(`/contact/${cb.contact_id}`);
+                          } else if (cb.phone) {
+                            setCallTarget({ phone: cb.phone, contact_id: null, callback_id: cb.callback_id, display_name: cb.title });
+                          } else {
+                            if (Platform.OS === "web") {
+                              window.alert("Questa ritelefonata non ha un contatto collegato né un numero di telefono. Usa l'icona matita per aggiungerlo.");
+                            } else {
+                              Alert.alert("Nessun numero disponibile", "Questa ritelefonata non ha né contatto collegato né numero di telefono. Usa l'icona matita per modificarla.");
+                            }
+                          }
+                        }}
+                        onScript={() => setScriptTarget({ name: cb.title, phone: cb.phone })}
+                        onEdit={() => router.push(`/callback/${cb.callback_id}`)}
+                        onToggleDone={async () => {
+                          try {
+                            await api(`/callbacks/${cb.callback_id}`, { method: "PUT", body: { done: !cb.done } });
+                            await load();
+                          } catch (e: any) { console.warn("Errore toggle callback:", e?.message || e); }
+                        }}
+                      />
+                    ))}
+                  </View>
                 );
               })}
-            </View>
-          </View>
-          <View style={styles.sectionBody}>
-          {dlCollapsed ? (
-            <Text style={styles.dlCollapsedHint}>Filtro chiuso · tocca un intervallo per vedere le scadenze</Text>
-          ) : (
-            <DeadlinesWidget
-              items={deadlines}
-              loading={deadlinesLoading}
-              onOpenContact={(cid) => router.push(`/contact/${cid}?tab=bills` as any)}
-              onChanged={() => changeDeadlinesDays(deadlinesDays)}
-            />
-          )}
-          </View>
-        </View>
-
-        {/* ── 6) Statistiche ── */}
-        <View style={styles.section} onLayout={onSectionLayout("statistiche")}>
-          <Text style={styles.sectionTitle}>STATISTICHE</Text>
-
-          {/* KPI cards 2×2 */}
-          <View style={styles.kpiRow}>
-            <KpiCard
-              testID="kpi-callbacks"
-              label="Ritelefonate oggi"
-              value={cbTodayTotal}
-              icon="call"
-              accent={C.primary}
-              hint={cbLate > 0 ? `${cbLate} in ritardo` : cbDone > 0 ? `${cbDone} completate` : "nessuna urgenza"}
-              hintColor={cbLate > 0 ? C.danger : C.success}
-              // V50.r — Rimosso navigate a route inesistente (/callbacks-list).
-              // La lista delle ritelefonate di oggi è già mostrata più sotto
-              // nella sezione "Da Ritelefonare". Card ora solo informativa.
-            />
-            <KpiCard
-              testID="kpi-appointments"
-              label="Appuntamenti 30gg"
-              value={apptTotal}
-              icon="calendar"
-              accent={C.navy}
-              hint={`${apptDone} fatti · ${apptUndone} da fare`}
-              hintColor={C.muted}
-              onPress={() => router.push("/(tabs)/calendario" as any)}
-            />
-          </View>
-          <View style={[styles.kpiRow, { marginTop: 12 }]}>
-            <KpiCard
-              testID="kpi-contacts"
-              label="Contatti totali"
-              value={contactsCount}
-              icon="people"
-              accent={C.primary}
-              hint="in rubrica"
-              hintColor={C.muted}
-              onPress={() => router.push("/(tabs)/contatti" as any)}
-            />
-            <KpiCard
-              testID="kpi-done-today"
-              label="Fatte oggi"
-              value={cbDone}
-              icon="checkmark-done"
-              accent={C.navy}
-              hint={cbPending > 0 ? `${cbPending} da chiudere` : "tutto ok"}
-              hintColor={cbPending > 0 ? C.warning : C.success}
-              // V50.r — Rimosso navigate a route inesistente (/callbacks-list).
-              // Lista già visibile nella sezione "Da Ritelefonare" sotto.
-            />
-          </View>
-
-          {/* Charts: donut + bar */}
-          {(apptTotal > 0 || cbTodayTotal > 0) && (
-            <View style={[styles.chartsRow, { marginTop: 12 }]}>
-              <View style={[styles.card, styles.donutCard]}>
-                <Text style={styles.cardTitle}>Appuntamenti</Text>
-                <Text style={styles.cardSub}>ultimi 30 giorni</Text>
-                <View style={styles.donutWrap}>
-                  <DonutChart
-                    size={120}
-                    strokeWidth={14}
-                    segments={[
-                      { value: apptDone, color: C.primary },
-                      { value: apptUndone, color: C.navy },
-                    ]}
-                    centerLabel={apptTotal > 0 ? `${Math.round((apptDone / apptTotal) * 100)}%` : "0%"}
-                    centerSub="fatti"
-                  />
-                </View>
-                <View style={styles.legend}>
-                  <LegendDot color={C.primary} label={`Fatti · ${apptDone}`} />
-                  <LegendDot color={C.navy} label={`Da fare · ${apptUndone}`} />
-                </View>
-              </View>
-
-              <View style={[styles.card, styles.donutCard]}>
-                <Text style={styles.cardTitle}>Ritelefonate</Text>
-                <Text style={styles.cardSub}>di oggi per area</Text>
-                <View style={{ marginTop: 14, marginBottom: 8 }}>
-                  <BarRow label={settings?.energy_title || "Energy"} value={cbEnergy} max={Math.max(1, cbEnergy, cbNetwork)} color={C.primary} />
-                  <BarRow label={settings?.network_title || "Network"} value={cbNetwork} max={Math.max(1, cbEnergy, cbNetwork)} color={C.navy} />
-                  <BarRow label="In ritardo" value={cbLate} max={Math.max(1, cbEnergy, cbNetwork, cbLate)} color={C.danger} />
-                </View>
               </View>
             </View>
-          )}
-        </View>
+          ),
+          /* ── Appuntamenti di oggi (titolo in corsivo come «RITELEFONATE DI OGGI») ── */
+          appointments: () => (
+            <View style={styles.section} onLayout={onSectionLayout("appuntamenti")}>
+              <View style={styles.sectionHead}>
+                <Text style={styles.sectionTitle}>APPUNTAMENTI DI OGGI</Text>
+                <View style={{ flex: 1 }} />
+                <Pressable testID="add-appointment-btn" onPress={() => router.push("/appointment/new" as any)} style={({ pressed }) => [styles.addBtn, pressed && { opacity: 0.85 }]} accessibilityLabel="Aggiungi appuntamento">
+                  <Ionicons name="add" size={16} color={C.white} />
+                  <Text style={styles.addBtnTxt}>Appuntamento</Text>
+                </Pressable>
+              </View>
+              <DashboardWidgetsSection only={APPT_TODAY_WIDGET} fill />
+            </View>
+          ),
+          /* ── Calendario mensile compatto ── */
+          calendar: () => (
+            <View style={styles.section} onLayout={onSectionLayout("calendario")}>
+              <View style={styles.sectionHead}><Text style={styles.sectionTitle}>CALENDARIO</Text></View>
+              <MonthCalendarCompact />
+            </View>
+          ),
+          /* ── Statistiche ── */
+          stats: () => (
+            <View style={styles.section} onLayout={onSectionLayout("statistiche")}>
+              <Text style={styles.sectionTitle}>STATISTICHE</Text>
 
-        </DesktopGrid>
-        <View style={{ height: 16 }} />
+              {/* KPI cards 2×2 */}
+              <View style={styles.kpiRow}>
+                <KpiCard
+                  testID="kpi-callbacks"
+                  label="Ritelefonate oggi"
+                  value={cbTodayTotal}
+                  icon="call"
+                  accent={C.primary}
+                  hint={cbLate > 0 ? `${cbLate} in ritardo` : cbDone > 0 ? `${cbDone} completate` : "nessuna urgenza"}
+                  hintColor={cbLate > 0 ? C.danger : C.success}
+                  // V50.r — Rimosso navigate a route inesistente (/callbacks-list).
+                  // La lista delle ritelefonate di oggi è già mostrata più sotto
+                  // nella sezione "Da Ritelefonare". Card ora solo informativa.
+                />
+                <KpiCard
+                  testID="kpi-appointments"
+                  label="Appuntamenti 30gg"
+                  value={apptTotal}
+                  icon="calendar"
+                  accent={C.navy}
+                  hint={`${apptDone} fatti · ${apptUndone} da fare`}
+                  hintColor={C.muted}
+                  onPress={() => router.push("/(tabs)/calendario" as any)}
+                />
+              </View>
+              <View style={[styles.kpiRow, { marginTop: 12 }]}>
+                <KpiCard
+                  testID="kpi-contacts"
+                  label="Contatti totali"
+                  value={contactsCount}
+                  icon="people"
+                  accent={C.primary}
+                  hint="in rubrica"
+                  hintColor={C.muted}
+                  onPress={() => router.push("/(tabs)/contatti" as any)}
+                />
+                <KpiCard
+                  testID="kpi-done-today"
+                  label="Fatte oggi"
+                  value={cbDone}
+                  icon="checkmark-done"
+                  accent={C.navy}
+                  hint={cbPending > 0 ? `${cbPending} da chiudere` : "tutto ok"}
+                  hintColor={cbPending > 0 ? C.warning : C.success}
+                  // V50.r — Rimosso navigate a route inesistente (/callbacks-list).
+                  // Lista già visibile nella sezione "Da Ritelefonare" sotto.
+                />
+              </View>
 
-        {/* V49 — Bottone "Comunica con l'azienda": apre bottom sheet con nome
-            azienda, email e numeri di servizio configurabili dal Master. */}
-        <Pressable
-          testID="home-company-contact-btn"
-          onPress={() => setCompanySheetOpen(true)}
-          style={styles.companyContactBtn}
-        >
-          <View style={styles.companyContactIcon}>
-            <Ionicons name="business" size={22} color="#FFF" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.companyContactTitle} numberOfLines={1} ellipsizeMode="tail">COMUNICA CON L&apos;AZIENDA</Text>
-            <Text style={styles.companyContactSub} numberOfLines={1}>Numeri di servizio e contatti</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={22} color="#FFF" />
-        </Pressable>
+              {/* Charts: donut + bar */}
+              {(apptTotal > 0 || cbTodayTotal > 0) && (
+                <View style={[styles.chartsRow, { marginTop: 12 }]}>
+                  <View style={[styles.card, styles.donutCard]}>
+                    <Text style={styles.cardTitle}>Appuntamenti</Text>
+                    <Text style={styles.cardSub}>ultimi 30 giorni</Text>
+                    <View style={styles.donutWrap}>
+                      <DonutChart
+                        size={120}
+                        strokeWidth={14}
+                        segments={[
+                          { value: apptDone, color: C.primary },
+                          { value: apptUndone, color: C.navy },
+                        ]}
+                        centerLabel={apptTotal > 0 ? `${Math.round((apptDone / apptTotal) * 100)}%` : "0%"}
+                        centerSub="fatti"
+                      />
+                    </View>
+                    <View style={styles.legend}>
+                      <LegendDot color={C.primary} label={`Fatti · ${apptDone}`} />
+                      <LegendDot color={C.navy} label={`Da fare · ${apptUndone}`} />
+                    </View>
+                  </View>
+
+                  <View style={[styles.card, styles.donutCard]}>
+                    <Text style={styles.cardTitle}>Ritelefonate</Text>
+                    <Text style={styles.cardSub}>di oggi per area</Text>
+                    <View style={{ marginTop: 14, marginBottom: 8 }}>
+                      <BarRow label={settings?.energy_title || "Energy"} value={cbEnergy} max={Math.max(1, cbEnergy, cbNetwork)} color={C.primary} />
+                      <BarRow label={settings?.network_title || "Network"} value={cbNetwork} max={Math.max(1, cbEnergy, cbNetwork)} color={C.navy} />
+                      <BarRow label="In ritardo" value={cbLate} max={Math.max(1, cbEnergy, cbNetwork, cbLate)} color={C.danger} />
+                    </View>
+                  </View>
+                </View>
+              )}
+            </View>
+          ),
+          /* ── Scadenze ── */
+          deadlines: () => (
+            <View style={styles.section} onLayout={onSectionLayout("scadenze")}>
+              {/* V50.s — Titolo "SCADENZE" compatto + chips centrati sotto */}
+              <View style={styles.dlHeader}>
+                <Text style={styles.dlSectionTitle}>SCADENZE</Text>
+                <View style={styles.dlChipsRowCentered}>
+                  {[30, 60, 90, 180].map((d) => {
+                    const active = !dlCollapsed && d === deadlinesDays;
+                    return (
+                      <Pressable
+                        key={d}
+                        testID={`dl-window-${d}`}
+                        hitSlop={6}
+                        accessibilityLabel={active ? `Filtro ${d} giorni attivo: tocca per chiudere` : `Mostra scadenze entro ${d} giorni`}
+                        onPress={() => {
+                          if (active) { setDlCollapsed(true); return; }
+                          setDlCollapsed(false);
+                          if (d !== deadlinesDays) changeDeadlinesDays(d);
+                        }}
+                        style={[styles.dlChip, active && styles.dlChipActive]}
+                      >
+                        <Text style={[styles.dlChipTxt, active && styles.dlChipTxtActive]}>{d}gg</Text>
+                        {active && <Ionicons name="close" size={12} color={C.primary} style={{ marginLeft: 3 }} />}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+              <View style={styles.sectionBody}>
+              {dlCollapsed ? (
+                <Text style={styles.dlCollapsedHint}>Filtro chiuso · tocca un intervallo per vedere le scadenze</Text>
+              ) : (
+                <DeadlinesWidget
+                  items={deadlines}
+                  loading={deadlinesLoading}
+                  onOpenContact={(cid) => router.push(`/contact/${cid}?tab=bills` as any)}
+                  onChanged={() => changeDeadlinesDays(deadlinesDays)}
+                />
+              )}
+              </View>
+            </View>
+          ),
+          /* ── Comunica con l'azienda ── */
+          company: () => (
+            <View style={{ marginTop: 22 }} onLayout={onSectionLayout("comunica")}>
+            <Pressable
+              testID="home-company-contact-btn"
+              onPress={() => setCompanySheetOpen(true)}
+              style={styles.companyContactBtn}
+            >
+              <View style={styles.companyContactIcon}>
+                <Ionicons name="business" size={22} color="#FFF" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.companyContactTitle} numberOfLines={1} ellipsizeMode="tail">COMUNICA CON L&apos;AZIENDA</Text>
+                <Text style={styles.companyContactSub} numberOfLines={1}>Numeri di servizio e contatti</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={22} color="#FFF" />
+            </Pressable>
+            </View>
+          ),
+        }} />
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -1270,7 +1292,7 @@ const styles = StyleSheet.create({
   section: { marginTop: 22, flex: 1 }, // V50.z503 — riempie la cella della griglia (pari altezza sulla riga)
   sectionBody: { flex: 1 },
   sectionHead: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
-  sectionTitle: { fontSize: 18, fontWeight: "900", color: C.text, letterSpacing: 2, textTransform: "uppercase" }, // V50.z500 — stesso stile di «SCADENZE»
+  sectionTitle: { fontSize: 18, fontWeight: "900", fontStyle: "italic", color: C.text, letterSpacing: 2, textTransform: "uppercase" }, // V50.z505 — titoli di sezione in CORSIVO (stesso stile per Ritelefonate, Appuntamenti, Calendario, Statistiche, Scadenze)
   pill: { backgroundColor: C.primarySoft, paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999 },
   pillTxt: { color: C.primary, fontWeight: "800", fontSize: 12 },
 
@@ -1312,7 +1334,7 @@ const styles = StyleSheet.create({
   dlChipsRow: { flexDirection: "row", gap: 6 },
   // V50.s — Header "SCADENZE" con chips centrati sotto
   dlHeader: { alignItems: "flex-start", gap: 10, marginBottom: 12 }, // V50.z500 — allineato a sinistra come gli altri titoli
-  dlSectionTitle: { fontSize: 18, fontWeight: "900", color: C.text, letterSpacing: 2, textAlign: "left" },
+  dlSectionTitle: { fontSize: 18, fontWeight: "900", fontStyle: "italic", color: C.text, letterSpacing: 2, textAlign: "left" }, // V50.z505 — corsivo
   dlChipsRowCentered: { flexDirection: "row", gap: 8, justifyContent: "flex-start", alignItems: "center", flexWrap: "wrap" },
   dlChip: { flexDirection: "row", alignItems: "center", paddingHorizontal: 9, paddingVertical: 5, minHeight: 28, borderRadius: 999, backgroundColor: C.card, borderWidth: 1, borderColor: C.border },
   dlCollapsedHint: { fontSize: 11, color: C.muted, textAlign: "center", paddingVertical: 8, fontStyle: "italic" },

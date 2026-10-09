@@ -30,6 +30,7 @@ import { PromoRedeemCard } from "@/src/PromoCodeField"; // V50.z320 — codice p
 import { ReferralCard } from "@/src/ReferralCard"; // V50.z322 — Invita un amico
 import { PunAlertCard } from "@/src/PunAlertCard"; // V50.z325 — Avviso soglia PUN
 import { AxonPersonalizeCard } from "@/src/AxonPersonalizeCard"; // V50.z456 — Personalizza Axon (Super Master / Lite)
+import { HomeLayoutCard } from "@/src/home/HomeLayoutCard"; // V50.z505 — Personalizza la Home (blocchi, ordine, posizione) — solo Super Master
 import { SetupProcessingBadge } from "@/src/SetupProcessingBadge"; // V50.z216 — Blocco 5
 import { ResetTestDataCard } from "@/src/ResetTestDataCard";
 import { CompressAllCard } from "@/src/CompressAllCard"; // V50.z364 — Comprimi tutto (Master) // V50.z288 — Azzera dati di test (Master)
@@ -1050,6 +1051,8 @@ function ImpostazioniScreen() {
         </>)}
 
         {sec === "general" && (<>
+        {/* V50.z505 — Personalizza la Home (solo Super Master: la card si nasconde da sola se allowed=false) */}
+        <HomeLayoutCard />
         {!user?.parent_user_id && (
         <View style={styles.card}>
           <CatHeader color="#0EA5E9" label="CRM · Personalizza aree" icon="briefcase" />
