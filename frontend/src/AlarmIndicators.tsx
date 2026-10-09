@@ -5,7 +5,7 @@
 // Sostituisce il vecchio widget invasivo `AlarmHomeWidget` (V50.z10).
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, Pressable, Animated } from "react-native";
+import { View, Text, StyleSheet, Pressable, Animated, DeviceEventEmitter, AppState } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import { api } from "@/src/api";
@@ -56,6 +56,10 @@ export function relativeShort(target: Date, now: Date = new Date()): string {
   return `tra ${Math.floor(h / 24)}g`;
 }
 
+/** Evento globale: la lista allarmi è cambiata (crea/modifica/elimina/toggle) → header e menu si aggiornano subito. */
+export const ALARMS_CHANGED_EVENT = "axon:alarms-changed";
+export function emitAlarmsChanged() { DeviceEventEmitter.emit(ALARMS_CHANGED_EVENT); }
+
 export function useNextAlarm(): { alarm: Alarm; when: Date } | null {
   const [alarms, setAlarms] = useState<Alarm[]>([]);
   const [tick, setTick] = useState(0);
@@ -70,6 +74,15 @@ export function useNextAlarm(): { alarm: Alarm; when: Date } | null {
     const iv = setInterval(() => setTick((t) => t + 1), 30_000);
     return () => clearInterval(iv);
   }, []);
+  // V50.z501 — BUG: header/menu laterale mostravano «Timer tra 16h» anche dopo l'eliminazione (il componente vive nel layout:
+  // il focus non scatta più). Ora: evento globale `axon:alarms-changed` (emesso da Timer & Sveglie a ogni crea/modifica/elimina/toggle)
+  // + ricarica ogni 60 s + al rientro in foreground.
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener(ALARMS_CHANGED_EVENT, load);
+    const app = AppState.addEventListener("change", (st) => { if (st === "active") void load(); });
+    const iv = setInterval(load, 60_000);
+    return () => { sub.remove(); app.remove(); clearInterval(iv); };
+  }, [load]);
   return useMemo(() => {
     const now = new Date();
     const horizon = now.getTime() + HORIZON_MS;

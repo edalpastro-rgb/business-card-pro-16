@@ -17,6 +17,7 @@ import * as Notifications from "expo-notifications";
 import { createAudioPlayer, AudioModule } from "expo-audio";
 import Slider from "@react-native-community/slider";
 import { api } from "@/src/api";
+import { emitAlarmsChanged } from "@/src/AlarmIndicators"; // V50.z501 — header/menu si aggiornano subito
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { syncAlarmNotifs, removeAlarmNotifs, syncAllAlarms, getCustomSoundUri, type Alarm, type AlarmKind } from "@/src/alarmNotifs";
 import { useTimeFormat, formatHHMM, formatDateTime, formatHM } from "@/src/utils/timeFormat";
@@ -120,6 +121,7 @@ export default function AxonAlarmsScreen() {
     setAlarms((prev) => prev.map((x) => (x.id === a.id ? { ...x, enabled: newVal } : x)));
     try {
       await api(`/axon/alarms/${a.id}/toggle`, { method: "POST" });
+      emitAlarmsChanged();
       await syncAlarmNotifs({ ...a, enabled: newVal });
     } catch (e: any) {
       setAlarms((prev) => prev.map((x) => (x.id === a.id ? { ...x, enabled: !newVal } : x)));
@@ -135,6 +137,7 @@ export default function AxonAlarmsScreen() {
       await api(`/axon/alarms/${a.id}`, { method: "DELETE" });
       await removeAlarmNotifs(a.id).catch(() => {});
       setAlarms((prev) => prev.filter((x) => x.id !== a.id));
+      emitAlarmsChanged();
     } catch (e: any) {
       notify("Errore", e?.message || "Impossibile eliminare");
     }
@@ -146,6 +149,7 @@ export default function AxonAlarmsScreen() {
   };
 
   const onSaved = async (saved: Alarm) => {
+    emitAlarmsChanged();
     setAlarms((prev) => {
       const exists = prev.some((x) => x.id === saved.id);
       return exists ? prev.map((x) => (x.id === saved.id ? saved : x)) : [saved, ...prev];

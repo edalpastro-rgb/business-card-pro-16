@@ -47,6 +47,7 @@ import { matchLocalCommand, playActivationEffect } from "@/src/activation/events
 import { triggerFindPhone, stopFindPhoneEverywhere } from "@/src/findPhone/findPhoneClient"; // V50.z492 // V50.z318
 import { ActivationOverlay } from "@/src/activation/ActivationOverlay"; // V50.z318 — mirror dentro il Modal chat // V50.z196 — Blocco 9 apertura chat proattiva
 import { syncAlarmNotifs } from "@/src/alarmNotifs";
+import { emitAlarmsChanged } from "@/src/AlarmIndicators";
 import { notify } from "@/src/utils/notify";
 import { conversationToText, copyText, shareText, exportConversationPdf } from "@/src/utils/chatExport";
 import { useDraft } from "@/src/utils/appStatePersist"; // V50.z242 — BUG-STATE-001
@@ -879,7 +880,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
         },
         onDone: (done) => {
           // V50.z125 — Comando timer/sveglia/promemoria: schedula la notifica locale
-          if (done.alarm) { void syncAlarmNotifs(done.alarm).catch(() => {}); }
+          if (done.alarm) { void syncAlarmNotifs(done.alarm).catch(() => {}); emitAlarmsChanged(); } // V50.z501 — header/menu aggiornati subito
           setMessages((prev) => {
             if (!prev.length) return prev;
             const last = prev[prev.length - 1];

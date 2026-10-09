@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-09 | D2026.10.09-1715 | Header sveglia e menu laterale si sincronizzano subito col DB dopo elimina/modifica timer (evento globale + poll 60s) |
 | 2026-10-09 | D2026.10.09-1708 | Axon salva davvero ogni azione (contatto, nota, appuntamento, richiamata) via funzioni standard; Drive: niente testo in attesa + X suggerimenti; Timer: cestino + nessuna creazione automatica; Home web: via Azioni rapide, titoli uniformi, griglia a righe |
 | 2026-10-09 | D2026.10.09-1648 | Timer & Sveglie: cestino funzionante su web; nessun timer creato da domande o dallo stress test notturno (timer fantasma 1 min); campo source su ogni allarme |
 | 2026-10-09 | D2026.10.09-1625 | Axon Drive: layout fisso a tutto schermo, due bottoni grandi in basso (niente mic), display centrale con mappa embedded, foto cliente, elenchi ritelefonate/appuntamenti, nota |
