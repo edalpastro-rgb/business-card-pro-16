@@ -1,10 +1,11 @@
 // NavChooser.tsx — V50.z253 — Popup di scelta navigatore (Google Maps · Waze · Apple Maps) con destinazione precompilata.
 // Uso: const nav = useNavChooser(); nav.open({ lat, lon, label }); … {nav.element}
 import React, { useState } from "react";
-import { View, Text, StyleSheet, Pressable, Modal, Linking, Platform } from "react-native";
+import { View, Text, StyleSheet, Pressable, Modal, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { notify } from "@/src/utils/notify";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { openNavigation } from "@/src/utils/navLinks"; // V50.z488
 
 export type NavTarget = { lat?: number | null; lon?: number | null; address?: string; label?: string };
 
@@ -25,8 +26,8 @@ export function joinAddr(address?: string | null, city?: string | null): string 
 }
 
 export function openNavApp(app: App, t: NavTarget) {
-  if ((t.lat == null || t.lon == null) && !t.address) { notify("Indirizzo mancante", "Nessuna posizione disponibile per questa tappa."); return; }
-  Linking.openURL(app.url(t)).catch(() => notify("Navigazione", `Impossibile aprire ${app.name}`));
+  // V50.z488 — GPS letto al momento del tap + destinazione in coordinate precise (Google Places); link waze://?ll= e maps/dir?origin=&destination=
+  void openNavigation(app.id, { address: t.address, lat: t.lat, lon: t.lon, label: t.label });
 }
 
 export function useNavChooser() {

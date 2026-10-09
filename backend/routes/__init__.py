@@ -126,6 +126,7 @@ MODULES = [
     "axon_help_links.py",  # V50.z469 — Feature 12: Axon ↔ Libretto (APP_MAP «Guida», prompt chip [[NAV:/libretto?section=id]], «apri il libretto su…», GET /libretto/index); DOPO navigator+omniscience
     "axon_nav_guard.py",  # V50.z487 — NAV GUARD: route reali + alias, sanificazione marker [[NAV]] (chat e stream), APP_MAP schermate mancanti, GPS reale nel prompt + clienti vicini (DOPO navigator e help_links)
     "doc_fields_ocr.py",  # V50.z487 — POST /documents/ocr-fields: OCR universale (CI/patente/passaporto/CF/biglietto/visura) → campi unificati per Set Up and Go, Nuovo contatto, Anagrafica (dopo identity_documents)
+    "axon_nav_links.py",  # V50.z488 — POST /geo/resolve-destination: destinazione → lat/lon precisi (Google Places searchText, fallback OSM) + link waze://?ll= e maps/dir?origin=&destination= (dopo 07_contacts e axon_places)
     "axon_personal_vault.py",  # V50.z469 — Feature 13/14: Spazio Personale Anagrafica (dati SOLO on-device): prompt con client_context.personal_vault per la singola risposta (Super Master)
     "axon_upload_guard.py",  # V50.z469 — Feature 15: whitelist upload per magic bytes (jpg/png/pdf + audio), limiti, antivirus ClamAV (clamd INSTREAM); wrap _put_object_sync/_upl_stream_to_temp/POST /master-files; GET /admin/upload-guard/status
     "axon_beta.py",  # V50.z474 — Beta sul campo: POST /beta/event, NPS (/beta/nps*), GET /admin/beta/dashboard (10 metriche), POST /admin/beta/nps-wave

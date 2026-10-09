@@ -1,12 +1,13 @@
 // ContactActionChips.tsx — V50.z487 — Bottoni azione AUTOMATICI sotto ogni risposta di Axon:
 //   • numero di telefono → «Chiama» (tel:) + «WhatsApp» (wa.me precompilato)
 //   • indirizzo / luogo  → «Waze» + «Google Maps» con destinazione precompilata
-// Sostituisce CallChips (V50.z454). Rilevamento lato client sul testo pulito della bolla: funziona per qualsiasi risposta,
+// Sostituisce CallChips (V50.z454). V50.z488: Waze/Maps con coordinate precise (GPS letto al tap + destinazione via Google Places). Rilevamento lato client sul testo pulito della bolla: funziona per qualsiasi risposta,
 // anche quando il modello non ha emesso marker [[ACTION]].
-import React from "react";
-import { View, Text, Pressable, Linking, StyleSheet, Platform } from "react-native";
+import React, { useState } from "react";
+import { View, Text, Pressable, Linking, StyleSheet, Platform, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { CT } from "@/src/assistant/chatTheme";
+import { openNavigation, type NavApp } from "@/src/utils/navLinks"; // V50.z488 — coordinate precise (GPS ora + Google Places)
 
 // Numeri italiani (fisso 0xxx, mobile 3xx, verdi 800/803, +39 / 0039) con spazi, punti o trattini come separatori. Esclude date, importi, POD, IBAN.
 const PHONE_RX = /(?:(?:\+|00)39[\s.-]?)?(?:0\d{1,3}|3\d{2}|80[03])[\s.-]?\d{2,4}(?:[\s.-]?\d{2,4}){1,2}\b/g;
@@ -64,8 +65,28 @@ export function extractAddresses(text: string): string[] {
 }
 
 const open = (url: string) => { Linking.openURL(url).catch(() => {}); };
-const wazeUrl = (addr: string) => `https://waze.com/ul?q=${encodeURIComponent(addr)}&navigate=yes`;
-const gmapsUrl = (addr: string) => `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addr)}&travelmode=driving`;
+
+/** V50.z488 — Waze / Google Maps con coordinate precise: GPS letto ORA + destinazione risolta via Google Places (backend). */
+function NavPair({ address }: { address: string }) {
+  const [busy, setBusy] = useState<NavApp | null>(null);
+  const go = async (app: NavApp) => {
+    if (busy) return;
+    setBusy(app);
+    try { await openNavigation(app, { address }); } finally { setBusy(null); }
+  };
+  return (
+    <View style={styles.row}>
+      <Pressable onPress={() => go("waze")} disabled={!!busy} style={({ pressed }) => [styles.chip, styles.waze, (pressed || busy === "waze") && styles.pressed]} accessibilityRole="button" accessibilityLabel={`Naviga con Waze verso ${address}`} testID="waze-chip">
+        {busy === "waze" ? <ActivityIndicator size="small" color="#FFF" /> : <Ionicons name="navigate" size={14} color="#FFF" />}
+        <Text style={styles.txt}>Waze</Text>
+      </Pressable>
+      <Pressable onPress={() => go("google")} disabled={!!busy} style={({ pressed }) => [styles.chip, styles.gmaps, (pressed || busy === "google") && styles.pressed]} accessibilityRole="button" accessibilityLabel={`Apri Google Maps verso ${address}`} testID="gmaps-chip">
+        {busy === "google" ? <ActivityIndicator size="small" color="#FFF" /> : <Ionicons name="map" size={14} color="#FFF" />}
+        <Text style={styles.txt}>Google Maps</Text>
+      </Pressable>
+    </View>
+  );
+}
 
 export function ContactActionChips({ text }: { text: string }) {
   const numbers = extractPhoneNumbers(text);
@@ -90,16 +111,7 @@ export function ContactActionChips({ text }: { text: string }) {
       {addresses.map((a) => (
         <View key={a} style={styles.addrBlock}>
           {manyAddr ? <Text style={styles.addrLbl} numberOfLines={1}>📍 {a}</Text> : null}
-          <View style={styles.row}>
-            <Pressable onPress={() => open(wazeUrl(a))} style={({ pressed }) => [styles.chip, styles.waze, pressed && styles.pressed]} accessibilityRole="button" accessibilityLabel={`Naviga con Waze verso ${a}`} testID="waze-chip">
-              <Ionicons name="navigate" size={14} color="#FFF" />
-              <Text style={styles.txt}>Waze</Text>
-            </Pressable>
-            <Pressable onPress={() => open(gmapsUrl(a))} style={({ pressed }) => [styles.chip, styles.gmaps, pressed && styles.pressed]} accessibilityRole="button" accessibilityLabel={`Apri Google Maps verso ${a}`} testID="gmaps-chip">
-              <Ionicons name="map" size={14} color="#FFF" />
-              <Text style={styles.txt}>Google Maps</Text>
-            </Pressable>
-          </View>
+          <NavPair address={a} />
         </View>
       ))}
     </View>

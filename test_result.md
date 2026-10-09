@@ -577,3 +577,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z487 — (1) GPS: src/utils/liveLocation.ts (getCurrentPositionAsync High→Balanced con timeout, last-known solo ≤2 min) usato da geoOrigin/meteo/allerte/mappa/giro; AssistantChat invia client_context.position → axon_nav_guard sezione POSIZIONE GPS REALE + clienti più vicini. (2) ContactActionChips: Chiama/WhatsApp per numeri, Waze/Google Maps per indirizzi. (3) DocScanButton + POST /documents/ocr-fields (OCR universale Gemini) in Set Up and Go step 1 e Nuovo contatto. (4) axon_nav_guard.py: ogni [[NAV]] validato su schermate reali (alias, refusi, etichetta) altrimenti istruzioni testuali; NavStreamFilter nello stream; frontend navRoutes.ts. Card Impostazioni→Generale→Permessi del dispositivo (/permessi?standalone=1). Test 13/13 + testing agent OK."
+
+  - agent: "main"
+    message: "V50.z488 — Link navigazione con coordinate precise: POST /geo/resolve-destination (Google Places searchText → lat/lon, fallback Geocoding/OSM, cache) + GET /geo/google-apis-status; frontend src/utils/navLinks.ts openNavigation (GPS letto al tap, waze://?ll=, maps/dir?origin=&destination=) usato da ContactActionChips, contact/[id], appointment/[id], NavChooser. Test 13/13."

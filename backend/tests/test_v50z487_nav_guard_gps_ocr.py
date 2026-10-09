@@ -129,3 +129,37 @@ def test_documents_ocr_fields_requires_image():
     h = _login()
     r = requests.post(f"{BASE}/documents/ocr-fields", json={"image_base64": ""}, headers=h, timeout=20)
     assert r.status_code == 400
+
+
+# ---- V50.z488 — link di navigazione con coordinate precise -------------------------------------------------------
+def test_resolve_destination_precise_coords_and_link_formats():
+    h = _login()
+    r = requests.post(f"{BASE}/geo/resolve-destination", json={"address": "Via Roma 10, 36061 Bassano del Grappa (VI)", "origin": {"lat": 45.7662, "lon": 11.7345}}, headers=h, timeout=30)
+    assert r.status_code == 200, r.text[:300]
+    j = r.json()
+    assert abs(j["lat"] - 45.766) < 0.01 and abs(j["lon"] - 11.734) < 0.01, (j["lat"], j["lon"])
+    assert j["source"] in ("google_places", "google_geocoding", "cache", "osm")
+    assert j["waze_url"].startswith("waze://?ll=") and j["waze_url"].endswith("&navigate=yes")
+    assert j["gmaps_url"].startswith("https://www.google.com/maps/dir/?api=1&origin=45.766200,11.734500&destination=")
+    assert "destination=%.6f,%.6f" % (j["lat"], j["lon"]) in j["gmaps_url"]
+    assert "distance_km" in j
+
+
+def test_resolve_destination_without_origin_and_errors():
+    h = _login()
+    r = requests.post(f"{BASE}/geo/resolve-destination", json={"address": "Piazza Duomo 1, Milano"}, headers=h, timeout=30)
+    assert r.status_code == 200, r.text[:300]
+    j = r.json()
+    assert "origin=" not in j["gmaps_url"] and "destination=" in j["gmaps_url"]
+    assert abs(j["lat"] - 45.464) < 0.02
+    r = requests.post(f"{BASE}/geo/resolve-destination", json={"address": "x"}, headers=h, timeout=20)
+    assert r.status_code == 400
+
+
+def test_google_apis_status_reports_places_new():
+    h = _login()
+    r = requests.get(f"{BASE}/geo/google-apis-status", headers=h, timeout=40)
+    assert r.status_code == 200
+    j = r.json()
+    assert j["key_configured"] is True
+    assert j["places_new"] is True, j

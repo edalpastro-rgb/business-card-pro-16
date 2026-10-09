@@ -14,6 +14,7 @@ import { notify } from "@/src/utils/notify";
 import { openInAppLink } from "@/src/utils/openInAppLink";
 import * as FileSystem from "expo-file-system/legacy";
 import { api } from "@/src/api";
+import { openNavigation } from "@/src/utils/navLinks"; // V50.z488
 import { useAuth } from "@/src/auth";
 import { PendingBadge } from "@/src/OfflineBanner"; // V50.z281
 import { theme } from "@/src/theme";
@@ -344,14 +345,9 @@ function ContactDetail() {
   const hasSecondaryComm = !!(c.phone || c.telegram || c.linkedin || c.instagram || c.facebook || c.website || ((c.whatsapp || c.phone) && settings?.wa_referral_template));
 
   // Helpers per aprire navigazione con Waze e Google Maps su qualsiasi indirizzo (stringa libera)
-  const openWazeAddr = (addr: string) => {
-    if (!addr) return;
-    Linking.openURL(`https://www.waze.com/ul?q=${encodeURIComponent(addr)}&navigate=yes`);
-  };
-  const openGoogleMapsAddr = (addr: string) => {
-    if (!addr) return;
-    Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`);
-  };
+  // V50.z488 — GPS letto al tap + destinazione in coordinate precise (Google Places) → waze://?ll=… / maps/dir?origin=…&destination=…
+  const openWazeAddr = (addr: string) => { if (addr) void openNavigation("waze", { address: addr, label: `${c.first_name} ${c.last_name}` }); };
+  const openGoogleMapsAddr = (addr: string) => { if (addr) void openNavigation("google", { address: addr, label: `${c.first_name} ${c.last_name}` }); };
 
   // V50.z71 — Toggle "indirizzo preferito" (persistente sul contatto).
   const togglePreferredAddress = async (kind: "main" | "legacy" | "work" | "residence") => {
