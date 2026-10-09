@@ -3,7 +3,7 @@
 //  navigazione → mappa Google embedded a tutto display · foto → ritratto grande · elenco (ritelefonate/appuntamenti) → voci grandi ·
 //  nota → testo grande (letto a voce). Dopo 5 s di inattività dalla risposta si torna ai suggerimenti (la mappa resta finché guidi).
 import React from "react";
-import { View, Text, StyleSheet, Pressable, Image } from "react-native";
+import { View, Text, StyleSheet, Pressable, Image, Linking } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { NavApp } from "@/src/utils/navLinks";
 import { DriveMap } from "./DriveMap";
@@ -16,7 +16,8 @@ export type DriveDisplayData =
   | { type: "note"; contact_name: string; contact_id?: string; text: string; date: string }
   | { type: "photo"; contact_name: string; contact_id?: string; photo: string; subtitle?: string }
   | { type: "navigate"; contact_name: string; contact_id?: string; address: string; address_label?: string; nav_app?: NavApp | null }
-  | { type: "navigate_choice"; contact_name: string; contact_id?: string; options: DriveAddressOption[]; nav_app?: NavApp | null };
+  | { type: "navigate_choice"; contact_name: string; contact_id?: string; options: DriveAddressOption[]; nav_app?: NavApp | null }
+  | { type: "call"; tel: string; contact_name: string };
 
 export const DRIVE_SUGGESTIONS = [
   { emoji: "🧑", title: "Crea un contatto", sample: "Crea contatto Mario Rossi 333 1234567 Milano energia" },
@@ -64,6 +65,19 @@ export function DriveDisplay({ data, onPickAddress, suggestionsHidden, onHideSug
       );
     }
     return <View style={styles.fill} testID="drive-display-navigate"><DriveMap address={data.address} label={data.contact_name} /></View>;
+  }
+
+  if (data.type === "call") {
+    return (
+      <View style={[styles.panel, styles.centerPanel, { borderColor: "#22C55E" }]} testID="drive-display-call">
+        <Ionicons name="call" size={56} color="#22C55E" />
+        <Text style={styles.bigTxt}>Chiamo {data.contact_name}</Text>
+        <Text style={styles.sub}>{data.tel}</Text>
+        <Pressable onPress={() => void Linking.openURL(`tel:${data.tel}`)} style={({ pressed }) => [styles.callBtn, pressed && { opacity: 0.85 }]} testID="drive-call-btn">
+          <Ionicons name="call" size={26} color="#FFF" /><Text style={styles.navTxtBig}>Chiama ora</Text>
+        </Pressable>
+      </View>
+    );
   }
 
   if (data.type === "photo") {
@@ -160,4 +174,6 @@ const styles = StyleSheet.create({
   optBtn: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 64, borderRadius: 14, borderWidth: 1.5, borderColor: "rgba(16,185,129,0.6)", backgroundColor: "rgba(16,185,129,0.14)", paddingHorizontal: 12, paddingVertical: 10 },
   optNum: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#10B981", alignItems: "center", justifyContent: "center" },
   optNumTxt: { color: "#FFF", fontWeight: "900", fontSize: 18 },
+  callBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, minHeight: 72, paddingHorizontal: 32, borderRadius: 36, backgroundColor: "#22C55E", marginTop: 8 },
+  navTxtBig: { color: "#FFF", fontWeight: "900", fontSize: 20 },
 });

@@ -644,8 +644,12 @@ async def voice_copilot_execute(body: VoiceCopilotIn, background: BackgroundTask
                 _ag_audio, _ag_mime = _ag_tts.get("audio_base64"), _ag_tts.get("mime")
             except Exception as exc:  # noqa: BLE001
                 logger.warning("[voice-copilot] agent tts failed: %s", exc)
+        _ag_extra = {"reply": _ag["reply"], "cmd": _ag.get("cmd"), "agent_status": _ag.get("agent_status")}
+        _call = re.search(r"\[\[NAV:tel:(\+?\d+)\|📞 Chiama ([^\]]+)\]\]", _ag["reply"])  # V50.z502 — «chiama Rossi» → Axon Drive compone il numero
+        if _call:
+            _ag_extra["display"] = {"type": "call", "tel": _call.group(1), "contact_name": _call.group(2).strip()}
         return {"spoken": _ag_spoken, "audio_base64": _ag_audio, "audio_mime": _ag_mime, "intent": "agent", "params": {}, "confirmation": _ag_spoken,
-                "extra": {"reply": _ag["reply"], "cmd": _ag.get("cmd"), "agent_status": _ag.get("agent_status")}, "transcript": transcript}
+                "extra": _ag_extra, "transcript": transcript}
 
     now_iso = _vd_fmt_now(_vd_now_rome())  # noqa: F821 — V50.z495 — giorno della settimana + ora locale Roma: «lunedì alle 9» calcolato bene
     # V50.z368 — CRM-first: candidati dal CRM (o cliente in attesa di conferma) nel prompt, prima di tutto il resto

@@ -188,6 +188,8 @@ def _nav_route_by_label(label: str, user: _ng_Optional[dict] = None) -> _ng_Opti
 
 def _nav_resolve_route(route: str, label: str = "", user: _ng_Optional[dict] = None) -> _ng_Optional[str]:
     """Route valida normalizzata oppure None (schermata inesistente / non mappabile)."""
+    if _ng_re.match(r"^(tel|sms|mailto):", (route or "").strip(), _ng_re.I):  # V50.z502 — «chiama Rossi»: link telefono passano intatti
+        return route.strip()
     path, q = _nav_split(route)
     if "{id}" in path or "<id>" in path or ":id" in path:  # placeholder non risolto → lista
         base = path.split("/{")[0].split("/<")[0].split("/:")[0]

@@ -1048,6 +1048,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
 
   // V50.z259 — Navigatore: deep link dai messaggi di Axon → chiude la chat e apre la schermata
   const navigateTo = (route: string) => {
+    if (/^(tel|sms|mailto):/i.test(route)) { void Linking.openURL(route).catch(() => {}); return; } // V50.z502 — chip «Chiama»
     stopGeneration();
     api("/axon/nav/track", { method: "POST", body: { feature: `nav:${route.split("?")[0]}` } }).catch(() => {});
     onClose();

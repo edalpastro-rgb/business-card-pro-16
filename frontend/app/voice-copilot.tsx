@@ -17,7 +17,7 @@
  * niente tastiera, niente scorrimento fine.
  */
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ActivityIndicator, Platform, Animated, Image } from "react-native";
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, Platform, Animated, Image, Linking } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -307,6 +307,7 @@ export default function VoiceCopilotScreen() {
       const disp: DriveDisplayData | null = j?.extra?.display || null;
       pendingNavRef.current = disp?.type === "navigate_choice" ? (j?.extra?.pending_nav_contact_id || disp.contact_id || null) : null;
       setDisplay(disp);
+      if (disp?.type === "call" && disp.tel) void Linking.openURL(`tel:${disp.tel}`).catch(() => {}); // V50.z502 — «chiama Rossi» → compone subito
       setCurrentConfirm(confirmation);
       setHistory(prev => [{
         id: `h-${Date.now()}`,

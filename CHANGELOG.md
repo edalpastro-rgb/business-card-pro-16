@@ -910,6 +910,8 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 - Regola: nessuna schermata bianca — error boundary su moduli chart/table, timeout visibili.
 
 ## 13. Infrastruttura / Backend
+- **V50.z502** — Axon agent: modifica/cancella contatto, appuntamento, richiamata via funzioni standard + «chiama X» (chat chip tel: e Axon Drive
+  compone il numero). Prompt caching: verificato NON supportato dal proxy Emergent (dettagli in PRD).
 - **V50.z499** — Axon agent: anche i comandi a UNA azione vengono eseguiti e salvati tramite le funzioni standard dei form (contatto, nota,
   appuntamento, richiamata); prima l'LLM rispondeva «Fatto» senza scrivere. Test 4/4.
 - **V50.z500** — Home web: via «Azioni rapide», titoli uniformi stile SCADENZE, griglia a righe a pari altezza. Axon Drive: niente testo in

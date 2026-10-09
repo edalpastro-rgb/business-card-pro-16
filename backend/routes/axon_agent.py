@@ -15,7 +15,8 @@ from typing import Any as _ag_Any, Dict as _ag_Dict, List as _ag_List, Optional 
 from urllib.parse import quote as _ag_quote
 
 _AG_ROME = _ag_zi.ZoneInfo("Europe/Rome")
-_AG_ACTIONS = ("create_appointment", "update_appointment", "update_contact_status", "send_whatsapp", "send_email", "create_callback", "create_reminder", "create_contact", "add_note")  # V50.z499 — + contatto, nota
+_AG_ACTIONS = ("create_appointment", "update_appointment", "update_contact_status", "send_whatsapp", "send_email", "create_callback", "create_reminder", "create_contact", "add_note",
+               "update_contact", "delete_contact", "delete_appointment", "update_callback", "delete_callback", "call_contact")  # V50.z499/z502 — + modifica/cancella
 _AG_STATUS_IT = {"client": "Cliente", "prospect": "Prospect", "collaborator": "Collaboratore"}
 
 # Verbi/oggetti che indicano un'azione eseguibile; serve ≥2 azioni distinte + un connettore per attivare l'agente.
@@ -29,7 +30,10 @@ _AG_VERB_RX = _ag_re.compile(
     r"(crea|imposta|metti|aggiungi|segna)\w*\s+(un\s+|una\s+|il\s+|la\s+)?(promemoria|richiamat\w*|ritelefonat\w*|reminder|callback)|"
     r"ricorda(mi|ti)?\s+di|richiama\w*|ritelefona\w*|promemoria\s+per|"
     r"(crea|aggiungi|inserisci|registra|salva|nuovo)\w*\s+(un\s+|il\s+|nuovo\s+)?(contatto|cliente|prospect|lead)|"
-    r"(aggiungi|scrivi|metti|salva|inserisci|crea)\w*\s+(una\s+|la\s+|questa\s+)?nota|nota\s+(su|per|a)\s)\b", _ag_re.I)  # V50.z499
+    r"(aggiungi|scrivi|metti|salva|inserisci|crea)\w*\s+(una\s+|la\s+|questa\s+)?nota|nota\s+(su|per|a)\s|"
+    r"(cancell\w*|elimin\w*|annull\w*|rimuov\w*|disdic\w*)\s+(l'|il\s+|la\s+|lo\s+|gli\s+|le\s+|quel\w*\s+|tutt\w*\s+)?(appuntament\w*|richiamat\w*|ritelefonat\w*|callback|contatt\w*|client\w*)|"
+    r"(modific\w*|aggiorn\w*|cambi\w*|correggi\w*|sostituisc\w*)\s+(il\s+|la\s+|l'|lo\s+)?(numero|telefono|cellulare|email|mail|indirizzo|città|nome|cognome|contatt\w*|azienda)|"
+    r"(spost\w*|rimand\w*|anticip\w*|posticip\w*|riprogramm\w*)\s+(la\s+|il\s+)?(richiamat\w*|ritelefonat\w*|callback)|chiam\w*\s+(il\s+|la\s+|lo\s+)?[A-ZÀ-Ý]?\w+|telefon\w*\s+a\s)\b", _ag_re.I)  # V50.z499/z502
 _AG_CONNECTOR_RX = _ag_re.compile(r"\b(e|ed|poi|dopo|quindi|inoltre|infine|successivamente)\b|[,;]")
 _AG_RESUME_RX = {
     "skip": _ag_re.compile(r"^\s*(salta\w*|skip|vai avanti|continua|procedi|prosegui|passa (alla|oltre)|avanti)\b", _ag_re.I),
@@ -48,7 +52,7 @@ def _agent_looks_multistep(msg: str) -> bool:
     # V50.z499 — BUG STRUTTURALE: un comando con UNA sola azione («crea un appuntamento con Rossi domani alle 10», «programma una
     # richiamata a Zanini lunedì», «crea contatto Mario Rossi», «aggiungi nota su Rossi…») non entrava nell'agente e finiva all'LLM
     # conversazionale, che rispondeva «Fatto» senza scrivere nulla. Ora basta un verbo d'azione in forma imperativa.
-    return len(hits) >= 1 and bool(_ag_re.match(r"^\s*(axon[,!]?\s+)?(per favore\s+)?(crea|fissa|prenota|programma|imposta|metti|aggiungi|inserisci|registra|salva|segna|scrivi|manda|invia|ricorda|richiama|ritelefona|sposta|rimanda|anticipa|posticipa|chiudi|aggiorna|cambia|converti|nuovo|nuova)\w*\b", t, _ag_re.I))
+    return len(hits) >= 1 and bool(_ag_re.match(r"^\s*(axon[,!]?\s+)?(per favore\s+)?(crea|fissa|prenota|programma|imposta|metti|aggiungi|inserisci|registra|salva|segna|scrivi|manda|invia|ricorda|richiama|ritelefona|sposta|rimanda|anticipa|posticipa|riprogramma|chiudi|aggiorna|cambia|converti|nuovo|nuova|cancella|elimina|annulla|rimuovi|disdici|modifica|correggi|sostituisci|chiama|telefona)\w*\b", t, _ag_re.I))
 
 
 # ---- pianificazione (LLM) ------------------------------------------------------------------------------------------------
@@ -87,6 +91,12 @@ async def _agent_plan(msg: str, user: dict) -> _ag_Optional[dict]:
         "- create_reminder: {label: str (max 60), trigger_at: 'YYYY-MM-DDTHH:MM'} — «ricordami di…», «promemoria per…» NON legato a una telefonata al cliente. Se il promemoria è per RICHIAMARE un cliente usa create_callback.\n"
         "- create_contact: {first_name: str, last_name: str, phone: str, email: str, city: str, company: str, area: 'energy'|'network'} — «crea contatto Mario Rossi 333 1234567 Milano»; 'contact' = null (il contatto NON esiste ancora).\n"
         "- add_note: {text: str} — «aggiungi nota su Rossi: vuole il preventivo» → 'contact' = Rossi, text = il contenuto della nota (senza il nome).\n"
+        "- update_contact: {phone?: str, email?: str, city?: str, company?: str, first_name?: str, last_name?: str, address?: str} — «cambia il numero di Rossi in 333…», «aggiorna l'email di Bianchi». Solo i campi detti.\n"
+        "- delete_contact: {} — «elimina il contatto Rossi», «cancella Bianchi dalla rubrica».\n"
+        "- delete_appointment: {match: str|null (parola del titolo), day: 'YYYY-MM-DD'|null} — «cancella l'appuntamento con Rossi (di domani)».\n"
+        "- update_callback: {new_scheduled_at: 'YYYY-MM-DDTHH:MM'} — «sposta la richiamata di Rossi a venerdì alle 15», «rimanda la ritelefonata di Bianchi a lunedì».\n"
+        "- delete_callback: {} — «cancella la richiamata di Rossi», «annulla la ritelefonata a Bianchi».\n"
+        "- call_contact: {} — «chiama Rossi», «telefona a Bianchi» → avvia la telefonata (il telefono compone il numero).\n"
         "REGOLE: mantieni l'ordine indicato dall'utente; ogni azione che riguarda una persona ha 'contact' = nome come lo ha detto l'utente "
         "(risolvi su un nome dell'elenco CRM se evidente, es. «Mario» → «Mario Rossi» se è l'unico Mario); date relative calcolate dall'ORA ATTUALE; "
         "orari sempre nel futuro; nessuna azione fuori elenco (se l'utente chiede altro, mettila in 'unsupported'). Se manca un dato "
@@ -206,6 +216,91 @@ async def _agent_exec_step(user: dict, step: dict, contact: _ag_Optional[dict]) 
         if not chk:
             raise _AgentStepError("la nota non risulta salvata")
         return {"text": f"Nota aggiunta a {cname}: «{text[:90]}»", "chip": None}
+
+    if action == "update_contact":
+        if not contact:
+            raise _AgentStepError("non ho capito quale contatto modificare")
+        fields = {}
+        for k_src, k_dst in (("phone", "phone"), ("email", "email"), ("city", "address_city"), ("company", "company"), ("first_name", "first_name"), ("last_name", "last_name"), ("address", "address")):
+            v = (p.get(k_src) or "").strip() if isinstance(p.get(k_src), str) else None
+            if v:
+                fields[k_dst] = v
+        if not fields:
+            raise _AgentStepError("non ho capito cosa modificare (numero, email, città, azienda, nome…)")
+        # V50.z502 — STESSA funzione del form «Modifica contatto» (07_contacts.update_contact)
+        await update_contact(contact["contact_id"], ContactUpdate(**fields), user)  # noqa: F821
+        chk = await db.contacts.find_one({"contact_id": contact["contact_id"]}, {"_id": 0, **{k: 1 for k in fields}})  # noqa: F821
+        if not chk or any((chk.get(k) or "") != v for k, v in fields.items()):
+            raise _AgentStepError("la modifica non risulta salvata")
+        return {"text": f"Contatto {cname} aggiornato: " + ", ".join(f"{k.replace('address_city', 'città')} → {v}" for k, v in fields.items()) + f" [[NAV:/contact/{contact['contact_id']}|Apri scheda]]", "chip": None}
+
+    if action == "delete_contact":
+        if not contact:
+            raise _AgentStepError("non ho capito quale contatto eliminare")
+        await delete_contact(contact["contact_id"], user)  # noqa: F821 — stessa funzione del cestino della scheda
+        if await db.contacts.find_one({"contact_id": contact["contact_id"]}, {"_id": 0, "contact_id": 1}):  # noqa: F821
+            raise _AgentStepError("il contatto risulta ancora presente")
+        return {"text": f"Contatto **{cname}** eliminato", "chip": None}
+
+    if action == "delete_appointment":
+        if not contact:
+            raise _AgentStepError("non ho capito di quale cliente è l'appuntamento")
+        q = {"contact_id": contact["contact_id"], "user_id": tid, "done": {"$ne": True}}
+        day = (p.get("day") or "").strip()
+        if day:
+            try:
+                d0 = _ag_dt.strptime(day[:10], "%Y-%m-%d").replace(tzinfo=_AG_ROME)
+                q["start_at"] = {"$gte": d0.astimezone(_ag_tz.utc), "$lt": (d0 + _ag_td(days=1)).astimezone(_ag_tz.utc)}
+            except Exception:  # noqa: BLE001
+                pass
+        match = (p.get("match") or "").strip()
+        if match:
+            q["title"] = {"$regex": _ag_re.escape(match), "$options": "i"}
+        appts = await db.appointments.find(q, {"_id": 0, "appointment_id": 1, "title": 1, "start_at": 1}).sort("start_at", 1).to_list(5)  # noqa: F821
+        if not appts and (match or day):  # il filtro (titolo/giorno) suggerito dall'LLM era troppo stretto → solo per cliente
+            q.pop("title", None); q.pop("start_at", None)
+            appts = await db.appointments.find(q, {"_id": 0, "appointment_id": 1, "title": 1, "start_at": 1}).sort("start_at", 1).to_list(5)  # noqa: F821
+        if not appts:
+            raise _AgentStepError(f"non trovo appuntamenti aperti con {cname}")
+        if len(appts) > 1:
+            raise _AgentStepError(f"{cname} ha {len(appts)} appuntamenti: dimmi quale (giorno o titolo)")
+        a = appts[0]
+        await delete_appointment(a["appointment_id"], user)  # noqa: F821 — stessa funzione del calendario
+        if await db.appointments.find_one({"appointment_id": a["appointment_id"]}, {"_id": 0, "appointment_id": 1}):  # noqa: F821
+            raise _AgentStepError("l'appuntamento risulta ancora presente")
+        return {"text": f"Appuntamento «{a.get('title')}» con {cname} cancellato", "chip": None}
+
+    if action in ("update_callback", "delete_callback"):
+        if not contact:
+            raise _AgentStepError("non ho capito di quale cliente è la richiamata")
+        cbs = await db.callbacks.find({"contact_id": contact["contact_id"], "user_id": tid, "done": {"$ne": True}}, {"_id": 0, "callback_id": 1, "title": 1, "scheduled_at": 1}).sort("scheduled_at", 1).to_list(5)  # noqa: F821
+        if not cbs:
+            raise _AgentStepError(f"non trovo richiamate aperte per {cname}")
+        cb = cbs[0]
+        if action == "delete_callback":
+            await delete_callback(cb["callback_id"], user)  # noqa: F821 — stessa funzione del cestino
+            if await db.callbacks.find_one({"callback_id": cb["callback_id"]}, {"_id": 0, "callback_id": 1}):  # noqa: F821
+                raise _AgentStepError("la richiamata risulta ancora presente")
+            return {"text": f"Richiamata a {cname} cancellata" + (f" (ne restano {len(cbs) - 1})" if len(cbs) > 1 else ""), "chip": None}
+        when = _ag_local(p.get("new_scheduled_at"))
+        if not when:
+            raise _AgentStepError("manca la nuova data della richiamata")
+        if when <= now.astimezone(_AG_ROME):
+            raise _AgentStepError(f"la data indicata ({_ag_fmt(when)}) è già passata")
+        await update_callback(cb["callback_id"], CallbackUpdate(scheduled_at=when.astimezone(_ag_tz.utc)), user)  # noqa: F821 — stessa funzione del form
+        chk = await db.callbacks.find_one({"callback_id": cb["callback_id"]}, {"_id": 0, "scheduled_at": 1})  # noqa: F821
+        if not chk:
+            raise _AgentStepError("la modifica non risulta salvata")
+        return {"text": f"Richiamata a {cname} spostata a **{_ag_fmt(when)}**", "chip": None}
+
+    if action == "call_contact":
+        if not contact:
+            raise _AgentStepError("non ho capito chi chiamare")
+        num = (contact.get("phone") or contact.get("phone_alt") or "").strip()
+        if not num:
+            raise _AgentStepError(f"{cname} non ha un numero di telefono in scheda")
+        tel = _ag_re.sub(r"[^\d+]", "", num)
+        return {"text": f"Chiamo {cname} al {num} [[NAV:tel:{tel}|📞 Chiama {cname}]]", "chip": None, "call": {"phone": num, "tel": tel, "contact_name": cname, "contact_id": contact["contact_id"]}}
 
     if action == "create_appointment":
         start = _ag_local(p.get("start_at"))
