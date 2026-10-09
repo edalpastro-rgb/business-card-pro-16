@@ -586,3 +586,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z490 — Nuovo contatto: bottone Importa (ai-import-btn) → /contact/import-folder (stesso flusso Importazione clienti). Verificato via screenshot."
+
+  - agent: "main"
+    message: "V50.z491 — contact_import_dedupe.py: duplicati (analyze/duplicates/commit merge_into_contact_id; CSV check-duplicates + execute duplicate_strategy + contact_ids). Frontend import-folder (card duplicati + auto-apertura scheda) e contacts-import (strategia duplicati, apertura scheda se 1). UI Nuovo contatto: icona cartella, sottotitolo Documento, spazio banner. Test 3/3 + screenshot."

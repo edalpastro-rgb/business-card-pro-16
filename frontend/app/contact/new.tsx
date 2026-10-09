@@ -1279,17 +1279,20 @@ function NewContactScreen() {
             <Text style={styles.importBtnTxt}>Importa dalla rubrica telefono</Text>
           </Pressable>
 
-          <View style={{ flexDirection: "row", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
+          <View style={{ flexDirection: "row", gap: 6, marginTop: 14, marginBottom: 10, flexWrap: "wrap" }}>{/* V50.z491 — spazio tra banner rubrica e fila bottoni */}
             {/* V50.z490 — stesso flusso «Importazione clienti» della pagina Contatti: file singoli, cartelle e sottocartelle, CSV/Excel, Google Drive */}
             {!isEdit && (
               <Pressable testID="ai-import-btn" onPress={() => router.push("/contact/import-folder" as any)} style={[styles.aiBtn, { backgroundColor: HT.brand }]}>
-                <Ionicons name="cloud-upload-outline" size={16} color="#FFF" />
+                <Ionicons name="folder-open-outline" size={16} color="#FFF" />
                 <Text style={styles.aiBtnTxt}>Importa</Text>
               </Pressable>
             )}
-            <Pressable testID="ai-doc-btn" onPress={() => openAI("doc")} style={[styles.aiBtn, { backgroundColor: HT.violet }]}>
-              <Ionicons name="id-card" size={16} color="#FFF" />
-              <Text style={styles.aiBtnTxt}>Documento</Text>
+            <Pressable testID="ai-doc-btn" onPress={() => openAI("doc")} style={[styles.aiBtn, { backgroundColor: HT.violet, flexDirection: "column", gap: 2 }]}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <Ionicons name="id-card" size={16} color="#FFF" />
+                <Text style={styles.aiBtnTxt}>Documento</Text>
+              </View>
+              <Text style={styles.aiBtnSub} numberOfLines={2}>Carta d&apos;identità ·{"\n"}Biglietto da visita</Text>{/* V50.z491 */}
             </Pressable>
             <Pressable testID="ai-card-btn" onPress={() => openAI("card")} style={[styles.aiBtn, { backgroundColor: '#8B5CF6' }]}>
               <Ionicons name="scan" size={16} color="#FFF" />
@@ -2693,6 +2696,7 @@ const styles = StyleSheet.create({
   importBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: HT.card, padding: 12, borderRadius: theme.radius.md, borderWidth: 1, borderColor: HT.brand, borderStyle: "dashed" },
   aiBtn: { flex: 1, minWidth: 96, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 10, minHeight: 44, borderRadius: theme.radius.md },
   aiBtnTxt: { color: "#FFF", fontWeight: "800", fontSize: 12 },
+  aiBtnSub: { color: "rgba(255,255,255,0.85)", fontWeight: "600", fontSize: 8.5, lineHeight: 10, textAlign: "center" },
   importBtnTxt: { color: HT.brand, fontWeight: "700", fontSize: 14 },
   photoRow: { flexDirection: "row", gap: 10 },
   photoAddBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: HT.card2, padding: 12, borderRadius: theme.radius.md, borderWidth: 1, borderColor: HT.border },

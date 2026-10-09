@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -34,7 +34,13 @@ type Report = {
   custom_columns: string[];
   errors: { row: number; error: string }[];
   total_rows: number;
+  contact_ids?: string[]; // V50.z491
+  merged?: number;
+  skipped_duplicates?: number;
 };
+type DupStrategy = "create" | "skip" | "merge"; // V50.z491
+type DupRow = { row: number; index: number; label: string; existing: { contact_id: string; name: string; contact_code: string }; match: string[] };
+const DUP_MATCH_LABEL: Record<string, string> = { vat_number: "P.IVA", fiscal_code: "CF", email: "email", pec: "PEC", email_alt: "email", phone: "telefono", company: "ragione sociale", name: "nome" };
 
 export default function ContactsImportScreen() {
   const router = useRouter();
@@ -71,6 +77,7 @@ export default function ContactsImportScreen() {
       });
       setMapping(initMap);
       setStep("map");
+      void checkDuplicates(p.rows, initMap);
     } catch (e: any) {
       notify("Errore", e?.message || "Impossibile leggere il file");
     } finally {
@@ -82,11 +89,12 @@ export default function ContactsImportScreen() {
     setMapping((prev) => ({ ...prev, [col]: target }));
   };
 
-  const runImport = async () => {
-    if (!preview) return;
-    // Costruisci mapping finale con custom fields
+  // V50.z491 — Anteprima duplicati: righe che combaciano con contatti già in rubrica + strategia (crea / salta / unisci)
+  const [dupRows, setDupRows] = useState<DupRow[] | null>(null);
+  const [dupStrategy, setDupStrategy] = useState<DupStrategy>("merge");
+  const buildFinalMap = (m: Record<string, string>) => {
     const finalMap: Record<string, string> = {};
-    Object.entries(mapping).forEach(([col, target]) => {
+    Object.entries(m).forEach(([col, target]) => {
       if (target === "custom") {
         const name = customNames[col]?.trim() || col;
         finalMap[col] = `custom:${name}`;
@@ -94,14 +102,37 @@ export default function ContactsImportScreen() {
         finalMap[col] = target;
       }
     });
+    return finalMap;
+  };
+  const checkDuplicates = async (rows: Record<string, string>[], m: Record<string, string>) => {
+    try {
+      const r = await api<{ duplicates: DupRow[] }>("/contacts/import/check-duplicates", { method: "POST", body: { rows, mapping: buildFinalMap(m) } });
+      setDupRows(r.duplicates || []);
+    } catch { setDupRows([]); }
+  };
+  useEffect(() => {
+    if (!preview || step !== "map") return;
+    const t = setTimeout(() => { void checkDuplicates(preview.rows, mapping); }, 700);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapping]);
+
+  const runImport = async () => {
+    if (!preview) return;
+    const finalMap = buildFinalMap(mapping);
     setImporting(true);
     try {
       const r = await api<Report>("/contacts/import/execute", {
         method: "POST",
-        body: { rows: preview.rows, mapping: finalMap, default_area: "energy" },
+        body: { rows: preview.rows, mapping: finalMap, default_area: "energy", duplicate_strategy: dupRows && dupRows.length ? dupStrategy : "create" },
       });
       setReport(r);
       setStep("report");
+      // V50.z491 — Ritorno al contatto: un solo contatto creato/unito → apri subito la sua scheda
+      if ((r.contact_ids || []).length === 1) {
+        notify(r.merged ? "Contatto aggiornato" : "Contatto importato", "Apro la scheda…");
+        setTimeout(() => router.replace(`/contact/${r.contact_ids![0]}` as any), 500);
+      }
     } catch (e: any) {
       notify("Errore import", e?.message || "Import non riuscito");
     } finally {
@@ -215,7 +246,30 @@ export default function ContactsImportScreen() {
                 </View>
               );
             })}
-            <Pressable onPress={runImport} disabled={importing} style={[styles.btnPrimary, importing && { opacity: 0.6 }]}>
+            {/* V50.z491 — Anteprima duplicati */}
+            {dupRows && dupRows.length > 0 && (
+              <View style={styles.dupCard} testID="csv-duplicates">
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Ionicons name="git-merge-outline" size={18} color={HT.warning} />
+                  <Text style={styles.dupTitle}>{dupRows.length} {dupRows.length === 1 ? "riga corrisponde a un contatto" : "righe corrispondono a contatti"} già in rubrica</Text>
+                </View>
+                {dupRows.slice(0, 6).map((d) => (
+                  <Text key={d.row} style={styles.dupLine} numberOfLines={1}>Riga {d.row}: «{d.label}» → {d.existing.name}{d.existing.contact_code ? ` (${d.existing.contact_code})` : ""} · {d.match.map((m) => DUP_MATCH_LABEL[m] || m).join(", ")}</Text>
+                ))}
+                {dupRows.length > 6 && <Text style={styles.dupLine}>…e altre {dupRows.length - 6}</Text>}
+                <Text style={[styles.dupLine, { marginTop: 6, fontWeight: "800" }]}>Cosa fare con i duplicati?</Text>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                  {([["merge", "Unisci ai contatti esistenti"], ["skip", "Salta le righe duplicate"], ["create", "Crea comunque"]] as [DupStrategy, string][]).map(([k, lbl]) => (
+                    <Pressable key={k} onPress={() => setDupStrategy(k)} style={[styles.dupChoice, dupStrategy === k && styles.dupChoiceOn]} testID={`csv-dup-${k}`}>
+                      <Ionicons name={dupStrategy === k ? "radio-button-on" : "radio-button-off"} size={16} color={dupStrategy === k ? HT.brand : HT.muted} />
+                      <Text style={[styles.dupChoiceTxt, dupStrategy === k && { color: HT.brand }]}>{lbl}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Text style={styles.dupHint}>«Unisci» compila solo i campi vuoti della scheda esistente: quanto c'è già non viene sovrascritto.</Text>
+              </View>
+            )}
+            <Pressable onPress={runImport} disabled={importing} style={[styles.btnPrimary, importing && { opacity: 0.6 }]} testID="csv-run-import">
               {importing ? <ActivityIndicator color="#FFF" /> : (
                 <>
                   <Ionicons name="checkmark-circle" size={20} color="#FFF" />
@@ -232,6 +286,8 @@ export default function ContactsImportScreen() {
               <Ionicons name="checkmark-circle" size={32} color="#16A34A" />
               <Text style={styles.reportBig}>{report.imported}</Text>
               <Text style={styles.reportLbl}>Contatti importati su {report.total_rows}</Text>
+              {!!report.merged && <Text style={styles.reportLbl}>{report.merged} uniti a schede esistenti</Text>}
+              {!!report.skipped_duplicates && <Text style={styles.reportLbl}>{report.skipped_duplicates} duplicati saltati</Text>}
             </View>
             {report.ignored_columns.length > 0 && (
               <View style={styles.reportRow}>
@@ -304,6 +360,13 @@ const styles = StyleSheet.create({
   customHint: { fontSize: 10, color: HT.muted, marginTop: 2, fontStyle: "italic" },
   reportCard: { alignItems: "center", padding: 20, borderRadius: 14, borderWidth: 2, gap: 6 },
   reportBig: { fontSize: 42, fontWeight: "900", color: HT.success },
+  dupCard: { backgroundColor: HT.warningTint, borderWidth: 1, borderColor: HT.warning, borderRadius: 12, padding: 12, gap: 6, marginTop: 12 },
+  dupTitle: { color: HT.text, fontWeight: "800", fontSize: 13.5, flex: 1 },
+  dupLine: { color: HT.text2, fontSize: 12 },
+  dupChoice: { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderColor: HT.border, borderRadius: 10, paddingHorizontal: 10, minHeight: 40, backgroundColor: HT.card },
+  dupChoiceOn: { borderColor: HT.brand },
+  dupChoiceTxt: { color: HT.text2, fontWeight: "700", fontSize: 12.5 },
+  dupHint: { color: HT.muted, fontSize: 11.5 },
   reportLbl: { fontSize: 13, color: HT.success, fontWeight: "700" },
   reportRow: { backgroundColor: HT.card2, borderRadius: 10, borderWidth: 1, borderColor: HT.border, padding: 12, gap: 4 },
   reportRowLbl: { fontSize: 12, fontWeight: "800", color: HT.text },

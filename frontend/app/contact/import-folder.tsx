@@ -2,7 +2,7 @@
 // 1) selezione cartella (web: input webkitdirectory con sottocartelle; mobile: selezione multipla file) → 2) upload file per file
 // con percorso relativo → 3) analisi (visura → anagrafica) → 4) anteprima: campi mancanti in rosso, cellulare+email obbligatori,
 // stato cliente attivo + data attivazione (anche retroattiva) → 5) conferma → scheda creata con tutti i documenti (cartelle preservate).
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Platform, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -37,7 +37,9 @@ function scanDirectory(dir: Directory, prefix: string, out: PickedFile[], depth 
   }
 }
 type FileMeta = { id: string; name: string; rel_path: string; folder: string; size: number; mime: string; pages?: number; scanned?: boolean; is_visura?: boolean };
-type Analysis = { fields: Record<string, string>; sources: Record<string, string>; missing: string[]; required: string[]; labels: Record<string, string>; visura_file: string | null; files: FileMeta[]; warnings: string[] };
+type Duplicate = { contact_id: string; name: string; company: string; city: string; phone: string; email: string; contact_code: string; match: string[] }; // V50.z491
+type Analysis = { fields: Record<string, string>; sources: Record<string, string>; missing: string[]; required: string[]; labels: Record<string, string>; visura_file: string | null; files: FileMeta[]; warnings: string[]; duplicates?: Duplicate[] };
+const MATCH_LABEL: Record<string, string> = { vat_number: "P.IVA", fiscal_code: "codice fiscale", email: "email", pec: "PEC", email_alt: "email", phone: "telefono", company: "ragione sociale", name: "nome e cognome" };
 type Step = "pick" | "upload" | "analyze" | "preview" | "commit" | "done";
 type Mode = "folder" | "csv" | "drive";
 type DriveFolder = { id: string; name: string; path?: string };
@@ -57,7 +59,11 @@ export default function ContactImportFolderScreen() {
   const [fields, setFields] = useState<Record<string, string>>({});
   const [active, setActive] = useState(true);
   const [since, setSince] = useState(todayIso());
-  const [result, setResult] = useState<{ contact_id: string; company: string; stats: { files: number; before: number; after: number; compressed: number; over_tolerance: number } } | null>(null);
+  const [result, setResult] = useState<{ contact_id: string; company: string; merged?: boolean; stats: { files: number; before: number; after: number; compressed: number; over_tolerance: number } } | null>(null);
+  // V50.z491 — anteprima duplicati: null = crea nuova scheda, altrimenti contact_id della scheda esistente da unire
+  const [mergeInto, setMergeInto] = useState<string | null>(null);
+  const [dups, setDups] = useState<Duplicate[]>([]);
+  const dupTimer = useRef<any>(null);
   const webInputRef = useRef<any>(null);
   // V50.z426 — MODULO «IMPORTAZIONE CLIENTI»: tre modalità in un'unica schermata
   const [mode, setMode] = useState<Mode>("folder");
@@ -204,13 +210,28 @@ export default function ContactImportFolderScreen() {
   const missingRequired = useMemo(() => (analysis?.required || ["whatsapp", "email"]).filter((k) => !(fields[k] || "").trim()), [fields, analysis]);
   const sinceValid = /^\d{4}-\d{2}-\d{2}$/.test(since);
 
+  // V50.z491 — i duplicati arrivano con l'analisi; dopo ogni modifica ai campi si ricalcolano (debounce 600 ms)
+  useEffect(() => { setDups(analysis?.duplicates || []); setMergeInto(null); }, [analysis]);
+  useEffect(() => {
+    if (!sessionId || step !== "preview") return;
+    if (dupTimer.current) clearTimeout(dupTimer.current);
+    dupTimer.current = setTimeout(async () => {
+      try { const r = await api<{ duplicates: Duplicate[] }>(`/contacts/import-folder/${sessionId}/duplicates`, { method: "POST", body: { fields } }); setDups(r.duplicates || []); if (mergeInto && !(r.duplicates || []).some((d) => d.contact_id === mergeInto)) setMergeInto(null); } catch { /* ignore */ }
+    }, 600);
+    return () => { if (dupTimer.current) clearTimeout(dupTimer.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fields, sessionId, step]);
+
   const commit = async () => {
     if (!sessionId || missingRequired.length || !sinceValid) return;
     try {
       setStep("commit");
-      const r = await api(`/contacts/import-folder/${sessionId}/commit`, { method: "POST", body: { fields, is_active_client: active, client_since: active ? since : null } });
+      const r = await api<{ contact_id: string; company: string; merged?: boolean; stats: any }>(`/contacts/import-folder/${sessionId}/commit`, { method: "POST", body: { fields, is_active_client: active, client_since: active ? since : null, merge_into_contact_id: mergeInto || undefined } });
       setResult(r);
       setStep("done");
+      // V50.z491 — Ritorno al contatto: apri subito la scheda appena creata (o unita)
+      notify(r.merged ? "Scheda aggiornata" : "Scheda creata", `${r.company} · ${r.stats?.files ?? 0} documenti allegati`);
+      setTimeout(() => router.replace(`/contact/${r.contact_id}` as any), 400);
     } catch (e: any) {
       notify("Errore", e?.message || "Creazione scheda non riuscita");
       setStep("preview");
@@ -384,11 +405,39 @@ export default function ContactImportFolderScreen() {
               <Text style={[s.muted, { marginTop: 6 }]}>I PDF scansionati vengono compressi verso 200 KB (tolleranza ~300 KB) senza rinominare né spostare nulla.</Text>
             </View>
 
+            {/* V50.z491 — Anteprima duplicati: contatti già presenti che combaciano con i dati estratti */}
+            {dups.length > 0 && (
+              <View style={[s.card, { borderColor: HT.warning }]} testID="imp-duplicates">
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Ionicons name="git-merge-outline" size={18} color={HT.warning} />
+                  <Text style={[s.cardTitle, { flex: 1 }]}>{dups.length === 1 ? "Questo cliente sembra già in rubrica" : `${dups.length} contatti simili già in rubrica`}</Text>
+                </View>
+                <Text style={s.muted}>Scegli se unire i documenti e i dati alla scheda esistente (i campi già compilati restano) oppure creare una nuova scheda.</Text>
+                {dups.map((d) => {
+                  const on = mergeInto === d.contact_id;
+                  return (
+                    <Pressable key={d.contact_id} onPress={() => setMergeInto(on ? null : d.contact_id)} style={[s.dupRow, on && s.dupRowOn]} testID={`imp-dup-${d.contact_id}`}>
+                      <Ionicons name={on ? "radio-button-on" : "radio-button-off"} size={20} color={on ? HT.violet : HT.muted} />
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={s.dupName} numberOfLines={1}>{d.name}{d.contact_code ? ` · ${d.contact_code}` : ""}</Text>
+                        <Text style={s.muted} numberOfLines={1}>{[d.city, d.phone, d.email].filter(Boolean).join(" · ") || "—"}</Text>
+                        <Text style={s.dupMatch} numberOfLines={1}>Coincide: {d.match.map((m) => MATCH_LABEL[m] || m).join(", ")}</Text>
+                      </View>
+                      <Pressable onPress={() => router.push(`/contact/${d.contact_id}` as any)} hitSlop={8} testID={`imp-dup-open-${d.contact_id}`}><Ionicons name="open-outline" size={18} color={HT.muted} /></Pressable>
+                    </Pressable>
+                  );
+                })}
+                <Pressable onPress={() => setMergeInto(null)} style={[s.dupRow, !mergeInto && s.dupRowOn]} testID="imp-dup-create-new">
+                  <Ionicons name={!mergeInto ? "radio-button-on" : "radio-button-off"} size={20} color={!mergeInto ? HT.violet : HT.muted} />
+                  <Text style={[s.dupName, { flex: 1 }]}>Crea comunque una nuova scheda</Text>
+                </Pressable>
+              </View>
+            )}
             {missingRequired.length > 0 && <Text style={s.errLine}>Per confermare inserisci: {missingRequired.map((k) => labels[k] || k).join(", ")}</Text>}
             <View style={s.row}>
               <Pressable style={s.secondary} onPress={() => { setStep("pick"); setPicked([]); setAnalysis(null); }} testID="imp-cancel"><Text style={s.secondaryTxt}>Annulla</Text></Pressable>
               <Pressable style={[s.primary, (missingRequired.length > 0 || !sinceValid) && s.disabled]} disabled={missingRequired.length > 0 || !sinceValid} onPress={commit} testID="imp-confirm">
-                <Ionicons name="checkmark-circle-outline" size={18} color="#fff" /><Text style={s.primaryTxt}>Crea scheda cliente{missingNow.length ? ` (${missingNow.length} campi vuoti)` : ""}</Text>
+                <Ionicons name={mergeInto ? "git-merge-outline" : "checkmark-circle-outline"} size={18} color="#fff" /><Text style={s.primaryTxt}>{mergeInto ? "Unisci alla scheda esistente" : `Crea scheda cliente${missingNow.length ? ` (${missingNow.length} campi vuoti)` : ""}`}</Text>
               </Pressable>
             </View>
           </>
@@ -396,7 +445,7 @@ export default function ContactImportFolderScreen() {
 
         {step === "done" && result && (
           <View style={s.card}>
-            <Text style={s.cardTitle}>✓ Scheda «{result.company}» creata</Text>
+            <Text style={s.cardTitle}>✓ Scheda «{result.company}» {result.merged ? "aggiornata" : "creata"} · apro la scheda…</Text>
             <Text style={s.fileLine}>{result.stats.files} documenti allegati · {fmtKb(result.stats.before)} → {fmtKb(result.stats.after)} ({result.stats.compressed} compressi{result.stats.over_tolerance ? `, ${result.stats.over_tolerance} oltre 300 KB per restare leggibili` : ""})</Text>
             <Text style={s.muted}>I dati estratti sono già disponibili ad Axon per la compilazione automatica dei contratti.</Text>
             <Pressable style={[s.primary, { marginTop: 12 }]} onPress={() => router.replace(`/contact/${result.contact_id}` as any)} testID="imp-open-contact"><Ionicons name="person-outline" size={18} color="#fff" /><Text style={s.primaryTxt}>Apri la scheda</Text></Pressable>
@@ -431,6 +480,10 @@ const s = StyleSheet.create({
   warn: { flexDirection: "row", gap: 8, alignItems: "center", backgroundColor: HT.warningTint, padding: 10, borderRadius: 10 },
   warnTxt: { color: HT.warning, fontSize: 13, flex: 1 },
   okLine: { color: HT.success, fontWeight: "700", fontSize: 13 },
+  dupRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: HT.border, minHeight: 48 },
+  dupRowOn: { borderColor: HT.violet, backgroundColor: HT.violetTint },
+  dupName: { color: HT.text, fontWeight: "800", fontSize: 13.5 },
+  dupMatch: { color: HT.warning, fontSize: 11.5, fontWeight: "700" },
   errLine: { color: HT.danger, fontWeight: "700", fontSize: 13 },
   sectionTitle: { color: HT.text, fontWeight: "800", fontSize: 15, marginTop: 6 },
   fieldRow: { gap: 4, marginBottom: 6 },

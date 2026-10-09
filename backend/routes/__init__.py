@@ -139,6 +139,7 @@ MODULES = [
     "wake_samples.py",  # V50.z390 — Raccolta pubblica campioni audio wake-word «Axon» (/public/wake-samples, pronuncia TTS) + pannello Super Master (stats, export.zip)
     "corporate_gym_rules_v2.py",  # V50.z396 — MOD 4-8 Gym: cliente V2, 8 blocchi WIN-WIN, esaminatore ANT, risposta modello, KB Obiezioni da pag. 13 (wrap di _cgym_customer_turn/_cgym_ww_phase/_cgym_scenario_for/_cga_area/_cga_client_system)
     "contact_import_folder.py",  # V50.z424 — Import cliente da cartella documenti (visura → anagrafica, allegati compressi, cartelle preservate)
+    "contact_import_dedupe.py",  # V50.z491 — anteprima duplicati + unione (cartella/Drive/CSV), contact_ids nella risposta execute (DOPO contact_import_folder e 07_contacts)
     "axon_landing_ref.py",
     "user_prefs_sync.py",  # V50.z428 — GET/PUT /me/prefs: preferenze utente (PIN, tema, widget sidebar…) legate all account
     "axon_register_security.py",  # V50.z434 — «Fort Knox» registrazione (rate limit, honeypot, PoW, Turnstile, email usa-e-getta) + Email di benvenuto configurabile (Master)
