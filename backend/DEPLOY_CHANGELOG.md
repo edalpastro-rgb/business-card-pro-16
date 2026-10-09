@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-09 | D2026.10.09-1603 | Allarme prioritario eventi critici: banner rosso in Home (finché non chiuso), push urgente non silenziabile, Axon avvisa a voce alla prima domanda successiva; collegato allo stress test notturno (soglia/calo) e al riavvio del watchdog |
 | 2026-10-09 | D2026.10.09-1535 | Axon Drive: richiamata/nota/contatto vocali salvati come dal form manuale (prima invisibili) + migrazione richiamate legacy; nuovi intent ritelefonate del giorno, ultima nota, portami da <cliente> (scelta indirizzo, Maps/Waze); wake word «Axon, modalità drive» |
 | 2026-10-09 | D2026.10.09-1403 | V50.z493 landing pubblica + box paritetici + suono trova-telefono personalizzabile + foto di chi lo trova |
 | 2026-10-09 | D2026.10.09-1347 | V50.z492 Trova il mio telefono via push/VPS (gerarchia dispositivi, squillo dedicato, vibrazione continua, stop remoto) |

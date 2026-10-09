@@ -13,6 +13,7 @@
 
 import asyncio as _wd_asyncio
 import gc as _wd_gc
+import json as _wd_json
 import os as _wd_os
 import threading as _wd_threading
 import time as _wd_time
@@ -42,6 +43,11 @@ def _wd_schedule_hard_restart(reason: str, delay: float = 1.5) -> None:
         return
     _wd_state["restart_scheduled"] = True
     logger.error("[watchdog] HARD RESTART scheduled in %.1fs — %s", delay, reason)
+    try:  # V50.z496 — marker su file: al riavvio axon_critical_events.py lo trasforma in ALLARME PRIORITARIO per il Super Master
+        with open("/tmp/axon_watchdog_restart.json", "w", encoding="utf-8") as _f:
+            _f.write(_wd_json.dumps({"reason": reason, "at": _wd_time.time()}))
+    except Exception:  # noqa: BLE001
+        pass
 
     def _die():
         _wd_time.sleep(delay)

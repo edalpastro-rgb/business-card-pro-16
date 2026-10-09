@@ -691,6 +691,18 @@ async def _st_nightly_after_finalize(run: dict):
                                          "route": f"/axon-stress-report?run={run['run_id']}", "run_id": run["run_id"], "seen": False, "created_at": utcnow()})
     except Exception as e:
         logger.warning("[STRESS] alert insert failed: %s", e)
+    if reasons:
+        # V50.z496 — ALLARME PRIORITARIO (banner rosso in Home + push CRITICAL + Axon lo dice a voce alla prossima domanda)
+        try:
+            crit_msg = (f"Stress test notturno: prestazioni Axon calate al {pct}%, era {prev_pct}%. Richiede attenzione." if prev_pct is not None
+                        else f"Stress test notturno: prestazioni Axon al {pct}% (soglia {cfg['threshold_pct']}%). Richiede attenzione.")
+            await axon_critical_alert(uid, "stress_test", "⚠️ Stress test notturno: qualità Axon in calo", crit_msg,  # noqa: F821
+                                      route=f"/axon-stress-report?run={run['run_id']}", dedupe_key=f"stress-{run['run_id']}",
+                                      voice_text="Attenzione: stanotte lo stress test ha rilevato un problema importante. Vuoi che ti mostri i dettagli?",
+                                      extra={"pct": pct, "prev_pct": prev_pct, "threshold_pct": cfg["threshold_pct"], "reasons": reasons, "run_id": run["run_id"]})
+        except Exception as e:  # noqa: BLE001
+            logger.warning("[STRESS] critical alert failed: %s", e)
+        return  # il push CRITICAL è già partito dall'allarme prioritario
     try:
         await send_push([uid], {"title": title, "message": msg, "deeplink": f"/axon-stress-report?run={run['run_id']}", "type": "stress_quality"}, idempotency_key=f"stress-{run['run_id']}")  # noqa: F821
     except Exception as e:

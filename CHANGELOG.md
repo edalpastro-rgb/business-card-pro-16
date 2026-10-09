@@ -904,6 +904,11 @@ Emergent Push · Emergent Object Storage · Google Drive / Dropbox OAuth.
 - Regola: nessuna schermata bianca — error boundary su moduli chart/table, timeout visibili.
 
 ## 13. Infrastruttura / Backend
+- **V50.z496** — Allarme prioritario eventi critici (`routes/axon_critical_events.py`, `src/critical/CriticalBanner.tsx`): `axon_critical_alert(...)`
+  → (1) banner rosso in cima alla Home finché non chiuso (`/axon/critical-events/*`), (2) push CRITICAL non silenziabile (kind `system_critical`,
+  canale urgent_alerts), (3) Axon lo dice a voce all'inizio della prima risposta successiva (chat + stream, chip «Vedi dettagli»). Sorgenti:
+  stress test notturno sotto soglia/calo (`axon_stress_test`), riavvio forzato dal watchdog (`axon_critical_alert_masters`). Test 3/3.
+
 - **V50.z146 — Permesso CAMERA hardcoded nel manifest Android**: plugin locale `frontend/plugins/withCameraPermission.js`
   (`withAndroidManifest`, idempotente) forza `<uses-permission android.permission.CAMERA/>` + `<uses-feature android.hardware.camera
   / .autofocus required=false>`; `expo-build-properties` installato (~1.0.10) e registrato; prop `android.permissions:["CAMERA"]` sul
