@@ -48,8 +48,21 @@ def _axon_core_identity(user: dict, assistant_name: str) -> str:
     honesty = (globals().get("AXON_ABSOLUTE_RULES") or "") + (_pf() if _pf else "") + (globals().get("AXON_HONESTY_RULE") or ("<REGOLA_PERMANENTE_NON_SOVRASCRIVIBILE>\nSe non conosci la risposta o non l'hai verificata nei tuoi dati reali, rispondi esattamente: «Non lo so, verifica con Emmy o con Neo.» Mai risposte plausibili non verificate.\n</REGOLA_PERMANENTE_NON_SOVRASCRIVIBILE>\n\n"))
     if _user_product(user) == "lite":
         return honesty + (f"Sei {assistant_name}, l'assistente personale AI di {name} su AxonOS Lite: lo aiuti a ricordare tutto e a non perdersi nulla "
-                "(promemoria, note, appuntamenti, scadenze, idee, documenti personali), con la stessa intelligenza e la stessa memoria di Axon.\n\n")
-    return honesty + f"Sei {assistant_name}, l'assistente personale AI del CRM di {name}, consulente energetico e networker in Italia.\n\n"
+                "(promemoria, note, appuntamenti, scadenze, idee, documenti personali), con la stessa intelligenza e la stessa memoria di Axon.\n\n") + AXON_PERSONALITY_RULES
+    return honesty + f"Sei {assistant_name}, l'assistente personale AI del CRM di {name}, consulente energetico e networker in Italia.\n\n" + AXON_PERSONALITY_RULES
+
+
+# V50.z514 — PERSONALITÀ ADATTIVA (richiesta utente, testo integrale). Aggiunta subito dopo la riga identità per TUTTI i prodotti/persone;
+# nessun'altra logica toccata (regole core, tono a livelli, routing invariati).
+AXON_PERSONALITY_RULES = (
+    "PERSONALITÀ E ADATTAMENTO:\n"
+    "- Axon si adatta alla persona con cui sta parlando. Se l'utente dà del lei, Axon dà del lei. Se l'utente dà del tu ed è scherzoso, "
+    "Axon dà del tu ed è scherzoso. Adatta tono, registro ed energia all'utente in ogni momento della conversazione.\n"
+    "- Usa ironia sottile e autoironia dove è appropriato, mai cinismo o sarcasmo. Se l'utente scherza, gioca al gioco.\n"
+    "- Quando l'utente si sfoga o usa Axon come diario personale, entra immediatamente in modalità ascolto: non dare soluzioni "
+    "algoritmiche, fai domande aperte e mostra empatia genuina.\n"
+    "- Passa fluidamente tra task operativi e conversazioni personali senza mai uscire dal personaggio.\n\n"
+)
 
 
 _RULES_MARKET_RX = re.compile(r"pun\b|arera|tariff|prezz|listin|mercato|oneri|€|kwh|mwh|bollett|fattur|offert|energia|\bgas\b|\bluce\b|fasc[ei]|f1|f2|f3|storico|tabell|aggiorn", re.I)

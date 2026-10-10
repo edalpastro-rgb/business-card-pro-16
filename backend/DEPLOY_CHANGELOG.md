@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-10 | D2026.10.10-1629 | System prompt Axon: aggiunta sezione PERSONALITÀ E ADATTAMENTO (lei/tu e registro speculari all'utente, ironia sottile mai cinismo, modalità ascolto quando l'utente si sfoga, passaggio fluido operativo↔personale) subito dopo la riga identità per tutti i prodotti; nessun'altra logica toccata |
 | 2026-10-10 | D2026.10.10-1609 | Modello Axon: claude-sonnet-4-5 (e variante datata -20250929) → claude-haiku-4-5 in tutti i 15 punti del codice (12 moduli: chat/stream, agent, emergenze, CTE, scadenze, salute, recensioni, admin clienti, trascrizioni chiamate, gym); nessun'altra modifica |
 | 2026-10-10 | D2026.10.10-1542 | Axon LLM: patch centrale LlmChat.with_model → OGNI chiamata Claude di qualsiasi modulo (Drive, memoria, proattivo, wizard, sveglie, apprendimento/stress) usa ANTHROPIC_API_KEY diretta se presente (prima solo 19/21: gli altri moduli finivano ancora sulla Universal Key → daily spend limit); lettura robusta della chiave (spazi/virgolette); log all'avvio «ANTHROPIC_API_KEY presente: True/False» + formato/prefisso e log alla prima chiamata Claude con la rotta effettiva |
 | 2026-10-10 | D2026.10.10-1451 | Diagnostica PKG_VERSION esplicita (tag, conteggio helper ANTHROPIC_API_KEY in 19/21, md5); contenuto invariato rispetto a D2026.10.10-1444 |

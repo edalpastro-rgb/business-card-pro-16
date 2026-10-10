@@ -7689,3 +7689,6 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 
 ## V50.z513 — Modello Axon: claude-sonnet-4-5 → claude-haiku-4-5
 - Sostituiti tutti i 15 riferimenti a `claude-sonnet-4-5` / `claude-sonnet-4-5-20250929` in 12 moduli (19, 21, 22, 14, 15, 25, 35, 36, axon_agent, axon_emergency, call_transcripts, cgym_areas). Restano invariati i moduli che usano `claude-sonnet-5` (corporate_gym, 27_teach_ai_kb, 30, 32, 25 banner, 37) perché non rientrano nella richiesta. Verifica log: `LiteLLM completion() model= claude-haiku-4-5; provider = anthropic`.
+
+## V50.z514 — System prompt Axon: PERSONALITÀ E ADATTAMENTO
+- `routes/axon_core.py`: costante `AXON_PERSONALITY_RULES` (testo integrale dell'utente: lei/tu speculare, ironia sottile mai cinismo, modalità ascolto per sfoghi/diario, passaggio fluido operativo↔personale) accodata alla riga identità in `_axon_core_identity` per advisor e lite (la persona «personal» la eredita: il `replace` della riga CRM resta valido). Nessun'altra logica toccata. Verifica in-process OK.
