@@ -70,11 +70,13 @@ _RULES_DRIVE_RX = re.compile(r"drive|dropbox|cartell|\bfile\b|document|pdf|acces
 _RULES_CHART_RX = re.compile(r"grafic|andamento|torta|barre|linee|excel|csv|xlsx|trend|serie", re.I)
 
 
-def _axon_core_rules(assistant_language: str, msg: str = "") -> str:
+def _axon_core_rules(assistant_language: str, msg: str = "", all_blocks: bool = False) -> str:
     """V50.z421 — REGOLE core del system prompt. Le regole sempre valide (lingua, priorità CRM, dati CRM) sono fisse; i blocchi
-    DATI DI MERCATO / AGGIORNAMENTO / TABELLE, GOOGLE DRIVE e GRAFICI (~1.7k car.) entrano solo se il messaggio li riguarda."""
+    DATI DI MERCATO / AGGIORNAMENTO / TABELLE, GOOGLE DRIVE e GRAFICI (~1.7k car.) entrano solo se il messaggio li riguarda.
+    V50.z518 — `all_blocks=True`: includi tutti i blocchi (indipendente dal messaggio) → il blocco diventa STATICO e cacheable
+    con il prompt caching di Anthropic (la lettura dalla cache costa il 10%: conviene anche se un po' più lungo)."""
     m = msg or ""
-    market = bool(_RULES_MARKET_RX.search(m))
+    market = all_blocks or bool(_RULES_MARKET_RX.search(m))
     out = (
         "REGOLE:\n"
         f"- Rispondi SEMPRE in {assistant_language} (anche se l'utente scrive in un'altra lingua); tono professionale e amichevole, conciso; date DD/MM/YYYY HH:MM (ora italiana).\n"
@@ -87,9 +89,9 @@ def _axon_core_rules(assistant_language: str, msg: str = "") -> str:
             "- AGGIORNAMENTO DATI: se chiedono di aggiornare tabella/listino/storico senza fonti nuove (allegato o ricerca web con quei numeri): «Non ho ancora ricevuto i dati aggiornati per <periodo>: carica il PDF/foglio o abilita la ricerca web». Mai riproporre la tabella vecchia come aggiornata né inventare valori; se la ripeti apri con «Dati fino a <mese/anno>».\n"
             "- TABELLE DATI (PUN mensile, tariffe, storico, listino…): ESCLUSIVAMENTE la tabella Markdown, colonne centrate (`:---:`), per il PUN `| Mese | PUN monorario €/kWh | F1 €/kWh | F2 €/kWh | F3 €/kWh |`; ZERO testo/note/disclaimer prima o dopo; valori mancanti → `n/d` nella cella.\n"
         )
-    if _RULES_DRIVE_RX.search(m):
+    if all_blocks or _RULES_DRIVE_RX.search(m):
         out += "- GOOGLE DRIVE / DROPBOX: sezione «GOOGLE DRIVE — INDICE AUTOMATICO» (cartelle monitorate dal Master, Impostazioni → Google Drive) → usala; a «hai accesso al Drive? che cartella vedi?» rispondi SÌ ed elenca (o riporta «indice in costruzione»/«non collegato»). Allegato manuale dall'icona G/Dropbox → sezione ALLEGATI. MAI «non ho accesso a Google Drive» se esiste l'indice.\n"
-    if _RULES_CHART_RX.search(m):
+    if all_blocks or _RULES_CHART_RX.search(m):
         out += "- 📊 GRAFICI solo se richiesti («fammi un grafico», «andamento», «torta», «barre», «linee») o analizzando Excel/CSV con serie numeriche: blocco fenced ```chart``` con JSON puro, es. {\"type\":\"bar\",\"title\":\"Consumo mensile kWh\",\"labels\":[\"Gen\",\"Feb\"],\"datasets\":[{\"label\":\"kWh\",\"data\":[210,190]}],\"unit\":\"kWh\"}; tipi `bar`, `line`, `pie` (`slices:[{name,value,color?}]`); max 12 punti numerici; <3 punti → tabella; solo dati REALI del contesto/allegati.\n"
     else:
         out += "- Grafici (blocco ```chart```) solo su richiesta esplicita; tabelle Markdown solo per dati tabellari richiesti.\n"
@@ -119,6 +121,29 @@ def _axon_product_section(user: dict) -> str:
             "NON dare la risposta, nemmeno in una parola: una frase gentile («Non è il mio campo qui in AdvisorOS 🙂») e riporta l'utente alle funzioni dell'app "
             "(clienti, appuntamenti, fatture, documenti). Eccezioni ammesse perché servono al lavoro: meteo, calcoli/conversioni, PUN/energia, normativa di settore, "
             "traduzioni e testi per clienti.\n")
+
+
+# V50.z518 — PROMPT CACHING (Anthropic `cache_control: ephemeral`). Il blocco STATICO del system prompt (identità + personalità +
+# regole complete + sezione prodotto/mappa app) è racchiuso tra due sentinelle; al momento dell'invio (patch LlmChat in 19) viene
+# estratto, messo PER PRIMO e marcato cacheable, mentre tutto il resto (ora, snapshot CRM, RAG, memoria, sezioni dinamiche dei
+# wrapper, anche se prependute) va in un secondo blocco non cacheato. Così il prefisso è identico tra una richiesta e l'altra della
+# stessa sessione → fino al 90% di sconto sull'input di quel blocco.
+AXON_STATIC_BEGIN = "<<<AXON_STATIC_BEGIN>>>"
+AXON_STATIC_END = "<<<AXON_STATIC_END>>>"
+
+
+def _axon_static_block(user: dict, assistant_name: str, assistant_language: str) -> str:
+    return AXON_STATIC_BEGIN + _axon_core_identity(user, assistant_name) + _axon_core_rules(assistant_language, "", all_blocks=True) + _axon_product_section(user) + AXON_STATIC_END + "\n"
+
+
+def axon_split_static(system_message: str):
+    """→ (static, rest) oppure (None, system_message_senza_sentinelle)."""
+    a = system_message.find(AXON_STATIC_BEGIN); b = system_message.find(AXON_STATIC_END)
+    if a < 0 or b < 0 or b < a:
+        return None, system_message.replace(AXON_STATIC_BEGIN, "").replace(AXON_STATIC_END, "")
+    static = system_message[a + len(AXON_STATIC_BEGIN):b]
+    rest = (system_message[:a] + system_message[b + len(AXON_STATIC_END):]).lstrip("\n")
+    return static, rest
 
 
 @api_router.get("/axon/core/manifest")

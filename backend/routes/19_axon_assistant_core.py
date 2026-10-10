@@ -83,6 +83,29 @@ def _axon_patch_llmchat() -> None:
         return self
 
     LlmChat.with_model = with_model  # type: ignore[method-assign]
+
+    # V50.z518 — PROMPT CACHING: il blocco statico del system prompt (sentinelle di axon_core.axon_split_static) viene inviato
+    # per primo come blocco con `cache_control: ephemeral` (solo chiave Anthropic diretta: il proxy Emergent parla formato OpenAI
+    # e non accetta i content-block del system). Con chiave Emergent le sentinelle vengono semplicemente rimosse.
+    _orig_build = LlmChat._build_completion_params
+
+    def _build_completion_params(self, messages, include_tools=False):
+        params = _orig_build(self, messages, include_tools)
+        msgs = params.get("messages") or []
+        if msgs and msgs[0].get("role") == "system" and isinstance(msgs[0].get("content"), str) and "<<<AXON_STATIC_BEGIN>>>" in msgs[0]["content"]:
+            static, rest = axon_split_static(msgs[0]["content"])  # noqa: F821 — axon_core.py (stesso namespace)
+            direct = self.provider == "anthropic" and not self._is_emergent_key(self.api_key)
+            if static and direct:
+                blocks = [{"type": "text", "text": static, "cache_control": {"type": "ephemeral"}}]
+                if rest.strip():
+                    blocks.append({"type": "text", "text": rest})
+                new0 = {**msgs[0], "content": blocks}
+            else:
+                new0 = {**msgs[0], "content": (static or "") + rest}
+            params["messages"] = [new0] + list(msgs[1:])
+        return params
+
+    LlmChat._build_completion_params = _build_completion_params  # type: ignore[method-assign]
     LlmChat._axon_patched = True  # type: ignore[attr-defined]
 
 

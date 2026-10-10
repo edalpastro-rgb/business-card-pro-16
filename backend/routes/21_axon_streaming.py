@@ -295,7 +295,7 @@ async def _prepare_assistant_prompt(
     # vengono scartati automaticamente. Esclusi anche i messaggi «puliti» con POST /assistant/history/clear (archived=True, stessa sessione).
     hist_cursor = db.assistant_messages.find(
         {"user_id": user["user_id"], "session_id": session_id, "archived": {"$ne": True}},
-        {"_id": 0, "role": 1, "content": 1, "created_at": 1},
+        {"_id": 0, "role": 1, "content": 1, "created_at": 1, "summary": 1},
     ).sort("created_at", -1).limit(AXON_HISTORY_WINDOW)
     history = [h async for h in hist_cursor]
     history.reverse()
@@ -558,9 +558,9 @@ async def _prepare_assistant_prompt(
         few_shot_section = ""
 
     system_message = (
-        _axon_core_identity(user, assistant_name) +  # V50.z323 — Axon Core: identità per prodotto (advisor | lite)
-        # V50.z309 — REGOLE CORE CONSOLIDATE (stesso comportamento, ~60% più corte: eliminati doppioni e ripetizioni)
-        _axon_core_rules(assistant_language, msg) +  # V50.z421 — regole core: blocchi mercato/Drive/tabelle/grafici solo se pertinenti al messaggio
+        # V50.z518 — blocco STATICO cacheable (identità + personalità + regole complete + sezione prodotto) tra sentinelle: la patch
+        # LlmChat lo invia per primo con cache_control=ephemeral. Prima: identità + regole dipendenti dal messaggio (prefisso instabile).
+        _axon_static_block(user, assistant_name, assistant_language) +
         f"ORA ATTUALE: {context.get('ora_attuale', '')}\n\n"
         "SNAPSHOT_CRM (JSON):\n"
         f"{ctx_json}\n"
@@ -644,7 +644,7 @@ async def _prepare_assistant_prompt(
         system_message += await _axon_interest_section(user["user_id"])  # noqa: F821 — definita in axon_tour.py (stesso namespace)
     except Exception:
         pass
-    system_message += _axon_product_section(user)  # V50.z323 — Axon Core: cosa esiste/non esiste nel prodotto dell'utente
+    # V50.z518 — _axon_product_section ora è dentro il blocco statico cacheable (vedi sopra)
 
     # V50.z144 — PINNED rules RIATTIVATE e messe IN CIMA al system prompt come
     # direttive vincolanti (<REGOLE_ASSOLUTE>). Il rollback V50.z53 riguardava la
@@ -668,7 +668,8 @@ async def _prepare_assistant_prompt(
         for h in history[-AXON_HISTORY_WINDOW:]:  # V50.z517 — finestra scorrevole 10 messaggi, max 600 caratteri ciascuno
             role = "Utente" if h["role"] == "user" else assistant_name
             _c = h.get("content") or ""
-            convo_text += f"{role}: {_c[:600] + ('…' if len(_c) > 600 else '')}\n"
+            _lim = 2400 if h.get("summary") else 600  # V50.z518 — il riassunto auto (≤500 token) non va troncato a 600 car.
+            convo_text += f"{role}: {_c[:_lim] + ('…' if len(_c) > _lim else '')}\n"
         user_prompt = (
             f"Conversazione precedente:\n{convo_text}\n"
             f"---\nNuovo messaggio dell'utente: {msg}"
@@ -726,7 +727,7 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     # vengono scartati automaticamente. Esclusi anche i messaggi «puliti» con POST /assistant/history/clear (archived=True, stessa sessione).
     hist_cursor = db.assistant_messages.find(
         {"user_id": user["user_id"], "session_id": session_id, "archived": {"$ne": True}},
-        {"_id": 0, "role": 1, "content": 1, "created_at": 1},
+        {"_id": 0, "role": 1, "content": 1, "created_at": 1, "summary": 1},
     ).sort("created_at", -1).limit(AXON_HISTORY_WINDOW)
     history = [h async for h in hist_cursor]
     history.reverse()
@@ -947,9 +948,9 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         few_shot_section = ""
 
     system_message = (
-        _axon_core_identity(user, assistant_name) +  # V50.z323 — Axon Core: identità per prodotto (advisor | lite)
-        # V50.z309 — REGOLE CORE CONSOLIDATE (stesso comportamento, ~60% più corte: eliminati doppioni e ripetizioni)
-        _axon_core_rules(assistant_language, msg) +  # V50.z421 — regole core: blocchi mercato/Drive/tabelle/grafici solo se pertinenti al messaggio
+        # V50.z518 — blocco STATICO cacheable (identità + personalità + regole complete + sezione prodotto) tra sentinelle: la patch
+        # LlmChat lo invia per primo con cache_control=ephemeral. Prima: identità + regole dipendenti dal messaggio (prefisso instabile).
+        _axon_static_block(user, assistant_name, assistant_language) +
         f"ORA ATTUALE: {context.get('ora_attuale', '')}\n\n"
         "SNAPSHOT_CRM (JSON):\n"
         f"{ctx_json}\n"
@@ -1031,7 +1032,7 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         system_message += await _axon_interest_section(user["user_id"])  # noqa: F821 — definita in axon_tour.py (stesso namespace)
     except Exception:
         pass
-    system_message += _axon_product_section(user)  # V50.z323 — Axon Core: cosa esiste/non esiste nel prodotto dell'utente
+    # V50.z518 — _axon_product_section ora è dentro il blocco statico cacheable (vedi sopra)
     try:
         system_message += await _axon_personalize_section(user)  # noqa: F821 — V50.z456 axon_personalize.py: personalità + stile scelti dall'utente
     except Exception:  # noqa: BLE001
@@ -1077,7 +1078,8 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         for h in history[-AXON_HISTORY_WINDOW:]:  # V50.z517 — finestra scorrevole 10 messaggi, max 600 caratteri ciascuno
             role = "Utente" if h["role"] == "user" else assistant_name
             _c = h.get("content") or ""
-            convo_text += f"{role}: {_c[:600] + ('…' if len(_c) > 600 else '')}\n"
+            _lim = 2400 if h.get("summary") else 600  # V50.z518 — il riassunto auto (≤500 token) non va troncato a 600 car.
+            convo_text += f"{role}: {_c[:_lim] + ('…' if len(_c) > _lim else '')}\n"
         user_prompt = (
             f"Conversazione precedente:\n{convo_text}\n"
             f"---\nNuovo messaggio dell'utente: {msg}"
