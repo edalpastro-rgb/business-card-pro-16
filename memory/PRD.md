@@ -7692,3 +7692,6 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 
 ## V50.z514 — System prompt Axon: PERSONALITÀ E ADATTAMENTO
 - `routes/axon_core.py`: costante `AXON_PERSONALITY_RULES` (testo integrale dell'utente: lei/tu speculare, ironia sottile mai cinismo, modalità ascolto per sfoghi/diario, passaggio fluido operativo↔personale) accodata alla riga identità in `_axon_core_identity` per advisor e lite (la persona «personal» la eredita: il `replace` della riga CRM resta valido). Nessun'altra logica toccata. Verifica in-process OK.
+
+## V50.z515 — Dettatura Axon: auto-stop sul silenzio entro 1-2 s (bug utente: il mic continuava a registrare)
+- `src/AssistantChat.tsx` (mic singolo della chat): **Web** — prima NESSUN auto-stop (solo secondo tap o 60 s): aggiunto VAD RMS via AudioContext/AnalyserNode (`startWebVad`/`stopWebVad`, soglie 0.03/0.018 come la modalità conversazione), stop dopo `SILENCE_TIMEOUT_MS`=1500 ms di silenzio post-voce, 8 s se nessuna voce, 45 s max. **Nativo** — 2000→1500 ms, soglia adattiva `max(-40 dB, noiseFloor+10)` (il rumore di fondo >-40 dB manteneva `lastVoice` aggiornato), min 1 s, 8 s senza voce → stop. `VoiceDictationButton` (note lunghe fino a 10 min) resta volutamente a stop manuale. Pacchetti core+web tag D2026.10.10-1654.

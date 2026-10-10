@@ -1565,8 +1565,47 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const recordingRef = useRef(false);
   const stopRecRef = useRef<() => void>(() => {});
   const VOICE_DB_THRESHOLD = -40;
-  const SILENCE_TIMEOUT_MS = 2000;
+  const SILENCE_TIMEOUT_MS = 1500; // V50.z515 — 2000 → 1500 ms: stop entro 1-2 s dall'ultima parola (richiesta utente)
+  const NO_SPEECH_STOP_MS = 8000; // V50.z515 — nessuna voce rilevata → chiudi comunque (non restare in ascolto)
   const MAX_REC_MS = 45000;
+  // V50.z515 — Web dettatura singola: PRIMA non esisteva alcun auto-stop sul silenzio (si fermava solo al secondo tap o a 60 s).
+  // Ora VAD RMS via AudioContext/AnalyserNode (stessi parametri della modalità conversazione: 0.03 / isteresi 0.018).
+  const webVadCtxRef = useRef<AudioContext | null>(null);
+  const webVadRafRef = useRef<number | null>(null);
+  const stopWebVad = () => {
+    if (webVadRafRef.current != null) { try { cancelAnimationFrame(webVadRafRef.current); } catch {} webVadRafRef.current = null; }
+    if (webVadCtxRef.current) { try { void webVadCtxRef.current.close(); } catch {} webVadCtxRef.current = null; }
+  };
+  const startWebVad = (stream: MediaStream) => {
+    stopWebVad();
+    const AC: any = (globalThis as any).AudioContext || (globalThis as any).webkitAudioContext;
+    if (!AC) return;
+    let ctx: AudioContext;
+    try { ctx = new AC(); } catch { return; }
+    webVadCtxRef.current = ctx;
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 1024;
+    try { ctx.createMediaStreamSource(stream).connect(analyser); } catch { stopWebVad(); return; }
+    const buf = new Uint8Array(analyser.fftSize);
+    const started = Date.now();
+    let lastVoice: number | null = null;
+    let spoken = false;
+    const tick = () => {
+      if (!webVadCtxRef.current) return;
+      analyser.getByteTimeDomainData(buf);
+      let sum = 0;
+      for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; sum += v * v; }
+      const rms = Math.sqrt(sum / buf.length);
+      const now = Date.now();
+      if (rms > RMS_THRESHOLD) { spoken = true; lastVoice = now; }
+      else if (spoken && lastVoice && rms < RMS_HYST_LOW && now - lastVoice >= SILENCE_TIMEOUT_MS && now - started >= 1000) { stopRecRef.current(); return; }
+      if (!spoken && now - started >= NO_SPEECH_STOP_MS) { stopRecRef.current(); return; }
+      if (now - started >= MAX_REC_MS) { stopRecRef.current(); return; }
+      webVadRafRef.current = requestAnimationFrame(tick);
+    };
+    webVadRafRef.current = requestAnimationFrame(tick);
+  };
+  useEffect(() => () => stopWebVad(), []);
   const voiceSupported =
     Platform.OS === "web"
       ? (typeof navigator !== "undefined" &&
@@ -1583,20 +1622,25 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     lastVoiceRef.current = null;
     hasSpokenRef.current = false;
     meterSeenRef.current = false;
+    let noiseFloor = -60; // V50.z515 — soglia adattiva: in auto/ufficio il rumore di fondo supera spesso -40 dB e teneva il mic aperto
     silenceTimerRef.current = setInterval(() => {
       const now = Date.now();
       const elapsed = now - recStartRef.current;
       let m: number | undefined;
       try { const st: any = nativeRecorder.getStatus(); m = typeof st?.metering === "number" ? st.metering : undefined; } catch { m = undefined; }
-      if (typeof m === "number" && m > -159) meterSeenRef.current = true;
-      if (typeof m === "number" && m > VOICE_DB_THRESHOLD) {
+      if (typeof m === "number" && m > -159) {
+        meterSeenRef.current = true;
+        noiseFloor = m < noiseFloor ? m : noiseFloor * 0.97 + m * 0.03; // segue velocemente verso il basso, lentamente verso l'alto
+      }
+      const voiceThr = Math.max(VOICE_DB_THRESHOLD, noiseFloor + 10);
+      if (typeof m === "number" && m > voiceThr) {
         hasSpokenRef.current = true;
         lastVoiceRef.current = now;
-      } else if (hasSpokenRef.current && lastVoiceRef.current && now - lastVoiceRef.current >= SILENCE_TIMEOUT_MS && elapsed >= 1500) {
+      } else if (hasSpokenRef.current && lastVoiceRef.current && now - lastVoiceRef.current >= SILENCE_TIMEOUT_MS && elapsed >= 1000) {
         stopRecRef.current();
         return;
       }
-      if (!meterSeenRef.current && elapsed >= 12000) { stopRecRef.current(); return; } // nessun metering disponibile → non restare aperti
+      if (!hasSpokenRef.current && elapsed >= NO_SPEECH_STOP_MS) { stopRecRef.current(); return; } // V50.z515 — nessuna voce (o nessun metering) → non restare aperti
       if (elapsed >= MAX_REC_MS) stopRecRef.current();
     }, 200);
   };
@@ -1646,6 +1690,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       };
       rec.onstop = () => { void handleStop(rec.mimeType); };
       rec.start(); _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
+      startWebVad(stream); // V50.z515 — auto-stop sul silenzio anche su Web
       setRecording(true);
       durRef.current = 0;
       setRecDuration(0);
@@ -1662,6 +1707,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const stopRec = () => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     stopSilenceWatch();
+    stopWebVad(); // V50.z515
     if (!recordingRef.current && Platform.OS !== "web") return; // V50.z430 — stop già eseguito (intervallo + timer)
     recordingRef.current = false;
     setRecording(false);
