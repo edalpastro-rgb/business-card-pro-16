@@ -13,6 +13,7 @@ import { SessionLight, HeavySessionBox, VoiceSessionMeter, CostTipsCard } from "
 import { useAudioRecorder, AudioModule, RecordingPresets } from "expo-audio";
 // V50.z186 — stop vocale nativo (barge-in) + sessione audio in background (moduli isolati)
 import { useNativeBargeIn } from "@/src/voice/useNativeBargeIn";
+import { startSileroGate, type SileroGate } from "@/src/voice/sileroVad"; // V50.z519 — Silero VAD locale (web), fallback RMS
 import { ensureVoiceAudioMode, releaseVoiceAudioMode } from "@/src/voice/voiceAudioMode";
 import { Ionicons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system/legacy";
@@ -1326,7 +1327,13 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const RMS_THRESHOLD = 0.03; // voice activity threshold (alzato da 0.02 per fissità)
   const RMS_HYST_LOW = 0.018; // hysteresis: sotto questa soglia consideriamo silenzio (evita ping-pong)
 
+  // V50.z519 — Silero VAD (web): voce umana rilevata sul dispositivo → sostituisce la soglia RMS quando disponibile
+  const sileroRef = useRef<SileroGate | null>(null);
+  const sileroReadyRef = useRef(false);
+  const sileroSpeakingRef = useRef(false);
   const cleanupConversation = () => {
+    if (sileroRef.current) { sileroRef.current.destroy(); sileroRef.current = null; }
+    sileroReadyRef.current = false; sileroSpeakingRef.current = false;
     convModeRef.current = false;
     if (convRafRef.current != null) {
       try { cancelAnimationFrame(convRafRef.current); } catch {}
@@ -1364,6 +1371,11 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       convStreamRef.current = stream;
+      // V50.z519 — Silero VAD locale: nessun byte parte verso il backend finché non c'è voce UMANA; fallback RMS se non caricabile
+      void startSileroGate(stream, (sp) => { sileroSpeakingRef.current = sp; }).then((g) => {
+        if (!convModeRef.current) { g?.destroy(); return; }
+        sileroRef.current = g; sileroReadyRef.current = !!g;
+      });
       // Setup AudioContext + Analyser for VAD (kept alive for whole session)
       const AC: any = (globalThis as any).AudioContext || (globalThis as any).webkitAudioContext;
       const audioCtx = new AC();
@@ -1472,8 +1484,9 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       //  - Una volta rilevata voce, se RMS scende sotto RMS_HYST_LOW (0.018) la consideriamo
       //    silenzio così il timer di silenzio parte subito. Se resta in mezzo (0.018→0.03)
       //    non aggiorniamo `convLastVoiceMsRef` — così un rumore di fondo lieve non ritarda lo stop.
-      const isVoice = rms > RMS_THRESHOLD;
-      const isSilent = rms < RMS_HYST_LOW;
+      // V50.z519 — con Silero pronto decide il modello (voce umana vs rumore); altrimenti soglie RMS
+      const isVoice = sileroReadyRef.current ? sileroSpeakingRef.current : rms > RMS_THRESHOLD;
+      const isSilent = sileroReadyRef.current ? !sileroSpeakingRef.current : rms < RMS_HYST_LOW;
       if (isVoice) {
         convLastVoiceMsRef.current = now;
         if (!convSpeechDetectedRef.current && cycleElapsed > MIN_SPEECH_MS) {

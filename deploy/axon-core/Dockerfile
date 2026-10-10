@@ -18,9 +18,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       tesseract-ocr libtesseract-dev libleptonica-dev pkg-config \
       libgl1 libglib2.0-0 libsm6 libxext6 libxrender1 \
       libsndfile1 \
-      build-essential g++ \
+      build-essential g++ cmake git \
       curl ca-certificates tzdata \
     && rm -rf /var/lib/apt/lists/*
+
+# V50.z519 — WHISPER.CPP LOCALE (modello small, ~466 MB): trascrizione interna senza API esterne.
+# Il backend (routes/axon_stt_local.py) lo usa automaticamente se trova binario+modello (AXON_STT_PROVIDER=auto),
+# altrimenti ricade su Deepgram/OpenAI. Per escludere: AXON_STT_PROVIDER=cloud nel .env. Build CPU, release.
+ARG WHISPER_CPP_TAG=v1.7.5
+ARG WHISPER_MODEL=small
+RUN git clone --depth 1 --branch ${WHISPER_CPP_TAG} https://github.com/ggml-org/whisper.cpp /opt/whisper.cpp \
+ && cmake -S /opt/whisper.cpp -B /opt/whisper.cpp/build -DCMAKE_BUILD_TYPE=Release -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_EXAMPLES=ON \
+ && cmake --build /opt/whisper.cpp/build --config Release -j"$(nproc)" --target whisper-cli \
+ && mkdir -p /opt/whisper.cpp/models \
+ && curl -fL --retry 3 -o /opt/whisper.cpp/models/ggml-${WHISPER_MODEL}.bin \
+      https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-${WHISPER_MODEL}.bin \
+ && rm -rf /opt/whisper.cpp/.git
+ENV WHISPER_CPP_BIN=/opt/whisper.cpp/build/bin/whisper-cli \
+    WHISPER_CPP_MODEL=/opt/whisper.cpp/models/ggml-small.bin
 
 WORKDIR /app/backend
 
