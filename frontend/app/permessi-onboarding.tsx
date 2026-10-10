@@ -3,14 +3,14 @@
 // autorizzazioni — «Axon è la tua estensione, non una cosa in più da gestire. Tu chiedi e Axon fa: ma devi permetterglielo».
 // Mostrato una sola volta per utente (AsyncStorage `perm_onboarding_done_{user_id}`), solo su app nativa.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@/src/auth";
 import { HT } from "@/src/homeTheme";
-import { PERM_META, PERM_ONBOARDING_KEY, type PermKey, type PermInfo, ensureDevicePermission, getDevicePermissions, openSystemSettings } from "@/src/permissions/devicePermissions";
+import { PERM_META, PERM_ONBOARDING_KEY, type PermKey, type PermInfo, type PermStatus, requestDevicePermission, getDevicePermissions, openSystemSettings, OVERLAY_META, overlaySupported, openOverlaySettings, overlayConfirmed, setOverlayConfirmed } from "@/src/permissions/devicePermissions";
 import { playActivationEffect } from "@/src/activation/events";
 import { openAxonChat } from "@/src/axonProactive";
 import { api } from "@/src/api";
@@ -35,12 +35,14 @@ async function speak(text: string, onState: (st: "loading" | "speaking" | "idle"
     voice.stop = stopper; voice.pauser = stopper; onState("speaking");
   } catch { onState("idle"); }
 }
-const VOICE_INTRO = "Ciao. Io sono Axon, la tua estensione: non una cosa in più da gestire, ma il collega che lavora al posto tuo. Tu chiedi, e io faccio. Ma devi permettermelo. I tuoi dati restano privati: posizione, voce, foto e rubrica li uso solo io, solo quando me lo chiedi tu, e non li condivido con nessuno. Per darti il cento per cento servono tutte e quattro le autorizzazioni. Te le chiedo una alla volta, spiegandoti a cosa servono.";
+const VOICE_INTRO = "Ciao. Io sono Axon, la tua estensione: non una cosa in più da gestire, ma il tuo assistente che amplifica le tue capacità. Tu chiedi, e io faccio. Ma devi permettermelo. I tuoi dati restano privati: posizione, voce, foto e rubrica li uso solo io, solo quando me lo chiedi tu, e non li condivido con nessuno. Per darti il cento per cento servono tutte le autorizzazioni. Te le chiedo una alla volta, spiegandoti a cosa servono.";
+// V50.z516 — Android: «Visualizzazione in primo piano» (SYSTEM_ALERT_WINDOW)
+const VOICE_OVERLAY = "Ultima cosa: la visualizzazione in primo piano. Con questa autorizzazione posso comparire sopra le altre app, per esempio mentre guidi o quando mi chiami con Ehi Axon. Si attiva dalla schermata di sistema: tocca il bottone, scegli AdvisorOS e attiva l'interruttore, poi torna qui.";
 const VOICE_STEP: Record<PermKey, string> = {
   location: "Primo permesso: la posizione. Con il GPS posso dirti chi hai vicino adesso, costruire il percorso migliore della giornata partendo da dove sei, e segnare da solo le visite fatte. La uso solo mentre usi l'app.",
   microphone: "Secondo permesso: il microfono. È la mia voce preferita: tu parli e io scrivo note, relazioni, appuntamenti e contatti. Serve anche per chiamarmi a mani libere in auto. L'audio serve solo per la trascrizione, e resta tuo.",
   camera: "Terzo permesso: la fotocamera. Fotografi una bolletta o un biglietto da visita e io leggo i dati e creo tutto in un attimo. Le foto restano nel tuo archivio.",
-  contacts: "Ultimo permesso: la rubrica. Così importi i clienti in un tap e, se mi dici chiama Mario, lo trovo anche se non è ancora nel CRM. Non copio e non invio la rubrica: la leggo solo quando me lo chiedi.",
+  contacts: "La rubrica. Così importi i clienti in un tap e, se mi dici chiama Mario, lo trovo anche se non è ancora nel CRM. Non copio e non invio la rubrica: la leggo solo quando me lo chiedi.",
 };
 
 const STEPS: { key: PermKey; title: string; axon: string[]; privacy: string }[] = [
@@ -71,15 +73,19 @@ export default function PermessiOnboarding() {
   const refresh = useCallback(async () => setPerms(await getDevicePermissions(true).catch(() => null)), []);
   useEffect(() => { void refresh(); }, [refresh]);
 
-  const textForStep = (st: number) => (st === 0 ? VOICE_INTRO : st <= STEPS.length ? VOICE_STEP[STEPS[st - 1].key] : (grantedCountRef.current === STEPS.length ? "Perfetto: tutte le autorizzazioni sono attive. Da adesso chiedi, e io faccio." : "Alcune autorizzazioni mancano: farò quello che posso, il resto toccherà a te. Puoi completarle quando vuoi dalle Impostazioni."));
+  const textForStep = (st: number) => (st === 0 ? VOICE_INTRO : st <= STEPS.length ? VOICE_STEP[STEPS[st - 1].key] : hasOverlay && st === STEPS.length + 1 ? VOICE_OVERLAY : (grantedCountRef.current === total ? "Perfetto: tutte le autorizzazioni sono attive. Da adesso chiedi, e io faccio." : "Alcune autorizzazioni mancano: farò quello che posso, il resto toccherà a te. Puoi completarle quando vuoi dalle Impostazioni."));
   const grantedCountRef = useRef(0);
   // parla a ogni cambio schermata (intro, ogni permesso, riepilogo)
   useEffect(() => { setVPaused(false); void speak(textForStep(step), setVState); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
   const statusOf = (k: PermKey) => perms?.find((p) => p.key === k)?.status || "undetermined";
-  const grantedCount = useMemo(() => (perms || []).filter((p) => p.status === "granted").length, [perms]);
+  // V50.z516 — Android: step extra «Visualizzazione in primo piano» (SYSTEM_ALERT_WINDOW), confermato dall'utente
+  const hasOverlay = overlaySupported();
+  const [overlayOk, setOverlayOk] = useState(false);
+  useEffect(() => { overlayConfirmed(user?.user_id).then(setOverlayOk); }, [user?.user_id]);
+  const grantedCount = useMemo(() => (perms || []).filter((p) => p.status === "granted").length + (hasOverlay && overlayOk ? 1 : 0), [perms, overlayOk, hasOverlay]);
   grantedCountRef.current = grantedCount;
-  const total = STEPS.length;
+  const total = STEPS.length + (hasOverlay ? 1 : 0);
 
   const markDone = useCallback(async () => { if (user?.user_id) await AsyncStorage.setItem(PERM_ONBOARDING_KEY(user.user_id), "1").catch(() => {}); }, [user?.user_id]);
   const goHome = useCallback(async () => {
@@ -90,16 +96,29 @@ export default function PermessiOnboarding() {
   }, [markDone, router, params.activate, params.name, params.voice]);
 
   const next = () => setStep((s) => Math.min(total + 1, s + 1));
+  // V50.z516 — richiesta REALE di sistema (Android: PermissionsAndroid.request). Se il telefono non apre il dialog, l'errore viene
+  // MOSTRATO (prima spariva in un catch silenzioso e il bottone girava a vuoto). Timeout di sicurezza 20 s: lo spinner non resta appeso.
   const allow = async (k: PermKey) => {
     setBusy(true);
-    try { await ensureDevicePermission(k, { silent: true }); await refresh(); }
-    finally { setBusy(false); }
+    let st: PermStatus | "timeout" = "timeout";
+    try {
+      st = await Promise.race([requestDevicePermission(k), new Promise<"timeout">((r) => setTimeout(() => r("timeout"), 20000))]);
+      await refresh();
+    } catch (e: any) {
+      console.warn("[permessi-onboarding] richiesta fallita", k, e);
+      Alert.alert(`Permesso «${PERM_META[k].label}»`, `Il telefono non ha aperto la richiesta: ${e?.message || "errore sconosciuto"}.\nPuoi attivarlo dalle Impostazioni.`, [{ text: "Ok" }, { text: "Apri Impostazioni", onPress: openSystemSettings }]);
+      setBusy(false);
+      return;
+    } finally { setBusy(false); }
+    if (st === "timeout") { Alert.alert(`Permesso «${PERM_META[k].label}»`, "Nessuna risposta dal sistema. Riprova oppure attivalo dalle Impostazioni.", [{ text: "Ok" }, { text: "Apri Impostazioni", onPress: openSystemSettings }]); return; }
+    if (st === "blocked") return; // resta sullo step: ora mostra «Apri Impostazioni»
     next();
   };
+  const confirmOverlay = async () => { if (user?.user_id) await setOverlayConfirmed(user.user_id, true); setOverlayOk(true); next(); };
 
   // salta automaticamente i permessi già concessi
   useEffect(() => {
-    if (step >= 1 && step <= total && perms && statusOf(STEPS[step - 1].key) === "granted") next();
+    if (step >= 1 && step <= STEPS.length && perms && statusOf(STEPS[step - 1].key) === "granted") next();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, perms]);
 
@@ -107,10 +126,10 @@ export default function PermessiOnboarding() {
     <View style={s.card} testID="perm-onb-intro">
       <View style={s.heroIcon}><Ionicons name="sparkles" size={34} color="#FFF" /></View>
       <Text style={s.h1}>Axon è la tua estensione</Text>
-      <Text style={s.lead}>Non è una cosa in più da gestire: è il collega che lavora al posto tuo.{"\n"}<Text style={s.bold}>Tu chiedi, Axon fa.</Text> Ma devi permetterglielo.</Text>
+      <Text style={s.lead}>Non è una cosa in più da gestire: è il tuo assistente che amplifica le tue capacità.{"\n"}<Text style={s.bold}>Tu chiedi, Axon fa.</Text> Ma devi permetterglielo.</Text>
       <View style={s.pointBox}>
         <View style={s.pointRow}><Ionicons name="lock-closed" size={18} color={HT.brand} /><Text style={s.point}><Text style={s.bold}>I tuoi dati restano privati.</Text> Posizione, voce, foto e rubrica non vengono condivisi con nessuno: li usa solo Axon, solo quando glielo chiedi tu.</Text></View>
-        <View style={s.pointRow}><Ionicons name="flash" size={18} color={HT.brand} /><Text style={s.point}><Text style={s.bold}>Per avere Axon al 100% servono tutte e 4 le autorizzazioni.</Text> Senza, alcune cose dovrai farle a mano: cercare un cliente vicino, scrivere invece di dettare, inserire una bolletta a mano.</Text></View>
+        <View style={s.pointRow}><Ionicons name="flash" size={18} color={HT.brand} /><Text style={s.point}><Text style={s.bold}>Per avere Axon al 100% servono tutte le autorizzazioni.</Text> Senza, alcune cose dovrai farle a mano: cercare un cliente vicino, scrivere invece di dettare, inserire una bolletta a mano.</Text></View>
         <View style={s.pointRow}><Ionicons name="hand-right" size={18} color={HT.brand} /><Text style={s.point}>Ora te le chiediamo <Text style={s.bold}>una alla volta</Text>, spiegandoti cosa potrà fare Axon con ciascuna. Puoi cambiare idea quando vuoi dalle Impostazioni del telefono.</Text></View>
       </View>
       <Pressable onPress={next} style={s.primary} testID="perm-onb-start"><Text style={s.primaryTxt}>Iniziamo: dai ad Axon i consensi</Text><Ionicons name="arrow-forward" size={18} color="#FFF" /></Pressable>
@@ -144,6 +163,21 @@ export default function PermessiOnboarding() {
     );
   };
 
+  // V50.z516 — Android: «Visualizzazione in primo piano» (SYSTEM_ALERT_WINDOW) — si attiva dalla schermata di sistema
+  const OverlayStep = (
+    <View style={s.card} testID="perm-onb-step-overlay">
+      <Text style={s.counter}>Permesso {STEPS.length + 1} di {total}</Text>
+      <View style={s.heroIcon}><Ionicons name={OVERLAY_META.icon as any} size={32} color="#FFF" /></View>
+      <Text style={s.h1}>{OVERLAY_META.label}</Text>
+      <Text style={s.sub}>Con questa autorizzazione Axon può:</Text>
+      {["Comparire sopra le altre app mentre guidi (Axon Drive)", "Rispondere a «Ehi Axon» anche se stai usando un'altra app", "Mostrarti un avviso urgente senza farti cambiare schermata"].map((t, j) => (<View key={j} style={s.bullet}><Ionicons name="checkmark-circle" size={18} color="#16A34A" /><Text style={s.bulletTxt}>{t}</Text></View>))}
+      <View style={s.privacyBox}><Ionicons name="information-circle" size={15} color={HT.text2} /><Text style={s.privacyTxt}>Si attiva dalla schermata di sistema: tocca il bottone, scegli <Text style={s.bold}>AdvisorOS</Text> nell&apos;elenco e attiva «Concedi autorizzazione», poi torna qui.</Text></View>
+      <Pressable onPress={() => void openOverlaySettings()} style={s.primary} testID="perm-onb-overlay-open"><Ionicons name="open-outline" size={18} color="#FFF" /><Text style={s.primaryTxt}>Apri «Mostra sopra altre app»</Text></Pressable>
+      <Pressable onPress={confirmOverlay} style={[s.primary, { backgroundColor: "#16A34A" }]} testID="perm-onb-overlay-done"><Ionicons name="checkmark" size={18} color="#FFF" /><Text style={s.primaryTxt}>Fatto, l&apos;ho attivata</Text></Pressable>
+      <Pressable onPress={next} style={s.ghost} testID="perm-onb-overlay-skip"><Text style={s.ghostTxt}>Salta per ora</Text></Pressable>
+    </View>
+  );
+
   const Summary = (
     <View style={s.card} testID="perm-onb-summary">
       <View style={[s.heroIcon, grantedCount === total ? { backgroundColor: "#16A34A" } : { backgroundColor: "#F59E0B" }]}><Ionicons name={grantedCount === total ? "rocket" : "battery-half"} size={32} color="#FFF" /></View>
@@ -155,6 +189,13 @@ export default function PermessiOnboarding() {
           <Text style={s.sumTxt}>{st.title}</Text>
           <Text style={[s.sumSt, { color: ok ? "#16A34A" : "#DC2626" }]}>{ok ? "attivo" : "non attivo"}</Text>
         </View>); })}
+      {hasOverlay ? (
+        <Pressable onPress={() => setStep(STEPS.length + 1)} style={s.sumRow} testID="perm-onb-sum-overlay">
+          <Ionicons name={overlayOk ? "checkmark-circle" : "close-circle"} size={20} color={overlayOk ? "#16A34A" : "#DC2626"} />
+          <Text style={s.sumTxt}>{OVERLAY_META.label}</Text>
+          <Text style={[s.sumSt, { color: overlayOk ? "#16A34A" : "#DC2626" }]}>{overlayOk ? "attiva" : "non attiva"}</Text>
+        </Pressable>
+      ) : null}
       {grantedCount < total ? <Pressable onPress={openSystemSettings} style={[s.primary, { backgroundColor: "#F59E0B" }]} testID="perm-onb-open-settings"><Ionicons name="settings" size={18} color="#FFF" /><Text style={s.primaryTxt}>Completa dalle Impostazioni</Text></Pressable> : null}
       <Pressable onPress={goHome} style={grantedCount < total ? s.ghost : s.primary} testID="perm-onb-done"><Text style={grantedCount < total ? s.ghostTxt : s.primaryTxt}>Vai alla Home</Text></Pressable>
     </View>
@@ -176,7 +217,7 @@ export default function PermessiOnboarding() {
           <Pressable onPress={toggleMute} hitSlop={8} style={[s.voiceBtn, muted && { backgroundColor: "#FEE2E2" }]} testID="perm-onb-voice-mute" accessibilityLabel={muted ? "Riattiva la voce di Axon" : "Disattiva la voce di Axon"}><Ionicons name={muted ? "volume-mute" : "volume-high"} size={16} color={muted ? "#DC2626" : HT.text} /></Pressable>
         </View>
         <View style={s.progress}>{Array.from({ length: total + 2 }).map((_, i) => <View key={i} style={[s.dot, i <= step && s.dotOn]} />)}</View>
-        {step === 0 ? Intro : step <= total ? Step(step) : Summary}
+        {step === 0 ? Intro : step <= STEPS.length ? Step(step) : hasOverlay && step === STEPS.length + 1 ? OverlayStep : Summary}
       </ScrollView>
     </SafeAreaView>
   );

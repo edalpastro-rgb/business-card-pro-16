@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-10 | D2026.10.10-1918 | Android: permessi onboarding via PermissionsAndroid.request (dialog di sistema reale, richieste serializzate, errori visibili, timeout 20 s anti-spinner); nuovo step «Visualizzazione in primo piano» (SYSTEM_ALERT_WINDOW) nell'onboarding + permesso in app.json; testo intro «il tuo assistente che amplifica le tue capacità»; Impostazioni → «Rivedi introduzione» (riparte da tour + permessi); versionCode 17 |
 | 2026-10-10 | D2026.10.10-1654 | Dettatura Axon (microfono chat): auto-stop sul silenzio entro 1-2 s — Web: aggiunto VAD RMS (prima nessun auto-stop: si fermava solo al secondo tap o a 60 s); Nativo: finestra silenzio 2000→1500 ms, soglia adattiva al rumore di fondo (in auto/ufficio il rumore >-40 dB teneva il mic aperto), chiusura a 8 s se nessuna voce |
 | 2026-10-10 | D2026.10.10-1629 | System prompt Axon: aggiunta sezione PERSONALITÀ E ADATTAMENTO (lei/tu e registro speculari all'utente, ironia sottile mai cinismo, modalità ascolto quando l'utente si sfoga, passaggio fluido operativo↔personale) subito dopo la riga identità per tutti i prodotti; nessun'altra logica toccata |
 | 2026-10-10 | D2026.10.10-1609 | Modello Axon: claude-sonnet-4-5 (e variante datata -20250929) → claude-haiku-4-5 in tutti i 15 punti del codice (12 moduli: chat/stream, agent, emergenze, CTE, scadenze, salute, recensioni, admin clienti, trascrizioni chiamate, gym); nessun'altra modifica |

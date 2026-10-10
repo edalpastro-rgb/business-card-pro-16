@@ -47,7 +47,7 @@ function WelcomePopup({ onPick }: { onPick: (m: Mode | "later") => void }) {
       </Animated.View>
       <Animated.Text entering={FadeInUp.delay(300).duration(600)} style={styles.welcomeTitle}>Dai, iniziamo.{"\n"}Sei pronto?</Animated.Text>
       <Animated.Text entering={FadeInUp.delay(550).duration(600)} style={styles.welcomeSub}>
-        Pochi minuti per dire ad AxonOS chi sei e come lavori: da domani ti parla come un collega che ti conosce.
+        Pochi minuti per dire ad AxonOS chi sei e come lavori: da domani ti parla come il tuo assistente che amplifica le tue capacità.
       </Animated.Text>
       <Animated.View entering={FadeInDown.delay(800).duration(600)} style={styles.welcomeBtns}>
         <Pressable onPress={() => onPick("setup")} style={styles.btnPrimary} testID="setup-pick-setup">

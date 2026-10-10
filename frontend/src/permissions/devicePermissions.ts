@@ -6,7 +6,7 @@
 //   • permissionsForAxon()     → stringa compatta «gps:ok mic:negato …» inviata in client_context ad ogni messaggio
 // Web: i permessi OS non sono interrogabili in modo uniforme → tutto «n/d» (nessun banner, nessun blocco).
 import { useEffect, useState } from "react";
-import { Alert, AppState, Linking, Platform } from "react-native";
+import { Alert, AppState, Linking, PermissionsAndroid, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export type PermKey = "location" | "microphone" | "camera" | "contacts";
@@ -28,24 +28,66 @@ const toStatus = (r: { granted: boolean; canAskAgain?: boolean; status?: string 
   return r.canAskAgain === false ? "blocked" : "denied";
 };
 
-async function readOne(key: PermKey): Promise<PermStatus> {
-  if (Platform.OS === "web") return "unavailable";
-  try {
-    if (key === "location") { const L = await import("expo-location"); return toStatus(await L.getForegroundPermissionsAsync()); }
-    if (key === "camera") { const C = await import("expo-camera"); return toStatus(await C.Camera.getCameraPermissionsAsync()); }
-    if (key === "microphone") { const A = await import("expo-audio"); return toStatus(await A.getRecordingPermissionsAsync()); }
-    const Ct = await import("expo-contacts"); return toStatus(await Ct.getPermissionsAsync());
-  } catch { return "unavailable"; }
+// ── V50.z516 — ANDROID: richiesta tramite PermissionsAndroid.request (dialog di sistema garantito), NON più via moduli Expo
+// importati dinamicamente dentro un try/catch silenzioso (sull'APK il bottone «Consenti» girava senza aprire nulla e ogni errore
+// spariva come «unavailable»). Le richieste sono SERIALIZZATE (una alla volta): due request concorrenti su Android lasciano la
+// seconda promise appesa per sempre → spinner infinito.
+const ANDROID_PERMS: Record<PermKey, string[]> = {
+  // stringhe letterali: `PermissionsAndroid.PERMISSIONS` è undefined su web/iOS e romperebbe il modulo al caricamento
+  location: ["android.permission.ACCESS_FINE_LOCATION", "android.permission.ACCESS_COARSE_LOCATION"],
+  microphone: ["android.permission.RECORD_AUDIO"],
+  camera: ["android.permission.CAMERA"],
+  contacts: ["android.permission.READ_CONTACTS", "android.permission.WRITE_CONTACTS"],
+};
+let requestChain: Promise<unknown> = Promise.resolve();
+const serialize = <T,>(fn: () => Promise<T>): Promise<T> => {
+  const p = requestChain.then(fn, fn);
+  requestChain = p.catch(() => undefined);
+  return p;
+};
+
+async function androidRead(key: PermKey): Promise<PermStatus> {
+  const perms = ANDROID_PERMS[key];
+  const checks = await Promise.all(perms.map((p) => PermissionsAndroid.check(p as any)));
+  if (checks[0]) return "granted"; // il primo è quello essenziale (FINE / RECORD_AUDIO / CAMERA / READ_CONTACTS)
+  // non concesso: distinguo «mai chiesto» da «negato/bloccato» con lo stato Expo (sola lettura, nessun dialog)
+  try { return await expoRead(key); } catch { return "denied"; }
 }
 
+async function androidRequest(key: PermKey): Promise<PermStatus> {
+  const perms = ANDROID_PERMS[key];
+  const res = await PermissionsAndroid.requestMultiple(perms as any);
+  const main = (res as Record<string, string>)[perms[0]];
+  const anyGranted = Object.values(res).some((v) => v === "granted");
+  if (main === "granted" || (key === "location" && anyGranted)) return "granted";
+  if (main === "never_ask_again") return "blocked";
+  return "denied";
+}
+
+async function expoRead(key: PermKey): Promise<PermStatus> {
+  if (key === "location") { const L = await import("expo-location"); return toStatus(await L.getForegroundPermissionsAsync()); }
+  if (key === "camera") { const C = await import("expo-camera"); return toStatus(await C.Camera.getCameraPermissionsAsync()); }
+  if (key === "microphone") { const A = await import("expo-audio"); return toStatus(await A.getRecordingPermissionsAsync()); }
+  const Ct = await import("expo-contacts"); return toStatus(await Ct.getPermissionsAsync());
+}
+
+async function expoRequest(key: PermKey): Promise<PermStatus> {
+  if (key === "location") { const L = await import("expo-location"); return toStatus(await L.requestForegroundPermissionsAsync()); }
+  if (key === "camera") { const C = await import("expo-camera"); return toStatus(await C.Camera.requestCameraPermissionsAsync()); }
+  if (key === "microphone") { const A = await import("expo-audio"); return toStatus(await A.requestRecordingPermissionsAsync()); }
+  const Ct = await import("expo-contacts"); return toStatus(await Ct.requestPermissionsAsync());
+}
+
+async function readOne(key: PermKey): Promise<PermStatus> {
+  if (Platform.OS === "web") return "unavailable";
+  try { return Platform.OS === "android" ? await androidRead(key) : await expoRead(key); }
+  catch (e) { console.warn(`[permessi] lettura «${key}» fallita:`, e); return "unavailable"; }
+}
+
+/** Richiesta di sistema. Propaga l'errore (niente catch silenzioso): chi chiama lo mostra all'utente. */
 async function requestOne(key: PermKey): Promise<PermStatus> {
   if (Platform.OS === "web") return "unavailable";
-  try {
-    if (key === "location") { const L = await import("expo-location"); return toStatus(await L.requestForegroundPermissionsAsync()); }
-    if (key === "camera") { const C = await import("expo-camera"); return toStatus(await C.Camera.requestCameraPermissionsAsync()); }
-    if (key === "microphone") { const A = await import("expo-audio"); return toStatus(await A.requestRecordingPermissionsAsync()); }
-    const Ct = await import("expo-contacts"); return toStatus(await Ct.requestPermissionsAsync());
-  } catch { return "unavailable"; }
+  return serialize(() => (Platform.OS === "android" ? androidRequest(key) : expoRequest(key)));
 }
 
 // ---- cache + subscribers ----
@@ -107,7 +149,16 @@ export async function ensureDevicePermission(key: PermKey, opts?: { silent?: boo
   if (Platform.OS === "web") return true;
   let st = await readOne(key);
   if (st === "granted" || st === "unavailable") { void getDevicePermissions(true); return true; }
-  if (st === "undetermined" || st === "denied") st = await requestOne(key);
+  if (st === "undetermined" || st === "denied") {
+    try { st = await requestOne(key); }
+    catch (e: any) {
+      // V50.z516 — errore VISIBILE (prima spariva in un catch silenzioso)
+      console.warn(`[permessi] richiesta «${key}» fallita:`, e);
+      if (!opts?.silent) Alert.alert(`Permesso «${PERM_META[key].label}»`, `Il telefono non ha aperto la richiesta (${e?.message || "errore sconosciuto"}). Puoi attivarlo a mano:\n${settingsPath(key)}`, [{ text: "Più tardi", style: "cancel" }, { text: "Apri impostazioni", onPress: openSystemSettings }]);
+      void getDevicePermissions(true);
+      return false;
+    }
+  }
   void getDevicePermissions(true);
   if (st === "granted") return true;
   if (!opts?.silent) {
@@ -121,6 +172,31 @@ export async function ensureDevicePermission(key: PermKey, opts?: { silent?: boo
   return false;
 }
 
+/** V50.z516 — come ensureDevicePermission ma PROPAGA l'errore (usata dall'onboarding, che lo mostra nella sua UI). */
+export async function requestDevicePermission(key: PermKey): Promise<PermStatus> {
+  if (Platform.OS === "web") return "unavailable";
+  const cur = await readOne(key);
+  if (cur === "granted" || cur === "unavailable" || cur === "blocked") { void getDevicePermissions(true); return cur; }
+  const st = await requestOne(key);
+  void getDevicePermissions(true);
+  return st;
+}
+
+// ---- V50.z516 — «Visualizzazione in primo piano» (SYSTEM_ALERT_WINDOW, solo Android): non è un permesso runtime → si attiva
+// dalla schermata di sistema «Mostra sopra altre app». Non esiste API JS per leggerne lo stato senza modulo nativo: l'utente
+// conferma e lo ricordiamo per utente.
+export const OVERLAY_META = { label: "Visualizzazione in primo piano", purpose: "mostrare Axon sopra le altre app (Axon Drive, «Ehi Axon», avvisi mentre guidi)", icon: "layers",
+  android: "Impostazioni → App → AdvisorOS → Mostra sopra altre app → «Concedi autorizzazione»" };
+export const OVERLAY_KEY = (userId: string) => `overlay_perm_confirmed_${userId}`;
+export const overlaySupported = () => Platform.OS === "android";
+export async function openOverlaySettings(): Promise<void> {
+  // Apre direttamente l'elenco «Mostra sopra altre app» (Settings.ACTION_MANAGE_OVERLAY_PERMISSION); l'utente sceglie AdvisorOS.
+  try { await Linking.sendIntent("android.settings.action.MANAGE_OVERLAY_PERMISSION"); }
+  catch (e) { console.warn("[permessi] overlay settings:", e); openSystemSettings(); }
+}
+export const overlayConfirmed = async (userId?: string | null) => !!userId && (await AsyncStorage.getItem(OVERLAY_KEY(userId)).catch(() => null)) === "1";
+export const setOverlayConfirmed = async (userId: string, v: boolean) => AsyncStorage.setItem(OVERLAY_KEY(userId), v ? "1" : "0").catch(() => {});
+
 // ---- V50.z485 — Onboarding permessi al primo avvio (app/permessi-onboarding.tsx) ----
 export const PERM_ONBOARDING_KEY = (userId: string) => `perm_onboarding_done_${userId}`;
 
@@ -130,4 +206,9 @@ export async function shouldShowPermOnboarding(userId?: string | null): Promise<
   if ((await AsyncStorage.getItem(PERM_ONBOARDING_KEY(userId)).catch(() => null)) === "1") return false;
   const perms = await getDevicePermissions(true).catch(() => null);
   return !!perms && perms.some((p) => p.status !== "granted" && p.status !== "unavailable");
+}
+
+/** V50.z516 — «Rivedi introduzione» (Impostazioni): azzera i flag locali di tour e permessi così il flusso riparte dall'inizio. */
+export async function resetOnboardingFlags(userId: string): Promise<void> {
+  await AsyncStorage.multiRemove([`onboarding_done_${userId}`, PERM_ONBOARDING_KEY(userId)]).catch(() => {});
 }

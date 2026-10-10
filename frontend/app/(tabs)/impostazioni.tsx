@@ -28,6 +28,7 @@ import { FindPhoneSoundCard } from "@/src/findPhone/FindPhoneSoundCard"; // V50.
 import { AppInfoCard } from "@/src/AppInfoCard"; // V50.z208 — Piano attivo + versione APK
 import { PromoRedeemCard } from "@/src/PromoCodeField"; // V50.z320 — codice promozionale
 import { ReferralCard } from "@/src/ReferralCard"; // V50.z322 — Invita un amico
+import { resetOnboardingFlags } from "@/src/permissions/devicePermissions"; // V50.z516 — Rivedi introduzione
 import { PunAlertCard } from "@/src/PunAlertCard"; // V50.z325 — Avviso soglia PUN
 import { AxonPersonalizeCard } from "@/src/AxonPersonalizeCard"; // V50.z456 — Personalizza Axon (Super Master / Lite)
 import { HomeLayoutCard } from "@/src/home/HomeLayoutCard"; // V50.z505 — Personalizza la Home (blocchi, ordine, posizione) — solo Super Master
@@ -101,6 +102,13 @@ function ImpostazioniScreen() {
   }, [params.section]); // eslint-disable-line react-hooks/exhaustive-deps
   const openSection = (k: SettingsSection) => setSec(k);
   const backToHub = () => setSec(null);
+  // V50.z516 — «Rivedi introduzione»: azzera i flag di tour e permessi (locali + server) e riparte dal Tour
+  const replayIntro = async () => {
+    if (!(await confirmAsync("Rivedi introduzione", "Ripartirai dall'inizio: tour di benvenuto, voce di Axon e, sul telefono, i permessi del dispositivo. Le tue impostazioni e i tuoi dati non cambiano."))) return;
+    if (user?.user_id) await resetOnboardingFlags(user.user_id);
+    api("/user-settings", { method: "PUT", body: { onboarding_done: false } }).catch(() => {});
+    router.push("/tour" as any);
+  };
   const { isMaster: isOwner, isConsultant } = useRole(); // V50.z436 — prima: !parent_user_id (non controllava il ruolo)
   const pagePad = usePageBottomPadding();
   const { isDesktop, width: winW } = useResponsive();
@@ -493,6 +501,12 @@ function ImpostazioniScreen() {
             {isOwner ? <SettingsGroupButton section="branding" onPress={() => openSection("branding")} /> : null}
             <SettingsGroupButton section="integrations" onPress={() => openSection("integrations")} />
             <SettingsGroupButton section="general" onPress={() => openSection("general")} />
+            {/* V50.z516 — Rivedi introduzione: riparte dal Tour e dai permessi di Axon (azzerati i flag locali + server) */}
+            <Pressable onPress={replayIntro} style={hubStyles.group} testID="settings-group-replay-intro">
+              <View style={[hubStyles.groupIcon, { backgroundColor: "#0EA5E91A" }]}><Ionicons name="play-circle" size={22} color="#0EA5E9" /></View>
+              <View style={{ flex: 1 }}><Text style={hubStyles.groupTitle}>Rivedi introduzione</Text><Text style={hubStyles.groupSub}>Riparti dall'inizio: tour di benvenuto, voce di Axon e permessi del telefono</Text></View>
+              <Ionicons name="chevron-forward" size={18} color={HT.muted} />
+            </Pressable>
             {isOwner ? (
               // V50.z260 — Strumenti di sviluppo → Report Stress Test Axon
               <Pressable onPress={() => router.push("/axon-stress-report" as any)} style={hubStyles.group} testID="settings-group-devtools">
