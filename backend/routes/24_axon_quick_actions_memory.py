@@ -193,6 +193,20 @@ async def assistant_reset(user=Depends(get_current_user)):
     return {"session_id": session_id, "assistant_name": await _get_assistant_name(user)}
 
 
+# V50.z517 — «Pulisci Memoria» (chat vocale): azzera la cronologia della sessione ATTIVA mantenendo lo stesso session_id
+# (la sessione resta aperta, il modello riparte senza contesto). I messaggi vengono archiviati, non cancellati.
+@api_router.post("/assistant/history/clear")
+async def assistant_history_clear(user=Depends(get_current_user)):
+    uid = user["user_id"]
+    active = await db.assistant_active_session.find_one({"user_id": uid}, {"_id": 0, "session_id": 1})
+    sid = (active or {}).get("session_id")
+    q: dict = {"user_id": uid, "archived": {"$ne": True}}
+    if sid:
+        q["session_id"] = sid
+    r = await db.assistant_messages.update_many(q, {"$set": {"archived": True, "archived_at": datetime.now(timezone.utc), "cleared": True}})
+    return {"ok": True, "session_id": sid, "cleared": r.modified_count}
+
+
 # ============================================================
 # V38T — Neo persistent memory endpoints
 # ============================================================

@@ -262,6 +262,9 @@ def _pick_axon_model(msg: str, has_attachments: bool, has_rag_context: bool, has
     return "haiku"
 
 
+AXON_HISTORY_WINDOW = 10  # V50.z517 — finestra scorrevole: ultimi N messaggi inviati al modello
+
+
 async def _prepare_assistant_prompt(
     user: dict, body: "AssistantChatIn"
 ) -> dict:
@@ -288,11 +291,12 @@ async def _prepare_assistant_prompt(
     assistant_language = _AXON_LANG_NAMES.get((_lang_row.get("assistant_language") or "it").lower(), "italiano")
     session_id = body.session_id or f"asst_{user['user_id']}_{uuid.uuid4().hex[:10]}"
 
-    # Load recent conversation history from DB (last 12 messages)
+    # V50.z517 — SLIDING WINDOW: ad Anthropic vanno SOLO gli ultimi AXON_HISTORY_WINDOW (10) messaggi della sessione; i precedenti
+    # vengono scartati automaticamente. Esclusi anche i messaggi «puliti» con POST /assistant/history/clear (archived=True, stessa sessione).
     hist_cursor = db.assistant_messages.find(
-        {"user_id": user["user_id"], "session_id": session_id},
+        {"user_id": user["user_id"], "session_id": session_id, "archived": {"$ne": True}},
         {"_id": 0, "role": 1, "content": 1, "created_at": 1},
-    ).sort("created_at", -1).limit(12)
+    ).sort("created_at", -1).limit(AXON_HISTORY_WINDOW)
     history = [h async for h in hist_cursor]
     history.reverse()
 
@@ -661,7 +665,7 @@ async def _prepare_assistant_prompt(
 
     if history:
         convo_text = ""
-        for h in history[-6:]:  # V50.z413 — 10 → 6 messaggi, max 600 caratteri ciascuno
+        for h in history[-AXON_HISTORY_WINDOW:]:  # V50.z517 — finestra scorrevole 10 messaggi, max 600 caratteri ciascuno
             role = "Utente" if h["role"] == "user" else assistant_name
             _c = h.get("content") or ""
             convo_text += f"{role}: {_c[:600] + ('…' if len(_c) > 600 else '')}\n"
@@ -718,11 +722,12 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     assistant_language = _AXON_LANG_NAMES.get((_lang_row.get("assistant_language") or "it").lower(), "italiano")
     session_id = body.session_id or f"asst_{user['user_id']}_{uuid.uuid4().hex[:10]}"
 
-    # Load recent conversation history from DB (last 12 messages)
+    # V50.z517 — SLIDING WINDOW: ad Anthropic vanno SOLO gli ultimi AXON_HISTORY_WINDOW (10) messaggi della sessione; i precedenti
+    # vengono scartati automaticamente. Esclusi anche i messaggi «puliti» con POST /assistant/history/clear (archived=True, stessa sessione).
     hist_cursor = db.assistant_messages.find(
-        {"user_id": user["user_id"], "session_id": session_id},
+        {"user_id": user["user_id"], "session_id": session_id, "archived": {"$ne": True}},
         {"_id": 0, "role": 1, "content": 1, "created_at": 1},
-    ).sort("created_at", -1).limit(12)
+    ).sort("created_at", -1).limit(AXON_HISTORY_WINDOW)
     history = [h async for h in hist_cursor]
     history.reverse()
 
@@ -1069,7 +1074,7 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     # We prepend history summary to the current user message for continuity
     if history:
         convo_text = ""
-        for h in history[-6:]:  # V50.z413 — 10 → 6 messaggi, max 600 caratteri ciascuno
+        for h in history[-AXON_HISTORY_WINDOW:]:  # V50.z517 — finestra scorrevole 10 messaggi, max 600 caratteri ciascuno
             role = "Utente" if h["role"] == "user" else assistant_name
             _c = h.get("content") or ""
             convo_text += f"{role}: {_c[:600] + ('…' if len(_c) > 600 else '')}\n"

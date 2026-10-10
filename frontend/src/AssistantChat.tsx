@@ -6,6 +6,7 @@ import { DeviceEventEmitter, // V50.z315 — prompt vocale ViolaWake a chat già
 import { KeyboardAvoidingView } from "react-native-keyboard-controller"; // V50.z374 — behavior "padding" valido su iOS e Android
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { ChatShell } from "@/src/assistant/ChatShell"; // V50.z403
+import { SessionLight, HeavySessionBox, VoiceSessionMeter, CostTipsCard } from "@/src/assistant/CostIndicators"; // V50.z517 — indicatori di costo
 // V29.au — Import expo-audio per il pulsante microfono su native (APK Android/iOS).
 // Prima era solo web (MediaRecorder), quindi su APK i pulsanti mic + ascolto
 // continuo sparivano. Ora usiamo useAudioRecorder di expo-audio in modo nativo.
@@ -1287,6 +1288,21 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     } catch {}
   };
 
+  // V50.z517 — chat vocale: inizio sessione (timer) + «Pulisci Memoria» (azzera la cronologia, stessa sessione)
+  const [convStartedAt, setConvStartedAt] = useState<number>(Date.now());
+  const [clearingMemory, setClearingMemory] = useState(false);
+  const clearMemory = async () => {
+    setClearingMemory(true);
+    try {
+      await api("/assistant/history/clear", { method: "POST" });
+      setMessages([]);
+      if (cleanupAudioRef.current) { cleanupAudioRef.current(); cleanupAudioRef.current = null; }
+      setPlayingIdx(null);
+      setConvStartedAt(Date.now());
+    } catch (e: any) { notify("Pulisci Memoria", e?.message || "Operazione non riuscita"); }
+    finally { setClearingMemory(false); }
+  };
+
   const resetSession = async () => {
     try {
       const r = await api<{ session_id: string; assistant_name: string }>("/assistant/reset", { method: "POST" });
@@ -1358,6 +1374,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       source.connect(analyser);
       convAnalyserRef.current = analyser;
       convModeRef.current = true;
+      setConvStartedAt(Date.now()); // V50.z517 — timer sessione vocale
       convMutedRef.current = false;
       setConvMuted(false);
       setConvMode(true);
@@ -2058,19 +2075,27 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
 
             {/* Continuous conversation panel */}
             {convMode && (
-              <ConversationPanel
-                phase={convPhase}
-                muted={convMuted}
-                onToggleMute={toggleMute}
-                onStopListening={stopListeningNow}
-                onEnd={endConversation}
-                assistantName={assistantName}
-              />
+              <>
+                {/* V50.z517 — timer di sessione + efficienza + «Pulisci Memoria» */}
+                <VoiceSessionMeter startedAt={convStartedAt} count={messages.length} onClearMemory={() => void clearMemory()} clearing={clearingMemory} />
+                <ConversationPanel
+                  phase={convPhase}
+                  muted={convMuted}
+                  onToggleMute={toggleMute}
+                  onStopListening={stopListeningNow}
+                  onEnd={endConversation}
+                  assistantName={assistantName}
+                />
+              </>
             )}
 
             {/* Input bar (hidden while in conversation mode) */}
             {!convMode && (
             <View>
+              {/* V50.z517 — indicatori di costo: card informativa (primo accesso) · avviso dopo 15 msg · semaforo sessione */}
+              <CostTipsCard />
+              <HeavySessionBox count={messages.length} onNewChat={() => void resetSession()} />
+              <SessionLight count={messages.length} />
               {/* V28.l — Preview allegati in attesa di invio · V50.z438 — contatore pagine + toggle «Unisci come unico documento» */}
               {pendingAttachments.length > 0 ? (
                 <View style={styles.attRow}>
