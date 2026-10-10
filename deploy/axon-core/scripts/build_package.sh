@@ -33,6 +33,23 @@ rsync -a --exclude '__pycache__' --exclude '*.pyc' --exclude 'assets/kokoro' --e
 # «novità»; sul VPS mancavano → warning «No such file or directory» a ogni upgrade.
 cp "$ROOT/CHANGELOG.md" "$PKG/backend/CHANGELOG.md"
 mkdir -p "$PKG/backend/memory" && cp "$ROOT/memory/PRD.md" "$PKG/backend/memory/PRD.md"
+# V50.z508 — manifest delle route reali (frontend/app/**.tsx → route) letto dal backend all'avvio: a ogni deploy Axon riscansiona i deep link
+python3 - "$ROOT/frontend/app" "$PKG/backend/routes_manifest.json" "${TAG:-}" <<'PY'
+import json, os, sys, datetime
+base, out, tag = sys.argv[1], sys.argv[2], sys.argv[3]
+routes = set()
+for root, _d, files in os.walk(base):
+    for fn in files:
+        if not fn.endswith(".tsx") or fn.startswith("_") or fn.startswith("+"):
+            continue
+        rel = os.path.relpath(os.path.join(root, fn), base)[:-4]
+        parts = [p for p in rel.split(os.sep) if not (p.startswith("(") and p.endswith(")"))]
+        if parts and parts[-1] == "index":
+            parts = parts[:-1]
+        routes.add("/" + "/".join(parts))
+json.dump({"tag": tag, "generated_at": datetime.datetime.utcnow().isoformat() + "Z", "count": len(routes), "routes": sorted(routes)}, open(out, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+print(f"routes_manifest.json: {len(routes)} route (tag {tag})")
+PY
 # FIX build VPS: tolgo la riga `litellm @ …#sha256=…` (stesso wheel richiesto da emergentintegrations senza hash → ResolutionImpossible)
 grep -v '^litellm @ ' "$PKG/backend/requirements.txt" > "$PKG/backend/requirements.tmp" && mv "$PKG/backend/requirements.tmp" "$PKG/backend/requirements.txt"
 cp "$ROOT/deploy/axon-core/Dockerfile" "$PKG/backend/Dockerfile"

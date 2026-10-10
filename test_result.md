@@ -604,3 +604,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z507 — stats alias days; regola tipo assoluta appuntamento/telefonata/ritelefonata; salvataggio anche con contatto non in rubrica (+ log SALVATO); conferma doppione persistente 48h con endpoint /axon/agent/pending e card con bottoni in Home/Chat/Drive. Testing agent 14/14 backend + UI OK."
+
+  - agent: "main"
+    message: "V50.z508 — mappa esplicita deep link nel prompt (axon_deeplink_map.py, gate navigate allargato), autocorrezione automatica post test notturno con una sola notifica riepilogativa (axon_stress_autofix.py), riscansione route a ogni avvio/deploy con manifest nel pacchetto (axon_route_rescan.py + build_package.sh). Testing agent 16/17 → fix cap [:80] e ?run= nel report."

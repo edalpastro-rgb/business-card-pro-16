@@ -1,0 +1,39 @@
+{
+  "summary": "V50.z508 — backend coverage of deeplink-map, routes manifest/rescan, stress autofix + nightly settings + notification validated. 16/17 backend tests pass + 1 xfail documenting a real bug in deeplink-map truncation. Frontend code review confirms all required testIDs exist in /app/frontend/app/axon-stress-report.tsx (stress-autofix-box line 240, stress-nightly-autofix-on/off lines 207-208, 'Applicata automaticamente' line 318). Full UI validation of the dynamic autofix-box + chip toggle couldn't be completed from the automation harness because the ?run=<id> query param didn't deep-link the UI to the target run (default view redirects to the most recent run which had 0 failed items) and session persistence between runs was flaky.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/axon/deeplink-map", "issue": "BUG REAL: in axon_deeplink_map.py:81 the ALTRE SCHERMATE REALI extras line is truncated with extra[:80]. With 98 extras today a newly added route (e.g. /zz-probe which sorts last alphabetically) is NOT injected into Axon's prompt map, so Axon won't learn the new deep-link marker. Repro: touch /app/frontend/app/zz-probe.tsx → POST /axon/routes/rescan → GET /axon/deeplink-map?refresh=1 → '[[NAV:/zz-probe|' absent. stats returned: {routes:78, extra_routes:98, chars:15333}. Fix: remove the [:80] cap or raise to e.g. 500, or always include newly-added routes (RR_STATE.added) unconditionally."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "axon-stress-report deep link", "issue": "Opening /axon-stress-report?run=st_23c3361311 does not pre-select that run — the UI loads the default (most recent) run, so stress-autofix-box is hidden when the latest run has summary.failed=0. The ?run= query param appears to be ignored or lost by the client router. Verify loadRun(run) is called with router.params.run on mount.", "affected_testIDs": ["stress-autofix-box"]}
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v50z508_deeplink_rescan_autofix.py",
+    "/app/test_reports/pytest/v50z508_results.xml"
+  ],
+  "action_items": [
+    "FIX /app/backend/routes/axon_deeplink_map.py: remove the extra[:80] cap on line 81 (or raise to ~500) so every real route surfaces in the deep-link map after rescan — otherwise newly-added screens beyond the 80th alphabetical extra are invisible to Axon.",
+    "FIX /app/frontend/app/axon-stress-report.tsx: honor the ?run=<id> query param on mount so direct links (used by notifications' deeplink '/axon-stress-report?run=…') preselect the target run and render the autofix recap box.",
+    "DOC: the review-request's '403 for demo@advisoros.it' expectation is wrong — demo is role=owner (Master of its own tenant) so it correctly gets 200 on /axon/deeplink-map and 404 on /axon/stress/autofix/<unknown>. True non-owner (consulente.test@dalpastro.it, role=consultant) is correctly rejected with 403 — verified."
+  ],
+  "critical_code_review_comments": [
+    "axon_deeplink_map.py relies on monkey-patched globals via noqa:F821 (db, _ST_QUESTIONS, _nav_intent, logger, api_router, …). Works today only because the module is imported after server.py defines these; any import-order regression breaks silently.",
+    "axon_stress_autofix.py performs mutating item patches via arrayFilters-less positional operator — if two autofix runs overlap on the same run_id, only the first matched item per update will be touched. Not a user-facing bug today."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v50z508_deeplink_rescan_autofix.py"
+  ],
+  "success_rate": {"backend": "94% (16/17 passed, 1 xfail documenting real bug)", "frontend": "partial — testIDs verified in source but dynamic flow not fully exercised (see action items)"},
+  "seed_data_creation": "None persistent. Test reset items.correction_applied=false / unset correction_auto / autofix on run st_23c3361311 and deleted auto rules with source.run_id=st_23c3361311 BEFORE calling POST /axon/stress/autofix; the run is now back to a corrected state (applied=9, new_pct=94.9). zz-probe.tsx created and removed per request.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend test file: backend/tests/test_v50z508_deeplink_rescan_autofix.py (pytest-ready, uses pymongo + requests). Known xfail: TestRoutesRescan.test_rescan_detects_add_and_remove — zz-probe absent from deeplink-map text due to extra[:80] cap. Owner credentials in /app/memory/test_credentials.md; actual non-owner for 403 checks is consulente.test@dalpastro.it / Test1234!. Run st_23c3361311 has autofix data populated (applied=9, pct_before=88.5, new_pct=94.9) and is the recommended fixture for UI tests of stress-autofix-box.",
+  "rca_of_issue": "Deep-link map truncation: in _dl_build the extras list is built from `sorted(r for r in real if r not in by_route and …)`, then the user-visible 'ALTRE SCHERMATE REALI' line is produced as `… for r in extra[:80]`. With 98 real schermate today, routes 81…98 (alphabetically) are silently dropped, so Axon cannot answer a navigation question about them even though axon_route_rescan correctly detected and persisted the new routes."
+}

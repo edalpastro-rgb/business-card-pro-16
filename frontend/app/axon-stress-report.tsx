@@ -16,11 +16,11 @@ import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 const NAVY = HT.text; const VIOLET = "#7C3AED";
 type Rep = { rep: number; reply: string; ok: boolean | null; routes: string[]; actions: string[]; reason: string };
-type Item = { id: string; category: string; question: string; expected: string[]; flag: string; reps: Rep[]; outcome: "passed" | "failed" | "inconsistent" | "skipped" | "error" | null; correction?: { expected_text: string; rule: string } | null; correction_applied?: boolean };
+type Item = { id: string; category: string; question: string; expected: string[]; flag: string; reps: Rep[]; outcome: "passed" | "failed" | "inconsistent" | "skipped" | "error" | null; correction?: { expected_text: string; rule: string } | null; correction_applied?: boolean; correction_auto?: boolean; autofix_recheck?: { ok: boolean; reason?: string } | null };
 type Summary = { tested: number; passed: number; failed: number; inconsistent: number; errors?: number; pct_passed: number; pct_failed: number; pct_inconsistent: number; by_category?: Record<string, { tested: number; passed: number; failed: number; inconsistent: number }> };
-type RunHead = { run_id: string; status: "running" | "done" | "stopped" | "error"; reps: number; total: number; done: number; created_at: string; summary?: Summary | null; error?: string | null };
+type RunHead = { run_id: string; status: "running" | "done" | "stopped" | "error"; reps: number; total: number; done: number; created_at: string; summary?: Summary | null; error?: string | null; autofix?: { applied: number; reverified_ok: number; failed_before: number; pct_before?: number; new_pct: number } | null };
 type Filter = "all" | "passed" | "failed" | "inconsistent" | "error";
-type NightlyCfg = { enabled: boolean; hour: number; mode: "quick" | "full"; reps: number; threshold_pct: number; drop_pct: number };
+type NightlyCfg = { enabled: boolean; hour: number; mode: "quick" | "full"; reps: number; threshold_pct: number; drop_pct: number; autofix?: boolean }; // V50.z508 autofix
 type NightlyStatus = { settings: NightlyCfg; last: (RunHead & { nightly_verdict?: string; nightly_reasons?: string[]; nightly_prev_pct?: number | null }) | null; previous: RunHead | null; running: boolean };
 
 const OUT_LABEL: Record<string, { t: string; c: string; bg: string }> = {
@@ -66,7 +66,7 @@ export default function AxonStressReportScreen() {
     try {
       const r = await api<{ runs: RunHead[] }>("/axon/stress/runs");
       setRuns(r.runs || []);
-      if (!runId && r.runs?.length) setRunId(r.runs[0].run_id);
+      if (!runId && !runParam && r.runs?.length) setRunId(r.runs[0].run_id); // V50.z508 — ?run=… dalla notifica non viene più sovrascritto dal run più recente
     } catch (e: any) { notify("Stress test", e?.message || "Errore"); }
     finally { setLoading(false); }
   }, [runId]);
@@ -201,6 +201,12 @@ export default function AxonStressReportScreen() {
                     <Pressable onPress={() => saveNightly({ mode: "quick" })} style={[styles.chip, nightly.settings.mode === "quick" && styles.chipOn]} testID="stress-nightly-mode-quick"><Text style={[styles.chipTxt, nightly.settings.mode === "quick" && styles.chipTxtOn]}>Rapido (~57 domande, ruota)</Text></Pressable>
                     <Pressable onPress={() => saveNightly({ mode: "full" })} style={[styles.chip, nightly.settings.mode === "full" && styles.chipOn]} testID="stress-nightly-mode-full"><Text style={[styles.chipTxt, nightly.settings.mode === "full" && styles.chipTxtOn]}>Completo ({totalQuestions})</Text></Pressable>
                   </View>
+                  {/* V50.z508 — Autocorrezione automatica dopo il test notturno */}
+                  <Text style={styles.optLab}>Autocorrezione automatica</Text>
+                  <View style={styles.rowWrap}>
+                    <Pressable onPress={() => saveNightly({ autofix: true } as any)} style={[styles.chip, nightly.settings.autofix !== false && styles.chipOn]} testID="stress-nightly-autofix-on"><Text style={[styles.chipTxt, nightly.settings.autofix !== false && styles.chipTxtOn]}>Attiva: applica da sola tutte le correzioni delle domande fallite</Text></Pressable>
+                    <Pressable onPress={() => saveNightly({ autofix: false } as any)} style={[styles.chip, nightly.settings.autofix === false && styles.chipOn]} testID="stress-nightly-autofix-off"><Text style={[styles.chipTxt, nightly.settings.autofix === false && styles.chipTxtOn]}>Manuale</Text></Pressable>
+                  </View>
                   <Text style={styles.optLab}>Ripetizioni · Soglia minima corrette · Calo massimo</Text>
                   <View style={styles.rowWrap}>
                     {[1, 3, 5].map((r) => <Pressable key={`r${r}`} onPress={() => saveNightly({ reps: r })} style={[styles.chip, nightly.settings.reps === r && styles.chipOn]} testID={`stress-nightly-reps-${r}`}><Text style={[styles.chipTxt, nightly.settings.reps === r && styles.chipTxtOn]}>×{r}</Text></Pressable>)}
@@ -229,6 +235,13 @@ export default function AxonStressReportScreen() {
 
           {run && (
             <>
+              {/* V50.z508 — esito autocorrezione automatica */}
+              {run.autofix ? (
+                <View style={styles.autofixBox} testID="stress-autofix-box">
+                  <Ionicons name="sparkles" size={16} color={HT.success} />
+                  <Text style={styles.autofixTxt}>Test notturno completato: <Text style={{ fontWeight: "900" }}>{run.autofix.applied} correzioni applicate</Text>, nuovo punteggio <Text style={{ fontWeight: "900" }}>{run.autofix.new_pct}%</Text>{run.autofix.pct_before != null ? ` (prima ${run.autofix.pct_before}%)` : ""} · {run.autofix.reverified_ok}/{run.autofix.applied} riverificate ok</Text>
+                </View>
+              ) : null}
               {/* Contatori */}
               <View style={styles.kpiRow} testID="stress-kpis">
                 <View style={styles.kpi}><Text style={styles.kpiN}>{S.tested}</Text><Text style={styles.kpiL}>Domande testate</Text></View>
@@ -302,7 +315,7 @@ export default function AxonStressReportScreen() {
                               testID={`stress-apply-${it.id}`}
                             >
                               {applying === it.id ? <ActivityIndicator size="small" color="#FFF" /> : <Ionicons name={it.correction_applied ? "checkmark-circle" : "sparkles"} size={14} color="#FFF" />}
-                              <Text style={styles.applyTxt}>{it.correction_applied ? "Correzione applicata" : "Applica correzione"}</Text>
+                              <Text style={styles.applyTxt}>{it.correction_applied ? (it.correction_auto ? "Applicata automaticamente" + (it.autofix_recheck ? (it.autofix_recheck.ok ? " · riverificata ✓" : " · da ricontrollare") : "") : "Correzione applicata") : "Applica correzione"}</Text>
                             </Pressable>
                           </View>
                         )}
@@ -320,6 +333,9 @@ export default function AxonStressReportScreen() {
 }
 
 const styles = StyleSheet.create({
+  autofixBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: HT.successTint, borderWidth: 1, borderColor: HT.success, borderRadius: 12, padding: 10, marginBottom: 10 },
+  autofixTxt: { color: HT.text, fontSize: 13, flex: 1, lineHeight: 18 },
+
   root: { flex: 1, backgroundColor: HT.card2 },
   header: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: NAVY, paddingHorizontal: 14, paddingVertical: 12 },
   title: { color: "#FFF", fontWeight: "900", fontSize: 17 }, sub: { color: "#C7D2FE", fontSize: 11, marginTop: 1 },

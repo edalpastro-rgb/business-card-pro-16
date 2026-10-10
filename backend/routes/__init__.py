@@ -149,6 +149,9 @@ MODULES = [
     "axon_register_security.py",  # V50.z434 — «Fort Knox» registrazione (rate limit, honeypot, PoW, Turnstile, email usa-e-getta) + Email di benvenuto configurabile (Master)
     "pkg_delivery.py",  # V50.z424 — consegna pacchetti VPS, attivo SOLO se AXON_PKG_DOWNLOAD_KEY è nell .env (dev); in produzione risponde 404  # V50.z422 — Condividi Landing Page: GET /me/landing-link (ref = codice agente) + GET /public/advisor/{ref} → nome
     "calls_module.py",  # V50.z506 — Modulo Call: GET /calls/today (appuntamenti is_phone del giorno + arretrate da fare), POST /calls/{id}/reschedule → ritelefonata (usa 02, 09)
+    "axon_deeplink_map.py",  # V50.z508 — mappa esplicita dei deep link nel prompt (banca domande + correzioni ultimo stress test); avvolge _prepare_assistant_prompt (dopo stress test)
+    "axon_route_rescan.py",  # V50.z508 — riscansione automatica delle route a ogni avvio/deploy (manifest del pacchetto o file-system): aggiorna nav guard, stress test, mappa deep link; avvisa i Master se cambiano
+    "axon_stress_autofix.py",  # V50.z508 — autocorrezione automatica dopo il test notturno (applica tutte le correzioni suggerite, riverifica, UNA notifica riepilogativa); sostituisce _st_nightly_after_finalize (dopo axon_critical_events)
     "home_layout.py",  # V50.z505 — Home personalizzabile (Super Master): blocchi visibili, ordine, posizione sinistra/destra/intera (GET/PUT/DELETE /home/layout; usa is_super_admin di 36)
     "axon_critical_events.py",  # V50.z496 — allarme prioritario eventi critici: banner Home + push CRITICAL + avviso vocale alla prima interazione (ri-avvolge /assistant/chat e /stream: ULTIMO strato)
     "37_app_startup_scheduler.py",

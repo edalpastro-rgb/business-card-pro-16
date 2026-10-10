@@ -382,7 +382,7 @@ async def stress_stop(run_id: str, user=Depends(get_current_user)):
 
 
 def _st_run_head(run: dict) -> dict:
-    return {k: run.get(k) for k in ("run_id", "status", "reps", "total", "done", "created_at", "finished_at", "summary", "error", "nightly", "nightly_verdict", "nightly_reasons", "nightly_prev_pct")}
+    return {k: run.get(k) for k in ("run_id", "status", "reps", "total", "done", "created_at", "finished_at", "summary", "error", "nightly", "nightly_verdict", "nightly_reasons", "nightly_prev_pct", "autofix")}  # V50.z508 autofix
 
 
 @api_router.get("/axon/stress/runs")
