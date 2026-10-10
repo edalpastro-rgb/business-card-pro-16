@@ -117,7 +117,7 @@ async def _agent_plan(msg: str, user: dict) -> _ag_Optional[dict]:
     )
     try:
         from emergentintegrations.llm.chat import LlmChat, UserMessage
-        chat = LlmChat(api_key=key, session_id=f"agent-plan-{_ag_uuid.uuid4().hex[:8]}", system_message=system).with_model("anthropic", "claude-sonnet-4-5")
+        chat = LlmChat(api_key=key, session_id=f"agent-plan-{_ag_uuid.uuid4().hex[:8]}", system_message=system).with_model("anthropic", "claude-haiku-4-5")
         r = await asyncio.wait_for(chat.send_message(UserMessage(text=prompt)), timeout=40)  # noqa: F821
         txt = (r or "").strip()
         if txt.startswith("```"):

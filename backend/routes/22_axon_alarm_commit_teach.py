@@ -873,7 +873,7 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
         )
         if prep.get("query_class") == "simple":  # V50.z413 — domande semplici → sempre Haiku 4.5
             _model_choice = "haiku"
-        _model_id = "claude-haiku-4-5" if _model_choice == "haiku" else "claude-sonnet-4-5"
+        _model_id = "claude-haiku-4-5" if _model_choice == "haiku" else "claude-haiku-4-5"
 
         yield sse("progress", {
             "stage": "thinking",

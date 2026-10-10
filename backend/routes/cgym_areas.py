@@ -528,7 +528,7 @@ async def _cga_evaluate(s: dict) -> dict:
               "\"summary\": \"1 frase per il consulente\"}}. Scala: <40 OSCENO, 40-59 MEDIOCRE, 60-79 DOVERE (minimo richiesto), ≥80 ECCELLENTE. Sii concreto e onesto.").format(a=s["area_name"], b=" · ".join(s["blocks"]))
     data: dict = {}
     try:
-        data = _cgym_llm_json(await _cgym_llm(system, f"Ripetizioni richieste da Axon per esitazione: {s.get('repeats', 0)}. Mix toni consulente: {tone_mix}.{manual}{samples}\n\nTRASCRIZIONE:\n{convo}", model="claude-sonnet-4-5"))  # noqa: F821
+        data = _cgym_llm_json(await _cgym_llm(system, f"Ripetizioni richieste da Axon per esitazione: {s.get('repeats', 0)}. Mix toni consulente: {tone_mix}.{manual}{samples}\n\nTRASCRIZIONE:\n{convo}", model="claude-haiku-4-5"))  # noqa: F821
     except Exception as exc:  # noqa: BLE001
         logger.warning("[cga] evaluate failed: %s", exc)
     try:

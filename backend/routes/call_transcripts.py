@@ -105,14 +105,14 @@ async def _ct_llm(system: str, prompt: str) -> str:
     direct = _ct_os.environ.get("ANTHROPIC_API_KEY") or ""
     if direct:  # chiave Anthropic diretta → litellm
         import litellm as _ct_litellm
-        r = await _ct_litellm.acompletion(model="anthropic/claude-sonnet-4-5", api_key=direct, max_tokens=1500, temperature=0,
+        r = await _ct_litellm.acompletion(model="anthropic/claude-haiku-4-5", api_key=direct, max_tokens=1500, temperature=0,
                                           messages=[{"role": "system", "content": system}, {"role": "user", "content": prompt}])
         return (r.choices[0].message.content or "").strip()
     key = _ct_os.environ.get("EMERGENT_LLM_KEY") or ""
     if not key:
         raise RuntimeError("Nessuna chiave LLM configurata (ANTHROPIC_API_KEY o EMERGENT_LLM_KEY)")
     from emergentintegrations.llm.chat import LlmChat, UserMessage
-    chat = LlmChat(api_key=key, session_id=f"call-extract-{_ct_uuid.uuid4().hex[:8]}", system_message=system).with_model("anthropic", "claude-sonnet-4-5")
+    chat = LlmChat(api_key=key, session_id=f"call-extract-{_ct_uuid.uuid4().hex[:8]}", system_message=system).with_model("anthropic", "claude-haiku-4-5")
     return ((await asyncio.wait_for(chat.send_message(UserMessage(text=prompt)), timeout=90)) or "").strip()  # noqa: F821
 
 

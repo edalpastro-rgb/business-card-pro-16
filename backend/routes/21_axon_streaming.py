@@ -1060,7 +1060,7 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         system_message = _pinned_section_ns + system_message
 
     from emergentintegrations.llm.chat import UserMessage
-    chat = _axon_llm_chat(system_message, session_id, model="claude-sonnet-4-5")  # V50.z511 — stessa chiave risolta sopra (`key`)
+    chat = _axon_llm_chat(system_message, session_id, model="claude-haiku-4-5")  # V50.z511 — stessa chiave risolta sopra (`key`)
     _rx_data = globals().get("_RX_DATA_REQUEST")  # V50.z452 — dato secco / voce → risposta minimalista (tetto token)
     if (_rx_data and _rx_data.search(msg or "")) or (isinstance(body.client_context, dict) and body.client_context.get("voice")):
         chat = chat.with_params(max_tokens=150)

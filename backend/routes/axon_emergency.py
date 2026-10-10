@@ -130,7 +130,7 @@ async def _em_draft_messages(user: dict, items: _em_List[dict], reason: str) -> 
         lst = "\n".join(f'- id "{it["appointment_id"]}": cliente {it["contact_name"]}, appuntamento «{it["title"]}» previsto {_em_fmt(it["old_start"])} → proposto {_em_fmt(it["new_start"])}' for it in items)
         prompt = (f"CONSULENTE: {uname}\nMOTIVO (generico): {reason}\n\nAPPUNTAMENTI:\n{lst}\n\n"
                   'JSON: {"<id>": {"subject": "oggetto email", "email_body": "email completa con saluto e firma (max 120 parole)", "whatsapp": "messaggio WhatsApp breve (max 60 parole)"}, ...}')
-        chat = LlmChat(api_key=key, session_id=f"em-msg-{_em_uuid.uuid4().hex[:8]}", system_message=system).with_model("anthropic", "claude-sonnet-4-5")
+        chat = LlmChat(api_key=key, session_id=f"em-msg-{_em_uuid.uuid4().hex[:8]}", system_message=system).with_model("anthropic", "claude-haiku-4-5")
         r = await asyncio.wait_for(chat.send_message(UserMessage(text=prompt)), timeout=45)  # noqa: F821
         txt = (r or "").strip()
         if txt.startswith("```"):

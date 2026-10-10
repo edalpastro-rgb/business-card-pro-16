@@ -250,7 +250,7 @@ async def admin_customer_tier_suggest(cust_id: str, user=Depends(require_super_a
                     "axonos_business, axonos_private. Rispondi SOLO con un JSON: "
                     '{"tier":"<id>","reason":"<1 frase>"}.'
                 ),
-            ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+            ).with_model("anthropic", "claude-haiku-4-5")
             um = UserMessage(text=(
                 f"USER_EMAIL: {doc.get('email')}\nROLE: {doc.get('role')}\n"
                 f"USAGE: {json.dumps(counts)}\nTOTAL_ACTIONS: {total}\n"
@@ -292,7 +292,7 @@ async def _generate_axon_tip(user_email: str, feature_label: str, cta: str = "")
                 "ottenere [beneficio] perché [1 frase spiegazione].' Chiudi con: 'Tocca «" + (cta or "Apri") + "» per provarla.' "
                 "Tono amichevole, mai commerciale invasivo."
             ),
-        ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+        ).with_model("anthropic", "claude-haiku-4-5")
         um = UserMessage(text=f"FEATURE: {feature_label}\nGENERA il consiglio.")
         r = await chat.send_message(um)
         text = _tip_clean_message(str(r) or "")

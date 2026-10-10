@@ -364,7 +364,7 @@ async def generate_event_program(event_id: str, body: EventProgramAIIn, user=Dep
         api_key=key,
         session_id=f"event-program-{event_id}",
         system_message=system,
-    ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+    ).with_model("anthropic", "claude-haiku-4-5")
     try:
         raw = await chat.send_message(UserMessage(text=prompt))
     except Exception as e:

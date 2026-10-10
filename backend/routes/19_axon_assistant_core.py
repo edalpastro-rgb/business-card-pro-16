@@ -45,7 +45,7 @@ def _axon_llm_key(provider: str = "anthropic") -> str:
     return (os.environ.get("EMERGENT_LLM_KEY") or "").strip()
 
 
-def _axon_llm_chat(system_message: str, session_id: str, model: str = "claude-sonnet-4-5", provider: str = "anthropic", **params):
+def _axon_llm_chat(system_message: str, session_id: str, model: str = "claude-haiku-4-5", provider: str = "anthropic", **params):
     """LlmChat pronto all'uso con la chiave risolta da `_axon_llm_key` (litellm diretto se ANTHROPIC_API_KEY, altrimenti proxy
     Emergent). Solleva RuntimeError se nessuna chiave è configurata."""
     key = _axon_llm_key(provider)

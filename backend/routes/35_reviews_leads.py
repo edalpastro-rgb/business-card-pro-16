@@ -732,7 +732,7 @@ async def _generate_axon_lead_reply(lead: dict, master_name: str, style: str = "
             api_key=key,
             session_id=f"lead-reply-{uuid.uuid4().hex[:8]}",
             system_message=system,
-        ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+        ).with_model("anthropic", "claude-haiku-4-5")
         resp = await chat.send_message(UserMessage(text=user_msg))
         text = (str(resp) or "").strip()
         # Cap dimensione per sicurezza

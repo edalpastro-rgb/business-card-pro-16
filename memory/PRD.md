@@ -7686,3 +7686,6 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 - `_axon_anthropic_direct_key()` toglie spazi e virgolette residue (docker `--env-file` le mantiene letterali).
 - Log all'avvio (hook `@app.on_event("startup")`, perché il logging è configurato solo nel modulo 37): `ANTHROPIC_API_KEY presente: True/False`, poi len/prefisso/formato (`ok` se `sk-ant-…`, altrimenti `ANOMALO`), warning se placeholder; alla prima chiamata Claude: `[axon-llm] prima chiamata Claude (<model>) → Anthropic DIRETTA via litellm (chiave …xxxx)` oppure `→ Emergent Universal Key`.
 - ⚠️ Nel `.env` dev c'è `ANTHROPIC_API_KEY="apikey_01A3…"`: è l'ID della chiave (formato ANOMALO nel log), Anthropic risponde `invalid x-api-key`. Serve la chiave segreta `sk-ant-api03-…`.
+
+## V50.z513 — Modello Axon: claude-sonnet-4-5 → claude-haiku-4-5
+- Sostituiti tutti i 15 riferimenti a `claude-sonnet-4-5` / `claude-sonnet-4-5-20250929` in 12 moduli (19, 21, 22, 14, 15, 25, 35, 36, axon_agent, axon_emergency, call_transcripts, cgym_areas). Restano invariati i moduli che usano `claude-sonnet-5` (corporate_gym, 27_teach_ai_kb, 30, 32, 25 banner, 37) perché non rientrano nella richiesta. Verifica log: `LiteLLM completion() model= claude-haiku-4-5; provider = anthropic`.

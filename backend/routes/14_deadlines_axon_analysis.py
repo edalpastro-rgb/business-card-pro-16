@@ -320,7 +320,7 @@ async def _axon_analyze_interaction_bg(
             api_key=key,
             session_id=f"axon-a-{uuid.uuid4().hex[:8]}",
             system_message=system,
-        ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+        ).with_model("anthropic", "claude-haiku-4-5")
         try:
             raw = await chat.send_message(UserMessage(text=prompt))
         except Exception as e:
@@ -534,7 +534,7 @@ async def _axon_build_profile_bg(
             api_key=key,
             session_id=f"axon-p-{uuid.uuid4().hex[:8]}",
             system_message=system,
-        ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+        ).with_model("anthropic", "claude-haiku-4-5")
         try:
             raw = await chat.send_message(UserMessage(text=prompt))
         except Exception as e:

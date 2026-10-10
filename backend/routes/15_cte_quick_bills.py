@@ -296,7 +296,7 @@ async def _llm_cte_verdict(bills: List[dict]) -> dict:
         "{\"luce\": \"...\", \"gas\": \"...\", \"telco\": \"...\"}. Ometti chiavi senza dati."
     )
     prompt = f"Fatture analizzate:\n{_j.dumps(summary, ensure_ascii=False, default=str)}\n\nRispondi con il JSON."
-    chat = LlmChat(api_key=key, session_id=f"cte-{uuid.uuid4().hex[:6]}", system_message=system).with_model("anthropic", "claude-sonnet-4-5-20250929")
+    chat = LlmChat(api_key=key, session_id=f"cte-{uuid.uuid4().hex[:6]}", system_message=system).with_model("anthropic", "claude-haiku-4-5")
     try:
         raw = await chat.send_message(UserMessage(text=prompt))
     except Exception as e:
