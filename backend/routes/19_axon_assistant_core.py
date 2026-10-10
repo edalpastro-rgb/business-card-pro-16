@@ -26,10 +26,20 @@ _WEATHER_KEYWORDS = ["meteo", "previsioni", "previsione", "tempo", "clima", "pio
 # model «anthropic/<id>»); fallback a EMERGENT_LLM_KEY SOLO se è vuota. I provider diversi da Anthropic (Gemini vision,
 # OpenAI) restano sulla Emergent LLM Key. UNICO helper condiviso: usato da 19 (memoria, OCR, riassunti), 21 (prompt/chat
 # non-stream → prep["api_key"]) e, tramite prep, da 22 (stream).
+# V50.z512 — (1) lettura robusta: tolgo spazi e virgolette residue (docker `--env-file` le mantiene letterali);
+#            (2) log ESPLICITO all'avvio «ANTHROPIC_API_KEY presente: True/False» + log alla PRIMA chiamata Claude con la rotta
+#                effettiva (Anthropic diretta / Emergent);
+#            (3) patch centrale di `LlmChat.with_model`: OGNI chiamata Claude di QUALSIASI modulo Axon (Drive, memoria,
+#                proattivo, wizard, sveglie, apprendimento, …) usa la chiave diretta se presente, anche se il call-site ha
+#                passato EMERGENT_LLM_KEY → nessun modulo può più finire sulla Universal Key per Claude.
 # ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+def _axon_anthropic_direct_key() -> str:
+    return (os.environ.get("ANTHROPIC_API_KEY") or "").strip().strip('"').strip("'").strip()
+
+
 def _axon_llm_key(provider: str = "anthropic") -> str:
     if provider == "anthropic":
-        direct = (os.environ.get("ANTHROPIC_API_KEY") or "").strip()
+        direct = _axon_anthropic_direct_key()
         if direct:
             return direct
     return (os.environ.get("EMERGENT_LLM_KEY") or "").strip()
@@ -44,6 +54,52 @@ def _axon_llm_chat(system_message: str, session_id: str, model: str = "claude-so
     from emergentintegrations.llm.chat import LlmChat
     chat = LlmChat(api_key=key, session_id=session_id, system_message=system_message).with_model(provider, model)
     return chat.with_params(**params) if params else chat
+
+
+_AXON_LLM_ROUTE_LOGGED: Dict[str, bool] = {}
+_axon_llm_log = logging.getLogger("axon.llm")  # `logger` globale nasce solo nel modulo 37: qui serve un logger proprio
+
+
+def _axon_llm_route_label() -> str:
+    direct = _axon_anthropic_direct_key()
+    return f"Anthropic DIRETTA via litellm (chiave …{direct[-4:]})" if direct else "Emergent Universal Key (EMERGENT_LLM_KEY)"
+
+
+def _axon_patch_llmchat() -> None:
+    from emergentintegrations.llm.chat import LlmChat
+    if getattr(LlmChat, "_axon_patched", False):
+        return
+    _orig_with_model = LlmChat.with_model
+
+    def with_model(self, provider: str, model: str):
+        _orig_with_model(self, provider, model)
+        if provider == "anthropic":
+            direct = _axon_anthropic_direct_key()
+            if direct and self.api_key != direct:
+                self.api_key = direct  # il call-site aveva passato EMERGENT_LLM_KEY → forzo la rotta diretta
+            if not _AXON_LLM_ROUTE_LOGGED.get("anthropic"):
+                _AXON_LLM_ROUTE_LOGGED["anthropic"] = True
+                _axon_llm_log.info("[axon-llm] prima chiamata Claude (%s) → %s", model, _axon_llm_route_label())
+        return self
+
+    LlmChat.with_model = with_model  # type: ignore[method-assign]
+    LlmChat._axon_patched = True  # type: ignore[attr-defined]
+
+
+_axon_patch_llmchat()
+
+
+@app.on_event("startup")  # il logging (StreamHandler + livello INFO) viene configurato solo nel modulo 37: a import-time i log sparirebbero
+async def _axon_llm_startup_diag():
+    k = _axon_anthropic_direct_key()
+    _axon_llm_log.info("ANTHROPIC_API_KEY presente: %s", bool(k))
+    if k:
+        _axon_llm_log.info("[axon-llm] ANTHROPIC_API_KEY len=%d prefisso=%s… formato=%s → Claude via Anthropic diretta (litellm)", len(k), k[:11],
+                           "ok" if k.startswith("sk-ant-") else "ANOMALO (atteso sk-ant-…)")
+        if "placeholder" in k.lower():
+            _axon_llm_log.warning("[axon-llm] ANTHROPIC_API_KEY è un PLACEHOLDER: le chiamate Claude falliranno (invalid x-api-key) finché non inserisci la chiave reale")
+    else:
+        _axon_llm_log.info("[axon-llm] ANTHROPIC_API_KEY assente/vuota → Claude via EMERGENT_LLM_KEY (presente: %s)", bool(os.environ.get("EMERGENT_LLM_KEY")))
 
 
 

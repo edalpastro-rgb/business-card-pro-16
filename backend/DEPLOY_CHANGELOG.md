@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-10 | D2026.10.10-1542 | Axon LLM: patch centrale LlmChat.with_model → OGNI chiamata Claude di qualsiasi modulo (Drive, memoria, proattivo, wizard, sveglie, apprendimento/stress) usa ANTHROPIC_API_KEY diretta se presente (prima solo 19/21: gli altri moduli finivano ancora sulla Universal Key → daily spend limit); lettura robusta della chiave (spazi/virgolette); log all'avvio «ANTHROPIC_API_KEY presente: True/False» + formato/prefisso e log alla prima chiamata Claude con la rotta effettiva |
 | 2026-10-10 | D2026.10.10-1451 | Diagnostica PKG_VERSION esplicita (tag, conteggio helper ANTHROPIC_API_KEY in 19/21, md5); contenuto invariato rispetto a D2026.10.10-1444 |
 | 2026-10-10 | D2026.10.10-1444 | Rigenerazione cumulativa verificata: helper ANTHROPIC_API_KEY (_axon_llm_key/_axon_llm_chat) in 19/21, Cruscotto Beta Segnalazioni ed errori, fix /org/branding e /deadlines/upcoming |
 | 2026-10-10 | D2026.10.10-1231 | Pacchetto cumulativo del giorno: Cruscotto Beta con gestione feedback tester e nuova sezione Segnalazioni ed errori (ticket Bug/Errori/Idee con filtri e triage, errori backend per endpoint, watchdog; inclusa nei report PDF/CSV); fix GET /org/branding (500 per collisione nomi tra moduli) e GET /deadlines/upcoming (500 con contatti legacy, migrazione automatica); Axon su ANTHROPIC_API_KEY diretta via litellm quando presente nel .env con fallback a EMERGENT_LLM_KEY (helper condiviso in 19/21) |
