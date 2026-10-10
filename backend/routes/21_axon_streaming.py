@@ -278,9 +278,9 @@ async def _prepare_assistant_prompt(
     if len(msg) > 4000:
         raise HTTPException(status_code=400, detail="Messaggio troppo lungo (max 4000 caratteri)")
 
-    key = os.environ.get("EMERGENT_LLM_KEY")
+    key = _axon_llm_key("anthropic")  # V50.z511 — ANTHROPIC_API_KEY diretta (litellm) se presente, altrimenti EMERGENT_LLM_KEY
     if not key:
-        raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY non configurato")
+        raise HTTPException(status_code=500, detail="Nessuna chiave LLM configurata (ANTHROPIC_API_KEY o EMERGENT_LLM_KEY)")
 
     assistant_name = await _get_assistant_name(user)
     # V50.z271 — lingua scelta dall'utente (pagina «Voce e lingua di Axon»)
@@ -708,9 +708,9 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     if len(msg) > 4000:
         raise HTTPException(status_code=400, detail="Messaggio troppo lungo (max 4000 caratteri)")
 
-    key = os.environ.get("EMERGENT_LLM_KEY")
+    key = _axon_llm_key("anthropic")  # V50.z511 — ANTHROPIC_API_KEY diretta (litellm) se presente, altrimenti EMERGENT_LLM_KEY
     if not key:
-        raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY non configurato")
+        raise HTTPException(status_code=500, detail="Nessuna chiave LLM configurata (ANTHROPIC_API_KEY o EMERGENT_LLM_KEY)")
 
     assistant_name = await _get_assistant_name(user)
     # V50.z271 — lingua scelta dall'utente (pagina «Voce e lingua di Axon»)
@@ -1059,12 +1059,8 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     if _pinned_section_ns:
         system_message = _pinned_section_ns + system_message
 
-    from emergentintegrations.llm.chat import LlmChat, UserMessage
-    chat = LlmChat(
-        api_key=key,
-        session_id=session_id,
-        system_message=system_message,
-    ).with_model("anthropic", "claude-sonnet-4-5")
+    from emergentintegrations.llm.chat import UserMessage
+    chat = _axon_llm_chat(system_message, session_id, model="claude-sonnet-4-5")  # V50.z511 — stessa chiave risolta sopra (`key`)
     _rx_data = globals().get("_RX_DATA_REQUEST")  # V50.z452 — dato secco / voce → risposta minimalista (tetto token)
     if (_rx_data and _rx_data.search(msg or "")) or (isinstance(body.client_context, dict) and body.client_context.get("voice")):
         chat = chat.with_params(max_tokens=150)

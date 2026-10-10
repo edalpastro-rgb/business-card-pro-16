@@ -20,6 +20,33 @@ _WEATHER_EXPLICIT_RE = _wx_re.compile(
 _WEATHER_KEYWORDS = ["meteo", "previsioni", "previsione", "tempo", "clima", "piove", "nevica", "temperatura", "gradi", "sole", "caldo", "freddo", "vento", "pioggia", "neve", "temporale", "nebbia"]
 
 
+# ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+# V50.z511 — CHIAVE LLM DI AXON: stesso pattern di routes/call_transcripts.py (_ct_llm). Se ANTHROPIC_API_KEY è presente, le
+# chiamate Claude vanno DIRETTE ad Anthropic via litellm (LlmChat con chiave non-Emergent = litellm.acompletion senza proxy,
+# model «anthropic/<id>»); fallback a EMERGENT_LLM_KEY SOLO se è vuota. I provider diversi da Anthropic (Gemini vision,
+# OpenAI) restano sulla Emergent LLM Key. UNICO helper condiviso: usato da 19 (memoria, OCR, riassunti), 21 (prompt/chat
+# non-stream → prep["api_key"]) e, tramite prep, da 22 (stream).
+# ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+def _axon_llm_key(provider: str = "anthropic") -> str:
+    if provider == "anthropic":
+        direct = (os.environ.get("ANTHROPIC_API_KEY") or "").strip()
+        if direct:
+            return direct
+    return (os.environ.get("EMERGENT_LLM_KEY") or "").strip()
+
+
+def _axon_llm_chat(system_message: str, session_id: str, model: str = "claude-sonnet-4-5", provider: str = "anthropic", **params):
+    """LlmChat pronto all'uso con la chiave risolta da `_axon_llm_key` (litellm diretto se ANTHROPIC_API_KEY, altrimenti proxy
+    Emergent). Solleva RuntimeError se nessuna chiave è configurata."""
+    key = _axon_llm_key(provider)
+    if not key:
+        raise RuntimeError("Nessuna chiave LLM configurata (ANTHROPIC_API_KEY o EMERGENT_LLM_KEY)")
+    from emergentintegrations.llm.chat import LlmChat
+    chat = LlmChat(api_key=key, session_id=session_id, system_message=system_message).with_model(provider, model)
+    return chat.with_params(**params) if params else chat
+
+
+
 def _is_explicit_weather_query(text: str) -> bool:
     return bool(text) and bool(_WEATHER_EXPLICIT_RE.search(text))
 
@@ -672,14 +699,13 @@ async def _maybe_save_memory(user_id: str, session_id: str, assistant_name: str)
     if not msgs:
         return
     convo = "\n".join(f"{m['role'].upper()}: {m['content']}" for m in msgs)
-    key = os.environ.get("EMERGENT_LLM_KEY")
-    if not key:
+    if not _axon_llm_key("anthropic"):
         return
     try:
-        from emergentintegrations.llm.chat import LlmChat, UserMessage
-        chat = LlmChat(
-            api_key=key,
+        from emergentintegrations.llm.chat import UserMessage
+        chat = _axon_llm_chat(  # V50.z511 — ANTHROPIC_API_KEY diretta se presente, altrimenti Emergent
             session_id=f"memory_{session_id}",
+            model="claude-haiku-4-5",
             system_message=(
                 "Sei un motore di distillazione della memoria per un CRM italiano. "
                 "Ricevi una conversazione tra un utente (Consulente Energia) e l'assistente "
@@ -692,7 +718,7 @@ async def _maybe_save_memory(user_id: str, session_id: str, assistant_name: str)
                 "{\"summary\": \"\", \"facts\": []}. "
                 "Massimo 8 fatti, ciascuno < 120 caratteri."
             ),
-        ).with_model("anthropic", "claude-haiku-4-5")
+        )
         raw = await chat.send_message(UserMessage(text=convo))
         raw_clean = (raw or "").strip()
         # LLM sometimes wraps JSON in code fences
@@ -747,19 +773,18 @@ async def _extract_attachment_text(att: "AssistantAttachmentIn") -> str:
             # (PDF scansionato / immagine). Max 5 pagine per non essere lento.
             if len(text_out) < 100:
                 try:
-                    key = os.environ.get("EMERGENT_LLM_KEY")
-                    if key:
+                    if _axon_llm_key("anthropic"):  # V50.z511
                         pages_img = (await heavy_call("pdf_render_pages", data=raw, max_pages=5, scale=2.0, fmt="jpeg", quality=80)).get("images") or []
                         ocr_parts: List[str] = []
-                        from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent  # type: ignore
+                        from emergentintegrations.llm.chat import UserMessage, ImageContent  # type: ignore
                         for i, jpg in enumerate(pages_img):
                             try:
                                 b64 = _b64.b64encode(jpg).decode()
-                                chat = LlmChat(
-                                    api_key=key,
+                                chat = _axon_llm_chat(
                                     session_id=f"pdf-ocr-att-{uuid.uuid4().hex[:8]}",
+                                    model="claude-haiku-4-5",
                                     system_message="Sei un OCR italiano. Trascrivi ESATTAMENTE tutto il testo visibile. Preserva tabelle in Markdown. Solo testo, nessun commento.",
-                                ).with_model("anthropic", "claude-haiku-4-5")
+                                )
                                 content = [ImageContent(image_base64=b64, media_type="image/jpeg")]
                                 resp = await chat.send_message(UserMessage(text="Trascrivi tutto il testo di questa pagina.", images=content))  # type: ignore
                                 if resp and resp.strip():
@@ -852,14 +877,13 @@ async def _extract_attachment_text(att: "AssistantAttachmentIn") -> str:
     if mime.startswith("image/") or name.endswith((".png", ".jpg", ".jpeg", ".webp")):
         try:
             # Riutilizziamo la vision helper già esistente per l'analisi bollette
-            from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
-            key = os.environ.get("EMERGENT_LLM_KEY")
-            if not key:
+            from emergentintegrations.llm.chat import UserMessage, ImageContent
+            if not _axon_llm_key("gemini"):  # V50.z511 — vision Gemini: resta su Emergent LLM Key (ANTHROPIC_API_KEY non la copre)
                 return f"[Immagine {att.name} ({len(raw)} byte) — LLM vision non configurato]"
-            chat = LlmChat(
-                api_key=key, session_id=f"attach_{uuid.uuid4().hex[:8]}",
+            chat = _axon_llm_chat(
+                session_id=f"attach_{uuid.uuid4().hex[:8]}", provider="gemini", model="gemini-2.5-flash",
                 system_message="Sei un assistente che descrive immagini in modo dettagliato in italiano. Estrai testo (OCR) e descrivi grafici, tabelle, dati numerici e contesto generale.",
-            ).with_model("gemini", "gemini-2.5-flash")
+            )
             msg = UserMessage(
                 text=f"Analizza questa immagine ('{att.name}') e descrivine il contenuto in italiano. Se contiene testo, riportalo. Se contiene numeri/tabelle, elencali.",
                 file_contents=[ImageContent(image_base64=att.data_base64)],
@@ -913,20 +937,19 @@ def _implicit_attachment_prompt(attachments: List, merge_images: bool = True) ->
 async def _extract_multi_image_document(images: List) -> str:
     """UNA sola chiamata vision con tutte le foto come pagine dello stesso documento → trascrizione/riepilogo unificato."""
     try:
-        from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
-        key = os.environ.get("EMERGENT_LLM_KEY")
-        if not key:
+        from emergentintegrations.llm.chat import UserMessage, ImageContent
+        if not _axon_llm_key("gemini"):  # V50.z511 — vision Gemini: resta su Emergent LLM Key
             return f"[{len(images)} immagini — LLM vision non configurato]"
         names = ", ".join((a.name or f"pagina {i+1}") for i, a in enumerate(images))
-        chat = LlmChat(
-            api_key=key, session_id=f"attach_multi_{uuid.uuid4().hex[:8]}",
+        chat = _axon_llm_chat(
+            session_id=f"attach_multi_{uuid.uuid4().hex[:8]}", provider="gemini", model="gemini-2.5-flash",
             system_message=(
                 "Sei un lettore di documenti italiano. Ricevi PIÙ FOTO che sono PAGINE DELLO STESSO DOCUMENTO (in ordine). "
                 "Trattale come un unico documento: trascrivi il testo rilevante pagina per pagina (OCR fedele, tabelle in Markdown), "
                 "poi produci una sezione finale 'RIEPILOGO UNICO DEL DOCUMENTO' con tipo documento, intestatario/controparti, "
                 "dati chiave (importi, date, codici, POD/PDR, scadenze) e punti salienti. Non descrivere le foto separatamente."
             ),
-        ).with_model("gemini", "gemini-2.5-flash")
+        )
         msg = UserMessage(
             text=f"Documento composto da {len(images)} pagine/foto ({names}). Leggile tutte insieme e produci trascrizione + RIEPILOGO UNICO.",
             file_contents=[ImageContent(image_base64=a.data_base64) for a in images],
@@ -1080,20 +1103,17 @@ async def _summarize_long_text(text: str, source_name: str) -> str:
     """Riassume un file lungo (>10k caratteri) con Claude Haiku via emergentintegrations.
     Fallback: prime 8000 caratteri troncati."""
     try:
-        from emergentintegrations.llm.chat import LlmChat, UserMessage  # type: ignore
-        key = os.environ.get("EMERGENT_LLM_KEY")
-        if not key:
-            raise RuntimeError("no key")
-        chat = LlmChat(
-            api_key=key,
+        from emergentintegrations.llm.chat import UserMessage  # type: ignore
+        chat = _axon_llm_chat(  # V50.z511 — ANTHROPIC_API_KEY diretta se presente, altrimenti Emergent
             session_id=f"summarize-{uuid.uuid4().hex[:8]}",
+            model="claude-haiku-4-5",
             system_message=(
                 "Sei un riassuntore esperto per un CRM energia italiano. Ricevi il contenuto di un file allegato. "
                 "Produci un riassunto strutturato in ITALIANO con: 1) Tipo di documento (bolletta/contratto/tabella prezzi/ecc.), "
                 "2) Dati chiave (numeri, date, importi, POD/PDR, controparti), 3) Punti salienti. "
                 "Se è una tabella, riporta le prime 5-10 righe come esempio. Max 2500 caratteri."
             ),
-        ).with_model("anthropic", "claude-haiku-4-5")
+        )
         # Cap input a 60k char per non far esplodere il token count
         content = text[:60000]
         resp = await chat.send_message(UserMessage(
