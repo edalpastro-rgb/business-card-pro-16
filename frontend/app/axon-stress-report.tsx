@@ -5,6 +5,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Platform } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { StressScheduleCalendar } from "@/src/stress/StressScheduleCalendar"; // V50.z509
 import { Ionicons } from "@expo/vector-icons";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
@@ -180,13 +181,16 @@ export default function AxonStressReportScreen() {
             )}
           </View>
 
-          {/* V50.z261 — Test notturno automatico */}
+          {/* V50.z509 — Calendario stress test (ricorrenze) al posto della pianificazione notturna fissa */}
+          <StressScheduleCalendar onRunStarted={(rid) => { setRunId(rid); setFilter("all"); void loadRuns(); }} />
+
+          {/* V50.z261 — Test notturno automatico quotidiano (legacy: disattivato di default, resta disponibile) */}
           {nightly && (
             <View style={styles.card} testID="stress-nightly">
               <View style={styles.rowBetween}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.cardTitle}>🌙 Test notturno</Text>
-                  <Text style={styles.hint}>Ogni notte Axon si autotesta; se la qualità scende ricevi un avviso (Avvisi Axon + notifica).</Text>
+                  <Text style={styles.cardTitle}>🌙 Test notturno quotidiano (fisso)</Text>
+                  <Text style={styles.hint}>Disattivato di default: usa il Calendario qui sopra. Se lo attivi, Axon si autotesta ogni notte all'ora scelta. Soglie e autocorrezione valgono anche per i test del calendario.</Text>
                 </View>
                 <Pressable onPress={() => saveNightly({ enabled: !nightly.settings.enabled })} disabled={nightlySaving} style={[styles.toggle, nightly.settings.enabled && styles.toggleOn]} testID="stress-nightly-toggle" accessibilityRole="switch">
                   <View style={[styles.knob, nightly.settings.enabled && styles.knobOn]} />

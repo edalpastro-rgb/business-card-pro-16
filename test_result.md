@@ -607,3 +607,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z508 — mappa esplicita deep link nel prompt (axon_deeplink_map.py, gate navigate allargato), autocorrezione automatica post test notturno con una sola notifica riepilogativa (axon_stress_autofix.py), riscansione route a ogni avvio/deploy con manifest nel pacchetto (axon_route_rescan.py + build_package.sh). Testing agent 16/17 → fix cap [:80] e ?run= nel report."
+
+  - agent: "main"
+    message: "V50.z509 — Calendario stress test con ricorrenze (axon_stress_schedule.py + StressScheduleCalendar.tsx), notturno fisso disattivato di default. Backend verificato via script (CRUD, upcoming, tick), UI via screenshot."
