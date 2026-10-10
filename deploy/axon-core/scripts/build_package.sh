@@ -60,7 +60,12 @@ cp -r "$ROOT/deploy/axon-core/nginx" "$PKG/nginx"
 mkdir -p "$PKG/nginx/certs" "$PKG/nginx/www"
 cp "$ROOT/deploy/axon-core/MIGRATION_GUIDE.md" "$PKG/"
 cp "$ROOT/deploy/axon-core/scripts/upgrade_vps.sh" "$PKG/upgrade_vps.sh"  # V50.z435 — aggiornamento VPS in un comando
-echo "axon-core-pkg $(date -u +%Y-%m-%dT%H:%M:%SZ) litellm_lines=$(grep -c '^litellm' "$PKG/backend/requirements.txt" || true)" > "$PKG/PKG_VERSION"
+# PKG_VERSION: diagnostica leggibile. `litellm_req_lines` conta le righe `^litellm` in requirements.txt DOPO la rimozione voluta
+# qui sopra → 0 è il valore ATTESO (litellm arriva come dipendenza di emergentintegrations). `axon_llm_helper` conta le occorrenze
+# dell'helper ANTHROPIC_API_KEY (_axon_llm_key/_axon_llm_chat) nei moduli 19/21 così da verificare al volo che il codice sia aggiornato.
+_H19=$(grep -c '_axon_llm_' "$PKG/backend/routes/19_axon_assistant_core.py" || true)
+_H21=$(grep -c '_axon_llm_' "$PKG/backend/routes/21_axon_streaming.py" || true)
+echo "axon-core-pkg $(date -u +%Y-%m-%dT%H:%M:%SZ) tag=$TAG litellm_req_lines=$(grep -c '^litellm' "$PKG/backend/requirements.txt" || true)(atteso 0) axon_llm_helper=19:${_H19},21:${_H21} md5_19=$(md5sum < "$PKG/backend/routes/19_axon_assistant_core.py" | cut -c1-8) md5_21=$(md5sum < "$PKG/backend/routes/21_axon_streaming.py" | cut -c1-8)" > "$PKG/PKG_VERSION"
 OUT="$PWD/axon-core-pkg.tgz"
 tar czf "$OUT" -C "$(dirname "$PKG")" axon-core-pkg
 echo "Pacchetto creato: $OUT ($(du -h "$OUT" | cut -f1))"

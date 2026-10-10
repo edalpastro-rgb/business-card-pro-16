@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-10 | D2026.10.10-1451 | Diagnostica PKG_VERSION esplicita (tag, conteggio helper ANTHROPIC_API_KEY in 19/21, md5); contenuto invariato rispetto a D2026.10.10-1444 |
 | 2026-10-10 | D2026.10.10-1444 | Rigenerazione cumulativa verificata: helper ANTHROPIC_API_KEY (_axon_llm_key/_axon_llm_chat) in 19/21, Cruscotto Beta Segnalazioni ed errori, fix /org/branding e /deadlines/upcoming |
 | 2026-10-10 | D2026.10.10-1231 | Pacchetto cumulativo del giorno: Cruscotto Beta con gestione feedback tester e nuova sezione Segnalazioni ed errori (ticket Bug/Errori/Idee con filtri e triage, errori backend per endpoint, watchdog; inclusa nei report PDF/CSV); fix GET /org/branding (500 per collisione nomi tra moduli) e GET /deadlines/upcoming (500 con contatti legacy, migrazione automatica); Axon su ANTHROPIC_API_KEY diretta via litellm quando presente nel .env con fallback a EMERGENT_LLM_KEY (helper condiviso in 19/21) |
 | 2026-10-10 | D2026.10.10-1228 | Axon: chiamate Claude con ANTHROPIC_API_KEY diretta via litellm quando presente nel .env (fallback a EMERGENT_LLM_KEY solo se vuota) tramite helper condiviso _axon_llm_key/_axon_llm_chat (chat, stream, memoria, OCR PDF, riassunti); vision Gemini resta su Emergent |
