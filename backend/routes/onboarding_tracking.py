@@ -179,7 +179,7 @@ app.add_event_handler("startup", _ob_startup)  # noqa: F821
 
 
 # ---- API ------------------------------------------------------------------------------------------------------------------
-def _ob_out(d: dict) -> dict:
+def _obt_out(d: dict) -> dict:
     cps = {}
     for c in _OB_CHECKPOINTS:
         v = (d.get("checkpoints") or {}).get(c["key"])
@@ -199,7 +199,7 @@ async def admin_onboarding(refresh: int = 0, user=Depends(require_super_admin)):
     if refresh:
         await _ob_run_once()
     rows = [d async for d in db.onboarding_progress.find({}, {"_id": 0}).sort("registered_at", -1)]  # noqa: F821
-    out = [_ob_out(d) for d in rows]
+    out = [_obt_out(d) for d in rows]
     tot = len(out)
     return {"checkpoints": _OB_CHECKPOINTS, "rules": {"first_reminder_days": _OB_FIRST_AFTER_DAYS, "second_reminder_days": _OB_SECOND_AFTER_DAYS},
             "stats": {"total": tot, "completed": sum(1 for r in out if r["completed"]), "stuck": sum(1 for r in out if not r["completed"]),
@@ -211,4 +211,4 @@ async def admin_onboarding(refresh: int = 0, user=Depends(require_super_admin)):
 @api_router.get("/onboarding/me")  # noqa: F821
 async def onboarding_me(user=Depends(get_current_user)):  # noqa: F821
     u = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})  # noqa: F821
-    return _ob_out(await _ob_sync_user(u or user))
+    return _obt_out(await _ob_sync_user(u or user))

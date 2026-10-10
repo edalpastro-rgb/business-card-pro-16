@@ -243,3 +243,13 @@ async def _vd_migrate_legacy_voice_callbacks():
             logger.info("[voice-drive] migrate %d richiamate legacy di Axon Drive allo schema standard", n)  # noqa: F821
     except Exception as exc:  # noqa: BLE001
         logger.warning("[voice-drive] migrazione richiamate legacy fallita: %s", exc)  # noqa: F821
+    # V50.z478 — contatti legacy con solo `id` (senza `contact_id`): rompevano GET /deadlines/upcoming (KeyError) → allineo lo schema
+    try:
+        n = 0
+        async for c in db.contacts.find({"contact_id": {"$exists": False}, "id": {"$exists": True}}, {"_id": 1, "id": 1}):  # noqa: F821
+            await db.contacts.update_one({"_id": c["_id"]}, {"$set": {"contact_id": c["id"]}})  # noqa: F821
+            n += 1
+        if n:
+            logger.info("[voice-drive] migrate %d contatti legacy senza contact_id", n)  # noqa: F821
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[voice-drive] migrazione contatti legacy fallita: %s", exc)  # noqa: F821

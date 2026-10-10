@@ -164,7 +164,7 @@ async def upcoming_deadlines(days: Optional[int] = None, user=Depends(get_curren
         contact_query,
         {"_id": 0, "contact_id": 1, "first_name": 1, "last_name": 1, "contact_code": 1, "phone": 1},
     ).to_list(5000)
-    cmap = {c["contact_id"]: c for c in contacts}
+    cmap = {c["contact_id"]: c for c in contacts if c.get("contact_id")}
     if not cmap:
         return {"items": [], "counts": {"expired": 0, "critical": 0, "warning": 0, "ok": 0}, "days": days}
 

@@ -470,6 +470,99 @@ async def beta_misunderstood(days: int = 42, limit: int = 200, reason: Optional[
 
 
 # ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# V50.z478 — SEGNALAZIONI & ERRORI (gestione feedback Beta Tester in un unico posto)
+#   GET  /admin/beta/issues?days=42&status=  → ticket «Bug, Errori e Idee» (db.support_tickets; Super Master = tutte le reti) con
+#        conteggi per stato, elenco con primo messaggio ed eventuale nota del Master; errori 5xx/eccezioni del backend
+#        (db.axon_system_events level=error source=api) raggruppati per endpoint; watchdog Axon per tipo.
+#   POST /admin/beta/tickets/{ticket_id}/status {status: open|resolved, note?}  → triage rapido dal Cruscotto Beta.
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+_BI_STATUS_LABELS = {"open": "Aperta", "escalated": "Da gestire", "resolved": "Risolta"}
+
+
+class BetaTicketStatusIn(BaseModel):
+    status: str
+    note: Optional[str] = None
+
+
+def _bi_first_text(t: dict) -> str:
+    for m in t.get("messages") or []:
+        if m.get("from") == "user" and (m.get("text") or "").strip():
+            return m["text"].strip()[:300]
+    return ""
+
+
+@api_router.get("/admin/beta/issues")
+async def beta_issues(days: int = 42, status: Optional[str] = None, limit: int = 40, user=Depends(get_current_user)):
+    if not is_owner(user):
+        raise HTTPException(status_code=403, detail="Solo il Master")
+    days = max(1, min(days, 180)); limit = max(5, min(limit, 200))
+    since = utcnow() - timedelta(days=days)
+    scope = _beta_scope(user)
+    # ── ticket (tutti gli stati per i conteggi; filtro stato solo sull'elenco)
+    tq: dict = {**scope, "created_at": {"$gte": since}}
+    tickets = await db.support_tickets.find(tq, {"_id": 0, "ticket_id": 1, "user_name": 1, "user_email": 1, "status": 1, "attempts": 1, "created_at": 1, "updated_at": 1, "messages": 1, "master_note": 1}).sort("updated_at", -1).to_list(2000)
+    counts = {k: sum(1 for t in tickets if t.get("status") == k) for k in ("open", "escalated", "resolved")}
+    items = []
+    for t in tickets:
+        if status in ("open", "escalated", "resolved") and t.get("status") != status:
+            continue
+        msgs = t.get("messages") or []
+        items.append({"ticket_id": t["ticket_id"], "user": t.get("user_name") or t.get("user_email") or "—", "status": t.get("status") or "open",
+                      "text": _bi_first_text(t), "messages": len(msgs), "attachments": sum(len(m.get("attachments") or []) for m in msgs),
+                      "note": t.get("master_note") or "", "created_at": t["created_at"].isoformat() if isinstance(t.get("created_at"), datetime) else None,
+                      "updated_at": t["updated_at"].isoformat() if isinstance(t.get("updated_at"), datetime) else None})
+        if len(items) >= limit:
+            break
+    # ── errori backend (5xx + eccezioni) raggruppati per endpoint
+    if "_axs_flush" in globals():
+        try:
+            await _axs_flush()  # noqa: F821
+        except Exception:  # noqa: BLE001
+            pass
+    eq: dict = {"level": "error", "source": "api", "ts": {"$gte": since}, **scope}
+    errs = await db.axon_system_events.find(eq, {"_id": 0, "title": 1, "detail": 1, "ts": 1, "user_id": 1, "extra": 1}).sort("ts", -1).to_list(3000)
+    groups: Dict[str, dict] = {}
+    for e in errs:
+        k = e.get("title") or "?"
+        g = groups.setdefault(k, {"title": k, "count": 0, "last": None, "detail": "", "users": set()})
+        g["count"] += 1
+        if e.get("user_id"):
+            g["users"].add(e["user_id"])
+        if g["last"] is None and isinstance(e.get("ts"), datetime):
+            g["last"] = e["ts"].isoformat(); g["detail"] = (e.get("detail") or "")[:200]
+    err_groups = sorted(groups.values(), key=lambda g: -g["count"])[:10]
+    for g in err_groups:
+        g["users"] = len(g["users"])
+    # ── watchdog per tipo
+    wq: dict = {"at": {"$gte": since}}
+    if scope:
+        uids = [u["user_id"] async for u in db.users.find({"$or": [{"user_id": scope["tenant_id"]}, {"parent_user_id": scope["tenant_id"]}]}, {"_id": 0, "user_id": 1})]
+        wq["user_id"] = {"$in": uids}
+    wd: Dict[str, int] = {}
+    async for w in db.axon_watchdog_log.find(wq, {"_id": 0, "kind": 1}):
+        wd[w.get("kind") or "?"] = wd.get(w.get("kind") or "?", 0) + 1
+    return {"days": days, "scope": "all" if not scope else "tenant", "tickets": {"counts": counts, "total": len(tickets), "items": items, "labels": _BI_STATUS_LABELS},
+            "errors": {"total": len(errs), "groups": err_groups, "last_at": errs[0]["ts"].isoformat() if errs and isinstance(errs[0].get("ts"), datetime) else None},
+            "watchdog": {"total": sum(wd.values()), "by_kind": wd}}
+
+
+@api_router.post("/admin/beta/tickets/{ticket_id}/status")
+async def beta_ticket_status(ticket_id: str, body: BetaTicketStatusIn, user=Depends(get_current_user)):
+    if not is_owner(user):
+        raise HTTPException(status_code=403, detail="Solo il Master")
+    if body.status not in ("open", "resolved"):
+        raise HTTPException(status_code=400, detail="Stato non valido")
+    upd: dict = {"status": body.status, "updated_at": utcnow(), "triaged_by": user["user_id"]}
+    if body.note is not None:
+        upd["master_note"] = (body.note or "").strip()[:500]
+    r = await db.support_tickets.update_one({"ticket_id": ticket_id, **_beta_scope(user)}, {"$set": upd})
+    if not r.matched_count:
+        raise HTTPException(status_code=404, detail="Segnalazione non trovata")
+    return {"ok": True, "ticket_id": ticket_id, "status": body.status, "note": upd.get("master_note")}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
 # V50.z477 — EXPORT CRUSCOTTO BETA (CSV + PDF) per partner/investitori — riusa i payload di dashboard/misunderstood/program.
 #   GET /admin/beta/export.csv?days=42  → CSV (;) con sezioni: metriche, frasi non capite (cluster), NPS commenti, diari, partecipanti
 #   GET /admin/beta/export.pdf?days=42  → report A4 (reportlab/platypus): verdetto, 10 metriche con stato, frasi non capite, NPS, diari
@@ -504,7 +597,8 @@ async def _bx_collect(days: int, user: dict) -> dict:
     dash = await beta_dashboard(days=days, user=user)
     mis = await beta_misunderstood(days=days, limit=200, reason=None, user=user)
     prog = await beta_program_admin(user=user)
-    return {"dash": dash, "mis": mis, "prog": prog}
+    iss = await beta_issues(days=days, status=None, limit=60, user=user)
+    return {"dash": dash, "mis": mis, "prog": prog, "iss": iss}
 
 
 @api_router.get("/admin/beta/export.csv")
@@ -544,11 +638,22 @@ async def beta_export_csv(days: int = 42, user=Depends(get_current_user)):
     w.writerow(["DIARIO DEL VENERDÌ"]); w.writerow(["Utente", "Settimana", "Data", "Tempo risparmiato", "Cosa ha fatto arrabbiare", "Fatto a mano"])
     for dd in prog["diaries"]:
         w.writerow([dd.get("user_name") or dd.get("user_email") or "", dd["week"], (dd.get("at") or "")[:10], dd.get("saved_time") or "", dd.get("angry") or "", dd.get("manual") or ""])
+    iss = d["iss"]
+    w.writerow([])
+    w.writerow(["SEGNALAZIONI BUG / ERRORI / IDEE", f"{iss['tickets']['total']} totali", f"aperte {iss['tickets']['counts'].get('open', 0)}", f"da gestire {iss['tickets']['counts'].get('escalated', 0)}", f"risolte {iss['tickets']['counts'].get('resolved', 0)}"])
+    w.writerow(["Data", "Utente", "Stato", "Segnalazione", "Nota Master"])
+    for t in iss["tickets"]["items"]:
+        w.writerow([(t.get("created_at") or "")[:16].replace("T", " "), t["user"], iss["tickets"]["labels"].get(t["status"], t["status"]), t["text"], t.get("note") or ""])
+    w.writerow([])
+    w.writerow(["ERRORI BACKEND (5xx / eccezioni)", f"{iss['errors']['total']} nel periodo", f"watchdog Axon {iss['watchdog']['total']}"])
+    w.writerow(["Endpoint", "Occorrenze", "Utenti", "Ultimo", "Dettaglio"])
+    for g in iss["errors"]["groups"]:
+        w.writerow([g["title"], g["count"], g["users"], (g.get("last") or "")[:16].replace("T", " "), g.get("detail") or ""])
     fname = f"AdvisorOS_Beta_{dash['days']}gg_{utcnow().strftime('%Y%m%d')}.csv"
     return Response(content=("\ufeff" + buf.getvalue()).encode("utf-8"), media_type="text/csv; charset=utf-8", headers={"Content-Disposition": f'attachment; filename="{fname}"'})
 
 
-def _bx_render_pdf(dash: dict, mis: dict, prog: dict, owner: str) -> bytes:
+def _bx_render_pdf(dash: dict, mis: dict, prog: dict, owner: str, iss: Optional[dict] = None) -> bytes:
     from reportlab.lib.pagesizes import A4  # type: ignore
     from reportlab.lib.units import mm  # type: ignore
     from reportlab.lib import colors as _c  # type: ignore
@@ -631,6 +736,26 @@ def _bx_render_pdf(dash: dict, mis: dict, prog: dict, owner: str) -> bytes:
         dt = Table(rows, colWidths=[30 * mm, 12 * mm, (W - 42 * mm) / 3, (W - 42 * mm) / 3, (W - 42 * mm) / 3], repeatRows=1)
         dt.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), _c.HexColor("#E6F4F2")), ("GRID", (0, 0), (-1, -1), 0.4, _c.HexColor("#CBD5E1")), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
         el.append(dt)
+    # V50.z478 — segnalazioni ed errori
+    iss = iss or {}
+    if iss:
+        tk = iss["tickets"]; er = iss["errors"]
+        el.append(Paragraph("Segnalazioni dei tester (bug, errori, idee)", H2))
+        el.append(para(f"{tk['total']} segnalazioni nel periodo - aperte {tk['counts'].get('open', 0)}, da gestire {tk['counts'].get('escalated', 0)}, risolte {tk['counts'].get('resolved', 0)}. Errori backend (5xx/eccezioni): {er['total']} - watchdog Axon: {iss['watchdog']['total']}.", P))
+        if tk["items"]:
+            rows = [[para("<b>Data</b>"), para("<b>Utente</b>"), para("<b>Stato</b>"), para("<b>Segnalazione</b>"), para("<b>Nota Master</b>")]]
+            for t in tk["items"][:25]:
+                rows.append([para((t.get("created_at") or "")[:10]), para(t["user"]), para(tk["labels"].get(t["status"], t["status"])), para(t["text"]), para(t.get("note") or "-")])
+            tt = Table(rows, colWidths=[20 * mm, 30 * mm, 20 * mm, (W - 70 * mm) * 0.62, (W - 70 * mm) * 0.38], repeatRows=1)
+            tt.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), _c.HexColor("#FEE2E2")), ("GRID", (0, 0), (-1, -1), 0.4, _c.HexColor("#CBD5E1")), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
+            el.append(tt)
+        if er["groups"]:
+            rows = [[para("<b>Endpoint</b>"), para("<b>Volte</b>"), para("<b>Utenti</b>"), para("<b>Ultimo</b>"), para("<b>Dettaglio</b>")]]
+            for g in er["groups"]:
+                rows.append([para(g["title"]), para(str(g["count"])), para(str(g["users"])), para((g.get("last") or "")[:16].replace("T", " ")), para(g.get("detail") or "-")])
+            et = Table(rows, colWidths=[55 * mm, 13 * mm, 13 * mm, 26 * mm, W - 107 * mm], repeatRows=1)
+            et.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), _c.HexColor("#FEE2E2")), ("GRID", (0, 0), (-1, -1), 0.4, _c.HexColor("#CBD5E1")), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
+            el.append(et)
     el += [Spacer(1, 10), para("Documento riservato - dati aggregati del programma Beta AdvisorOS. Le frasi riportate sono richieste degli utenti tester, senza dati dei clienti finali.", SM)]
 
     def _footer(cv, d_):
@@ -646,6 +771,6 @@ async def beta_export_pdf(days: int = 42, user=Depends(get_current_user)):
     if not is_owner(user):
         raise HTTPException(status_code=403, detail="Solo il Master")
     d = await _bx_collect(days, user)
-    pdf = await asyncio.to_thread(_bx_render_pdf, d["dash"], d["mis"], d["prog"], user.get("name") or user.get("email") or "")
+    pdf = await asyncio.to_thread(_bx_render_pdf, d["dash"], d["mis"], d["prog"], user.get("name") or user.get("email") or "", d["iss"])
     fname = f"AdvisorOS_Beta_{d['dash']['days']}gg_{utcnow().strftime('%Y%m%d')}.pdf"
     return Response(content=pdf, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{fname}"'})

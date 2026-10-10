@@ -32,6 +32,20 @@ export default function AdminBeta() {
   const [mis, setMis] = useState<Mis | null>(null); // V50.z476 — frasi non capite
   const [misReason, setMisReason] = useState<"all" | "error" | "repeated" | "correction" | "watchdog">("all");
   const [misOpen, setMisOpen] = useState(false);
+  // V50.z478 — Segnalazioni (bug/errori/idee) + errori backend + watchdog, in un unico posto
+  type Issues = { days: number; scope: "all" | "tenant"; tickets: { counts: Record<string, number>; total: number; items: { ticket_id: string; user: string; status: string; text: string; messages: number; attachments: number; note: string; created_at: string | null; updated_at: string | null }[]; labels: Record<string, string> }; errors: { total: number; groups: { title: string; count: number; users: number; last: string | null; detail: string }[]; last_at: string | null }; watchdog: { total: number; by_kind: Record<string, number> } };
+  const [iss, setIss] = useState<Issues | null>(null);
+  const [issStatus, setIssStatus] = useState<"all" | "open" | "escalated" | "resolved">("all");
+  const [issBusy, setIssBusy] = useState<string | null>(null);
+  const loadIss = useCallback(() => { api<Issues>(`/admin/beta/issues?days=${days}${issStatus !== "all" ? `&status=${issStatus}` : ""}`).then(setIss).catch(() => {}); }, [days, issStatus]);
+  useEffect(() => { loadIss(); }, [loadIss]);
+  const setTicket = async (ticket_id: string, status: "open" | "resolved") => {
+    setIssBusy(ticket_id);
+    try { await api(`/admin/beta/tickets/${ticket_id}/status`, { method: "POST", body: { status } }); loadIss(); }
+    catch (e: any) { notify("Segnalazione", e?.message || "Aggiornamento non riuscito"); }
+    finally { setIssBusy(null); }
+  };
+  const TK_COLOR: Record<string, string> = { open: "#D97706", escalated: "#DC2626", resolved: "#16A34A" };
   useEffect(() => { api<Mis>(`/admin/beta/misunderstood?days=${days}&limit=60${misReason !== "all" ? `&reason=${misReason}` : ""}`).then(setMis).catch(() => {}); }, [days, misReason]);
   const loadProg = useCallback(() => { api<ProgramAdmin>("/admin/beta/program").then(setProg).catch(() => {}); }, []);
   useEffect(() => { loadProg(); }, [loadProg]);
@@ -181,6 +195,51 @@ export default function AdminBeta() {
               </View>
             )) : null}
             <Text style={s.hint}>Come correggere: apri la chat, scrivi la frase e usa «Insegna ad Axon» per la risposta giusta; le frasi ricorrenti vanno aggiunte come comandi deterministici nel rilascio successivo.</Text>
+          </View>
+        ) : null}
+        {/* V50.z478 — Segnalazioni dei tester + errori backend */}
+        {iss ? (
+          <View style={[s.card, { borderColor: "#DC2626" }]} testID="beta-issues">
+            <View style={s.rowBetween}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}><Ionicons name="bug-outline" size={20} color="#DC2626" /><Text style={s.cardTitle}>Segnalazioni ed errori</Text></View>
+              <Text style={[s.value, { color: "#DC2626", fontSize: 18 }]}>{(iss.tickets.counts.open || 0) + (iss.tickets.counts.escalated || 0)}</Text>
+            </View>
+            <Text style={s.hint}>{iss.tickets.total} segnalazioni negli ultimi {iss.days} gg · aperte {iss.tickets.counts.open || 0} · da gestire {iss.tickets.counts.escalated || 0} · risolte {iss.tickets.counts.resolved || 0} · {iss.scope === "all" ? "tutte le reti" : "la tua rete"}</Text>
+            <View style={s.rowBetween}>
+              <View style={{ flex: 1 }}><Text style={s.lbl}>Errori backend (5xx)</Text><Text style={s.hint}>{iss.errors.total} nel periodo{iss.errors.last_at ? ` · ultimo ${new Date(iss.errors.last_at).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}` : ""}</Text></View>
+              <View style={{ flex: 1 }}><Text style={s.lbl}>Watchdog Axon</Text><Text style={s.hint}>{iss.watchdog.total} eventi{Object.keys(iss.watchdog.by_kind).length ? ` · ${Object.entries(iss.watchdog.by_kind).map(([k, v]) => `${k} ${v}`).join(", ")}` : ""}</Text></View>
+            </View>
+            {iss.errors.groups.length ? (
+              <>
+                <Text style={[s.lbl, { marginTop: 4 }]}>Endpoint con più errori</Text>
+                {iss.errors.groups.slice(0, 5).map((g) => (
+                  <View key={g.title} style={[s.rowBetween, { paddingVertical: 5, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.divider }]} testID="beta-err-group">
+                    <View style={{ flex: 1 }}><Text style={[s.hint, { color: C.onSurface }]} numberOfLines={1}>{g.title}</Text>{g.detail ? <Text style={s.hint} numberOfLines={1}>{g.detail}</Text> : null}</View>
+                    <View style={{ alignItems: "flex-end" }}><Text style={[s.lbl, { flex: 0 }]}>{g.count}×</Text><Text style={s.hint}>{g.users} utent{g.users === 1 ? "e" : "i"}</Text></View>
+                  </View>
+                ))}
+              </>
+            ) : <Text style={s.hint}>Nessun errore backend nel periodo.</Text>}
+            <View style={s.filters}>
+              {(["all", "open", "escalated", "resolved"] as const).map((f) => (
+                <Pressable key={f} onPress={() => setIssStatus(f)} style={[s.chip, issStatus === f && s.chipOn]} testID={`beta-iss-${f}`}><Text style={[s.chipTxt, issStatus === f && s.chipTxtOn]}>{f === "all" ? "Tutte" : iss.tickets.labels[f]}</Text></Pressable>
+              ))}
+              <Pressable onPress={() => router.push("/bug-report" as any)} style={s.chip} testID="beta-iss-open-triage"><Ionicons name="open-outline" size={14} color={TEAL} /><Text style={s.chipTxt}> Apri conversazioni</Text></Pressable>
+            </View>
+            {iss.tickets.items.length ? iss.tickets.items.slice(0, 30).map((t) => (
+              <View key={t.ticket_id} style={{ gap: 4, paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.divider }} testID={`beta-ticket-${t.ticket_id}`}>
+                <View style={s.rowBetween}>
+                  <Text style={s.hint}>{t.created_at ? new Date(t.created_at).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : ""} · {t.user} · {t.messages} msg{t.attachments ? ` · 📎 ${t.attachments}` : ""}</Text>
+                  <View style={[s.chip, { minHeight: 24, paddingHorizontal: 8, borderColor: TK_COLOR[t.status] || TEAL }]}><Text style={[s.chipTxt, { fontSize: 11, color: TK_COLOR[t.status] || TEAL }]}>{iss.tickets.labels[t.status] || t.status}</Text></View>
+                </View>
+                <Text style={[s.lbl, { flex: 0 }]} numberOfLines={3}>«{t.text || "(solo allegati)"}»</Text>
+                {t.note ? <Text style={s.hint}>📝 {t.note}</Text> : null}
+                <Pressable onPress={() => setTicket(t.ticket_id, t.status === "resolved" ? "open" : "resolved")} disabled={issBusy === t.ticket_id} style={[s.chip, { alignSelf: "flex-start", minHeight: 32, borderColor: t.status === "resolved" ? "#D97706" : "#16A34A" }]} testID={`beta-ticket-toggle-${t.ticket_id}`}>
+                  {issBusy === t.ticket_id ? <ActivityIndicator size="small" color={TEAL} /> : <Ionicons name={t.status === "resolved" ? "refresh-outline" : "checkmark-done-outline"} size={14} color={t.status === "resolved" ? "#D97706" : "#16A34A"} />}
+                  <Text style={[s.chipTxt, { color: t.status === "resolved" ? "#D97706" : "#16A34A" }]}> {t.status === "resolved" ? "Riapri" : "Segna risolta"}</Text>
+                </Pressable>
+              </View>
+            )) : <Text style={s.hint}>Nessuna segnalazione {issStatus !== "all" ? `con stato «${iss.tickets.labels[issStatus]}»` : ""} nel periodo.</Text>}
           </View>
         ) : null}
         {/* V50.z475 — Programma 6 settimane: avvio, partecipanti, missioni, diari */}

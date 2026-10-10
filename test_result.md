@@ -610,3 +610,6 @@ agent_communication:
 
   - agent: "main"
     message: "V50.z509 — Calendario stress test con ricorrenze (axon_stress_schedule.py + StressScheduleCalendar.tsx), notturno fisso disattivato di default. Backend verificato via script (CRUD, upcoming, tick), UI via screenshot."
+
+  - agent: "main"
+    message: "V50.z510 — Cruscotto Beta › card «Segnalazioni ed errori»: GET /admin/beta/issues (ticket support per stato + errori 5xx per endpoint da axon_system_events + watchdog) e POST /admin/beta/tickets/{id}/status (triage, nota Master); sezioni aggiunte a export CSV/PDF. Il monitoraggio ha fatto emergere 2 bug 500 reali, corretti: /org/branding (collisione _ob_out tra onboarding_tracking e axon_org_branding → _obt_out) e /deadlines/upcoming (contatto legacy senza contact_id → cmap tollerante + migrazione startup). pytest 5/5 (tests/test_v50z478_beta_issues.py), tsc/lint OK. UI non verificabile in preview (frontend punta al VPS)."
