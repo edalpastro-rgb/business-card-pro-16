@@ -4,6 +4,24 @@
 # Tesseract/Leptonica (OCR locale via tesserocr, dizionari in backend/tessdata), librerie OpenCV headless,
 # emergentintegrations (LLM/Whisper/TTS via Emergent LLM Key). Nessuna modifica al codice di Core.
 
+# ── Stage 1 — V50.z520: compila whisper.cpp v1.7.5 (binario STATICO whisper-cli) e scarica il modello small ────────────────
+FROM python:3.11-slim AS whisper-build
+ARG WHISPER_CPP_TAG=v1.7.5
+ARG WHISPER_MODEL=small
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential g++ cmake git curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+RUN git clone --depth 1 --branch ${WHISPER_CPP_TAG} https://github.com/ggml-org/whisper.cpp /src/whisper.cpp \
+ && cmake -S /src/whisper.cpp -B /src/whisper.cpp/build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
+      -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_EXAMPLES=ON -DGGML_NATIVE=OFF \
+ && cmake --build /src/whisper.cpp/build --config Release -j"$(nproc)" --target whisper-cli \
+ && install -m 0755 /src/whisper.cpp/build/bin/whisper-cli /usr/local/bin/whisper-cli \
+ && /usr/local/bin/whisper-cli --help >/dev/null 2>&1 || true \
+ && mkdir -p /opt/whisper/models \
+ && curl -fL --retry 5 --retry-delay 5 -o /opt/whisper/models/ggml-${WHISPER_MODEL}.bin \
+      https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-${WHISPER_MODEL}.bin \
+ && test -s /opt/whisper/models/ggml-${WHISPER_MODEL}.bin
+
+# ── Stage 2 — immagine finale ────────────────────────────────────────────────────────────────────────────────────────────────
 FROM python:3.11-slim AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -12,30 +30,28 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     TZ=Europe/Rome
 
-# Dipendenze di sistema
+# Dipendenze di sistema (ffmpeg è OBBLIGATORIO: conversione audio → WAV 16 kHz mono per whisper-cli)
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ffmpeg \
       tesseract-ocr libtesseract-dev libleptonica-dev pkg-config \
       libgl1 libglib2.0-0 libsm6 libxext6 libxrender1 \
-      libsndfile1 \
-      build-essential g++ cmake git \
+      libsndfile1 libgomp1 \
+      build-essential g++ \
       curl ca-certificates tzdata \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && ffmpeg -version | head -n 1
 
-# V50.z519 — WHISPER.CPP LOCALE (modello small, ~466 MB): trascrizione interna senza API esterne.
-# Il backend (routes/axon_stt_local.py) lo usa automaticamente se trova binario+modello (AXON_STT_PROVIDER=auto),
-# altrimenti ricade su Deepgram/OpenAI. Per escludere: AXON_STT_PROVIDER=cloud nel .env. Build CPU, release.
-ARG WHISPER_CPP_TAG=v1.7.5
-ARG WHISPER_MODEL=small
-RUN git clone --depth 1 --branch ${WHISPER_CPP_TAG} https://github.com/ggml-org/whisper.cpp /opt/whisper.cpp \
- && cmake -S /opt/whisper.cpp -B /opt/whisper.cpp/build -DCMAKE_BUILD_TYPE=Release -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_EXAMPLES=ON \
- && cmake --build /opt/whisper.cpp/build --config Release -j"$(nproc)" --target whisper-cli \
- && mkdir -p /opt/whisper.cpp/models \
- && curl -fL --retry 3 -o /opt/whisper.cpp/models/ggml-${WHISPER_MODEL}.bin \
-      https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-${WHISPER_MODEL}.bin \
- && rm -rf /opt/whisper.cpp/.git
-ENV WHISPER_CPP_BIN=/opt/whisper.cpp/build/bin/whisper-cli \
-    WHISPER_CPP_MODEL=/opt/whisper.cpp/models/ggml-small.bin
+# V50.z520 — WHISPER.CPP LOCALE: binario in /usr/local/bin (nel PATH → `which whisper-cli` funziona) + modello in /opt/whisper/models.
+# Il backend (routes/axon_stt_local.py) legge WHISPER_CPP_BIN / WHISPER_CPP_MODEL: con AXON_STT_PROVIDER=auto usa il motore
+# locale se presenti, altrimenti Deepgram/OpenAI. Nessuna modifica alla logica applicativa.
+COPY --from=whisper-build /usr/local/bin/whisper-cli /usr/local/bin/whisper-cli
+COPY --from=whisper-build /opt/whisper/models/ /opt/whisper/models/
+ENV WHISPER_CPP_BIN=/usr/local/bin/whisper-cli \
+    WHISPER_CPP_MODEL=/opt/whisper/models/ggml-small.bin \
+    AXON_STT_PROVIDER=auto
+# Verifica in build: binario eseguibile, modello presente, ffmpeg disponibile → la build FALLISCE se manca qualcosa
+RUN test -x /usr/local/bin/whisper-cli && test -s /opt/whisper/models/ggml-small.bin && command -v ffmpeg >/dev/null \
+ && ls -la /usr/local/bin/whisper-cli /opt/whisper/models/ggml-small.bin
 
 WORKDIR /app/backend
 
