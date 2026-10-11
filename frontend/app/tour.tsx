@@ -97,7 +97,7 @@ export default function TourScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const fade = useRef(new Animated.Value(1)).current;
   // V50.z266 — silenzia/riattiva la voce di Axon (persistito in cache locale + user-settings)
   const [muted, setMuted] = useState(false);
@@ -123,7 +123,7 @@ export default function TourScreen() {
   useEffect(() => () => voiceStop(), []);
   useFocusEffect(useCallback(() => () => voiceStop(), []));
 
-  const go = useCallback((n: 1 | 2 | 3 | 4) => {
+  const go = useCallback((n: 1 | 2 | 3 | 4 | 5) => {
     voiceStop();
     Animated.timing(fade, { toValue: 0, duration: 180, useNativeDriver: Platform.OS !== "web" }).start(() => {
       setStep(n);
@@ -150,8 +150,10 @@ export default function TourScreen() {
   }, [router, user?.user_id]);
   // V50.z320 — dopo nome+voce: campo opzionale «Hai un codice promozionale?» (saltabile) → poi attivazione
   const [pendingSetup, setPendingSetup] = useState<{ name: string; voice: string } | null>(null);
+  const [planInfo, setPlanInfo] = useState(false); // V50.z525 — dopo il promo: «Cosa include l'abbonamento» → poi attivazione
   const onSetupDone = useCallback((name: string, voiceKey: string) => { voiceStop(); setPendingSetup({ name, voice: voiceKey }); }, []);
-  const onPromoDone = useCallback(async () => { if (pendingSetup) await activate(pendingSetup.name, pendingSetup.voice); }, [pendingSetup, activate]);
+  const onPromoDone = useCallback(() => setPlanInfo(true), []);
+  const onPlanInfoDone = useCallback(async () => { if (pendingSetup) await activate(pendingSetup.name, pendingSetup.voice); }, [pendingSetup, activate]);
 
   const finish = useCallback(async () => {
     voiceStop();
@@ -171,7 +173,7 @@ export default function TourScreen() {
   return (
     <View style={[styles.root, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 12 }]} testID="tour-root">
       {/* progress */}
-      <View style={styles.dots} testID={`tour-step-${step}`}>{[1, 2, 3, 4].map((i) => <View key={i} style={[styles.dot, i === step && styles.dotOn, i < step && styles.dotDone]} />)}</View>
+      <View style={styles.dots} testID={`tour-step-${step}`}>{[1, 2, 3, 4, 5].map((i) => <View key={i} style={[styles.dot, i === step && styles.dotOn, i < step && styles.dotDone]} />)}</View>
       {/* V50.z270 — stato voce (countdown di lettura / Axon parla) centrato sotto i punti, per non coprire header e status bar */}
       <View style={styles.voiceRow}>
         {voiceState !== null && voiceState > 0 ? <View style={styles.countdown} testID="tour-voice-countdown"><Ionicons name="time-outline" size={13} color={SKY} /><Text style={styles.countdownTxt}>Axon parla tra {voiceState}s</Text></View> : null}
@@ -201,7 +203,9 @@ export default function TourScreen() {
         ) : null}
       </View>
       {setup === null ? null : setup.needed ? (
-        pendingSetup ? (
+        pendingSetup && planInfo ? (
+          <SubscriptionInfo onNext={onPlanInfoDone} ctaLabel={`Ho capito, attiva ${pendingSetup.name}`} />
+        ) : pendingSetup ? (
           <KScrollView contentContainerStyle={styles.promoStep} keyboardShouldPersistTaps="handled" testID="promo-step">
             <View style={styles.promoOrb}><Ionicons name="gift" size={32} color="#FFFFFF" /></View>
             <Text style={styles.promoTitle}>Quasi pronto, {pendingSetup.name} ti aspetta</Text>
@@ -215,7 +219,8 @@ export default function TourScreen() {
         {step === 1 && <Welcome onNext={() => go(2)} onFeatures={() => router.push("/tour-features" as any)} />}
         {step === 2 && <TalkToAxon key={tourRun} say={say} onNext={() => go(3)} onVoiceSettings={() => { voiceStop(); router.push("/axon-voice" as any); }} />}
         {step === 3 && <MasterThenFirstContact key={tourRun} say={say} onNext={() => go(4)} onLockChange={setMasterLocked} />}
-        {step === 4 && <Closing onFinish={finish} onFeatures={() => router.push("/tour-features" as any)} />}
+        {step === 4 && <SubscriptionInfo onNext={() => go(5)} ctaLabel="Avanti" />}
+        {step === 5 && <Closing onFinish={finish} onFeatures={() => router.push("/tour-features" as any)} />}
       </Animated.View>
       )}
       {/* V50.z265 — «Ricomincia dal principio»: su ogni schermata, riporta alla 1 (e riavvia lo stato delle schermate 2/3) */}
@@ -631,7 +636,45 @@ function FirstContact({ say, onNext, intro, masterName, onEditMaster }: { say: (
   );
 }
 
-// ---------- 4 · Chiusura ----------
+// ---------- 4 · Cosa include l'abbonamento (V50.z525) ----------
+// Tutte le funzioni AI sono incluse senza limiti; i crediti AI mensili coprono SOLO la chat con Axon (testo e voce).
+const PLAN_AI_FEATURES: { icon: keyof typeof Ionicons.glyphMap; label: string }[] = [
+  { icon: "document-text", label: "Analisi documenti e bollette" },
+  { icon: "call", label: "Trascrizione chiamate" },
+  { icon: "map", label: "Ottimizzazione giri" },
+  { icon: "mail", label: "Email automatiche" },
+  { icon: "scan", label: "OCR documenti e moduli" },
+];
+function SubscriptionInfo({ onNext, ctaLabel }: { onNext: () => void; ctaLabel: string }) {
+  return (
+    <View style={styles.screen} testID="tour-plan-info">
+      <KScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center", gap: 14, paddingVertical: 8 }}>
+        <AxonOrb />
+        <Text style={styles.h1}>Cosa include l&apos;abbonamento</Text>
+        <Text style={styles.h2}>Tutte le funzioni AI, sempre, senza limiti.</Text>
+        <View style={{ gap: 8 }}>
+          {PLAN_AI_FEATURES.map((f) => (
+            <View key={f.label} style={[styles.feat, styles.featOn]}>
+              <View style={styles.featIcon}><Ionicons name={f.icon} size={18} color={SKY} /></View>
+              <Text style={[styles.featTxt, { color: WHITE }]}>{f.label}</Text>
+              <Ionicons name="infinite" size={18} color={SKY} />
+            </View>
+          ))}
+        </View>
+        <View style={styles.card} testID="tour-plan-credits">
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Ionicons name="chatbubbles" size={18} color={AMBER} />
+            <Text style={[styles.choiceTxt, { flex: 1 }]}>Crediti AI mensili inclusi</Text>
+          </View>
+          <Text style={styles.p}>Coprono <Text style={{ color: WHITE, fontWeight: "800" }}>solo la chat con Axon</Text>, in testo e voce. Quando finiscono, tutto il resto continua a funzionare normalmente e si ricaricano il 1° del mese.</Text>
+        </View>
+      </KScrollView>
+      <Pressable onPress={onNext} style={styles.cta} testID="tour-plan-next"><Text style={styles.ctaTxt}>{ctaLabel}</Text><Ionicons name="arrow-forward" size={18} color={NAVY} /></Pressable>
+    </View>
+  );
+}
+
+// ---------- 5 · Chiusura ----------
 function Closing({ onFinish, onFeatures }: { onFinish: () => void; onFeatures: () => void }) {
   return (
     <View style={styles.screen}>
