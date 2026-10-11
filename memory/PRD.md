@@ -7724,3 +7724,6 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 
 ## V50.z521 — idle-summary: input troncato + flag summarized
 - `AXON_IDLE_INPUT_MSGS=10`: `_is_summarize` usa `msgs[-10:]` (max 800 car./msg). Dopo il riassunto: upsert in `db.assistant_sessions_summarized` {session_id, user_id, summarized:true, summarized_at, messages_condensed, input_messages} + `summarized/summarized_at` su `assistant_active_session`; `_is_tick` esclude a monte le sessioni marcate e `_is_compact_session` ricontrolla. Test: 27 msg → riassuntore riceve 10 (MSG17..MSG26), vivi 1, flag ok; nuovi messaggi + secondo tick → 0 chiamate LLM. Tag D2026.10.11-1054.
+
+## V50.z522 — idle-summary: input 5 msg × 200 car. (< 1000 car.), output 300 token
+- `AXON_IDLE_INPUT_MSGS=5`, `AXON_IDLE_MSG_CHARS=200`, `AXON_IDLE_INPUT_MAX_CHARS=1000` (taglio dall'inizio se oltre), `AXON_IDLE_SUMMARY_MAX_TOKENS=300`; prefissi `U:`/`A:` e spazi compattati; prompt riassuntore ≤180 parole. Test: 27 msg da ~800 car. → inviati 5 msg, 1000 car. totali, max 203 car./riga; flag e idempotenza ok.

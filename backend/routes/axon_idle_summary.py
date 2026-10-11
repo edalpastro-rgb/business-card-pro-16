@@ -1,6 +1,6 @@
 # axon_idle_summary.py — V50.z518 — AUTO-SUMMARY DOPO INATTIVITÀ (ottimizzazione costi API)
 #   Ogni 5 minuti: per ogni sessione chat con ≥2 messaggi NON archiviati il cui ultimo messaggio risale a più di
-#   AXON_IDLE_MINUTES (30) fa, genera con Claude Haiku un riassunto compatto (≤ AXON_IDLE_SUMMARY_MAX_TOKENS = 500 token),
+#   AXON_IDLE_MINUTES (30) fa, genera con Claude Haiku un riassunto compatto (≤ AXON_IDLE_SUMMARY_MAX_TOKENS = 300 token; input: ultimi 5 msg × 200 car., < 1000 car.),
 #   archivia la cronologia precedente e la sostituisce con UN SOLO messaggio di contesto (role=assistant, summary=True).
 #   Al messaggio successivo dell'utente la sliding window (V50.z517) invia quindi solo il riassunto (~500 token) invece di migliaia.
 #   Idempotente: una sessione già ridotta al solo riassunto (1 messaggio) non viene rielaborata finché l'utente non scrive altro.
@@ -9,21 +9,29 @@
 from datetime import datetime as _is_dt, timezone as _is_tz, timedelta as _is_td
 
 AXON_IDLE_MINUTES = 30
-AXON_IDLE_SUMMARY_MAX_TOKENS = 500
-AXON_IDLE_INPUT_MSGS = 10  # V50.z521 — al riassuntore vanno SOLO gli ultimi 10 messaggi (non tutta la storia: 27 msg = troppi token)
+AXON_IDLE_SUMMARY_MAX_TOKENS = 300  # V50.z522 — 500 → 300 token di output
+AXON_IDLE_INPUT_MSGS = 5  # V50.z522 — al riassuntore vanno SOLO gli ultimi 5 messaggi (z521: 10)
+AXON_IDLE_MSG_CHARS = 200  # V50.z522 — ogni messaggio troncato a 200 car. (z521: 800)
+AXON_IDLE_INPUT_MAX_CHARS = 1000  # V50.z522 — tetto assoluto dell'input complessivo al riassuntore
 _IS_PREFIX = "📝 Riassunto della conversazione precedente"
 
 
 async def _is_summarize(user: dict, session_id: str, msgs: list) -> str:
     assistant_name = await _get_assistant_name(user)  # noqa: F821
-    msgs = msgs[-AXON_IDLE_INPUT_MSGS:]  # V50.z521 — tronca l'input: ultimi 10 messaggi, max 800 car. ciascuno
-    convo = "\n".join(f"{'Utente' if m.get('role') == 'user' else assistant_name}: {(m.get('content') or '')[:800]}" for m in msgs)
+    msgs = msgs[-AXON_IDLE_INPUT_MSGS:]  # V50.z522 — ultimi 5 messaggi, 200 car. ciascuno, totale < 1000 car.
+    lines = []
+    for m in msgs:
+        c = " ".join((m.get("content") or "").split())  # compatta spazi/righe (il riassunto precedente ha a capo multipli)
+        lines.append(f"{'U' if m.get('role') == 'user' else 'A'}: {c[:AXON_IDLE_MSG_CHARS]}")
+    convo = "\n".join(lines)
+    if len(convo) > AXON_IDLE_INPUT_MAX_CHARS:  # tetto assoluto: taglio dall'inizio (i messaggi più vecchi)
+        convo = convo[-AXON_IDLE_INPUT_MAX_CHARS:]
     from emergentintegrations.llm.chat import UserMessage
     chat = _axon_llm_chat(  # noqa: F821 — ANTHROPIC_API_KEY diretta se presente, altrimenti Emergent
         system_message=(
-            "Sei un riassuntore. Ricevi una conversazione tra un consulente energetico e il suo assistente AI. Produci in ITALIANO un "
-            "riassunto COMPATTO (massimo 350 parole) con: argomenti trattati, decisioni prese, dati concreti citati (nomi, numeri, date, "
-            "importi), richieste ancora aperte e preferenze espresse dall'utente. Niente premesse, niente commenti: solo il riassunto."
+            "Sei un riassuntore. Ricevi gli ultimi scambi (U = utente consulente energetico, A = assistente AI). Produci in ITALIANO un "
+            "riassunto COMPATTO (massimo 180 parole) con: argomenti, decisioni, dati concreti citati (nomi, numeri, date, importi), "
+            "richieste aperte. Niente premesse, niente commenti: solo il riassunto."
         ),
         session_id=f"idle-summary-{session_id[-10:]}",
         model="claude-haiku-4-5",
