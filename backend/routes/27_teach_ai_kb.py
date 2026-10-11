@@ -101,6 +101,21 @@ class LibrettoMockup(BaseModel):
     lines: List[str] = Field(default_factory=list)
 
 
+class LibrettoIcon(BaseModel):
+    image_key: str
+    label: str = ""
+
+
+class LibrettoBullet(BaseModel):
+    icon: str = "checkmark-circle"
+    text: str = ""
+
+
+class LibrettoFaq(BaseModel):
+    q: str = ""
+    a: str = ""
+
+
 class LibrettoSectionIn(BaseModel):
     id: str
     icon: str = "book"
@@ -116,6 +131,13 @@ class LibrettoSectionIn(BaseModel):
     # oppure data URL (base64) caricato dal master.
     image_key: Optional[str] = None
     image_data_url: Optional[str] = None
+    # V50.z527 — campi frontend (V50.z178/z182/z469) che prima venivano SCARTATI al salvataggio dall'editor:
+    # le icone con etichetta sparivano dal libretto dopo ogni «Salva».
+    icons: Optional[List[LibrettoIcon]] = None
+    image_wide: Optional[bool] = None
+    highlight: Optional[str] = None
+    bullets: Optional[List[LibrettoBullet]] = None
+    faqs: Optional[List[LibrettoFaq]] = None
 
 
 class LibrettoMetaIn(BaseModel):
@@ -175,7 +197,7 @@ async def libretto_put_content(body: LibrettoContentIn, user=Depends(get_current
     doc = {
         "_id": "global",
         "meta": body.meta.model_dump(),
-        "sections": [s.model_dump() for s in body.sections],
+        "sections": [s.model_dump(exclude_none=True) for s in body.sections],
         "updated_at": utcnow(),
         "updated_by": user.get("email") or user.get("user_id"),
     }

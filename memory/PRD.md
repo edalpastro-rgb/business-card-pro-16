@@ -7745,3 +7745,7 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 ## V50.z526 — Profilo: badge Fondatore + barra crediti AI (D2026.10.11-1359)
 - Backend `axon_referral_credits.py`: `GET /profile/founder` → {founder, rank, max_rank=100, text}. Rango = posizione del tenant (owner principale) per created_at, calcolato una volta e salvato in `users.founder_rank`; vale per tutto il workspace.
 - Frontend `src/AiCreditsCard.tsx`: `FounderBadge` (oro, sotto il ruolo nella card profilo) e `AiCreditsCard` (barra crediti base del mese usati/restanti con colore, data reset, box bonus non scadenti). Montati in `app/(tabs)/impostazioni.tsx` (hub Profilo). Card nascosta se l'endpoint non esiste (backend vecchio).
+
+## V50.z527 — Libretto: copertina pulita, pulsanti header, etichette icone (D2026.10.11-1628)
+- `app/libretto.tsx`: cover senza loghi/motto/Brain+/tagline, palette landing (LP); «PDF» e «Modifica» compatti nell'header a destra (testID invariati libretto-pdf-btn / libretto-edit-btn); sticky footer solo in onboarding; etichette icone con fallback dalla image_key.
+- Backend `27_teach_ai_kb.py`: `LibrettoSectionIn` ora include icons/image_wide/highlight/bullets/faqs (prima scartati dal PUT /libretto/content → icone/etichette sparivano dopo un salvataggio dall'editor); model_dump(exclude_none).

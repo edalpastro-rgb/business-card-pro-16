@@ -30,13 +30,13 @@ import { notify } from "@/src/utils/notify";
 import { LIBRETTO_SECTIONS, LIBRETTO_META, LibrettoSection, LibrettoMeta, LIBRETTO_IMAGE_MAP, resolveSectionImage, withCorporateGymSection } from "@/src/libretto/libretto-content";
 import { withExtraSections } from "@/src/libretto/libretto-extra"; // V50.z469 — Feature 12: nuove sezioni + FAQ
 import { getAppVersion, getAppLastUpdateDate, buildVersionBadge } from "@/src/libretto/appVersion";
-import { EvolutionMotto } from "@/src/EvolutionMotto";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 
 import { WowIntro } from "@/src/WowIntro";
 import { BrainPlus, brainPlusHtml, BRAIN_PLUS_SECTION_IDS } from "@/src/BrainPlus"; // V50.z190 — claim AxonOS Brain+
-import { BrandLogosBlock, tuttunizzatoreHtml } from "@/src/Tuttunizzatore"; // V50.z191 — loghi impilati + «Il tuo "Tuttunizzatore"»
+import { BrandLogosBlock, tuttunizzatoreHtml } from "@/src/Tuttunizzatore"; // V50.z191 — loghi impilati (solo sezione di chiusura e PDF)
+import { LP } from "@/src/landing/palette"; // V50.z527 — cover e pulsanti header allineati alla landing
 import { TourStories } from "@/src/TourStories"; // V50.z244 — Tour Guidato: 4 storie utente al posto delle slide funzionalità
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 const ADVISOR_LOGO = require("@/assets/images/advisoros-logo-transparent.png");
@@ -376,7 +376,7 @@ export default function LibrettoScreen() {
         )}
         <Text style={styles.headerTitle}>{isOnboarding ? "Tour Guidato" : "Libretto Informativo"}</Text>
         {/* V50.o — In onboarding: "Salta" nell'header (necessario per uscire).
-            V50.z6 — "Modifica" spostato in sticky footer per non sovrapporsi al Support FAB. */}
+            V50.z527 — Libretto: «PDF» e «Modifica» come pulsanti compatti nell'header, a destra del titolo (tolti dal fondo pagina). */}
         {isOnboarding ? (
           <Pressable
             onPress={dismissOnboarding}
@@ -388,7 +388,18 @@ export default function LibrettoScreen() {
             <Ionicons name="close" size={18} color="rgba(255,255,255,0.7)" />
           </Pressable>
         ) : (
-          <View style={styles.headerRightPh} />
+          <View style={styles.headerActions}>
+            <Pressable onPress={onExport} disabled={exporting} hitSlop={6} testID="libretto-pdf-btn" accessibilityLabel="Scarica Manuale PDF" style={[styles.headerBtn, styles.headerBtnPrimary, exporting && { opacity: 0.7 }]}>
+              {exporting ? <ActivityIndicator color={LP.onBrand} size="small" /> : <Ionicons name="download-outline" size={16} color={LP.onBrand} />}
+              <Text style={styles.headerBtnTxt}>PDF</Text>
+            </Pressable>
+            {canEdit ? (
+              <Pressable onPress={() => router.push("/libretto-editor" as any)} hitSlop={6} testID="libretto-edit-btn" accessibilityLabel="Modifica libretto" style={styles.headerBtn}>
+                <Ionicons name="create-outline" size={16} color={LP.axon} />
+                <Text style={[styles.headerBtnTxt, { color: LP.axon }]}>Modifica</Text>
+              </Pressable>
+            ) : null}
+          </View>
         )}
       </View>
 
@@ -397,22 +408,16 @@ export default function LibrettoScreen() {
         style={styles.scroll}
         contentContainerStyle={[
           styles.scrollContent,
-          // V50.z6 — Riserva spazio per la sticky (onboarding: 190; canEdit: +60; base: 130)
-          { paddingBottom: (isOnboarding ? 190 : canEdit ? 200 : 130) + bottomInset },
+          // V50.z527 — Riserva spazio per la sticky solo in onboarding (PDF/Modifica sono nell'header)
+          { paddingBottom: (isOnboarding ? 160 : 40) + bottomInset },
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Cover */}
+        {/* Cover — V50.z527: stile pulito allineato alla landing (niente loghi, motto, Brain+ né tagline) */}
         <View style={styles.cover}>
-          {/* V50.z191 — AdvisorOS, sotto AxonOS al 60%, tagline «Il tuo "Tuttunizzatore"» */}
-          <BrandLogosBlock advisorLogo={ADVISOR_LOGO} axonLogo={AXON_LOGO} width={170} dark style={{ marginBottom: 22 }} testID="libretto-brand-block" />
-          {/* V50.z183 — motto "il CRM che si evolve con te" in stile evoluzione */}
-          <View style={{ alignSelf: "stretch", marginTop: 6, marginBottom: 4 }}>
-            <EvolutionMotto dark testID="libretto-motto" />
-          </View>
+          <Text style={styles.coverEyebrow}>{isOnboarding ? "TOUR GUIDATO" : "GUIDA OPERATIVA"}</Text>
           <Text style={styles.coverTitle}>{isOnboarding ? "Benvenuto in AdvisorOS" : meta.title}</Text>
-          {/* V50.z190 — claim ufficiale AxonOS Brain+ */}
-          <BrainPlus dark size={24} tagline align="center" style={{ marginBottom: 6 }} testID="libretto-brainplus-cover" />
+          <View style={styles.coverRule} />
           <Text style={styles.coverSub}>
             {isOnboarding
               ? "Quattro momenti di una giornata vera, raccontati da chi lavora come te. Scorri, poi tocca «Iniziamo!» in fondo."
@@ -464,9 +469,9 @@ export default function LibrettoScreen() {
             • Bottone "Scarica Manuale d'uso PDF" (per tutti)
             • V50.z6 — Se Super Master (canEdit) e non in onboarding: "Modifica libretto"
             • In modalità onboarding: sopra c'è anche "Ho capito · Iniziamo!" */}
+      {/* V50.z527 — Sticky footer SOLO in onboarding («Sicurezza» + «Iniziamo!»); PDF/Modifica sono nell'header. */}
+      {isOnboarding ? (
       <View style={[styles.stickyCta, { paddingBottom: bottomInset + 10 }]}>
-        {isOnboarding && (
-          <>
             <Pressable
               onPress={() => router.push("/security-info" as any)}
               testID="onboarding-security-btn"
@@ -479,37 +484,8 @@ export default function LibrettoScreen() {
               <Ionicons name="rocket" size={18} color="#FFF" />
               <Text style={styles.stickyBtnTxt}>Ho capito · Iniziamo!</Text>
             </Pressable>
-          </>
-        )}
-        <Pressable
-          onPress={onExport}
-          disabled={exporting}
-          testID="libretto-pdf-btn"
-          style={[styles.stickyPdfBtn, exporting && { opacity: 0.7 }, isOnboarding && { marginTop: 10 }]}
-        >
-          {exporting ? (
-            <>
-              <ActivityIndicator color={HT.text} size="small" />
-              <Text style={styles.stickyPdfBtnTxt}>Generazione PDF in corso…</Text>
-            </>
-          ) : (
-            <>
-              <Ionicons name="download" size={18} color={HT.text} />
-              <Text style={styles.stickyPdfBtnTxt}>Scarica Manuale d&apos;uso PDF</Text>
-            </>
-          )}
-        </Pressable>
-        {canEdit && !isOnboarding ? (
-          <Pressable
-            onPress={() => router.push("/libretto-editor" as any)}
-            testID="libretto-edit-btn"
-            style={styles.stickyEditBtn}
-          >
-            <Ionicons name="create-outline" size={18} color="#FBBF24" />
-            <Text style={styles.stickyEditBtnTxt}>Modifica libretto</Text>
-          </Pressable>
-        ) : null}
       </View>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -563,7 +539,8 @@ function SectionCard({ section, highlightId }: { section: LibrettoSection; highl
               LIBRETTO_IMAGE_MAP[ic.image_key] ? (
                 <View key={ic.image_key} style={styles.secIcon}>
                   <Image source={LIBRETTO_IMAGE_MAP[ic.image_key]} style={styles.secIconImg} resizeMode="contain" />
-                  <Text style={styles.secIconLbl}>{ic.label}</Text>
+                  {/* V50.z527 — etichetta sempre visibile: se manca nel contenuto salvato, ricavata dalla image_key */}
+                  <Text style={styles.secIconLbl}>{ic.label || ic.image_key.replace(/^[a-z]+_/, "").replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase())}</Text>
                 </View>
               ) : null
             ))}
@@ -633,7 +610,11 @@ const styles = StyleSheet.create({
     borderBottomColor: "rgba(255,255,255,0.08)",
   },
   backBtn: { padding: 6, minWidth: 36 },
-  headerRightPh: { minWidth: 36 },
+  // V50.z527 — pulsanti compatti nell'header (stile landing: arancio «OS» per il primario, ciano Axon per il secondario)
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 6 },
+  headerBtn: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 34, paddingHorizontal: 10, borderRadius: 999, borderWidth: 1, borderColor: LP.axonLine, backgroundColor: LP.axonGlow },
+  headerBtnPrimary: { backgroundColor: LP.brand, borderColor: LP.brand },
+  headerBtnTxt: { color: LP.onBrand, fontSize: 12, fontWeight: "900", letterSpacing: 0.2 },
   // V50.o — Salta onboarding in alto a destra
   skipBtn: {
     flexDirection: "row", alignItems: "center", gap: 4,
@@ -667,36 +648,40 @@ const styles = StyleSheet.create({
   pdfBtnTxt: { color: "#FFF", fontWeight: "900", fontSize: 13 },
   scroll: { flex: 1, backgroundColor: HT.card2 },
   scrollContent: { paddingBottom: 60 },
-  // Cover
+  // Cover — V50.z527: pulita, palette landing (LP)
   cover: {
-    paddingVertical: 40,
+    paddingVertical: 36,
     paddingHorizontal: 24,
-    backgroundColor: '#0F2438',
+    backgroundColor: LP.surface,
     alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: LP.border,
   },
+  coverEyebrow: { color: LP.axon, fontSize: 11, fontWeight: "800", letterSpacing: 2.5, marginBottom: 10 },
   coverTitle: {
-    color: "#FFF",
-    fontSize: 30,
+    color: LP.onSurface,
+    fontSize: 32,
     fontWeight: "900",
-    letterSpacing: -0.8,
+    letterSpacing: -1,
     textAlign: "center",
   },
+  coverRule: { width: 44, height: 3, borderRadius: 2, backgroundColor: LP.brand, marginTop: 14, marginBottom: 12 },
   coverSub: {
-    color: "rgba(255,255,255,0.85)",
+    color: LP.onSurface2,
     fontSize: 14,
+    lineHeight: 20,
     textAlign: "center",
-    marginTop: 6,
-    marginBottom: 20,
+    marginBottom: 18,
   },
   coverBadge: {
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: "rgba(251,191,36,0.15)",
+    backgroundColor: LP.brandGlow,
     borderWidth: 1,
-    borderColor: '#FBBF24',
+    borderColor: LP.brandLine,
   },
-  coverBadgeTxt: { color: "#FBBF24", fontSize: 11, fontWeight: "800", letterSpacing: 1.5 },
+  coverBadgeTxt: { color: LP.brand, fontSize: 11, fontWeight: "800", letterSpacing: 1.5 },
   // Sezioni
   sec: {
     marginHorizontal: 12,
@@ -831,22 +816,4 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   stickyBtnTxt: { color: "#FFF", fontWeight: "900", fontSize: 15, letterSpacing: 0.3 },
-  // V50.n — Bottone "Scarica Manuale d'uso PDF" a piè pagina
-  stickyPdfBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
-    paddingVertical: 14, borderRadius: 999,
-    backgroundColor: '#FBBF24',
-    shadowColor: "#000", shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 3 },
-    elevation: 4,
-  },
-  stickyPdfBtnTxt: { color: HT.text, fontWeight: "900", fontSize: 14, letterSpacing: 0.2 },
-  // V50.z6 — "Modifica libretto" (Super Master) come secondary btn sotto il PDF btn
-  stickyEditBtn: {
-    marginTop: 10,
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    paddingVertical: 12, borderRadius: 999,
-    backgroundColor: "rgba(251,191,36,0.15)",
-    borderWidth: 1, borderColor: "rgba(251,191,36,0.5)",
-  },
-  stickyEditBtnTxt: { color: "#FBBF24", fontWeight: "900", fontSize: 14, letterSpacing: 0.2 },
 });
