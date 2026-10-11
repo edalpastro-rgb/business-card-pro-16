@@ -32,11 +32,14 @@ export default function CallScreen() {
       <View style={s.header}>
         <Pressable testID="back-btn" onPress={() => router.back()} hitSlop={10}><Ionicons name="chevron-back" size={26} color={HT.text} /></Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={s.title}>Call</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Ionicons name="call" size={18} color={HT.text} />
+            <Text style={s.title}>Call</Text>
+          </View>
           <Text style={s.sub}>{dayLabel.charAt(0).toUpperCase() + dayLabel.slice(1)}</Text>
         </View>
         <Pressable testID="call-new-btn" onPress={() => router.push({ pathname: "/appointment/new", params: { is_phone: "1" } } as any)} style={s.addBtn} accessibilityLabel="Nuova call">
-          <Ionicons name="add" size={16} color="#FFFFFF" /><Text style={s.addTxt}>Call</Text>
+          <Ionicons name="call" size={14} color="#FFFFFF" /><Text style={s.addTxt}>+ Call</Text>
         </Pressable>
       </View>
 

@@ -7749,3 +7749,6 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 ## V50.z527 — Libretto: copertina pulita, pulsanti header, etichette icone (D2026.10.11-1628)
 - `app/libretto.tsx`: cover senza loghi/motto/Brain+/tagline, palette landing (LP); «PDF» e «Modifica» compatti nell'header a destra (testID invariati libretto-pdf-btn / libretto-edit-btn); sticky footer solo in onboarding; etichette icone con fallback dalla image_key.
 - Backend `27_teach_ai_kb.py`: `LibrettoSectionIn` ora include icons/image_wide/highlight/bullets/faqs (prima scartati dal PUT /libretto/content → icone/etichette sparivano dopo un salvataggio dall'editor); model_dump(exclude_none).
+
+## V50.z528 — Modulo Call: icone telefono e testi «Call» (D2026.10.11-1635)
+- `app/call.tsx`: titolo «Call» corsivo con icona call; bottone «+ Call» con icona call. `app/appointment/new.tsx`: se `form.is_phone` → «Nuova Call»/«Modifica call», placeholder «Titolo call», sezione «Tipo call» (appuntamenti normali invariati).

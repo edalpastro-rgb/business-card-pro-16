@@ -644,14 +644,14 @@ function NewAppointmentScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <Pressable testID="back-btn" onPress={() => router.back()} hitSlop={10}><Ionicons name="chevron-back" size={26} color={HT.text} /></Pressable>
-        <Text style={styles.title}>{isEdit ? "Modifica appuntamento" : "Nuovo appuntamento"}</Text>
+        <Text style={styles.title}>{isEdit ? (form.is_phone ? "Modifica call" : "Modifica appuntamento") : (form.is_phone ? "Nuova Call" : "Nuovo appuntamento")}</Text>
         <View style={{ width: 26 }} />
       </View>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
         <View style={styles.card}>
           <Text style={styles.lbl}>Titolo *</Text>
-          <TextInput testID="ap-title" value={form.title} onChangeText={(t) => setForm({ ...form, title: t })} style={styles.input} placeholder="Titolo appuntamento" placeholderTextColor={HT.muted} />
+          <TextInput testID="ap-title" value={form.title} onChangeText={(t) => setForm({ ...form, title: t })} style={styles.input} placeholder={form.is_phone ? "Titolo call" : "Titolo appuntamento"} placeholderTextColor={HT.muted} />
 
           <Text style={styles.lbl}>Area</Text>
           <View style={styles.pillsRow}>
@@ -664,7 +664,7 @@ function NewAppointmentScreen() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Tipo appuntamento (spuntabili più di uno)</Text>
+          <Text style={styles.sectionTitle}>{form.is_phone ? "Tipo call" : "Tipo appuntamento (spuntabili più di uno)"}</Text>
           <Text style={styles.hint}>Tocca per selezionare · Tocca a lungo per eliminare (o rinominare i tipi personalizzati)</Text>
           <View style={styles.pillsRow}>
             {allApptTypes.map((t) => {
