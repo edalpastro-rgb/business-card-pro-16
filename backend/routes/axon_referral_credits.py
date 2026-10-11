@@ -147,6 +147,25 @@ async def ai_credits_me(user=Depends(get_current_user)):
     return {**bal, "events": ev, "renews_on": _rc_next_renewal(), "addon_request_open": bool(await _rc_open_addon_request(user["user_id"]))}
 
 
+# ───────────────────────────── V50.z526 — badge «Fondatore»: primi 100 workspace registrati ─────────────────────────────
+# Il rango è calcolato una sola volta (ordine di created_at tra gli owner principali) e salvato sul documento del tenant
+# (founder_rank), così non cambia se altri account vengono cancellati. Vale per tutto il workspace (anche i collaboratori).
+FOUNDER_MAX_RANK = 100
+FOUNDER_TEXT = "Prezzo bloccato a 19€/mese per sempre"
+
+
+@api_router.get("/profile/founder")
+async def profile_founder(user=Depends(get_current_user)):
+    tid = tenant_id(user)
+    tenant = await db.users.find_one({"user_id": tid}, {"_id": 0, "created_at": 1, "founder_rank": 1}) or {}
+    rank = tenant.get("founder_rank")
+    if rank is None and tenant.get("created_at"):
+        rank = 1 + await db.users.count_documents({"role": "owner", "parent_user_id": {"$in": [None, ""]}, "created_at": {"$lt": tenant["created_at"]}})
+        await db.users.update_one({"user_id": tid}, {"$set": {"founder_rank": int(rank)}})
+    founder = rank is not None and int(rank) <= FOUNDER_MAX_RANK
+    return {"founder": founder, "rank": int(rank) if rank is not None else None, "max_rank": FOUNDER_MAX_RANK, "text": FOUNDER_TEXT if founder else None}
+
+
 # ───────────────────────────── V50.z524 — pacchetto add-on: richiesta manuale all'admin ─────────────────────────────
 # L'utente a crediti esauriti chiede un pacchetto add-on dalla chat; il Master lo accredita (crediti BONUS, non scadono) dal pannello
 # «Porta un amico». Nessun pagamento Stripe per ora. Collezione: ai_credit_addon_requests {req_id, user_id, tenant_id, email, name,

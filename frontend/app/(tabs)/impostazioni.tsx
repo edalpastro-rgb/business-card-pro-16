@@ -28,6 +28,7 @@ import { FindPhoneSoundCard } from "@/src/findPhone/FindPhoneSoundCard"; // V50.
 import { AppInfoCard } from "@/src/AppInfoCard"; // V50.z208 — Piano attivo + versione APK
 import { PromoRedeemCard } from "@/src/PromoCodeField"; // V50.z320 — codice promozionale
 import { ReferralCard } from "@/src/ReferralCard"; // V50.z322 — Invita un amico
+import { FounderBadge, AiCreditsCard } from "@/src/AiCreditsCard"; // V50.z526 — badge Fondatore + barra crediti AI
 import { resetOnboardingFlags } from "@/src/permissions/devicePermissions"; // V50.z516 — Rivedi introduzione
 import { PunAlertCard } from "@/src/PunAlertCard"; // V50.z325 — Avviso soglia PUN
 import { AxonPersonalizeCard } from "@/src/AxonPersonalizeCard"; // V50.z456 — Personalizza Axon (Super Master / Lite)
@@ -484,9 +485,12 @@ function ImpostazioniScreen() {
                   <Text style={styles.roleBadge}>{isOwner ? "Master · Owner" : "Collaboratore"}</Text>
                   {companyName ? <Text style={{ fontSize: 12, color: HT.muted, marginTop: 6 }} numberOfLines={1}>🏢 {companyName}</Text> : null}
                 </View>
+                <FounderBadge />
               </View>
             </View>
           </View>
+          {/* V50.z526 — crediti AI: barra base del mese + box bonus che non scadono */}
+          <AiCreditsCard />
           {/* V50.z338 — Aspetto: switcher tema (3 card preview) */}
           <ThemePicker />
           </View>

@@ -7741,3 +7741,7 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 ## V50.z525 — Onboarding «Cosa include l'abbonamento» (D2026.10.11-1350)
 - `app/tour.tsx`: nuovo componente `SubscriptionInfo` (testID tour-plan-info / tour-plan-next). Nuovi utenti: dopo nome+voce → codice promo → **Cosa include l'abbonamento** → attivazione. Tour (Rivedi introduzione): step 4 = SubscriptionInfo, step 5 = Closing (5 pallini).
 - Testo: tutte le funzioni AI (analisi documenti/bollette, trascrizione chiamate, ottimizzazione giri, email automatiche, OCR) sempre disponibili senza limiti; i crediti AI mensili coprono solo la chat con Axon (testo e voce); a crediti esauriti tutto il resto continua a funzionare, ricarica il 1° del mese.
+
+## V50.z526 — Profilo: badge Fondatore + barra crediti AI (D2026.10.11-1359)
+- Backend `axon_referral_credits.py`: `GET /profile/founder` → {founder, rank, max_rank=100, text}. Rango = posizione del tenant (owner principale) per created_at, calcolato una volta e salvato in `users.founder_rank`; vale per tutto il workspace.
+- Frontend `src/AiCreditsCard.tsx`: `FounderBadge` (oro, sotto il ruolo nella card profilo) e `AiCreditsCard` (barra crediti base del mese usati/restanti con colore, data reset, box bonus non scadenti). Montati in `app/(tabs)/impostazioni.tsx` (hub Profilo). Card nascosta se l'endpoint non esiste (backend vecchio).
