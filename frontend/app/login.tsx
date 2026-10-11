@@ -7,6 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { PENDING_REFERRAL_KEY } from "@/src/PromoCodeField"; // V50.z322 — link «Invita un amico» ?ref=CODE
+import { PENDING_PLAN_KEY } from "@/src/landing/landingSeen"; // V50.z530 — piano Founder scelto dalla landing
 import { QuickUnlockCard, maybeOfferQuickUnlock } from "@/src/quickUnlock/QuickUnlockCard"; // V50.z187 — accesso rapido (isolato)
 import { useAuth } from "@/src/auth";
 import { notify } from "@/src/utils/notify"; // V50.z433
@@ -26,7 +27,15 @@ export default function LoginScreen() {
   const { loginEmail, loginGoogle, register, verify2FA, verifyEmail, resendEmailCode, pendingEmailVerification } = useAuth();
   const [mode, setMode] = useState<"login" | "register">("login");
   // V50.z322 — arrivo da link amico (/login?ref=AMICO-…): memorizzo il codice (precompilato nell'onboarding) e apro la registrazione
-  const { ref: refParam } = useLocalSearchParams<{ ref?: string }>();
+  // V50.z530 — arrivo dalla landing Founder (/login?plan=builder|professional&mode=register): piano salvato sull'account (contatori posti)
+  const { ref: refParam, plan: planParam, mode: modeParam } = useLocalSearchParams<{ ref?: string; plan?: string; mode?: string }>();
+  const [founderPlan, setFounderPlan] = useState<"builder" | "professional" | undefined>(undefined);
+  useEffect(() => {
+    const p = typeof planParam === "string" ? planParam.trim().toLowerCase() : "";
+    if (p === "builder" || p === "professional") { setFounderPlan(p); AsyncStorage.setItem(PENDING_PLAN_KEY, p).catch(() => {}); }
+    else AsyncStorage.getItem(PENDING_PLAN_KEY).then((v) => { if (v === "builder" || v === "professional") setFounderPlan(v); }).catch(() => {});
+    if (modeParam === "register") setMode("register");
+  }, [planParam, modeParam]);
   useEffect(() => {
     const code = typeof refParam === "string" ? refParam.trim().toUpperCase() : "";
     if (!code) return;
@@ -111,13 +120,14 @@ export default function LoginScreen() {
         try {
           result = await register(email.trim(), password, name.trim(), {
             lastName: lastName.trim(), promoCode: promoCode.trim().toUpperCase() || undefined,
-            privacyAccepted: privacyOk, newsletter, challengeId: ch.challenge_id, powNonce, turnstileToken, hp,
+            privacyAccepted: privacyOk, newsletter, challengeId: ch.challenge_id, powNonce, turnstileToken, hp, plan: founderPlan,
           });
         } catch (e) {
           void loadChallenge(); // la challenge è monouso: nuova challenge per il prossimo tentativo
           throw e;
         }
         const { promo, requiresEmailVerification } = result;
+        AsyncStorage.removeItem(PENDING_PLAN_KEY).catch(() => {}); // V50.z530
         if (promo) {
           if (promo.ok) AsyncStorage.removeItem(PENDING_REFERRAL_KEY).catch(() => {});
           setTimeout(() => notify(promo.ok ? "Codice promozionale applicato" : "Codice promozionale non applicato", promo.message), 600);

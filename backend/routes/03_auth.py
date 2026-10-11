@@ -31,6 +31,7 @@ async def register(body: RegisterInput, request: Request):
         "areas": ["energy", "network"],
         "picture": None,
         "product": body.product or "advisor",  # V50.z323 — Axon Core
+        "plan": body.plan or "professional",  # V50.z530 — landing Founder: builder (AxonLite) | professional (AdvisorOS CRM)
         "subscription_status": "trial",  # V50.z329 — prova gratuita di TRIAL_DAYS giorni per ogni nuovo iscritto (promo/referral la estendono)
         "trial_expires_at": utcnow() + timedelta(days=TRIAL_DAYS),
         "created_at": utcnow(),

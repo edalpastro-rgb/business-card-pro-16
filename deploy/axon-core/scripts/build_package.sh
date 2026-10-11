@@ -6,23 +6,29 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 DESC="${1:-}"
+TAG="${TAG:-$(grep -m1 "^| 20" "$ROOT/backend/DEPLOY_CHANGELOG.md" 2>/dev/null | cut -d"|" -f3 | tr -d " ")}"  # senza descrizione: riusa l'ultimo tag del changelog
 if [ -n "$DESC" ]; then
   CL="$ROOT/backend/DEPLOY_CHANGELOG.md"
   DAY="$(TZ=Europe/Rome date +%Y-%m-%d)"
   TAG="D$(TZ=Europe/Rome date +%Y.%m.%d)"
   # più deploy nello stesso giorno → tag con orario per distinguerli
   if grep -q "^| $DAY " "$CL" 2>/dev/null; then TAG="$TAG-$(TZ=Europe/Rome date +%H%M)"; fi
-  ROW="| $DAY | $TAG | $(printf '%s' "$DESC" | tr '|' '·' | tr -d '\n') |"
-  python3 - "$CL" "$ROW" <<'PY'
-import sys
-path, row = sys.argv[1], sys.argv[2]
-lines = open(path, encoding="utf-8").read().split("\n")
+  # V50.z530 — la sostituzione di «|» avviene in Python (tr è byte-wise e con «·» multibyte corrompeva l'UTF-8) e la scrittura è
+  # atomica (file temporaneo + rename): un errore non può più troncare il changelog.
+  python3 - "$CL" "$DAY" "$TAG" "$DESC" <<'PY'
+import os, sys
+path, day, tag, desc = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+row = f"| {day} | {tag} | {desc.replace('|', '·').replace(chr(10), ' ')} |"
+lines = open(path, encoding="utf-8").read().split("\n") if os.path.exists(path) else []
 for i, l in enumerate(lines):
     if l.strip().startswith("|---"):
         lines.insert(i + 1, row); break
 else:
     lines += ["", "| Data | Tag | Descrizione |", "|---|---|---|", row]
-open(path, "w", encoding="utf-8").write("\n".join(lines))
+tmp = path + ".tmp"
+with open(tmp, "w", encoding="utf-8") as f:
+    f.write("\n".join(lines))
+os.replace(tmp, path)
 print("DEPLOY_CHANGELOG.md ← " + row)
 PY
 fi

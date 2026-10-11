@@ -8,6 +8,7 @@ class RegisterInput(BaseModel):
     password: str = Field(min_length=6)
     name: str
     product: Optional[Literal["advisor", "lite"]] = None  # V50.z323 — Axon Core: app di provenienza (default advisor)
+    plan: Optional[Literal["builder", "professional"]] = None  # V50.z530 — piano Founder scelto dalla landing (contatori posti)
     last_name: Optional[str] = None  # V50.z433 — Cognome (campo separato nel modulo)
     promo_code: Optional[str] = None  # V50.z433 — codice promozionale (stesso sistema Master/landing: promo_codes + AMICO-)
     # V50.z434 — anti-bot «Fort Knox» (vedi axon_register_security.py) + consensi

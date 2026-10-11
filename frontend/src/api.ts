@@ -34,6 +34,7 @@ export type ApiOptions = {
   signal?: AbortSignal;
   // V50.z454 — solo per il test voce nelle Impostazioni: bypassa il blocco TTS di «Solo testo»
   forceTts?: boolean;
+  headers?: Record<string, string>; // V50.z530 — header extra (es. X-CMS-Password del CMS landing)
 };
 
 /** V50.z317 — FastAPI 422 restituisce `detail` come lista di oggetti → testo leggibile (evita «[object Object]»). */
@@ -72,6 +73,7 @@ export async function api<T = any>(path: string, opts: ApiOptions = {}): Promise
       headers: {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(opts.headers || {}),
       },
       body: opts.body ? JSON.stringify(opts.body) : undefined,
       signal,
