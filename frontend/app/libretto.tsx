@@ -432,9 +432,9 @@ export default function LibrettoScreen() {
         {!isOnboarding ? (
           <View style={styles.searchWrap} testID="libretto-search">
             <View style={styles.searchBox}>
-              <Ionicons name="search" size={18} color="#94A3B8" />
-              <TextInput value={query} onChangeText={setQuery} placeholder="Cerca nel libretto (es. PUN, appuntamenti, rubrica…)" placeholderTextColor="#94A3B8" style={styles.searchInput} autoCorrect={false} testID="libretto-search-input" returnKeyType="search" />
-              {query ? <Pressable onPress={() => setQuery("")} hitSlop={8} testID="libretto-search-clear"><Ionicons name="close-circle" size={18} color="#94A3B8" /></Pressable> : null}
+              <Ionicons name="search" size={18} color={HT.muted} />
+              <TextInput value={query} onChangeText={setQuery} placeholder="Cerca nel libretto (es. PUN, appuntamenti, rubrica…)" placeholderTextColor={HT.muted} style={styles.searchInput} autoCorrect={false} testID="libretto-search-input" returnKeyType="search" />
+              {query ? <Pressable onPress={() => setQuery("")} hitSlop={8} testID="libretto-search-clear"><Ionicons name="close-circle" size={18} color={HT.muted} /></Pressable> : null}
             </View>
             {query.trim().length >= 2 ? (
               <Text style={styles.searchCount} testID="libretto-search-count">{visibleSections.length ? `${visibleSections.length} sezioni trovate` : "Nessuna sezione corrisponde: prova con un'altra parola o chiedi ad Axon."}</Text>
@@ -758,13 +758,14 @@ const styles = StyleSheet.create({
   tips: { marginTop: 10, gap: 6 },
   // V50.z469 — ricerca / indice / FAQ
   searchWrap: { marginBottom: 14, gap: 10 },
-  searchBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "rgba(255,255,255,0.08)", borderWidth: 1, borderColor: "rgba(255,255,255,0.16)", borderRadius: 12, paddingHorizontal: 12, minHeight: 46 },
-  searchInput: { flex: 1, color: "#FFF", fontSize: 15, paddingVertical: 10 },
+  // V50.z532 — ricerca e indice seguono il TEMA (prima bianco fisso: su Luce/Pearl le etichette dei bottoni erano invisibili)
+  searchBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, borderRadius: 12, paddingHorizontal: 12, minHeight: 46 },
+  searchInput: { flex: 1, color: HT.text, fontSize: 15, paddingVertical: 10 },
   searchCount: { color: "#CBD5E1", fontSize: 12.5, fontWeight: "600" },
   indexWrap: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  indexChip: { flexDirection: "row", alignItems: "center", gap: 5, borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, minHeight: 34, backgroundColor: "rgba(255,255,255,0.06)", maxWidth: "100%" },
+  indexChip: { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, minHeight: 36, backgroundColor: HT.card, maxWidth: "100%" },
   indexEmoji: { fontSize: 13 },
-  indexTxt: { color: "#F1F5F9", fontSize: 12, fontWeight: "700", maxWidth: 170 },
+  indexTxt: { color: HT.text, fontSize: 12, fontWeight: "700", maxWidth: 190, flexShrink: 1 },
   faqWrap: { marginTop: 12, backgroundColor: "rgba(15,36,56,0.05)", borderRadius: 12, padding: 10, gap: 4 },
   faqTitle: { fontSize: 13, fontWeight: "800", color: HT.text, marginBottom: 4 },
   faqItem: { paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: HT.border, minHeight: 40, justifyContent: "center" },

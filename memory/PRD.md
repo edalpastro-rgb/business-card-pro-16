@@ -7763,3 +7763,4 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 - Registrazione: `RegisterInput.plan` (builder|professional) → users.plan (default professional). Frontend login.tsx legge ?plan=&mode=register (PENDING_PLAN_KEY in landingSeen.ts) e passa plan a register().
 - Frontend: `src/landing/AxonCoreLanding.tsx` (nuova landing, `app/landing.tsx` è wrapper; vecchia landing rimossa, resta DemoRequestForm), `app/admin/landing-cms.tsx` (lock password → editor con Pubblica/Ripristina), voce «CMS Landing Axon Core» nel pannello Master (superAdminOnly). `api()` accetta `headers`.
 - V50.z531: CMS landing accessibile anche al Master radice; GET /landing/cms/permission
+- V50.z532: libretto indice/ricerca theme-aware (bianco fisso invisibile su temi chiari)
