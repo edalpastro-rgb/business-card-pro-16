@@ -37,7 +37,9 @@ export default function LandingCmsScreen() {
   const [dirty, setDirty] = useState(false);
   const H = { "X-CMS-Password": password };
 
-  useEffect(() => { api<{ super_admin: boolean }>("/admin/me").then((r) => setSuperAdmin(!!r.super_admin)).catch(() => setSuperAdmin(false)); }, []);
+  const [pwConfigured, setPwConfigured] = useState(true);
+  // V50.z531 — permesso CMS: Super Admin OPPURE Master radice (non più solo /admin/me → in produzione restava il lucchetto)
+  useEffect(() => { api<{ can: boolean; password_configured: boolean }>("/landing/cms/permission").then((r) => { setSuperAdmin(!!r.can); setPwConfigured(!!r.password_configured); }).catch(() => setSuperAdmin(false)); }, []);
 
   const load = useCallback(async () => {
     const r = await api<{ content: Content; seats: Seats }>("/landing/cms/content", { headers: H });
@@ -99,7 +101,7 @@ export default function LandingCmsScreen() {
   if (!superAdmin) {
     return (
       <SafeAreaView style={s.root} edges={["top"]} testID="cms-forbidden">{header}
-        <View style={{ padding: 40, alignItems: "center", gap: 10 }}><Ionicons name="lock-closed" size={40} color={HT.muted} /><Text style={s.cardTitle}>Sezione riservata all&apos;amministratore</Text></View>
+        <View style={{ padding: 40, alignItems: "center", gap: 10 }}><Ionicons name="lock-closed" size={40} color={HT.muted} /><Text style={s.cardTitle}>Sezione riservata all&apos;amministratore</Text><Text style={[s.muted, { textAlign: "center" }]}>Accedi con l&apos;account Master (owner principale) oppure con un&apos;email in ADVISOR_SUPER_ADMIN_EMAILS.</Text></View>
       </SafeAreaView>
     );
   }
@@ -110,6 +112,7 @@ export default function LandingCmsScreen() {
           <View style={s.card}>
             <View style={s.row}><View style={s.iconWrap}><Ionicons name="key" size={20} color={HT.violet} /></View><Text style={s.cardTitle}>Password del CMS</Text></View>
             <Text style={s.muted}>Impostata sul server nel file .env (LANDING_CMS_PASSWORD). Richiesta in aggiunta al tuo login da amministratore.</Text>
+            {!pwConfigured ? <Text style={[s.muted, { color: HT.danger, fontWeight: "800" }]} testID="cms-pw-missing">⚠️ LANDING_CMS_PASSWORD non è impostata nel .env del server: aggiungila e riavvia il backend, poi torna qui.</Text> : null}
             <PasswordInput value={password} onChangeText={setPassword} placeholder="Password CMS" testID="cms-password" />
             <Pressable onPress={unlock} disabled={busy || !password} style={[s.btn, (!password || busy) && { opacity: 0.6 }]} testID="cms-unlock">
               {busy ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="lock-open" size={18} color="#FFF" /><Text style={s.btnTxt}>Sblocca</Text></>}

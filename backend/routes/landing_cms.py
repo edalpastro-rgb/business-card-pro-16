@@ -101,7 +101,34 @@ def _cms_password_ok(pw: Optional[str]) -> bool:
     return bool(expected) and bool(pw) and hmac.compare_digest(expected, (pw or "").strip())
 
 
-async def _require_cms(user=Depends(require_super_admin), x_cms_password: Optional[str] = Header(default=None, alias="X-CMS-Password")):  # noqa: F821
+def _cms_can_admin(user: dict) -> bool:
+    """V50.z531 — Amministratore del CMS: Super Admin (flag/ADVISOR_SUPER_ADMIN_EMAILS) OPPURE Master radice del workspace
+    (role owner senza parent) OPPURE email in SUPER_MASTER_EMAILS — stessa logica del libretto (V50.z290: in produzione il flag
+    super_admin non coincideva con l'account del Master e il pannello restava bloccato). La password CMS resta il 2° fattore."""
+    try:
+        if is_super_admin(user):  # noqa: F821 — 36_admin_clients
+            return True
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        _require_super_master(user)  # noqa: F821 — 27_teach_ai_kb (Master radice o SUPER_MASTER_EMAILS)
+        return True
+    except HTTPException:
+        return False
+
+
+async def _require_cms_admin(user=Depends(get_current_user)):  # noqa: F821
+    if not _cms_can_admin(user):
+        raise HTTPException(status_code=403, detail="Sezione riservata all'amministratore (Master)")
+    return user
+
+
+@api_router.get("/landing/cms/permission")  # noqa: F821
+async def landing_cms_permission(user=Depends(get_current_user)):  # noqa: F821
+    return {"can": _cms_can_admin(user), "password_configured": bool((os.environ.get("LANDING_CMS_PASSWORD") or "").strip())}
+
+
+async def _require_cms(user=Depends(_require_cms_admin), x_cms_password: Optional[str] = Header(default=None, alias="X-CMS-Password")):
     if not (os.environ.get("LANDING_CMS_PASSWORD") or "").strip():
         raise HTTPException(status_code=503, detail="LANDING_CMS_PASSWORD non configurata nel .env del server")
     if not _cms_password_ok(x_cms_password):
@@ -118,7 +145,7 @@ class CmsContentIn(BaseModel):
 
 
 @api_router.post("/landing/cms/unlock")  # noqa: F821
-async def landing_cms_unlock(body: CmsUnlockIn, user=Depends(require_super_admin)):  # noqa: F821
+async def landing_cms_unlock(body: CmsUnlockIn, user=Depends(_require_cms_admin)):
     if not (os.environ.get("LANDING_CMS_PASSWORD") or "").strip():
         raise HTTPException(status_code=503, detail="LANDING_CMS_PASSWORD non configurata nel .env del server")
     if not _cms_password_ok(body.password):
