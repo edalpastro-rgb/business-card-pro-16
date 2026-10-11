@@ -7752,3 +7752,8 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 
 ## V50.z528 — Modulo Call: icone telefono e testi «Call» (D2026.10.11-1635)
 - `app/call.tsx`: titolo «Call» corsivo con icona call; bottone «+ Call» con icona call. `app/appointment/new.tsx`: se `form.is_phone` → «Nuova Call»/«Modifica call», placeholder «Titolo call», sezione «Tipo call» (appuntamenti normali invariati).
+
+## V50.z529 — Knowledge Base personale RAG + endpoint AI configurabile (D2026.10.11-1752)
+- Backend `routes/axon_knowledge_base.py`: ChromaDB PersistentClient (AXON_KB_DIR, volume `core_kb` → /app/backend/data), collection `kb_<user_id>` per utente (isolamento), embedding all-MiniLM-L6-v2 ONNX via onnxruntime+tokenizers (AXON_EMBED_MODEL_DIR; Dockerfile scarica in /opt/axon-models/minilm; dev: backend/models/minilm, in .gitignore). Chunk 800/overlap 100. API: GET /kb/status, GET/POST /kb/documents (PDF via pypdf, TXT, testo; limiti 20MB/50 doc/5000 chunk; indicizzazione background status indexing→ready|error), DELETE /kb/documents/{id}, POST /kb/search. `_build_personal_kb_section(user_id,msg)` (top-3, cosine ≥ 0.38) concatenata a `kb_section` in 21_axon_streaming (stream + non-stream). Mongo: `kb_documents`.
+- Endpoint AI: `19_axon_assistant_core.py` → `_axon_ai_endpoint_cfg()`; se AI_ENDPOINT impostato, `_axon_llm_chat` usa provider AI_PROVIDER (default openai), AI_MODEL, AI_API_KEY, api_base=AI_ENDPOINT (testato con mock OpenAI-compatible). Solo core chat (19/21 + idle summary); gli altri moduli restano su Anthropic/Emergent.
+- Deps: chromadb 1.5.9 (pip freeze aggiornato; pydantic 2.14, protobuf 7). Frontend: `app/knowledge-base.tsx`, card in axon-hub, scorciatoia in Profilo.

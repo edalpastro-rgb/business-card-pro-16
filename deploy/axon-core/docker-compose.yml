@@ -45,6 +45,7 @@ services:
     volumes:
       - core_uploads:/app/backend/uploads        # file locali (fallback quando Object Storage non è configurato)
       - core_tmp:/tmp                            # temp ffmpeg / Whisper / ZIP export
+      - core_kb:/app/backend/data                # V50.z529 — ChromaDB: Knowledge Base personale (vettori per utente)
     depends_on:
       mongodb:
         condition: service_healthy
@@ -117,6 +118,7 @@ volumes:
   core_uploads:
   core_tmp:
   clamav_db:                 # V50.z469 — firme ClamAV
+  core_kb:                   # V50.z529 — ChromaDB Knowledge Base personale
 
 networks:
   axon:

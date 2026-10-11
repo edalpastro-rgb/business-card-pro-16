@@ -53,6 +53,21 @@ ENV WHISPER_CPP_BIN=/usr/local/bin/whisper-cli \
 RUN test -x /usr/local/bin/whisper-cli && test -s /opt/whisper/models/ggml-small.bin && command -v ffmpeg >/dev/null \
  && ls -la /usr/local/bin/whisper-cli /opt/whisper/models/ggml-small.bin
 
+# V50.z529 — KNOWLEDGE BASE PERSONALE (RAG locale): modello di embedding all-MiniLM-L6-v2 in formato ONNX (~90 MB) + tokenizer,
+# eseguito con onnxruntime nel processo API (nessuna API esterna, nessun PyTorch). I vettori stanno in ChromaDB (persistente nel
+# volume `core_kb` → /app/backend/data). Il backend (routes/axon_knowledge_base.py) legge AXON_EMBED_MODEL_DIR / AXON_KB_DIR.
+ARG EMBED_MODEL_REPO=sentence-transformers/all-MiniLM-L6-v2
+RUN mkdir -p /opt/axon-models/minilm \
+ && curl -fL --retry 5 --retry-delay 5 -o /opt/axon-models/minilm/model.onnx \
+      https://huggingface.co/${EMBED_MODEL_REPO}/resolve/main/onnx/model.onnx \
+ && curl -fL --retry 5 --retry-delay 5 -o /opt/axon-models/minilm/tokenizer.json \
+      https://huggingface.co/${EMBED_MODEL_REPO}/resolve/main/tokenizer.json \
+ && test -s /opt/axon-models/minilm/model.onnx && test -s /opt/axon-models/minilm/tokenizer.json \
+ && ls -la /opt/axon-models/minilm
+ENV AXON_EMBED_MODEL_DIR=/opt/axon-models/minilm \
+    AXON_KB_DIR=/app/backend/data/chroma \
+    ANONYMIZED_TELEMETRY=False
+
 WORKDIR /app/backend
 
 # Dipendenze Python (layer separato → rebuild veloci). emergentintegrations vive su un indice extra.
@@ -65,8 +80,8 @@ RUN pip install --upgrade pip \
 # Codice Core (server.py + routes/ + workers/ + models/ + tessdata/ + assets/). .dockerignore esclude cache e modelli scaricabili.
 COPY . .
 
-# Utente non-root
-RUN useradd -m -u 10001 axon && chown -R axon:axon /app/backend
+# Utente non-root (V50.z529: /app/backend/data è il mount del volume core_kb → ChromaDB deve poterci scrivere)
+RUN useradd -m -u 10001 axon && mkdir -p /app/backend/data && chown -R axon:axon /app/backend
 USER axon
 
 EXPOSE 8001

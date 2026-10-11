@@ -10,3 +10,6 @@ tests/
 # In produzione KOKORO_DISABLE=1 (voce OpenAI TTS) → non servono nell'immagine.
 assets/kokoro/
 *.log
+# V50.z529 — modello MiniLM scaricato nel Dockerfile (/opt/axon-models); ChromaDB vive nel volume core_kb
+models/minilm/
+data/

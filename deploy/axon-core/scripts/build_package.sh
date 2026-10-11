@@ -28,7 +28,7 @@ PY
 fi
 PKG="$(mktemp -d)/axon-core-pkg"
 mkdir -p "$PKG"
-rsync -a --exclude '__pycache__' --exclude '*.pyc' --exclude 'assets/kokoro' --exclude '.env' --exclude 'tests' "$ROOT/backend/" "$PKG/backend/"
+rsync -a --exclude '__pycache__' --exclude '*.pyc' --exclude 'assets/kokoro' --exclude 'models/minilm' --exclude 'data' --exclude '.env' --exclude 'tests' "$ROOT/backend/" "$PKG/backend/"
 # V50.z481 — CHANGELOG.md e memory/PRD.md dentro backend/ del pacchetto: Axon (axon_system_awareness.py) li legge per la sezione
 # «novità»; sul VPS mancavano → warning «No such file or directory» a ogni upgrade.
 cp "$ROOT/CHANGELOG.md" "$PKG/backend/CHANGELOG.md"

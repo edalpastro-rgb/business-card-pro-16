@@ -374,14 +374,20 @@ async def _prepare_assistant_prompt(
             return None
 
     # V50.kb — Ricerca automatica nella Knowledge Base personale (pagine web salvate dall'utente).
+    # V50.z529 — + Knowledge Base RAG personale (libri/appunti/PDF caricati: ChromaDB + MiniLM locale, 3 frammenti) — stessa sezione.
     async def _safe_kb():
         if _simple:
             return ""
+        out = ""
         try:
-            return await _build_kb_section(_tenant_id_val, msg)
+            out = await _build_kb_section(_tenant_id_val, msg)
         except Exception as exc:
             logger.debug("[axon-kb] section build failed: %s", exc)
-            return ""
+        try:
+            out += await _build_personal_kb_section(user["user_id"], msg)  # noqa: F821 — axon_knowledge_base.py
+        except Exception as exc:
+            logger.debug("[axon-kb] personal RAG failed: %s", exc)
+        return out
 
     # V50.z180 — Axon vede TUTTE le sezioni dell'app (dati completi + schede dei contatti citati + mappa app)
     async def _safe_omni():
@@ -809,13 +815,17 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         logger.warning("[axon-teach] section build failed: %s", exc)
         axon_teach_section = ""
 
-    # V50.kb — Knowledge Base personale (pagine WebView salvate).
+    # V50.kb — Knowledge Base personale (pagine WebView salvate). V50.z529 — + RAG personale (ChromaDB + MiniLM locale).
     kb_section = ""
     try:
         kb_section = await _build_kb_section(tenant_id(user), msg)
     except Exception as exc:
         logger.debug("[axon-kb] section build failed: %s", exc)
         kb_section = ""
+    try:
+        kb_section += await _build_personal_kb_section(user["user_id"], msg)  # noqa: F821 — axon_knowledge_base.py
+    except Exception as exc:
+        logger.debug("[axon-kb] personal RAG failed: %s", exc)
 
     # V42 — RAG on Master documents (per-tenant knowledge base)
     rag_section = ""

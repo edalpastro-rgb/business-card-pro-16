@@ -37,7 +37,22 @@ def _axon_anthropic_direct_key() -> str:
     return (os.environ.get("ANTHROPIC_API_KEY") or "").strip().strip('"').strip("'").strip()
 
 
+# V50.z529 — ENDPOINT AI CONFIGURABILE (core chat Axon). Se AI_ENDPOINT è impostato nel .env, il core parla con QUEL servizio
+# (API compatibile OpenAI: vLLM, Ollama, LM Studio, LiteLLM proxy, TGI…) usando AI_MODEL e AI_API_KEY, senza toccare il codice:
+#   AI_ENDPOINT=http://10.0.0.5:8000/v1   AI_MODEL=llama-3.1-8b-instruct   AI_API_KEY=local   (AI_PROVIDER=openai di default)
+# Se AI_ENDPOINT è vuoto → comportamento attuale (Anthropic diretta via ANTHROPIC_API_KEY, altrimenti Emergent Universal Key).
+def _axon_ai_endpoint_cfg() -> Optional[Dict[str, str]]:
+    endpoint = (os.environ.get("AI_ENDPOINT") or "").strip().rstrip("/")
+    if not endpoint:
+        return None
+    return {"endpoint": endpoint, "model": (os.environ.get("AI_MODEL") or "").strip() or "default",
+            "key": (os.environ.get("AI_API_KEY") or "").strip() or "local", "provider": (os.environ.get("AI_PROVIDER") or "openai").strip() or "openai"}
+
+
 def _axon_llm_key(provider: str = "anthropic") -> str:
+    cfg = _axon_ai_endpoint_cfg()
+    if cfg:
+        return cfg["key"]
     if provider == "anthropic":
         direct = _axon_anthropic_direct_key()
         if direct:
@@ -47,11 +62,16 @@ def _axon_llm_key(provider: str = "anthropic") -> str:
 
 def _axon_llm_chat(system_message: str, session_id: str, model: str = "claude-haiku-4-5", provider: str = "anthropic", **params):
     """LlmChat pronto all'uso con la chiave risolta da `_axon_llm_key` (litellm diretto se ANTHROPIC_API_KEY, altrimenti proxy
-    Emergent). Solleva RuntimeError se nessuna chiave è configurata."""
+    Emergent). V50.z529: con AI_ENDPOINT impostato → provider/modello/chiave/api_base dal .env (servizio AI privato/locale).
+    Solleva RuntimeError se nessuna chiave è configurata."""
+    from emergentintegrations.llm.chat import LlmChat
+    cfg = _axon_ai_endpoint_cfg()
+    if cfg:
+        chat = LlmChat(api_key=cfg["key"], session_id=session_id, system_message=system_message).with_model(cfg["provider"], cfg["model"])
+        return chat.with_params(api_base=cfg["endpoint"], custom_llm_provider=cfg["provider"], **params)
     key = _axon_llm_key(provider)
     if not key:
         raise RuntimeError("Nessuna chiave LLM configurata (ANTHROPIC_API_KEY o EMERGENT_LLM_KEY)")
-    from emergentintegrations.llm.chat import LlmChat
     chat = LlmChat(api_key=key, session_id=session_id, system_message=system_message).with_model(provider, model)
     return chat.with_params(**params) if params else chat
 
@@ -61,6 +81,9 @@ _axon_llm_log = logging.getLogger("axon.llm")  # `logger` globale nasce solo nel
 
 
 def _axon_llm_route_label() -> str:
+    cfg = _axon_ai_endpoint_cfg()
+    if cfg:
+        return f"AI_ENDPOINT {cfg['endpoint']} (modello {cfg['model']}, provider {cfg['provider']})"
     direct = _axon_anthropic_direct_key()
     return f"Anthropic DIRETTA via litellm (chiave …{direct[-4:]})" if direct else "Emergent Universal Key (EMERGENT_LLM_KEY)"
 
@@ -114,6 +137,9 @@ _axon_patch_llmchat()
 
 @app.on_event("startup")  # il logging (StreamHandler + livello INFO) viene configurato solo nel modulo 37: a import-time i log sparirebbero
 async def _axon_llm_startup_diag():
+    cfg = _axon_ai_endpoint_cfg()
+    if cfg:
+        _axon_llm_log.info("[axon-llm] AI_ENDPOINT attivo → %s (il core chat Axon NON usa Anthropic/Emergent)", _axon_llm_route_label())
     k = _axon_anthropic_direct_key()
     _axon_llm_log.info("ANTHROPIC_API_KEY presente: %s", bool(k))
     if k:

@@ -26,6 +26,8 @@ const CARDS: Card[] = [
     title: "⚙️ Assistente & Header tabella", sub: "Nome, voce, tono di AxonOS · intestazione tabelle · memoria personale · Le mie aree" },
   { id: "ai-teach", href: "/ai-teach", icon: "sparkles", color: "#7C3AED",
     title: "✨ Insegna ad Axon", sub: "Regole per categoria + fonti URL con aggiornamento Tavily" },
+  { id: "knowledge-base", href: "/knowledge-base", icon: "book", color: "#7C3AED",
+    title: "📚 La mia Knowledge Base", sub: "Libri, appunti e documenti personali che Axon ricorda nel tempo (RAG locale, senza costi AI)" }, // V50.z529
   { id: "documenti-axon", href: "/documenti-axon", icon: "library", color: "#7C3AED",
     title: "📄 Documenti Axon", sub: "PDF (contratti, listini, brochure) letti da Axon" },
   { id: "axon-brain", href: "/axon-brain", icon: "sparkles", color: "#7C3AED",

@@ -496,6 +496,12 @@ function ImpostazioniScreen() {
           </View>
           <View style={{ gap: 10 }}>
           <SettingsGroupButton section="billing" onPress={() => openSection("billing")} />
+            {/* V50.z529 — scorciatoia alla Knowledge Base personale (RAG) */}
+            <Pressable onPress={() => router.push("/knowledge-base" as any)} style={hubStyles.group} testID="settings-group-knowledge-base">
+              <View style={[hubStyles.groupIcon, { backgroundColor: HT.violetTint }]}><Ionicons name="book" size={22} color={HT.violet} /></View>
+              <View style={{ flex: 1 }}><Text style={hubStyles.groupTitle}>La mia Knowledge Base</Text><Text style={hubStyles.groupSub}>Libri, appunti e documenti che Axon ricorda nel tempo</Text></View>
+              <Ionicons name="chevron-forward" size={20} color={HT.muted} />
+            </Pressable>
             <Pressable onPress={() => router.push("/axon-notifications?tab=prefs" as any)} style={hubStyles.group} testID="settings-group-notifications">
               <View style={[hubStyles.groupIcon, { backgroundColor: "#F59E0B1A" }]}><Ionicons name="notifications" size={22} color="#F59E0B" /></View>
               <View style={{ flex: 1 }}><Text style={hubStyles.groupTitle}>Notifiche e Avvisi</Text><Text style={hubStyles.groupSub}>Push, promemoria, copie team, livelli di urgenza</Text></View>
