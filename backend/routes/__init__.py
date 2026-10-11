@@ -157,5 +157,6 @@ MODULES = [
     "axon_idle_summary.py",  # V50.z518 — auto-summary dopo 30 min di inattività: cronologia → 1 riassunto (≤500 token) via Haiku (tick 5 min; usa _axn_scheduler, _axon_llm_chat)
     "home_layout.py",  # V50.z505 — Home personalizzabile (Super Master): blocchi visibili, ordine, posizione sinistra/destra/intera (GET/PUT/DELETE /home/layout; usa is_super_admin di 36)
     "axon_critical_events.py",  # V50.z496 — allarme prioritario eventi critici: banner Home + push CRITICAL + avviso vocale alla prima interazione (ri-avvolge /assistant/chat e /stream: ULTIMO strato)
+    "axon_referral_credits.py",  # V50.z523 — «Porta un amico» con crediti AI: codice NOME+3 cifre, 30+30 crediti, crediti base mensili/bonus, toggle per workspace, nome app dinamico (ULTIMO: avvolge _prepare_assistant_prompt, _pw_grant_days, _ref_redeem, _email_on_register)
     "37_app_startup_scheduler.py",
 ]

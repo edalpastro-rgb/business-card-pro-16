@@ -13,11 +13,14 @@ const C = theme.color;
 const VIOLET = "#8B5CF6"; // identità Axon (uguale in chiaro e scuro)
 const WA_GREEN = "#25D366"; // colore marchio WhatsApp
 
+// V50.z523 — «Porta un amico» con crediti AI: codice NOME+3 cifre, 30 crediti a chi invita (alla registrazione) e 30 al collega
+// (all'attivazione dell'abbonamento); nome app dinamico dal workspace; attivabile per workspace dal pannello admin.
 type Me = {
-  code: string; share_path: string; share_text: string; enabled: boolean;
-  reward_inviter: { summary: string }; reward_invitee: { summary: string };
-  friends_count: number; days_earned: number;
-  friends: { name: string; email: string; created_at: string; reward: string }[];
+  code: string; share_path: string; share_text: string; enabled: boolean; app_name?: string;
+  reward_inviter: { summary: string; when?: string }; reward_invitee: { summary: string; when?: string };
+  friends_count: number; days_earned: number; credits_earned?: number;
+  credits?: { base: number; bonus: number; total: number; monthly_base: number };
+  friends: { name: string; email: string; created_at: string; reward: string; status?: string }[];
 };
 
 function publicOrigin(): string {
@@ -49,7 +52,7 @@ export function ReferralCard({ showFriends = true }: { showFriends?: boolean }) 
   };
   const share = async () => {
     try {
-      if (Platform.OS === "web" && typeof navigator !== "undefined" && (navigator as any).share) { await (navigator as any).share({ title: "Invita un amico · AdvisorOS", text: fullText }); return; }
+      if (Platform.OS === "web" && typeof navigator !== "undefined" && (navigator as any).share) { await (navigator as any).share({ title: `Porta un amico · ${me.app_name || "AdvisorOS"}`, text: fullText }); return; }
       if (Platform.OS === "web") return void copyLink();
       await Share.share({ message: fullText });
     } catch { /* annullato */ }
@@ -60,14 +63,14 @@ export function ReferralCard({ showFriends = true }: { showFriends?: boolean }) 
       <View style={s.head}>
         <View style={s.orb}><Ionicons name="gift" size={20} color={C.onSurfaceInverse} /></View>
         <View style={{ flex: 1 }}>
-          <Text style={s.title}>Invita un amico</Text>
-          <Text style={s.sub}>Tu ricevi <Text style={s.bold}>{me.reward_inviter.summary.toLowerCase()}</Text>, il tuo amico <Text style={s.bold}>{me.reward_invitee.summary.toLowerCase()}</Text>.</Text>
+          <Text style={s.title}>Porta un amico</Text>
+          <Text style={s.sub}>Tu ricevi <Text style={s.bold}>{me.reward_inviter.summary.toLowerCase()}</Text> {me.reward_inviter.when || "quando il collega si registra"}; il collega <Text style={s.bold}>{me.reward_invitee.summary.toLowerCase()}</Text> {me.reward_invitee.when || "quando attiva l'abbonamento"}. I crediti bonus non scadono mai.</Text>
         </View>
       </View>
-      {!me.enabled ? <Text style={s.off}>Il programma non è attivo al momento.</Text> : null}
+      {!me.enabled ? <Text style={s.off}>Il programma non è attivo per il tuo workspace.</Text> : null}
 
       <Pressable onPress={copy} style={s.codeBox} testID="referral-code" accessibilityLabel="Copia il codice amico">
-        <Text style={s.codeLbl}>IL TUO CODICE AMICO</Text>
+        <Text style={s.codeLbl}>IL TUO CODICE INVITO</Text>
         <View style={s.codeRow}><Text style={s.code}>{me.code}</Text><Ionicons name="copy-outline" size={18} color={VIOLET} /></View>
       </Pressable>
 
@@ -80,7 +83,8 @@ export function ReferralCard({ showFriends = true }: { showFriends?: boolean }) 
       <View style={s.stats}>
         <View style={s.stat}><Text style={s.statN} testID="referral-friends-count">{me.friends_count}</Text><Text style={s.statL}>amici arrivati</Text></View>
         <View style={s.statSep} />
-        <View style={s.stat}><Text style={s.statN} testID="referral-days-earned">{me.days_earned}</Text><Text style={s.statL}>giorni guadagnati</Text></View>
+        <View style={s.stat}><Text style={s.statN} testID="referral-credits-earned">{me.credits_earned ?? 0}</Text><Text style={s.statL}>crediti guadagnati</Text></View>
+        {me.credits ? (<><View style={s.statSep} /><View style={s.stat}><Text style={s.statN} testID="referral-credits-balance">{me.credits.total}</Text><Text style={s.statL}>crediti AI disponibili{"\n"}({me.credits.base} base · {me.credits.bonus} bonus)</Text></View></>) : null}
       </View>
 
       {showFriends && me.friends.length > 0 ? (
@@ -88,7 +92,7 @@ export function ReferralCard({ showFriends = true }: { showFriends?: boolean }) 
           {me.friends.map((f, i) => (
             <View key={i} style={s.friend}>
               <Ionicons name="person-circle-outline" size={20} color={VIOLET} />
-              <Text style={s.friendTxt} numberOfLines={1}>{f.name} · {new Date(f.created_at).toLocaleDateString("it-IT")} · +{f.reward}</Text>
+              <Text style={s.friendTxt} numberOfLines={1}>{f.name} · {new Date(f.created_at).toLocaleDateString("it-IT")} · {f.reward}{f.status === "subscribed" ? " · abbonato ✅" : ""}</Text>
             </View>
           ))}
         </View>
@@ -116,7 +120,7 @@ const s = StyleSheet.create({
   stats: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderRadius: 12, paddingVertical: 10 },
   stat: { flex: 1, alignItems: "center" },
   statN: { fontSize: 22, fontWeight: "900", color: VIOLET },
-  statL: { fontSize: 11.5, color: C.muted, fontWeight: "600" },
+  statL: { fontSize: 11.5, color: C.muted, fontWeight: "600", textAlign: "center" },
   statSep: { width: 1, height: 30, backgroundColor: C.divider },
   friends: { gap: 6 },
   friend: { flexDirection: "row", alignItems: "center", gap: 8 },

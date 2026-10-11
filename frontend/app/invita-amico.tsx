@@ -39,12 +39,13 @@ export default function InvitaAmicoScreen() {
     <SafeAreaView style={s.container} edges={["top"]}>
       <View style={s.header}>
         <Pressable onPress={() => router.back()} style={s.iconBtn} testID="referral-back"><Ionicons name="chevron-back" size={24} color={C.onSurface} /></Pressable>
-        <View style={{ flex: 1 }}><Text style={s.hTitle}>Invita un amico</Text><Text style={s.hSub}>Codice personale · premi per chi invita e chi arriva</Text></View>
+        <View style={{ flex: 1 }}><Text style={s.hTitle}>Porta un amico</Text><Text style={s.hSub}>Codice personale · 30 crediti AI a te, 30 al collega</Text></View>
       </View>
       <KScrollView contentContainerStyle={[s.body, { paddingBottom: pagePad }]}>
         <ReferralCard />
         {settings === null ? <ActivityIndicator color={VIOLET} /> : settings ? (
           <>
+            <WorkspaceReferralPanel />
             <RewardSettings settings={settings} onSaved={load} />
             <View style={s.card} testID="referral-admin-list">
               <Text style={s.title}>Registro referral · {list?.items.length ?? settings.total_referrals}</Text>
@@ -69,6 +70,43 @@ export default function InvitaAmicoScreen() {
         ) : null}
       </KScrollView>
     </SafeAreaView>
+  );
+}
+
+// V50.z523 — pannello admin: programma «Porta un amico» attivabile per workspace + crediti base mensili + blocco a crediti esauriti
+type WsRow = { tenant_id: string; email: string; name: string; app_name: string; referrals: number; enabled: boolean; monthly_base_credits: number; enforce_credits: boolean };
+function WorkspaceReferralPanel() {
+  const [data, setData] = useState<{ items: WsRow[]; program_enabled: boolean; defaults: { monthly_base_credits: number; inviter_credits: number; invitee_credits: number } } | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [q, setQ] = useState("");
+  const load = useCallback(() => api<any>("/admin/referral/workspaces").then(setData).catch(() => setData(null)), []);
+  useEffect(() => { load(); }, [load]);
+  const put = async (tid: string, body: Partial<WsRow>) => {
+    setBusy(tid);
+    try { await api(`/admin/referral/workspaces/${tid}`, { method: "PUT", body }); await load(); }
+    catch (e: any) { notify("Workspace", e?.message || "Aggiornamento non riuscito"); }
+    finally { setBusy(null); }
+  };
+  if (!data) return null;
+  const items = data.items.filter((w) => !q || `${w.email} ${w.name} ${w.app_name}`.toLowerCase().includes(q.toLowerCase()));
+  return (
+    <View style={s.card} testID="referral-workspaces">
+      <Text style={s.title}>Programma per workspace</Text>
+      <Text style={s.muted}>Attiva o disattiva «Porta un amico» per ogni workspace. Premi: {data.defaults.inviter_credits} crediti a chi invita (alla registrazione), {data.defaults.invitee_credits} al collega (all'abbonamento). Crediti base mensili di default: {data.defaults.monthly_base_credits}.</Text>
+      <TextInput value={q} onChangeText={setQ} placeholder="Cerca workspace (email, nome, app)…" placeholderTextColor={C.muted} style={[s.input, { width: "100%", marginVertical: 8 }]} testID="referral-ws-search" />
+      {items.map((w) => (
+        <View key={w.tenant_id} style={s.wsRow} testID={`referral-ws-${w.tenant_id}`}>
+          <View style={{ flex: 1 }}>
+            <Text style={s.bold} numberOfLines={1}>{w.app_name || w.name || w.email}</Text>
+            <Text style={s.muted} numberOfLines={1}>{w.email} · {w.referrals} inviti · base {w.monthly_base_credits}/mese{w.enforce_credits ? " · blocco attivo" : ""}</Text>
+          </View>
+          <Pressable onPress={() => put(w.tenant_id, { enforce_credits: !w.enforce_credits })} disabled={busy === w.tenant_id} style={s.wsBtn} testID={`referral-ws-enforce-${w.tenant_id}`} accessibilityLabel="Blocco a crediti esauriti">
+            <Ionicons name={w.enforce_credits ? "lock-closed" : "lock-open-outline"} size={16} color={VIOLET} />
+          </Pressable>
+          {busy === w.tenant_id ? <ActivityIndicator color={VIOLET} /> : <Switch value={w.enabled} onValueChange={(v) => put(w.tenant_id, { enabled: v })} testID={`referral-ws-toggle-${w.tenant_id}`} />}
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -126,6 +164,8 @@ function RewardSettings({ settings, onSaved }: { settings: Settings; onSaved: ()
 }
 
 const s = StyleSheet.create({
+  wsRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.divider },
+  wsBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border },
   container: { flex: 1, backgroundColor: C.surface },
   header: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.divider, backgroundColor: C.surfaceSecondary },
   iconBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
