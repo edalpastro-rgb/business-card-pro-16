@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-11 | D2026.10.11-2241 | Help: ricerca FAQ interattiva in tempo reale (sezione «Domande frequenti» in cima a /help e pagina /faq), FAQ gestibili dal CMS admin (editor con aggiungi/sposta/elimina, PUT /landing/cms/faq, reset), modulo assistenza/segnalazione bug e checkbox «Problemi ricorrenti» confermati e rietichettati; Axon riceve le FAQ ufficiali pertinenti nel prompt (_build_faq_section) e la mappa navigazione include Knowledge Base, crediti AI, ricerca FAQ e CMS Landing, così risponde con il percorso corretto a «dove trovo X» |
 | 2026-10-11 | D2026.10.11-2134 | Libretto: i bottoni dell'indice (icona + etichetta) e la barra di ricerca seguono il tema attivo — con i temi chiari Luce/Pearl il testo era bianco fisso e quindi invisibile (si vedeva solo l'icona) |
 | 2026-10-11 | D2026.10.11-1954 | CMS Landing: accesso consentito anche al Master radice del workspace (non solo al flag super_admin) + GET /landing/cms/permission; il pannello mostra un avviso se LANDING_CMS_PASSWORD manca nel .env |
 | 2026-10-11 | D2026.10.11-1928 | Fix build Docker: requirements.txt con protobuf 5.29.6 (il freeze precedente aveva trascinato protobuf 7.36 + onnx 1.23 non necessari, in conflitto con google-ai-generativelanguage <6.0); rimossi onnx/ml_dtypes; verificato con pip --dry-run |

@@ -17,6 +17,8 @@ import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { SupportForm } from "@/src/SupportFab";
 import { PreReportNotice, SuggestionForm, SupportContacts, BetaNpsCard } from "@/src/HelpExtras"; // V50.z464 — avviso + consigli + contatti · V50.z474 NPS
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { FaqSearch } from "@/src/FaqSearch"; // V50.z533 — ricerca FAQ in tempo reale (FAQ dal CMS)
+import { FAQ_ITEMS } from "@/app/faq";
 
 export default function HelpTabScreen() {
   const router = useRouter();
@@ -53,8 +55,14 @@ export default function HelpTabScreen() {
         <Text style={styles.sub}>Chiedi aiuto, segnala un problema o gestisci la tua privacy. Axon risponde subito; se serve, la richiesta passa al Master.</Text>
       </View>
 
-      {/* V50.z464 — 1) Segnala un bug: avviso pre-segnalazione + modulo (SupportForm) */}
-      <Text style={styles.sectionLabel}>SEGNALA UN PROBLEMA</Text>
+      {/* V50.z533 — 0) Ricerca FAQ interattiva (FAQ gestibili dal CMS admin) */}
+      <Text style={styles.sectionLabel}>DOMANDE FREQUENTI</Text>
+      <View style={{ marginBottom: 16 }} testID="help-faq-section">
+        <FaqSearch fallback={FAQ_ITEMS.map((f, i) => ({ id: `local_${i}`, icon: f.icon as string, q: f.q, a: f.a }))} testID="help-faq" />
+      </View>
+
+      {/* V50.z464 — 1) Segnala un bug / richiesta assistenza: avviso pre-segnalazione + modulo (SupportForm: problemi ricorrenti con checkbox, testo libero, allegati, Chiedi ad Axon) */}
+      <Text style={styles.sectionLabel}>SEGNALA UN PROBLEMA · RICHIEDI ASSISTENZA</Text>
       <PreReportNotice />
       <SupportForm inline />
 

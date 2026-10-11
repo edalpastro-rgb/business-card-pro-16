@@ -15,6 +15,7 @@ import { HT } from "@/src/homeTheme";
 import { theme } from "@/src/theme";
 
 type Content = Record<string, any>;
+type FaqRow = { id: string; icon?: string; q: string; a: string };
 type Seats = Record<"builder" | "professional", { limit: number; taken: number; left: number }>;
 
 function setPath(obj: Content, path: string[], value: unknown): Content {
@@ -35,6 +36,8 @@ export default function LandingCmsScreen() {
   const [content, setContent] = useState<Content | null>(null);
   const [seats, setSeats] = useState<Seats | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [faq, setFaq] = useState<FaqRow[] | null>(null); // V50.z533 — FAQ gestibili (Help › ricerca FAQ + pagina /faq + conoscenza Axon)
+  const [faqDirty, setFaqDirty] = useState(false);
   const H = { "X-CMS-Password": password };
 
   const [pwConfigured, setPwConfigured] = useState(true);
@@ -44,6 +47,8 @@ export default function LandingCmsScreen() {
   const load = useCallback(async () => {
     const r = await api<{ content: Content; seats: Seats }>("/landing/cms/content", { headers: H });
     setContent(r.content); setSeats(r.seats); setDirty(false);
+    const f = await api<{ items: FaqRow[] }>("/public/faq");
+    setFaq(f.items); setFaqDirty(false);
   }, [password]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const unlock = async () => {
@@ -70,6 +75,27 @@ export default function LandingCmsScreen() {
     catch (e: any) { notify("CMS Landing", e?.message || "Errore"); }
     finally { setBusy(false); }
   };
+
+  const saveFaq = async () => {
+    if (!faq) return;
+    const bad = faq.find((f) => f.q.trim().length < 3 || f.a.trim().length < 3);
+    if (bad) { notify("FAQ", "Ogni FAQ deve avere domanda e risposta (almeno 3 caratteri)."); return; }
+    setBusy(true);
+    try { const r = await api<{ items: FaqRow[] }>("/landing/cms/faq", { method: "PUT", body: { items: faq }, headers: H }); setFaq(r.items); setFaqDirty(false); notify("FAQ", "FAQ pubblicate ✅ (Help, pagina FAQ e Axon aggiornati)"); }
+    catch (e: any) { notify("FAQ", e?.message || "Salvataggio non riuscito"); }
+    finally { setBusy(false); }
+  };
+  const resetFaq = async () => {
+    if (!(await confirmAsync("Ripristina FAQ", "Le FAQ tornano all'elenco di default. Continuare?"))) return;
+    setBusy(true);
+    try { const r = await api<{ items: FaqRow[] }>("/landing/cms/faq/reset", { method: "POST", headers: H }); setFaq(r.items); setFaqDirty(false); }
+    catch (e: any) { notify("FAQ", e?.message || "Errore"); }
+    finally { setBusy(false); }
+  };
+  const editFaq = (idx: number, key: "q" | "a", v: unknown) => { setFaq((f) => (f ? f.map((it, i) => (i === idx ? { ...it, [key]: String(v) } : it)) : f)); setFaqDirty(true); };
+  const moveFaq = (idx: number, dir: -1 | 1) => { setFaq((f) => { if (!f) return f; const j = idx + dir; if (j < 0 || j >= f.length) return f; const c = [...f]; [c[idx], c[j]] = [c[j], c[idx]]; return c; }); setFaqDirty(true); };
+  const removeFaq = (idx: number) => { setFaq((f) => (f ? f.filter((_, i) => i !== idx) : f)); setFaqDirty(true); };
+  const addFaq = () => { setFaq((f) => [...(f || []), { id: `faq_${Date.now().toString(36)}`, icon: "help-circle-outline", q: "", a: "" }]); setFaqDirty(true); };
 
   const edit = (path: string[], value: unknown) => { setContent((c) => (c ? setPath(c, path, value) : c)); setDirty(true); };
 
@@ -187,6 +213,30 @@ export default function LandingCmsScreen() {
           {Field({ label: "Testo footer", path: ["footer", "text"], multiline: true })}
         </Section>
 
+        <View style={s.card} testID="cms-faq">
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Text style={[s.sectionTitle, { flex: 1 }]}>FAQ · Help e pagina Domande frequenti</Text>
+            <Pressable onPress={saveFaq} disabled={busy || !faqDirty} style={[s.saveBtn, (!faqDirty || busy) && { opacity: 0.5 }]} testID="cms-faq-save"><Ionicons name="cloud-upload" size={14} color="#FFF" /><Text style={s.saveTxt}>Pubblica FAQ</Text></Pressable>
+          </View>
+          <Text style={s.muted}>Le FAQ alimentano la ricerca in Help, la pagina /faq e le risposte di Axon («dove trovo…»). Pubblicazione separata dai testi della landing.</Text>
+          {faq === null ? <ActivityIndicator color={HT.violet} /> : faq.map((it, idx) => (
+            <View key={it.id} style={s.planBox} testID={`cms-faq-item-${idx}`}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Text style={[s.lbl, { flex: 1 }]}>FAQ {idx + 1}</Text>
+                <Pressable onPress={() => moveFaq(idx, -1)} hitSlop={6} style={s.miniBtn} accessibilityLabel="Sposta su"><Ionicons name="arrow-up" size={16} color={HT.text2} /></Pressable>
+                <Pressable onPress={() => moveFaq(idx, 1)} hitSlop={6} style={s.miniBtn} accessibilityLabel="Sposta giù"><Ionicons name="arrow-down" size={16} color={HT.text2} /></Pressable>
+                <Pressable onPress={() => removeFaq(idx)} hitSlop={6} style={s.miniBtn} accessibilityLabel="Elimina FAQ" testID={`cms-faq-del-${idx}`}><Ionicons name="trash-outline" size={16} color={HT.danger} /></Pressable>
+              </View>
+              <CmsField label="Domanda" value={it.q} onChange={(v) => editFaq(idx, "q", v)} testID={`cms-faq-q-${idx}`} />
+              <CmsField label="Risposta (indica il percorso: es. Profilo › Impostazioni › Aspetto)" value={it.a} onChange={(v) => editFaq(idx, "a", v)} multiline testID={`cms-faq-a-${idx}`} />
+            </View>
+          ))}
+          <View style={{ flexDirection: "row", gap: 10 }}>
+            <Pressable onPress={addFaq} style={[s.btn, { flex: 1 }]} testID="cms-faq-add"><Ionicons name="add" size={18} color="#FFF" /><Text style={s.btnTxt}>Aggiungi FAQ</Text></Pressable>
+            <Pressable onPress={resetFaq} disabled={busy} style={[s.btn, s.btnDanger, { flex: 1 }]} testID="cms-faq-reset"><Ionicons name="refresh" size={16} color={HT.danger} /><Text style={[s.btnTxt, { color: HT.danger }]}>Ripristina FAQ</Text></Pressable>
+          </View>
+        </View>
+
         <Pressable onPress={reset} disabled={busy} style={[s.btn, s.btnDanger]} testID="cms-reset">
           <Ionicons name="refresh" size={18} color={HT.danger} /><Text style={[s.btnTxt, { color: HT.danger }]}>Ripristina testi e prezzi di default</Text>
         </Pressable>
@@ -232,5 +282,6 @@ const s = StyleSheet.create({
   btn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: HT.violet, borderRadius: 999, minHeight: 46, paddingHorizontal: 14 },
   btnDanger: { backgroundColor: HT.card, borderWidth: 1, borderColor: HT.danger + "66" },
   btnTxt: { color: "#FFF", fontWeight: "800", fontSize: 13.5 },
+  miniBtn: { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: HT.card },
   planBox: { gap: 8, backgroundColor: HT.card2, borderRadius: theme.radius.md, padding: 12, borderWidth: 1, borderColor: HT.border },
 });

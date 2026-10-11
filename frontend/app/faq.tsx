@@ -1,13 +1,14 @@
 // faq.tsx — V50.z329 — Domande frequenti (accordion) · raggiungibile da Help Center e dal Navigatore Axon.
 // In fondo: «Scopri di più su AxonOS» → landing pubblica advisoros.it (dominio principale; advisoros.cloud → redirect).
-import React, { useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, Linking, LayoutAnimation, Platform, UIManager } from "react-native";
+import React from "react";
+import { View, Text, StyleSheet, Pressable, ScrollView, Linking, Platform, UIManager } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "@/src/theme";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { FaqSearch } from "@/src/FaqSearch"; // V50.z533
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) UIManager.setLayoutAnimationEnabledExperimental(true);
 
@@ -29,8 +30,6 @@ export const FAQ_ITEMS: { q: string; a: string; icon: React.ComponentProps<typeo
 export default function FaqScreen() {
   const router = useRouter();
   const pagePad = usePageBottomPadding();
-  const [open, setOpen] = useState<number | null>(0);
-  const toggle = (i: number) => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setOpen((o) => (o === i ? null : i)); };
 
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
@@ -40,19 +39,8 @@ export default function FaqScreen() {
         <View style={styles.headIcon}><Ionicons name="help-circle" size={22} color={HT.brand} /></View>
       </View>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: pagePad + 24, gap: 10 }} testID="faq-list">
-        {FAQ_ITEMS.map((it, i) => {
-          const on = open === i;
-          return (
-            <Pressable key={it.q} onPress={() => toggle(i)} style={[styles.item, on && styles.itemOpen]} testID={`faq-item-${i}`} accessibilityRole="button" accessibilityState={{ expanded: on }}>
-              <View style={styles.row}>
-                <View style={[styles.icon, on && { backgroundColor: HT.brand }]}><Ionicons name={it.icon} size={18} color={on ? theme.color.onBrandPrimary : HT.brand} /></View>
-                <Text style={[styles.q, on && { color: HT.brand }]}>{it.q}</Text>
-                <Ionicons name={on ? "chevron-up" : "chevron-down"} size={18} color={HT.muted} />
-              </View>
-              {on ? <Text style={styles.a} testID={`faq-answer-${i}`}>{it.a}</Text> : null}
-            </Pressable>
-          );
-        })}
+        {/* V50.z533 — FAQ dal backend (CMS) con ricerca in tempo reale; FAQ_ITEMS resta come fallback offline */}
+        <FaqSearch fallback={FAQ_ITEMS.map((f, i) => ({ id: `local_${i}`, icon: f.icon as string, q: f.q, a: f.a }))} maxWhenEmpty={200} testID="faq-search" />
 
         <Pressable onPress={() => void Linking.openURL(LANDING_URL)} style={({ pressed }) => [styles.cta, pressed && { opacity: 0.85 }]} testID="faq-landing-link" accessibilityRole="link">
           <View style={{ flex: 1 }}>

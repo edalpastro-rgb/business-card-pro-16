@@ -387,6 +387,10 @@ async def _prepare_assistant_prompt(
             out += await _build_personal_kb_section(user["user_id"], msg)  # noqa: F821 — axon_knowledge_base.py
         except Exception as exc:
             logger.debug("[axon-kb] personal RAG failed: %s", exc)
+        try:
+            out += await _build_faq_section(msg)  # noqa: F821 — landing_cms.py (V50.z533: FAQ ufficiali pertinenti → «dove trovo X»)
+        except Exception as exc:
+            logger.debug("[axon-faq] section failed: %s", exc)
         return out
 
     # V50.z180 — Axon vede TUTTE le sezioni dell'app (dati completi + schede dei contatti citati + mappa app)
@@ -826,6 +830,10 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         kb_section += await _build_personal_kb_section(user["user_id"], msg)  # noqa: F821 — axon_knowledge_base.py
     except Exception as exc:
         logger.debug("[axon-kb] personal RAG failed: %s", exc)
+    try:
+        kb_section += await _build_faq_section(msg)  # noqa: F821 — landing_cms.py (V50.z533)
+    except Exception as exc:
+        logger.debug("[axon-faq] section failed: %s", exc)
 
     # V42 — RAG on Master documents (per-tenant knowledge base)
     rag_section = ""

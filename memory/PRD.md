@@ -7764,3 +7764,7 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 - Frontend: `src/landing/AxonCoreLanding.tsx` (nuova landing, `app/landing.tsx` è wrapper; vecchia landing rimossa, resta DemoRequestForm), `app/admin/landing-cms.tsx` (lock password → editor con Pubblica/Ripristina), voce «CMS Landing Axon Core» nel pannello Master (superAdminOnly). `api()` accetta `headers`.
 - V50.z531: CMS landing accessibile anche al Master radice; GET /landing/cms/permission
 - V50.z532: libretto indice/ricerca theme-aware (bianco fisso invisibile su temi chiari)
+
+## V50.z533 — FAQ CMS + ricerca FAQ in Help + conoscenza FAQ/navigazione per Axon
+- Backend `landing_cms.py`: FAQ_DEFAULTS (16), singleton `faq_content`, `GET /public/faq`, `PUT /landing/cms/faq`, `POST /landing/cms/faq/reset` (guard _require_cms), `_build_faq_section(msg)` (top-3 per overlap keyword) agganciata a kb_section in 21 (stream + non-stream). `axon_navigator.APP_MAP` + voci knowledge_base, ai_credits, help_faq_search, landing_cms (master_only).
+- Frontend: `src/FaqSearch.tsx` (fetch /public/faq, filtro realtime, accordion; fallback FAQ_ITEMS), montato in `app/(tabs)/help.tsx` (sezione DOMANDE FREQUENTI in cima; SupportForm con checkbox + PreReportNotice invariati) e in `app/faq.tsx`; editor FAQ nel CMS `app/admin/landing-cms.tsx` (Pubblica FAQ separato).
