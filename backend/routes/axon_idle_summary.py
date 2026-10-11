@@ -10,11 +10,13 @@ from datetime import datetime as _is_dt, timezone as _is_tz, timedelta as _is_td
 
 AXON_IDLE_MINUTES = 30
 AXON_IDLE_SUMMARY_MAX_TOKENS = 500
+AXON_IDLE_INPUT_MSGS = 10  # V50.z521 — al riassuntore vanno SOLO gli ultimi 10 messaggi (non tutta la storia: 27 msg = troppi token)
 _IS_PREFIX = "📝 Riassunto della conversazione precedente"
 
 
 async def _is_summarize(user: dict, session_id: str, msgs: list) -> str:
     assistant_name = await _get_assistant_name(user)  # noqa: F821
+    msgs = msgs[-AXON_IDLE_INPUT_MSGS:]  # V50.z521 — tronca l'input: ultimi 10 messaggi, max 800 car. ciascuno
     convo = "\n".join(f"{'Utente' if m.get('role') == 'user' else assistant_name}: {(m.get('content') or '')[:800]}" for m in msgs)
     from emergentintegrations.llm.chat import UserMessage
     chat = _axon_llm_chat(  # noqa: F821 — ANTHROPIC_API_KEY diretta se presente, altrimenti Emergent
@@ -42,7 +44,8 @@ async def _is_compact_session(user_id: str, session_id: str) -> bool:
     ).sort("created_at", 1).to_list(200)
     if len(msgs) < 2:
         return False
-    if len(msgs) == 1 and msgs[0].get("summary"):
+    # V50.z521 — sessione già riassunta (flag su db.assistant_active_session / assistant_sessions_summarized) → mai più riprocessata
+    if await db.assistant_sessions_summarized.find_one({"session_id": session_id}, {"_id": 1}):  # noqa: F821
         return False
     summary = await _is_summarize(user, session_id, msgs)
     if not summary:
@@ -55,7 +58,15 @@ async def _is_compact_session(user_id: str, session_id: str) -> bool:
         "content": f"{_IS_PREFIX} (dopo {AXON_IDLE_MINUTES} min di pausa, {len(msgs)} messaggi condensati):\n{summary}",
         "created_at": now, "archived": False,
     })
-    logger.info("[idle-summary] sessione %s di %s: %d messaggi → riassunto (%d car.)", session_id[-10:], user_id[-8:], len(msgs), len(summary))  # noqa: F821
+    # V50.z521 — flag persistente: summarized=true + data → il job non la riprocessa mai più (anche se l'utente riprende a scrivere,
+    # la sessione resta marcata; una NUOVA sessione dopo «Nuova chat» non ha il flag e verrà gestita normalmente)
+    await db.assistant_sessions_summarized.update_one(  # noqa: F821
+        {"session_id": session_id},
+        {"$set": {"user_id": user_id, "summarized": True, "summarized_at": now, "messages_condensed": len(msgs), "input_messages": min(len(msgs), AXON_IDLE_INPUT_MSGS)}},
+        upsert=True,
+    )
+    await db.assistant_active_session.update_one({"user_id": user_id, "session_id": session_id}, {"$set": {"summarized": True, "summarized_at": now}})  # noqa: F821
+    logger.info("[idle-summary] sessione %s di %s: %d messaggi → riassunto (%d car., input ultimi %d) · flag summarized", session_id[-10:], user_id[-8:], len(msgs), len(summary), min(len(msgs), AXON_IDLE_INPUT_MSGS))  # noqa: F821
     return True
 
 
@@ -65,7 +76,8 @@ async def _is_tick() -> None:
         # SOLO la sessione ATTIVA di ogni utente (db.assistant_active_session): è l'unica che verrà inviata al modello al prossimo
         # messaggio. Le sessioni vecchie/archiviate/di stress test non vengono toccate (nessun burst di chiamate al primo deploy).
         actives = await db.assistant_active_session.find({}, {"_id": 0, "user_id": 1, "session_id": 1}).to_list(5000)  # noqa: F821
-        sids = [a["session_id"] for a in actives if a.get("session_id")]
+        done_sids = {d["session_id"] async for d in db.assistant_sessions_summarized.find({}, {"_id": 0, "session_id": 1})}  # noqa: F821
+        sids = [a["session_id"] for a in actives if a.get("session_id") and a["session_id"] not in done_sids]  # V50.z521 — già riassunte: mai più
         pipeline = [
             {"$match": {"archived": {"$ne": True}, "session_id": {"$in": sids}}},
             {"$group": {"_id": {"u": "$user_id", "s": "$session_id"}, "last": {"$max": "$created_at"}, "n": {"$sum": 1}}},
