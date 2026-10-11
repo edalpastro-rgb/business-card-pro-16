@@ -39,6 +39,7 @@ import { useAxonProgress, AxonProgressBubble } from "@/src/axonProgress"; // V50
 import { ImportConfirmChips, hasImportQuestion } from "@/src/ImportConfirmChips"; // V50.z194 — «Vuoi che memorizzi…?»
 import { QuickReplyButtons, QuickReplyToast, QUICK_REPLY_TOAST_MS, isClosedQuestion } from "@/src/axon-quick-reply"; // V50.z207 — Sì/No/Forse su domande chiuse
 import { SetupNudgeCard, hasSetupNudge } from "@/src/SetupNudgeCard"; // V50.z211 — avviso configurazione incompleta → wizard
+import { CreditsExhaustedCard, AI_CREDITS_EXHAUSTED } from "@/src/CreditsExhaustedCard"; // V50.z524 — 402 crediti AI esauriti → richiesta add-on
 import { NavProactiveCard } from "@/src/NavChips"; // V50.z259 — deep link [[NAV]] / azioni [[ACTION]] / suggerimenti proattivi
 import { FutureInterestsAlert } from "@/src/FutureInterestsAlert"; // V50.z219 — avviso interessi futuri (CarPlay…) dal wizard
 import { ChatQueuePanel, type QueueItem } from "@/src/ChatQueuePanel"; // V50.z223 — coda messaggi non bloccante + chat parallele
@@ -211,6 +212,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const [transcribing, setTranscribing] = useState(false);
   // V50.z126 — Testo di stato del preflight streaming ("Sto raccogliendo il contesto…")
   const [progressText, setProgressText] = useState<string | null>(null);
+  const [creditsExhausted, setCreditsExhausted] = useState(false); // V50.z524 — 402 ai_credits_exhausted → card con richiesta add-on
   const prog = useAxonProgress(); // V50.z194 — bolla intermedia contestuale dopo 3 s senza risposta
   const [recDuration, setRecDuration] = useState(0);
   const [responseMode, setResponseMode] = useState<ResponseMode>("text");
@@ -705,6 +707,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     }
     sendingRef.current = true;
     setSending(true);
+    setCreditsExhausted(false); // V50.z524 — la card «Crediti AI esauriti» ricompare solo se il backend risponde di nuovo 402
     setInput("");
     // Optimistic add — include attachment names in the shown message
     const attSummary = pendingAttachments.length
@@ -963,6 +966,12 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
           ...prev,
           { role: "assistant", content: "⏹️ Risposta interrotta dall'utente.", created_at: new Date().toISOString() },
         ]);
+      } else if (String(e?.message || "") === AI_CREDITS_EXHAUSTED) {
+        // V50.z524 — crediti AI del mese finiti (blocco attivo per il workspace) → bolla breve + card con «Richiedi pacchetto add-on»
+        const txt = "I crediti AI di questo mese sono esauriti: la chat con Axon riprende il 1° del mese prossimo. Puoi richiedere un pacchetto add-on qui sotto.";
+        setMessages((prev) => [...prev, { role: "assistant", content: txt, created_at: new Date().toISOString() }]);
+        setCreditsExhausted(true);
+        if (wantSpeech) void speakReply(txt, -1, () => opts?.onSpoken?.());
       } else {
         setMessages((prev) => [
           ...prev,
@@ -2056,6 +2065,8 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
               {messages.length > 0 && messages[messages.length - 1].role === "assistant" && !messages[messages.length - 1].streaming && hasSetupNudge(messages[messages.length - 1].content) && (
                 <SetupNudgeCard key={`nudge-${messages.length}`} onOpen={onClose} />
               )}
+              {/* V50.z524 — crediti AI del mese esauriti (402) → card con data di ricarica e «Richiedi pacchetto add-on» */}
+              {!sending && creditsExhausted && <CreditsExhaustedCard key={`credits-${messages.length}`} />}
               {sending && prog.visible && (
                 <AxonProgressBubble text={prog.text} elapsed={prog.elapsed} assistantName={assistantName} />
               )}

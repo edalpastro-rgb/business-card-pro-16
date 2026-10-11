@@ -91,7 +91,8 @@ async def _credits_consume(user: dict, amount: int = 1) -> dict:
     bal = await _credits_get(user)
     if bal["total"] <= 0:
         if bal["enforce"]:
-            raise HTTPException(status_code=402, detail="Crediti AI esauriti per questo mese. Invita un collega per ottenere crediti bonus oppure attendi il rinnovo mensile.")
+            # V50.z524 — codice macchina: il frontend (AssistantChat) lo riconosce e mostra la card «Crediti AI esauriti» con richiesta add-on
+            raise HTTPException(status_code=402, detail="ai_credits_exhausted")
         return bal
     use_base = min(amount, bal["base_credits"]); use_bonus = min(amount - use_base, bal["bonus_credits"])
     await db.ai_credits.update_one({"user_id": user["user_id"]}, {"$inc": {"base_credits": -use_base, "bonus_credits": -use_bonus}, "$set": {"updated_at": utcnow()}})
@@ -126,13 +127,97 @@ if _rc_orig_stream is not None:
         return await _rc_orig_stream(body, user)
 
 
+def _rc_next_renewal() -> str:
+    """Primo giorno del mese successivo (ISO date) — i crediti base si ricaricano il 1° del mese."""
+    now = utcnow()
+    y, m = (now.year + 1, 1) if now.month == 12 else (now.year, now.month + 1)
+    return f"{y:04d}-{m:02d}-01"
+
+
+async def _rc_open_addon_request(user_id: str) -> Optional[dict]:
+    return await db.ai_credit_addon_requests.find_one({"user_id": user_id, "status": "open"}, {"_id": 0, "req_id": 1, "created_at": 1})
+
+
 @api_router.get("/ai/credits/me")
 async def ai_credits_me(user=Depends(get_current_user)):
     bal = await _credits_get(user)
     ev = await db.ai_credit_events.find({"user_id": user["user_id"]}, {"_id": 0}).sort("at", -1).to_list(20)
     for e in ev:
         e["at"] = e["at"].isoformat() if isinstance(e.get("at"), datetime) else e.get("at")
-    return {**bal, "events": ev}
+    return {**bal, "events": ev, "renews_on": _rc_next_renewal(), "addon_request_open": bool(await _rc_open_addon_request(user["user_id"]))}
+
+
+# ───────────────────────────── V50.z524 — pacchetto add-on: richiesta manuale all'admin ─────────────────────────────
+# L'utente a crediti esauriti chiede un pacchetto add-on dalla chat; il Master lo accredita (crediti BONUS, non scadono) dal pannello
+# «Porta un amico». Nessun pagamento Stripe per ora. Collezione: ai_credit_addon_requests {req_id, user_id, tenant_id, email, name,
+# note, balance, status: open|granted|rejected, credits_granted, handled_by, handled_at}. Max 1 richiesta aperta per utente.
+ADDON_PACK_DEFAULT_CREDITS = 100
+
+
+class AddonRequestIn(BaseModel):
+    note: Optional[str] = Field(default=None, max_length=500)
+
+
+class AddonHandleIn(BaseModel):
+    action: str = Field(pattern="^(grant|reject)$")
+    credits: Optional[int] = Field(default=None, ge=1, le=100000)
+
+
+@api_router.post("/ai/credits/addon-request")
+async def ai_credits_addon_request(body: AddonRequestIn, user=Depends(get_current_user)):
+    existing = await _rc_open_addon_request(user["user_id"])
+    if existing:
+        return {"ok": True, "already": True, "req_id": existing["req_id"], "message": "Richiesta già inviata: ti ricontattiamo al più presto."}
+    bal = await _credits_get(user)
+    req_id = f"addon_{uuid.uuid4().hex[:10]}"
+    name = user.get("name") or " ".join(x for x in [user.get("first_name"), user.get("last_name")] if x)
+    await db.ai_credit_addon_requests.insert_one({
+        "req_id": req_id, "user_id": user["user_id"], "tenant_id": tenant_id(user), "email": user.get("email"), "name": name,
+        "note": (body.note or "").strip() or None, "balance": {"base": bal["base_credits"], "bonus": bal["bonus_credits"]},
+        "status": "open", "created_at": utcnow(),
+    })
+    admins = sorted(_super_admin_emails_env()) or [BILLING_SUPPORT_EMAIL]  # noqa: F821 — axon_paywall.py
+    html = (f"<p>Richiesta pacchetto add-on crediti AI.</p><ul><li><b>Utente:</b> {name or ''} &lt;{user.get('email')}&gt;</li>"
+            f"<li><b>Saldo:</b> base {bal['base_credits']} · bonus {bal['bonus_credits']}</li><li><b>Nota:</b> {(body.note or '').strip() or '—'}</li></ul>"
+            f"<p>Accredita da Master → Porta un amico → Richieste add-on.</p>")
+    sent = []
+    for to in admins:
+        try:
+            await _pl_send_resend(to=to, subject=f"[AdvisorOS] Richiesta add-on crediti AI — {name or user.get('email')}", html=html)  # noqa: F821
+            sent.append(to)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("[addon] email a %s fallita: %s", to, str(e)[:120])
+    await db.ai_credit_addon_requests.update_one({"req_id": req_id}, {"$set": {"emailed_to": sent}})
+    return {"ok": True, "req_id": req_id, "emailed": bool(sent), "message": "Richiesta inviata: ti ricontattiamo al più presto."}
+
+
+@api_router.get("/admin/ai-credits/addon-requests")
+async def admin_addon_requests(status: Optional[str] = "open", user=Depends(get_current_user)):
+    if not is_owner(user):
+        raise HTTPException(status_code=403, detail="Solo il Master")
+    q = {"status": status} if status else {}
+    rows = await db.ai_credit_addon_requests.find(q, {"_id": 0}).sort("created_at", -1).to_list(200)
+    for r in rows:
+        for k in ("created_at", "handled_at"):
+            if isinstance(r.get(k), datetime):
+                r[k] = r[k].isoformat()
+    return {"items": rows, "default_credits": ADDON_PACK_DEFAULT_CREDITS}
+
+
+@api_router.post("/admin/ai-credits/addon-requests/{req_id}/handle")
+async def admin_addon_request_handle(req_id: str, body: AddonHandleIn, user=Depends(get_current_user)):
+    if not is_owner(user):
+        raise HTTPException(status_code=403, detail="Solo il Master")
+    credits = int(body.credits or ADDON_PACK_DEFAULT_CREDITS) if body.action == "grant" else 0
+    r = await db.ai_credit_addon_requests.find_one_and_update(
+        {"req_id": req_id, "status": "open"},
+        {"$set": {"status": "granted" if body.action == "grant" else "rejected", "credits_granted": credits, "handled_by": user["user_id"], "handled_at": utcnow()}},
+        projection={"_id": 0, "user_id": 1})
+    if not r:
+        raise HTTPException(status_code=404, detail="Richiesta non trovata o già gestita")
+    if credits:
+        await _credits_add_bonus(r["user_id"], credits, "addon_pack", req_id)
+    return {"ok": True, "req_id": req_id, "status": "granted" if credits else "rejected", "credits": credits}
 
 
 # ───────────────────────────── /referral/me (crediti + nome app + flag workspace) ─────────────────────────────

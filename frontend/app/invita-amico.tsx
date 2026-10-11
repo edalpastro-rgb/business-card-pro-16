@@ -46,6 +46,7 @@ export default function InvitaAmicoScreen() {
         {settings === null ? <ActivityIndicator color={VIOLET} /> : settings ? (
           <>
             <WorkspaceReferralPanel />
+            <AddonRequestsPanel />
             <RewardSettings settings={settings} onSaved={load} />
             <View style={s.card} testID="referral-admin-list">
               <Text style={s.title}>Registro referral · {list?.items.length ?? settings.total_referrals}</Text>
@@ -104,6 +105,48 @@ function WorkspaceReferralPanel() {
             <Ionicons name={w.enforce_credits ? "lock-closed" : "lock-open-outline"} size={16} color={VIOLET} />
           </Pressable>
           {busy === w.tenant_id ? <ActivityIndicator color={VIOLET} /> : <Switch value={w.enabled} onValueChange={(v) => put(w.tenant_id, { enabled: v })} testID={`referral-ws-toggle-${w.tenant_id}`} />}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+// V50.z524 — pannello Master: richieste «pacchetto add-on» crediti AI arrivate dalla chat (402 crediti esauriti) → accredita bonus / rifiuta
+type AddonReq = { req_id: string; email: string; name: string; note: string | null; balance: { base: number; bonus: number }; created_at: string };
+function AddonRequestsPanel() {
+  const [data, setData] = useState<{ items: AddonReq[]; default_credits: number } | null>(null);
+  const [credits, setCredits] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+  const load = useCallback(() => api<any>("/admin/ai-credits/addon-requests").then(setData).catch(() => setData(null)), []);
+  useEffect(() => { load(); }, [load]);
+  const handle = async (r: AddonReq, action: "grant" | "reject") => {
+    setBusy(r.req_id);
+    const n = parseInt(credits[r.req_id] ?? "", 10);
+    try {
+      const res = await api<{ credits: number }>(`/admin/ai-credits/addon-requests/${r.req_id}/handle`, { method: "POST", body: { action, credits: action === "grant" && Number.isFinite(n) && n > 0 ? n : undefined } });
+      notify(action === "grant" ? "Pacchetto accreditato ✅" : "Richiesta rifiutata", action === "grant" ? `+${res.credits} crediti AI bonus a ${r.name || r.email}` : r.email);
+      await load();
+    } catch (e: any) { notify("Add-on", e?.message || "Operazione non riuscita"); }
+    finally { setBusy(null); }
+  };
+  if (!data) return null;
+  return (
+    <View style={s.card} testID="addon-requests">
+      <Text style={s.title}>Richieste pacchetto add-on · {data.items.length}</Text>
+      <Text style={s.muted}>Arrivano dalla chat quando un utente finisce i crediti AI del mese. I crediti accreditati sono bonus e non scadono (default {data.default_credits}).</Text>
+      {data.items.length === 0 ? <Text style={s.muted}>Nessuna richiesta in attesa.</Text> : data.items.map((r) => (
+        <View key={r.req_id} style={s.wsRow} testID={`addon-req-${r.req_id}`}>
+          <View style={{ flex: 1 }}>
+            <Text style={s.bold} numberOfLines={1}>{r.name || r.email}</Text>
+            <Text style={s.muted} numberOfLines={2}>{r.email} · saldo base {r.balance?.base ?? 0} / bonus {r.balance?.bonus ?? 0} · {new Date(r.created_at).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })}{r.note ? ` · «${r.note}»` : ""}</Text>
+          </View>
+          <TextInput value={credits[r.req_id] ?? String(data.default_credits)} onChangeText={(t) => setCredits((p) => ({ ...p, [r.req_id]: t.replace(/\D/g, "") }))} keyboardType="number-pad" style={[s.input, { width: 70 }]} testID={`addon-req-credits-${r.req_id}`} />
+          {busy === r.req_id ? <ActivityIndicator color={VIOLET} /> : (
+            <>
+              <Pressable onPress={() => handle(r, "grant")} style={s.wsBtn} testID={`addon-req-grant-${r.req_id}`} accessibilityLabel="Accredita"><Ionicons name="checkmark" size={18} color={VIOLET} /></Pressable>
+              <Pressable onPress={() => handle(r, "reject")} style={s.wsBtn} testID={`addon-req-reject-${r.req_id}`} accessibilityLabel="Rifiuta"><Ionicons name="close" size={18} color={C.muted} /></Pressable>
+            </>
+          )}
         </View>
       ))}
     </View>
