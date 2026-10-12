@@ -1,0 +1,31 @@
+{
+  "summary": "V50.z536 backend-only testing of Knowledge Base multi-format (DOCX/XLSX/PNG+OCR/scanned-PDF/text-PDF/blank-PNG/oversize/garbage), dynamic OG preview (public PNG + CMS endpoints with X-CMS-Password), and semantic FAQ suggestions (minilm-local). 19/19 pytest cases passed in ~14s. All happy paths and edge cases work as spec'd: ocr_ready=true with ita+eng, formats includes docx/xlsx/png; DOCX/XLSX/text-PDF go straight to 'ready' with chunks>=1; PNG with rendered Liberation Sans text completes OCR within 90s and its content is retrievable via /api/kb/search with similarity >= 0.38 (observed well above threshold); 2-page image-only PDF completes OCR to ready with pages=2; blank white PNG transitions to status='error' with Italian OCR message (no crash); 21MB upload returns 413; random binary garbage returns 400/200 fallback (no 500); /api/public/og-preview.png returns 200 image/png 1200x630 with Cache-Control; /api/landing/cms/og returns 401 without auth and 200 with owner token exposing generated_at/left/limit/exists; /api/landing/cms/og/refresh requires X-CMS-Password (wrong→401, correct→200 with int left/limit); /api/public/faq/suggest engine='minilm-local', q='ho finito i crediti' returns top FAQ mentioning crediti, k=50 clamped to 6, q<3 chars returns engine='none'; /api/public/faq regression OK. No frontend testing performed (per request).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v50z536_kb_og_faq.py",
+    "/app/test_reports/pytest/v50z536_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "axon_knowledge_base.py:443 — needs_ocr fallback when text.strip() is truthy for a PDF without text layer is defensive but relies on KB_PDF_TEXT_MIN_CHARS_PER_PAGE heuristic; low-text PDFs may skip OCR when tesseract is unavailable (acceptable).",
+    "axon_knowledge_base.py:434 — size check happens AFTER base64 decode of the full payload; a 25MB upload still gets decoded in memory before 413 is raised. Consider a quick len(body.data_base64) * 3 / 4 pre-check to reject earlier.",
+    "og_preview.py:131 — Cache-Control: public, max-age=3600 served even when generated_at is None (lazy first render). Acceptable; no issue found.",
+    "landing_cms.py:362 — _faq_vectors uses sync _kb_embedder.embed via to_thread; the cache sig invalidation hook (_faq_vec_cache.clear()) is only called in landing_cms_faq_put/reset — if items are edited via a different code path cache would be stale. Not a bug in current flows."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "N/A (skipped per request)"},
+  "seed_data_creation": "Test documents (DOCX/XLSX/PNG/PDF variants) generated on the fly and all cleaned up via DELETE /api/kb/documents/{id} in TestCleanup. No persistent seed data left behind.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Reusable regression suite at /app/backend/tests/test_v50z536_kb_og_faq.py covers: KB status, DOCX/XLSX/PNG-OCR/scanned-PDF/text-PDF uploads with status polling, blank-PNG error path, 413 oversize, garbage binary safety, OG png + CMS endpoints with LANDING_CMS_PASSWORD (loaded from env with fallback 'axon-cms-2026' matching /app/backend/.env), FAQ semantic suggest engine/clamping/short-query. Uses owner credentials test@dalpastro.it / Test1234!. Font used for OCR images: /usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf. Tesseract 5.3.0 with ita+eng installed. Runs in ~14s.",
+  "rca_of_issue": "N/A — no failures. All three V50.z536 features (multi-format KB with background OCR, dynamic 1200x630 OG preview, semantic FAQ via local MiniLM) are production-ready for backend behavior."
+}

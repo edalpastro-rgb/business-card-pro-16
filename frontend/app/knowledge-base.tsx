@@ -15,8 +15,9 @@ import { KScrollView } from "@/src/ui/keyboard";
 import { HT } from "@/src/homeTheme";
 import { theme } from "@/src/theme";
 
-type KbDoc = { doc_id: string; title: string; source_type: "pdf" | "txt" | "text"; status: "indexing" | "ready" | "error"; chunks: number; chars: number; pages?: number; size_bytes: number; created_at: string; error?: string; truncated?: boolean };
-type KbList = { items: KbDoc[]; usage: { docs: number; chunks: number }; limits: { max_file_mb: number; max_docs: number; max_chunks: number }; embedder_ready: boolean };
+type KbDoc = { doc_id: string; title: string; source_type: "pdf" | "docx" | "xlsx" | "image" | "txt" | "text"; status: "indexing" | "ready" | "error"; stage?: "ocr" | "embedding" | null; ocr?: boolean; chunks: number; chars: number; pages?: number; size_bytes: number; created_at: string; error?: string; truncated?: boolean };
+const KB_DOC_ICON: Record<string, React.ComponentProps<typeof Ionicons>["name"]> = { pdf: "document-text", docx: "document", xlsx: "grid", image: "image", txt: "reader", text: "reader" };
+type KbList = { items: KbDoc[]; usage: { docs: number; chunks: number }; limits: { max_file_mb: number; max_docs: number; max_chunks: number }; embedder_ready: boolean; ocr_ready?: boolean };
 type Hit = { title: string; idx: number; similarity: number; text: string };
 
 async function readPickedBase64(asset: { uri: string }, base64?: string): Promise<string> {
@@ -62,8 +63,8 @@ export default function KnowledgeBaseScreen() {
   const addDocument = async (body: Record<string, unknown>) => {
     setUploading(true);
     try {
-      const r = await api<{ document: KbDoc; estimated_chunks: number }>("/kb/documents", { method: "POST", body });
-      notify("Documento aggiunto", `«${r.document.title}» in indicizzazione (~${r.estimated_chunks} frammenti). Axon lo userà nelle risposte.`);
+      const r = await api<{ document: KbDoc; estimated_chunks: number; ocr?: boolean }>("/kb/documents", { method: "POST", body });
+      notify("Documento aggiunto", r.ocr ? `«${r.document.title}»: OCR locale in corso, poi indicizzazione. Può richiedere qualche minuto per i PDF lunghi.` : `«${r.document.title}» in indicizzazione (~${r.estimated_chunks} frammenti). Axon lo userà nelle risposte.`);
       await load();
       return true;
     } catch (e: any) { notify("Knowledge Base", e?.message || "Caricamento non riuscito"); return false; }
@@ -132,6 +133,7 @@ export default function KnowledgeBaseScreen() {
               </View>
               <View style={s.track}><View style={[s.fill, { width: `${Math.round(pctChunks * 100)}%` }]} /></View>
               {!data.embedder_ready ? <Text style={[s.muted, { color: HT.danger, fontWeight: "800" }]}>Motore di embedding non disponibile sul server: contatta l&apos;assistenza.</Text> : null}
+              <Text style={s.muted} testID="kb-formats">Formati: PDF (anche scansionati), DOCX, XLSX, TXT, MD, CSV, immagini JPG/PNG{data.ocr_ready ? " · OCR locale attivo (ita+eng)" : " · OCR non disponibile sul server"} · max {limits!.max_file_mb} MB</Text>
             </>
           ) : <ActivityIndicator color={HT.violet} />}
         </View>
@@ -139,7 +141,7 @@ export default function KnowledgeBaseScreen() {
         <View style={{ flexDirection: "row", gap: 10 }}>
           <Pressable onPress={pickFile} disabled={uploading || !data?.embedder_ready} style={[s.btn, (uploading || !data?.embedder_ready) && { opacity: 0.6 }]} testID="kb-upload-btn">
             {uploading ? <ActivityIndicator color="#FFF" /> : <Ionicons name="cloud-upload" size={18} color="#FFF" />}
-            <Text style={s.btnTxt}>Carica PDF / TXT</Text>
+            <Text style={s.btnTxt}>Carica file</Text>
           </Pressable>
           <Pressable onPress={() => setPasteOpen((v) => !v)} disabled={!data?.embedder_ready} style={[s.btn, s.btnGhost]} testID="kb-paste-btn">
             <Ionicons name="clipboard" size={18} color={HT.violet} />
@@ -164,18 +166,18 @@ export default function KnowledgeBaseScreen() {
           <View style={[s.card, { alignItems: "center", gap: 6 }]} testID="kb-empty">
             <Ionicons name="book-outline" size={34} color={HT.muted} />
             <Text style={s.cardTitle}>Nessun documento ancora</Text>
-            <Text style={[s.muted, { textAlign: "center" }]}>Carica un libro in PDF, un file di appunti o incolla un testo: Axon lo ricorderà e lo userà quando serve.</Text>
+            <Text style={[s.muted, { textAlign: "center" }]}>Carica un libro in PDF, un Word, un Excel, una foto di un documento o incolla un testo: Axon lo ricorderà e lo userà quando serve.</Text>
           </View>
         ) : null}
         {data?.items.map((d) => (
           <View key={d.doc_id} style={s.docRow} testID={`kb-doc-${d.doc_id}`}>
             <View style={[s.iconWrap, { width: 36, height: 36 }]}>
-              <Ionicons name={d.source_type === "pdf" ? "document-text" : "reader"} size={18} color={HT.violet} />
+              <Ionicons name={KB_DOC_ICON[d.source_type] || "reader"} size={18} color={HT.violet} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={s.docTitle} numberOfLines={1}>{d.title}</Text>
               <Text style={s.muted} numberOfLines={2}>
-                {d.status === "indexing" ? "⏳ Indicizzazione in corso…" : d.status === "error" ? `⚠️ ${d.error || "Errore"}` : `✅ ${d.chunks} frammenti${d.truncated ? " (troncato al limite)" : ""}`}
+                {d.status === "indexing" ? (d.stage === "ocr" ? "🔎 OCR in corso (lettura del testo dall'immagine)…" : "⏳ Indicizzazione in corso…") : d.status === "error" ? `⚠️ ${d.error || "Errore"}` : `✅ ${d.chunks} frammenti${d.truncated ? " (troncato al limite)" : ""}${d.ocr ? " · OCR" : ""}`}
                 {d.pages ? ` · ${d.pages} pagine` : ""} · {fmtSize(d.size_bytes)} · {new Date(d.created_at).toLocaleDateString("it-IT")}
               </Text>
             </View>

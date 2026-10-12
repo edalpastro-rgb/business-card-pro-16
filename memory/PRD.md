@@ -7777,3 +7777,10 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 - `og-preview.png` rigenerato: logo AxonOS centrato su tela 1200×630 (sfondo blu notte del logo, nessun ritaglio), perm 644.
 - `<head>` di index.html: aggiunto blocco `<style>` inline (body #020b1e, .highlight-cyan, .card-box) prima di style.css. Meta OG/Twitter invariati.
 - Pacchetti rigenerati: deploy/italianbrain-landing.tgz, deploy/axon-core/axon-core-pkg.tgz (41M), axon-web-pkg.tgz (5.6M).
+
+## V50.z536 — KB multi-formato + OCR · OG dinamica Founder · FAQ suggerite semantiche
+- **KB multi-formato** (`routes/axon_knowledge_base.py`): DOCX (python-docx), XLSX (openpyxl), immagini JPG/PNG/WEBP/TIFF e PDF scansionati → OCR **Tesseract locale** (`tesseract` via subprocess, lingue ita+eng, PDF rasterizzati con PyMuPDF a 200 dpi, max 80 pagine OCR). L'OCR gira in background (`stage: "ocr"` → `"embedding"` → `ready`). `/kb/status` espone `ocr_ready`, `formats`. Dockerfile: `tesseract-ocr-ita tesseract-ocr-eng`. requirements: `python-docx==1.2.0`.
+- **OG dinamica** (`routes/og_preview.py`): `GET /api/public/og-preview.png` = logo AxonOS + fascia «Solo N posti Founder rimasti · 19€/mese per sempre» + barra posti (Pillow, font Liberation in `backend/assets/og/`). N = posti liberi piano Builder (`_landing_seats`). Job APScheduler 03:05; `GET /landing/cms/og`, `POST /landing/cms/og/refresh` (CMS). File in `backend/data/og/` (volume core_kb). nginx landing: `location = /og-preview.png` → proxy_pass axon-core:8001 con fallback statico.
+- **FAQ suggerite** (`landing_cms.py`): `GET /api/public/faq/suggest?q=&k=3` — cosine MiniLM locale (cache embedding FAQ invalidata al publish CMS) + bonus lessicale; fallback keyword. Frontend `FaqSearch.tsx`: debounce 350 ms, riga «Axon suggerisce…», badge ✨ e suggerite in cima.
+- CMS (`admin/landing-cms.tsx`): sezione «Anteprima social (OG)» con immagine live e «Rigenera ora». KB screen: icone per formato, stato «OCR in corso», riga formati.
+- NOTA: il frontend preview punta a `core.axonos.cloud` (produzione) → le novità UI si vedono dopo il deploy dei pacchetti.

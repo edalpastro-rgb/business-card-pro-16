@@ -6,13 +6,16 @@
 # • CMS: singleton Mongo `landing_content` (_id="global"), stesso pattern del libretto. Protezione DOPPIA: Super Admin
 #   (36_admin_clients.require_super_admin) + password dedicata LANDING_CMS_PASSWORD (.env) nell'header X-CMS-Password.
 #   GET /landing/cms/content · PUT /landing/cms/content · POST /landing/cms/reset · POST /landing/cms/unlock (verifica password).
+import asyncio
 import copy
+import hashlib
 import hmac
 import os
 import re
 import uuid
 from typing import Any, Dict, List, Optional
 
+import numpy as np
 from fastapi import Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
@@ -317,13 +320,78 @@ async def landing_cms_faq_put(body: FaqPutIn, user=Depends(_require_cms)):
     for i, it in enumerate(body.items, 1):
         items.append({"id": (it.id or "").strip() or f"faq_{uuid.uuid4().hex[:8]}", "icon": (it.icon or "help-circle-outline").strip(), "q": it.q.strip(), "a": it.a.strip()})
     await db.faq_content.replace_one({"_id": "global"}, {"_id": "global", "items": items, "updated_at": utcnow(), "updated_by": user.get("email") or user.get("user_id")}, upsert=True)  # noqa: F821
+    _faq_vec_cache.clear()
     return {"ok": True, "items": items}
 
 
 @api_router.post("/landing/cms/faq/reset")  # noqa: F821
 async def landing_cms_faq_reset(user=Depends(_require_cms)):
     await db.faq_content.delete_one({"_id": "global"})  # noqa: F821
+    _faq_vec_cache.clear()
     return {"ok": True, "items": FAQ_DEFAULTS}
+
+
+# ───────────────────────────── V50.z536 — FAQ suggerite SEMANTICHE (MiniLM locale, zero crediti AI) ─────────────────────────────
+# Mentre l'utente digita nel Centro Assistenza, GET /public/faq/suggest?q=… restituisce le 3 FAQ più vicine per significato
+# (cosine su embedding all-MiniLM-L6-v2 — lo stesso motore ONNX della Knowledge Base). Gli embedding delle FAQ sono calcolati una
+# volta e messi in cache in memoria (invalidata quando il CMS pubblica nuove FAQ). Fallback keyword se il modello non è disponibile.
+_faq_vec_cache: Dict[str, Any] = {}
+FAQ_SUGGEST_MIN_SIM = 0.30
+
+
+def _faq_sig(items: List[Dict[str, str]]) -> str:
+    return hashlib.sha1("\x1f".join(f"{it.get('id')}|{it.get('q')}|{it.get('a')}" for it in items).encode("utf-8")).hexdigest()
+
+
+async def _faq_vectors(items: List[Dict[str, str]]) -> List[List[float]]:
+    sig = _faq_sig(items)
+    if _faq_vec_cache.get("sig") != sig:
+        texts = [f"{it.get('q', '')}\n{(it.get('a', '') or '')[:400]}" for it in items]
+        vecs = await asyncio.to_thread(_kb_embedder.embed, texts)  # noqa: F821 — axon_knowledge_base
+        _faq_vec_cache.update({"sig": sig, "vecs": vecs})
+    return _faq_vec_cache["vecs"]
+
+
+async def _faq_semantic_top(query: str, k: int = 3) -> List[Dict[str, Any]]:
+    items = await _faq_items()
+    if not items:
+        return []
+    q = (query or "").strip()[:500]
+    if _kb_embedder.available:  # noqa: F821
+        vecs = await _faq_vectors(items)
+        qv = (await asyncio.to_thread(_kb_embedder.embed, [q]))[0]  # noqa: F821
+        qa = np.asarray(qv, dtype=np.float32)
+        sims = np.asarray(vecs, dtype=np.float32) @ qa
+        # piccolo bonus lessicale: parole della domanda presenti nella FAQ (aiuta con termini propri come "Libretto", "CRT")
+        q_tok = _faq_tokens(q)
+        order = np.argsort(-sims)
+        out = []
+        for i in order[: max(k * 3, 6)]:
+            it = items[int(i)]
+            lex = len(q_tok & (_faq_tokens(it.get("q", "")) | _faq_tokens(it.get("a", ""))))
+            score = float(sims[int(i)]) + 0.05 * min(lex, 3)
+            if score >= FAQ_SUGGEST_MIN_SIM:
+                out.append({**it, "score": round(score, 3)})
+        out.sort(key=lambda x: -x["score"])
+        return out[:k]
+    # fallback keyword (stesso scoring di _build_faq_section)
+    q_tok = _faq_tokens(q)
+    scored = []
+    for it in items:
+        score = 2.0 * len(q_tok & _faq_tokens(it.get("q", ""))) + 0.5 * len(q_tok & _faq_tokens(it.get("a", "")))
+        if score > 0:
+            scored.append((score, it))
+    scored.sort(key=lambda x: -x[0])
+    return [{**it, "score": s} for s, it in scored[:k]]
+
+
+@api_router.get("/public/faq/suggest")  # noqa: F821
+async def public_faq_suggest(q: str = "", k: int = 3):
+    q = (q or "").strip()
+    if len(q) < 3:
+        return {"items": [], "engine": "none"}
+    items = await _faq_semantic_top(q, max(1, min(int(k or 3), 6)))
+    return {"items": items, "engine": "minilm-local" if _kb_embedder.available else "keyword"}  # noqa: F821
 
 
 _FAQ_STOP = {"come", "dove", "cosa", "che", "chi", "quando", "quale", "quali", "posso", "puoi", "devo", "fare", "faccio", "trovo", "trovare", "sono", "essere",

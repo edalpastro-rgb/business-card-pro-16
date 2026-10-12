@@ -33,7 +33,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # Dipendenze di sistema (ffmpeg è OBBLIGATORIO: conversione audio → WAV 16 kHz mono per whisper-cli)
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ffmpeg \
-      tesseract-ocr libtesseract-dev libleptonica-dev pkg-config \
+      tesseract-ocr tesseract-ocr-ita tesseract-ocr-eng libtesseract-dev libleptonica-dev pkg-config \
       libgl1 libglib2.0-0 libsm6 libxext6 libxrender1 \
       libsndfile1 libgomp1 \
       build-essential g++ \

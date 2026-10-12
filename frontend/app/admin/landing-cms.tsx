@@ -2,11 +2,11 @@
 // Modifica senza toccare il codice: testi/titoli di ogni sezione, prezzi (barrato/attivo) e limite posti dei due piani Founder.
 // Il contatore «posti rimasti» è calcolato dal backend: limite − account registrati con quel piano.
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { api } from "@/src/api";
+import { api, BACKEND_URL } from "@/src/api";
 import { notify, confirmAsync } from "@/src/utils/notify";
 import { PasswordInput } from "@/src/PasswordInput";
 import { KScrollView } from "@/src/ui/keyboard";
@@ -96,6 +96,16 @@ export default function LandingCmsScreen() {
   const moveFaq = (idx: number, dir: -1 | 1) => { setFaq((f) => { if (!f) return f; const j = idx + dir; if (j < 0 || j >= f.length) return f; const c = [...f]; [c[idx], c[j]] = [c[j], c[idx]]; return c; }); setFaqDirty(true); };
   const removeFaq = (idx: number) => { setFaq((f) => (f ? f.filter((_, i) => i !== idx) : f)); setFaqDirty(true); };
   const addFaq = () => { setFaq((f) => [...(f || []), { id: `faq_${Date.now().toString(36)}`, icon: "help-circle-outline", q: "", a: "" }]); setFaqDirty(true); };
+  // V50.z536 — anteprima OG italianbrain.it (logo + posti Founder rimasti): rigenerata ogni notte, qui si forza subito
+  const [ogInfo, setOgInfo] = useState<{ generated_at?: string | null; left?: number | null; limit?: number | null } | null>(null);
+  const [ogTick, setOgTick] = useState(0);
+  useEffect(() => { if (unlocked) api<typeof ogInfo>("/landing/cms/og").then(setOgInfo).catch(() => {}); }, [unlocked, ogTick]);
+  const refreshOg = async () => {
+    setBusy(true);
+    try { const r = await api<{ left: number; limit: number }>("/landing/cms/og/refresh", { method: "POST", headers: H }); setOgTick((t) => t + 1); notify("Anteprima OG", `Rigenerata: ${r.left}/${r.limit} posti Founder liberi ✅`); }
+    catch (e: any) { notify("Anteprima OG", e?.message || "Errore"); }
+    finally { setBusy(false); }
+  };
 
   const edit = (path: string[], value: unknown) => { setContent((c) => (c ? setPath(c, path, value) : c)); setDirty(true); };
 
@@ -213,6 +223,15 @@ export default function LandingCmsScreen() {
           {Field({ label: "Testo footer", path: ["footer", "text"], multiline: true })}
         </Section>
 
+        <View style={s.card} testID="cms-og">
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Text style={[s.sectionTitle, { flex: 1 }]}>Anteprima social (OG) · italianbrain.it</Text>
+            <Pressable onPress={refreshOg} disabled={busy} style={[s.saveBtn, busy && { opacity: 0.5 }]} testID="cms-og-refresh"><Ionicons name="refresh" size={14} color="#FFF" /><Text style={s.saveTxt}>Rigenera ora</Text></Pressable>
+          </View>
+          <Text style={s.muted}>Immagine che WhatsApp/LinkedIn mostrano quando condividi il link: logo AxonOS + «Solo N posti Founder rimasti». Si aggiorna da sola ogni notte alle 03:05{ogInfo?.generated_at ? ` · ultima generazione ${new Date(ogInfo.generated_at).toLocaleString("it-IT")} (${ogInfo.left}/${ogInfo.limit} liberi)` : ""}.</Text>
+          <Image source={{ uri: `${BACKEND_URL}/api/public/og-preview.png?t=${ogTick}` }} style={s.ogImg} resizeMode="contain" accessibilityLabel="Anteprima OG" testID="cms-og-img" />
+        </View>
+
         <View style={s.card} testID="cms-faq">
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <Text style={[s.sectionTitle, { flex: 1 }]}>FAQ · Help e pagina Domande frequenti</Text>
@@ -277,6 +296,7 @@ const s = StyleSheet.create({
   cardTitle: { color: HT.text, fontSize: 15, fontWeight: "800" },
   sectionTitle: { color: HT.violet, fontSize: 13, fontWeight: "900", letterSpacing: 1, textTransform: "uppercase" },
   muted: { color: HT.muted, fontSize: 12, lineHeight: 16 },
+  ogImg: { width: "100%", aspectRatio: 1200 / 630, borderRadius: 10, backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border },
   lbl: { color: HT.text2, fontSize: 12, fontWeight: "700" },
   input: { backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, color: HT.text, fontSize: 14, minHeight: 44 },
   btn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: HT.violet, borderRadius: 999, minHeight: 46, paddingHorizontal: 14 },

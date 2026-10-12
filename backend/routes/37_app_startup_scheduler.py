@@ -300,6 +300,11 @@ async def _start_scheduler():
             _run_axon_memory_distillation_job, "cron", hour=4, minute=0,
             id="axon-memory-distillation", replace_existing=True,
         )
+        # V50.z536 — Anteprima OG italianbrain.it con «posti Founder rimasti» (03:05 Europe/Rome) — routes/og_preview.py
+        _birthday_scheduler.add_job(
+            _run_og_preview_job, "cron", hour=3, minute=5,
+            id="og-preview-refresh", replace_existing=True,
+        )
         # V50.z85 — Drive re-indexing (ogni 30 min): scarica testo dei PDF/text
         # dai file delle cartelle Drive salvate e li mette in cache locale
         # per RAG istantaneo nelle chat AxonOS anche in nuove sessioni.
