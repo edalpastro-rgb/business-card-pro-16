@@ -7772,3 +7772,8 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 ## V50.z534 — Landing statica italianbrain.it
 - /app/deploy/italianbrain-landing/ (index.html, style.css, og-image.png 1200×630, favicon.svg, nginx-italianbrain.conf, README.txt) + italianbrain-landing.tgz; scaricabile via /api/pkg/italianbrain-landing (pkg_delivery). Zero JS, OG tag hardcoded, placeholder video Vimeo preload=none/lazy, link CTA → core.italianbrain.it.
 - V50.z535: /landing → redirect https://italianbrain.it (AxonCoreLanding.tsx rimosso; ?ref → /login); link interni aggiornati (lite, wake-training, faq, EXPO_PUBLIC_LANDING_URL)
+
+## V50.z535 — Landing italianbrain.it: og-preview con logo AxonOS + CSS inline
+- `og-preview.png` rigenerato: logo AxonOS centrato su tela 1200×630 (sfondo blu notte del logo, nessun ritaglio), perm 644.
+- `<head>` di index.html: aggiunto blocco `<style>` inline (body #020b1e, .highlight-cyan, .card-box) prima di style.css. Meta OG/Twitter invariati.
+- Pacchetti rigenerati: deploy/italianbrain-landing.tgz, deploy/axon-core/axon-core-pkg.tgz (41M), axon-web-pkg.tgz (5.6M).
