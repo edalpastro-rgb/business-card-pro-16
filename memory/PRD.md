@@ -7768,3 +7768,6 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 ## V50.z533 — FAQ CMS + ricerca FAQ in Help + conoscenza FAQ/navigazione per Axon
 - Backend `landing_cms.py`: FAQ_DEFAULTS (16), singleton `faq_content`, `GET /public/faq`, `PUT /landing/cms/faq`, `POST /landing/cms/faq/reset` (guard _require_cms), `_build_faq_section(msg)` (top-3 per overlap keyword) agganciata a kb_section in 21 (stream + non-stream). `axon_navigator.APP_MAP` + voci knowledge_base, ai_credits, help_faq_search, landing_cms (master_only).
 - Frontend: `src/FaqSearch.tsx` (fetch /public/faq, filtro realtime, accordion; fallback FAQ_ITEMS), montato in `app/(tabs)/help.tsx` (sezione DOMANDE FREQUENTI in cima; SupportForm con checkbox + PreReportNotice invariati) e in `app/faq.tsx`; editor FAQ nel CMS `app/admin/landing-cms.tsx` (Pubblica FAQ separato).
+
+## V50.z534 — Landing statica italianbrain.it
+- /app/deploy/italianbrain-landing/ (index.html, style.css, og-image.png 1200×630, favicon.svg, nginx-italianbrain.conf, README.txt) + italianbrain-landing.tgz; scaricabile via /api/pkg/italianbrain-landing (pkg_delivery). Zero JS, OG tag hardcoded, placeholder video Vimeo preload=none/lazy, link CTA → core.italianbrain.it.

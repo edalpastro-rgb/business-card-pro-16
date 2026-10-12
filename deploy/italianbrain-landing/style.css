@@ -1,0 +1,93 @@
+/* italianbrain.it — landing statica · zero JS · ~6 KB */
+:root{
+  --bg:#0B1220;--bg2:#101A2E;--bg3:#16233B;--line:rgba(255,255,255,.09);
+  --text:#F1F5F9;--text2:#B7C2D4;--muted:#7D8BA3;
+  --brand:#F59E0B;--brand-glow:rgba(245,158,11,.14);--brand-line:rgba(245,158,11,.45);
+  --axon:#22D3EE;--axon-glow:rgba(34,211,238,.12);--axon-line:rgba(34,211,238,.45);
+  --r:20px;--max:1100px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--text);font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,"Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+a{color:inherit;text-decoration:none}
+.wrap{max-width:var(--max);margin:0 auto;padding:0 20px}
+.skip{position:absolute;left:-999px;top:0;background:var(--brand);color:#0B1220;padding:8px 12px;border-radius:8px}
+.skip:focus{left:12px;top:12px;z-index:9}
+
+/* top bar */
+.top{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;max-width:var(--max);margin:0 auto}
+.logo{display:flex;align-items:center;gap:8px;font-weight:900;letter-spacing:.3px;font-size:17px}
+.logo b{color:var(--brand)}
+.top-cta{font-size:13px;font-weight:800;color:var(--text2);border:1px solid var(--line);border-radius:999px;padding:8px 14px;min-height:36px;display:inline-flex;align-items:center}
+.top-cta:hover{border-color:var(--axon-line);color:var(--text)}
+
+/* hero */
+.hero{position:relative;padding:36px 0 56px;text-align:center;overflow:hidden}
+.glow{position:absolute;border-radius:50%;filter:blur(70px);opacity:.55;pointer-events:none}
+.glow-a{width:420px;height:420px;background:var(--axon);top:-180px;left:-120px;opacity:.22}
+.glow-b{width:380px;height:380px;background:var(--brand);bottom:-200px;right:-120px;opacity:.18}
+.badge{display:inline-block;background:var(--brand-glow);border:1px solid var(--brand-line);color:var(--brand);font-weight:800;font-size:13px;border-radius:999px;padding:8px 14px;margin-bottom:18px}
+h1{font-size:clamp(30px,6.2vw,52px);line-height:1.08;font-weight:900;letter-spacing:-1.2px;max-width:920px;margin:0 auto}
+h1 em{font-style:normal;background:linear-gradient(90deg,var(--axon),var(--brand));-webkit-background-clip:text;background-clip:text;color:transparent}
+.lead{color:var(--text2);font-size:clamp(15px,2.2vw,18px);max-width:780px;margin:18px auto 0}
+.cta-row{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:26px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:52px;padding:0 22px;border-radius:999px;font-weight:900;font-size:15px;transition:transform .15s ease,box-shadow .15s ease}
+.btn:hover{transform:translateY(-1px)}
+.btn:active{transform:translateY(0)}
+.btn-primary{background:var(--brand);color:#0B1220;box-shadow:0 10px 30px rgba(245,158,11,.25)}
+.btn-ghost{border:1px solid var(--axon-line);background:var(--axon-glow);color:var(--axon)}
+.btn-axon{background:var(--axon);color:#0B1220;box-shadow:0 10px 30px rgba(34,211,238,.22)}
+.trust{list-style:none;display:flex;flex-wrap:wrap;gap:8px 18px;justify-content:center;margin-top:22px;color:var(--muted);font-size:13px;font-weight:700}
+
+/* sections */
+.section{padding:48px 0}
+.section-alt{background:var(--bg2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.kicker{color:var(--axon);font-size:12px;font-weight:800;letter-spacing:2.5px;text-transform:uppercase;text-align:center;margin-bottom:14px}
+.sub{color:var(--text2)}
+.center{text-align:center;margin-bottom:22px}
+.h-big{font-size:clamp(26px,4.6vw,38px);line-height:1.12;font-weight:900;letter-spacing:-.8px;text-align:center;max-width:860px;margin:0 auto 26px}
+.cols{display:grid;grid-template-columns:1fr;gap:16px}
+@media(min-width:760px){.cols{grid-template-columns:1fr 1fr}.cols-3{grid-template-columns:repeat(3,1fr)}}
+
+/* due mondi */
+.world{background:linear-gradient(160deg,var(--bg2),var(--bg3));border:1px solid var(--line);border-radius:var(--r);padding:24px;display:flex;flex-direction:column;gap:10px}
+.world-axon{background:linear-gradient(160deg,var(--bg2),rgba(34,211,238,.08))}
+.label{align-self:flex-start;font-size:12px;font-weight:800;letter-spacing:2px;text-transform:uppercase}
+.label-brand{color:var(--brand)}.label-axon{color:var(--axon)}
+.world h2{font-size:24px;line-height:1.2;font-weight:900;letter-spacing:-.5px}
+.world p{color:var(--text2);font-size:15px}
+.video{position:relative;margin-top:8px;aspect-ratio:16/9;background:#060B15;border:1px dashed var(--line);border-radius:14px;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.video video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#060B15}
+.video-label{position:relative;z-index:1;color:var(--muted);font-size:13px;font-weight:700;text-align:center;padding:12px;pointer-events:none}
+
+/* manifesto */
+.pillar{background:var(--bg);border:1px solid var(--line);border-radius:18px;padding:22px;display:flex;flex-direction:column;gap:8px}
+.pillar-icon{width:46px;height:46px;border-radius:14px;background:var(--axon-glow);border:1px solid var(--axon-line);display:flex;align-items:center;justify-content:center;font-size:22px}
+.pillar h3{font-size:18px;font-weight:900;letter-spacing:-.3px}
+.pillar p{color:var(--text2);font-size:14.5px}
+.bonus{margin-top:6px;background:var(--brand-glow);border:1px solid var(--brand-line);border-radius:12px;padding:10px 12px;color:var(--text)!important;font-size:14px!important}
+
+/* piani */
+.plan{background:var(--bg2);border:1.5px solid var(--line);border-radius:22px;padding:24px;display:flex;flex-direction:column;gap:8px}
+.plan-builder{border-color:var(--axon-line)}
+.plan-pro{border-color:var(--brand-line);background:var(--bg3)}
+.plan-badge{align-self:flex-start;font-size:11px;font-weight:900;letter-spacing:1.5px;border-radius:999px;padding:5px 10px;border:1px solid}
+.plan-badge-axon{color:var(--axon);background:var(--axon-glow);border-color:var(--axon-line)}
+.plan-badge-brand{color:var(--brand);background:var(--brand-glow);border-color:var(--brand-line)}
+.plan h3{font-size:19px;font-weight:900;margin-top:6px}
+.price{display:flex;align-items:flex-end;gap:10px;margin:4px 0 6px}
+.price s{color:var(--muted);font-size:18px;font-weight:700;margin-bottom:8px}
+.price-now{font-size:46px;line-height:1;font-weight:900;letter-spacing:-1.5px}
+.price-axon{color:var(--axon)}.price-brand{color:var(--brand)}
+.price-unit{color:var(--text2);font-size:14px;font-weight:700;margin-bottom:8px}
+.features{list-style:none;display:flex;flex-direction:column;gap:8px;margin:6px 0 16px}
+.features li{color:var(--text2);font-size:14.5px;padding-left:26px;position:relative}
+.features li::before{content:"✓";position:absolute;left:0;top:0;font-weight:900;color:var(--axon)}
+.plan-pro .features li::before{color:var(--brand)}
+.plan .btn{margin-top:auto}
+
+/* footer */
+.footer{padding:30px 20px 40px;text-align:center;color:var(--muted);font-size:13px;line-height:1.6}
+.footer-links a{color:var(--text2);font-weight:700}
+
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.btn{transition:none}}
