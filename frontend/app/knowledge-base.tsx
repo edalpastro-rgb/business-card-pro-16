@@ -13,9 +13,12 @@ import { pickCommonFile } from "@/src/utils/filePicker";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { KScrollView } from "@/src/ui/keyboard";
 import { HT } from "@/src/homeTheme";
+import { ensureDevicePermission } from "@/src/permissions/devicePermissions"; // V50.z537 — foto da fotocamera → OCR
+import { LiveCameraScanner, type LiveScannedPage } from "@/src/LiveCameraScanner";
+import { shootLegacy } from "@/src/IdentityDocsSection";
 import { theme } from "@/src/theme";
 
-type KbDoc = { doc_id: string; title: string; source_type: "pdf" | "docx" | "xlsx" | "image" | "txt" | "text"; status: "indexing" | "ready" | "error"; stage?: "ocr" | "embedding" | null; ocr?: boolean; chunks: number; chars: number; pages?: number; size_bytes: number; created_at: string; error?: string; truncated?: boolean };
+type KbDoc = { doc_id: string; title: string; source_type: "pdf" | "docx" | "xlsx" | "image" | "txt" | "text"; status: "indexing" | "ready" | "error"; stage?: "ocr" | "embedding" | null; ocr?: boolean; ocr_progress?: string; chunks: number; chars: number; pages?: number; size_bytes: number; created_at: string; error?: string; truncated?: boolean };
 const KB_DOC_ICON: Record<string, React.ComponentProps<typeof Ionicons>["name"]> = { pdf: "document-text", docx: "document", xlsx: "grid", image: "image", txt: "reader", text: "reader" };
 type KbList = { items: KbDoc[]; usage: { docs: number; chunks: number }; limits: { max_file_mb: number; max_docs: number; max_chunks: number }; embedder_ready: boolean; ocr_ready?: boolean };
 type Hit = { title: string; idx: number; similarity: number; text: string };
@@ -87,6 +90,25 @@ export default function KnowledgeBaseScreen() {
     if (await addDocument({ title: pasteTitle.trim() || undefined, text: pasteText })) { setPasteOpen(false); setPasteTitle(""); setPasteText(""); }
   };
 
+  // V50.z537 — «Scatta foto»: fotocamera live multi-pagina (nativo) o scatto singolo (web) → OCR locale sul server → indicizzazione
+  const [camOpen, setCamOpen] = useState(false);
+  const photoTitle = () => `Foto documento ${new Date().toLocaleString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}`;
+  const takePhoto = async () => {
+    if (!data?.ocr_ready) { notify("OCR non disponibile", "Il server non ha il motore OCR: carica un file di testo oppure contatta l'assistenza."); return; }
+    if (!(await ensureDevicePermission("camera"))) return;
+    if (Platform.OS !== "web") { setCamOpen(true); return; }
+    try {
+      const img = await shootLegacy();
+      if (!img) return;
+      await addDocument({ title: photoTitle(), pages_base64: [img] });
+    } catch (e: any) { notify("Fotocamera", e?.message || "Impossibile scattare la foto"); }
+  };
+  const onLivePages = async (pages: LiveScannedPage[]) => {
+    setCamOpen(false);
+    if (!pages.length) return;
+    await addDocument({ title: photoTitle(), pages_base64: pages.map((p) => p.data_base64) });
+  };
+
   const remove = (d: KbDoc) => {
     const go = async () => {
       try { await api(`/kb/documents/${d.doc_id}`, { method: "DELETE" }); setHits(null); await load(); }
@@ -143,11 +165,16 @@ export default function KnowledgeBaseScreen() {
             {uploading ? <ActivityIndicator color="#FFF" /> : <Ionicons name="cloud-upload" size={18} color="#FFF" />}
             <Text style={s.btnTxt}>Carica file</Text>
           </Pressable>
+          <Pressable onPress={takePhoto} disabled={uploading || !data?.embedder_ready} style={[s.btn, s.btnGhost, (uploading || !data?.embedder_ready) && { opacity: 0.6 }]} testID="kb-camera-btn">
+            <Ionicons name="camera" size={18} color={HT.violet} />
+            <Text style={[s.btnTxt, { color: HT.violet }]}>Scatta foto</Text>
+          </Pressable>
           <Pressable onPress={() => setPasteOpen((v) => !v)} disabled={!data?.embedder_ready} style={[s.btn, s.btnGhost]} testID="kb-paste-btn">
             <Ionicons name="clipboard" size={18} color={HT.violet} />
-            <Text style={[s.btnTxt, { color: HT.violet }]}>Incolla testo</Text>
+            <Text style={[s.btnTxt, { color: HT.violet }]}>Incolla</Text>
           </Pressable>
         </View>
+        {Platform.OS !== "web" ? <LiveCameraScanner visible={camOpen} onClose={() => setCamOpen(false)} onDone={(p) => void onLivePages(p)} /> : null}
 
         {pasteOpen ? (
           <View style={s.card} testID="kb-paste-card">
@@ -177,7 +204,7 @@ export default function KnowledgeBaseScreen() {
             <View style={{ flex: 1 }}>
               <Text style={s.docTitle} numberOfLines={1}>{d.title}</Text>
               <Text style={s.muted} numberOfLines={2}>
-                {d.status === "indexing" ? (d.stage === "ocr" ? "🔎 OCR in corso (lettura del testo dall'immagine)…" : "⏳ Indicizzazione in corso…") : d.status === "error" ? `⚠️ ${d.error || "Errore"}` : `✅ ${d.chunks} frammenti${d.truncated ? " (troncato al limite)" : ""}${d.ocr ? " · OCR" : ""}`}
+                {d.status === "indexing" ? (d.stage === "ocr" ? `🔎 OCR in corso${d.ocr_progress ? ` (pagina ${d.ocr_progress})` : ""}…` : "⏳ Indicizzazione in corso…") : d.status === "error" ? `⚠️ ${d.error || "Errore"}` : `✅ ${d.chunks} frammenti${d.truncated ? " (troncato al limite)" : ""}${d.ocr ? " · OCR" : ""}`}
                 {d.pages ? ` · ${d.pages} pagine` : ""} · {fmtSize(d.size_bytes)} · {new Date(d.created_at).toLocaleDateString("it-IT")}
               </Text>
             </View>

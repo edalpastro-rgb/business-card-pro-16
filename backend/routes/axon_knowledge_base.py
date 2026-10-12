@@ -159,6 +159,7 @@ KB_OCR_MAX_PAGES = int(os.environ.get("AXON_OCR_MAX_PAGES", "80"))   # pagine OC
 KB_OCR_DPI = 200
 KB_OCR_PAGE_TIMEOUT = 120
 KB_PDF_TEXT_MIN_CHARS_PER_PAGE = 40  # sotto questa media il PDF è considerato "scansione" → OCR
+KB_CAMERA_MAX_PAGES = 30             # V50.z537 — foto per singolo documento scattate dalla fotocamera
 _KB_IMAGE_EXT = (".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff", ".bmp", ".gif", ".heic", ".heif")
 
 
@@ -300,10 +301,22 @@ def _kb_extract_text(filename: str, mime: str, raw: bytes) -> Tuple[str, str, in
     return raw.decode("utf-8", errors="ignore"), "txt", 0, False
 
 
-async def _kb_ocr_and_index(doc_id: str, user_id: str, source_type: str, raw: bytes) -> None:
-    """Background: OCR (immagine o PDF scansionato) → aggiorna il documento → indicizza."""
+async def _kb_ocr_and_index(doc_id: str, user_id: str, source_type: str, raw: Any) -> None:
+    """Background: OCR (immagine singola, PIÙ foto/pagine [list di bytes] o PDF scansionato) → aggiorna il documento → indicizza."""
     try:
-        if source_type == "image":
+        if isinstance(raw, list):  # V50.z537 — foto scattate dalla fotocamera: una pagina per immagine
+            texts: List[str] = []
+            for i, page_raw in enumerate(raw, 1):
+                try:
+                    t = await asyncio.to_thread(_kb_ocr_image_bytes, page_raw)
+                except Exception as e:  # noqa: BLE001
+                    _kb_log.warning("[axon-kb] OCR foto %d fallito: %s", i, e)
+                    t = ""
+                if t.strip():
+                    texts.append(f"--- Pagina {i} ---\n{t.strip()}" if len(raw) > 1 else t.strip())
+                await db.kb_documents.update_one({"doc_id": doc_id}, {"$set": {"ocr_progress": f"{i}/{len(raw)}"}})  # noqa: F821
+            text, pages = "\n\n".join(texts), len(raw)
+        elif source_type == "image":
             text, pages = await asyncio.to_thread(_kb_ocr_image_bytes, raw), 1
         else:
             text, pages = await asyncio.to_thread(_kb_ocr_pdf, raw)
@@ -389,7 +402,13 @@ class KbDocumentIn(BaseModel):
     text: Optional[str] = Field(default=None, max_length=2_000_000)  # testo incollato
     filename: Optional[str] = Field(default=None, max_length=255)
     mime: Optional[str] = None
-    data_base64: Optional[str] = None  # PDF / TXT
+    data_base64: Optional[str] = None  # PDF / DOCX / XLSX / TXT / immagine
+    pages_base64: Optional[List[str]] = Field(default=None, max_length=KB_CAMERA_MAX_PAGES)  # V50.z537 — foto dalla fotocamera (una per pagina) → OCR
+
+
+def _kb_b64_decode(s: str) -> bytes:
+    s = s.split(",", 1)[1] if s.startswith("data:") else s
+    return base64.b64decode(s)
 
 
 def _kb_doc_out(d: dict) -> dict:
@@ -425,10 +444,23 @@ async def kb_add(body: KbDocumentIn, user=Depends(get_current_user)):  # noqa: F
         raise HTTPException(status_code=409, detail=f"Hai raggiunto il limite di {KB_MAX_DOCS} documenti: elimina qualcosa prima di caricare altro")
     if usage["chunks"] >= KB_MAX_CHUNKS:
         raise HTTPException(status_code=409, detail=f"Hai raggiunto il limite di {KB_MAX_CHUNKS} frammenti: elimina qualche documento")
-    if body.data_base64:
-        b64 = body.data_base64.split(",", 1)[1] if body.data_base64.startswith("data:") else body.data_base64
+    if body.pages_base64:
+        # V50.z537 — foto scattate dalla fotocamera (1..N pagine): OCR in background, un unico documento
+        if not _kb_ocr_available():
+            raise HTTPException(status_code=400, detail="Le foto richiedono l'OCR ma Tesseract non è installato sul server")
         try:
-            raw = base64.b64decode(b64)
+            raw = [r for r in (_kb_b64_decode(p) for p in body.pages_base64 if p) if len(r) > 100]
+        except Exception as e:  # noqa: BLE001
+            raise HTTPException(status_code=400, detail=f"Foto non valida: {e}")
+        if not raw:
+            raise HTTPException(status_code=400, detail="Nessuna foto ricevuta")
+        size = sum(len(r) for r in raw)
+        if size > KB_MAX_FILE_BYTES:
+            raise HTTPException(status_code=413, detail=f"Foto troppo pesanti nel complesso (max {KB_MAX_FILE_BYTES // (1024 * 1024)} MB)")
+        text, source_type, pages, needs_ocr = "", "image", len(raw), True
+    elif body.data_base64:
+        try:
+            raw = _kb_b64_decode(body.data_base64)
         except Exception as e:  # noqa: BLE001
             raise HTTPException(status_code=400, detail=f"File non valido: {e}")
         if len(raw) > KB_MAX_FILE_BYTES:
@@ -450,7 +482,7 @@ async def kb_add(body: KbDocumentIn, user=Depends(get_current_user)):  # noqa: F
         raise HTTPException(status_code=400, detail="Carica un file (PDF, DOCX, XLSX, TXT, immagine) oppure incolla del testo")
     if not needs_ocr and not text.strip():
         raise HTTPException(status_code=400, detail="Il documento non contiene testo leggibile")
-    title = (body.title or "").strip() or (body.filename or "").rsplit(".", 1)[0] or text.strip().split("\n", 1)[0][:60] or "Documento"
+    title = (body.title or "").strip() or (body.filename or "").rsplit(".", 1)[0] or text.strip().split("\n", 1)[0][:60] or ("Foto documento" if body.pages_base64 else "Documento")
     doc_id = f"kb_{uuid.uuid4().hex[:12]}"
     doc = {"doc_id": doc_id, "user_id": uid, "tenant_id": tenant_id(user), "title": title[:200], "source_type": source_type, "filename": body.filename,  # noqa: F821
            "size_bytes": size, "pages": pages, "chars": len(text), "chunks": 0, "status": "indexing", "stage": "ocr" if needs_ocr else "embedding", "ocr": bool(needs_ocr), "created_at": utcnow()}  # noqa: F821

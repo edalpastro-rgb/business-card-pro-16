@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-12 | D2026.10.12-1709 | V50.z537 — Knowledge Base: «Scatta foto» dalla fotocamera (multi-pagina, OCR Tesseract al volo, progresso pagina) · favicon Italian Brain rigenerata (SVG valido + PNG fallback) nel pacchetto landing |
 | 2026-10-12 | D2026.10.12-1645 | V50.z536 — Knowledge Base multi-formato (DOCX, XLSX, immagini e PDF scansionati con OCR Tesseract locale ita+eng) · anteprima OG italianbrain.it dinamica con posti Founder rimasti (job notturno 03:05 + Rigenera dal CMS) · FAQ suggerite semantiche (MiniLM locale) nel Centro Assistenza |
 | 2026-10-12 | D2026.10.12 | /landing reindirizza alla landing pubblica esterna https://italianbrain.it (componente interno rimosso; con ?ref=codice amico si va al login con il codice, così il referral funziona); link interni aggiornati: Lite, Wake training, FAQ (EXPO_PUBLIC_LANDING_URL=https://italianbrain.it) |
 | 2026-10-11 | D2026.10.11-2241 | Help: ricerca FAQ interattiva in tempo reale (sezione «Domande frequenti» in cima a /help e pagina /faq), FAQ gestibili dal CMS admin (editor con aggiungi/sposta/elimina, PUT /landing/cms/faq, reset), modulo assistenza/segnalazione bug e checkbox «Problemi ricorrenti» confermati e rietichettati; Axon riceve le FAQ ufficiali pertinenti nel prompt (_build_faq_section) e la mappa navigazione include Knowledge Base, crediti AI, ricerca FAQ e CMS Landing, così risponde con il percorso corretto a «dove trovo X» |

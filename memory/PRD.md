@@ -7784,3 +7784,8 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 - **FAQ suggerite** (`landing_cms.py`): `GET /api/public/faq/suggest?q=&k=3` — cosine MiniLM locale (cache embedding FAQ invalidata al publish CMS) + bonus lessicale; fallback keyword. Frontend `FaqSearch.tsx`: debounce 350 ms, riga «Axon suggerisce…», badge ✨ e suggerite in cima.
 - CMS (`admin/landing-cms.tsx`): sezione «Anteprima social (OG)» con immagine live e «Rigenera ora». KB screen: icone per formato, stato «OCR in corso», riga formati.
 - NOTA: il frontend preview punta a `core.axonos.cloud` (produzione) → le novità UI si vedono dopo il deploy dei pacchetti.
+
+## V50.z537 — KB «Scatta foto» (OCR al volo) · favicon Italian Brain
+- Backend `POST /kb/documents` accetta `pages_base64: [..]` (max 30 foto): OCR pagina per pagina in background (`ocr_progress: "i/N"`), testo unito con «--- Pagina i ---», un unico documento `source_type=image`.
+- Frontend `knowledge-base.tsx`: bottone **Scatta foto** → `ensureDevicePermission("camera")` (contratto permessi esistente) → nativo `LiveCameraScanner` multi-pagina con autocrop, web `shootLegacy()` scatto singolo. Riga documento mostra «OCR in corso (pagina i/N)».
+- Landing: `favicon.svg` rigenerato (XML valido, xmlns, gradiente ciano→ambra, sfondo #020B1E), aggiunti `favicon.png` (64) e `apple-touch-icon.png` (180) come fallback; `<link>` in index.html; README con comando unico di aggiornamento.
