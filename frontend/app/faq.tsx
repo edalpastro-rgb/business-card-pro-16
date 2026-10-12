@@ -12,7 +12,7 @@ import { FaqSearch } from "@/src/FaqSearch"; // V50.z533
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) UIManager.setLayoutAnimationEnabledExperimental(true);
 
-export const LANDING_URL = process.env.EXPO_PUBLIC_LANDING_URL || "https://advisoros.it";
+export const LANDING_URL = process.env.EXPO_PUBLIC_LANDING_URL || "https://italianbrain.it"; // V50.z535
 
 export const FAQ_ITEMS: { q: string; a: string; icon: React.ComponentProps<typeof Ionicons>["name"] }[] = [
   { icon: "school-outline", q: "Come carico un contratto esempio per addestrare Axon?", a: "Vai in Axon Lab › Area Master › Addestramento (Fase 2 · Moduli). Clicca \"Carica contratto compilato di esempio\" e seleziona il file da Drive, Dropbox o dal tuo dispositivo. Axon lo analizza e impara automaticamente la struttura e i campi da compilare." },

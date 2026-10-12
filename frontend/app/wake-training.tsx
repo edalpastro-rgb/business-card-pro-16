@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, Animated, Easing, Platform, Image, ActivityIndicator, Linking, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { PUBLIC_LANDING_URL } from "@/app/landing"; // V50.z535 — landing esterna italianbrain.it
 import { useRouter } from "expo-router";
 import { useAudioRecorder, RecordingPresets } from "expo-audio";
 import { api, BACKEND_URL } from "@/src/api";
@@ -274,7 +275,7 @@ export default function WakeTrainingScreen() {
         <Text style={s.lead}>Il tuo contributo è parte di qualcosa di grande. Axon impara da ogni voce, in ogni ambiente, ogni giorno.</Text>
         <Text style={s.fine}>{totalSaved} campioni salvati in questa sessione</Text>
         <Image source={LOGO} style={{ width: 180, height: 46, marginTop: 10 }} resizeMode="contain" />
-        <Pressable onPress={() => (Platform.OS === "web" ? Linking.openURL("/landing") : router.replace("/landing" as any))} style={[s.cta, { maxWidth: 420, alignSelf: "stretch" }]} testID="wt-discover"><Text style={s.ctaTxt}>Scopri AdvisorOS</Text><Ionicons name="open-outline" size={20} color={WT.white} /></Pressable>
+        <Pressable onPress={() => Linking.openURL(PUBLIC_LANDING_URL)} style={[s.cta, { maxWidth: 420, alignSelf: "stretch" }]} testID="wt-discover"><Text style={s.ctaTxt}>Scopri AdvisorOS</Text><Ionicons name="open-outline" size={20} color={WT.white} /></Pressable>
       </View>
     );
   };

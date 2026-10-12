@@ -7771,3 +7771,4 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 
 ## V50.z534 — Landing statica italianbrain.it
 - /app/deploy/italianbrain-landing/ (index.html, style.css, og-image.png 1200×630, favicon.svg, nginx-italianbrain.conf, README.txt) + italianbrain-landing.tgz; scaricabile via /api/pkg/italianbrain-landing (pkg_delivery). Zero JS, OG tag hardcoded, placeholder video Vimeo preload=none/lazy, link CTA → core.italianbrain.it.
+- V50.z535: /landing → redirect https://italianbrain.it (AxonCoreLanding.tsx rimosso; ?ref → /login); link interni aggiornati (lite, wake-training, faq, EXPO_PUBLIC_LANDING_URL)

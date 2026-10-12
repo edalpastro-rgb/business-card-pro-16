@@ -5,6 +5,7 @@ import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndic
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { PUBLIC_LANDING_URL } from "@/app/landing"; // V50.z535 — landing esterna italianbrain.it
 import { LP } from "@/src/landing/palette";
 import { api } from "@/src/api";
 
@@ -91,7 +92,7 @@ export default function LiteLanding() {
             <Pressable onPress={tryLite} style={({ pressed }) => [s.cta, pressed && s.pressed]} testID="lite-cta-try">
               <Ionicons name="sparkles" size={18} color={LP.onBrand} /><Text style={s.ctaTxt}>{LITE_APP_URL ? "PROVA AXONOS LITE" : "RICHIEDI ACCESSO ANTICIPATO"}</Text>
             </Pressable>
-            <Pressable onPress={() => router.push("/landing" as any)} style={({ pressed }) => [s.ghost, pressed && s.pressed]} testID="lite-cta-advisor">
+            <Pressable onPress={() => void Linking.openURL(PUBLIC_LANDING_URL)} style={({ pressed }) => [s.ghost, pressed && s.pressed]} testID="lite-cta-advisor">
               <Text style={s.ghostTxt}>Gestisci clienti e contratti? AdvisorOS →</Text>
             </Pressable>
           </View>
@@ -171,7 +172,7 @@ export default function LiteLanding() {
 
         <View style={s.footer}>
           <Text style={s.footTxt}>Axon è il cervello. AxonOS Lite lo porta a tutti. AdvisorOS lo mette al lavoro nelle reti vendita.</Text>
-          <Pressable onPress={() => router.push("/landing" as any)} style={{ minHeight: 44, justifyContent: "center" }} testID="lite-foot-advisor"><Text style={s.footLink}>Scopri AdvisorOS →</Text></Pressable>
+          <Pressable onPress={() => void Linking.openURL(PUBLIC_LANDING_URL)} style={{ minHeight: 44, justifyContent: "center" }} testID="lite-foot-advisor"><Text style={s.footLink}>Scopri AdvisorOS →</Text></Pressable>
         </View>
       </ScrollView>
     </SafeAreaView>
