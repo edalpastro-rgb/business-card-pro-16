@@ -1,8 +1,9 @@
-italianbrain.it — landing statica (index.html + style.css + og-image.png + favicon.svg)
+italianbrain.it — landing statica (index.html + style.css + og-preview.png [anteprima OG] + favicon.svg)
+Permessi: chmod 644 /var/www/italianbrain/*  (nginx deve poter leggere og-preview.png)
 
 DEPLOY SU NGINX (VPS):
   mkdir -p /var/www/italianbrain
-  tar xzf italianbrain-landing.tgz -C /tmp && cp /tmp/italianbrain-landing/{index.html,style.css,og-image.png,favicon.svg} /var/www/italianbrain/
+  tar xzf italianbrain-landing.tgz -C /tmp && cp /tmp/italianbrain-landing/{index.html,style.css,og-preview.png,og-image.png,favicon.svg} /var/www/italianbrain/
   cp /tmp/italianbrain-landing/nginx-italianbrain.conf /etc/nginx/conf.d/italianbrain.conf
   nginx -t && systemctl reload nginx
   certbot --nginx -d italianbrain.it -d www.italianbrain.it     # HTTPS (gli OG richiedono URL https raggiungibili)
