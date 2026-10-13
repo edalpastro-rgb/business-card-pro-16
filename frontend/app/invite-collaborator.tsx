@@ -11,6 +11,7 @@ import { theme } from "@/src/theme";
 import { notify } from "@/src/utils/notify";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { OrgPlanBanner } from "@/src/OrgPlanBanner"; // V50.z541
 type IconName = keyof typeof Ionicons.glyphMap;
 
 type Role = "basic" | "consultant" | "manager" | "master_figlio";
@@ -174,6 +175,7 @@ export default function InviteCollaboratorScreen() {
       <KScrollView contentContainerStyle={{ padding: 16, paddingBottom: pagePad }}>
         {!invite ? (
           <>
+            <View style={{ marginBottom: 12 }}><OrgPlanBanner /></View>
             <Text style={styles.label}>Nome collaboratore</Text>
             <TextInput
               value={collaboratorName}

@@ -72,6 +72,7 @@ async def get_subscription_status(user=Depends(get_current_user)):
 async def create_invite(body: InviteIn, user=Depends(get_current_user)):
     if not is_owner(user):
         raise HTTPException(status_code=403, detail="Solo l'owner può creare inviti")
+    await _org_limit_check(user)  # noqa: F821 — V50.z541: niente nuovi inviti se il piano è al limite
     tok = uuid.uuid4().hex[:20]
     # Normalize role (Basic/Manager/Master figlio → member/admin/owner)
     role_map = {
@@ -232,6 +233,10 @@ async def register_via_invite(token: str, body: InviteRegisterIn):
         # Default legacy behavior: new independent owner
         role = "owner"
         parent_user_id = None
+    if parent_user_id:  # V50.z541 — l'utente entra nell'organizzazione del Master: rispetta il limite del piano
+        creator = await db.users.find_one({"user_id": parent_user_id}, {"_id": 0, "user_id": 1, "email": 1, "super_admin": 1})
+        if creator:
+            await _org_limit_check(creator)  # noqa: F821
     user_doc = {
         "user_id": uid,
         "email": body.email.lower().strip(),
@@ -246,6 +251,14 @@ async def register_via_invite(token: str, body: InviteRegisterIn):
         "invited_by": inv["created_by"],
     }
     await db.users.insert_one(user_doc)
+    # V50.z541 — email di benvenuto anche a chi entra tramite link di invito (best effort)
+    _welcome = globals().get("_welcome_email_send")
+    if _welcome:
+        try:
+            await _welcome(user_doc)
+        except Exception as exc:  # noqa: BLE001
+            logging.getLogger("auth").warning("welcome email (invite) failed: %s", exc)
+            await db.users.update_one({"user_id": uid}, {"$set": {"welcome_email_error": str(exc)[:200]}})
     # Mark invite used
     await db.invites.update_one(
         {"invite_token": token},

@@ -11,6 +11,7 @@ import { confirmAsync, notify } from "@/src/utils/notify";
 
 import { useBottomSheetPadding, usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { OrgPlanBanner } from "@/src/OrgPlanBanner"; // V50.z541 — utenti N/M · piano · upgrade
 type Member = { user_id: string; email: string; name: string; role: string; areas: string[]; agent_code?: string | null; created_at?: string };
 
 // V28.z — Sotto-componente per i campi Master-only: codice agente + password dati sensibili.
@@ -194,6 +195,7 @@ export default function TeamScreen() {
 
       {loading ? <ActivityIndicator style={{ marginTop: 40 }} color={HT.brand} /> : (
         <KScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: pagePad }}>
+          <OrgPlanBanner refreshKey={items.length} />
           {items.length === 0 ? (
             <View style={styles.empty}>
               <Ionicons name="people-outline" size={40} color={HT.muted} />

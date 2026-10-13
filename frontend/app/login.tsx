@@ -15,7 +15,8 @@ import { api } from "@/src/api";
 import { solvePow } from "@/src/utils/pow"; // V50.z434 — proof-of-work anti-bot
 import { TurnstileWidget } from "@/src/TurnstileWidget"; // V50.z434 — Cloudflare Turnstile (se configurato dal Master)
 import { theme } from "@/src/theme";
-import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { HT } from "@/src/homeTheme";
+import { OrgPlanPicker } from "@/src/OrgPlanPicker"; // V50.z541 — scelta piano alla registrazione
 
 // V29.j — Logo AdvisorOS trasparente (senza card bianca): asset locale con
 // alpha channel, aspect ratio 4.6:1 (compass + testo).
@@ -30,6 +31,8 @@ export default function LoginScreen() {
   // V50.z530 — arrivo dalla landing Founder (/login?plan=builder|professional&mode=register): piano salvato sull'account (contatori posti)
   const { ref: refParam, plan: planParam, mode: modeParam } = useLocalSearchParams<{ ref?: string; plan?: string; mode?: string }>();
   const [founderPlan, setFounderPlan] = useState<"builder" | "professional" | undefined>(undefined);
+  const [orgPlan, setOrgPlan] = useState<string | undefined>(undefined); // V50.z541 — piano organizzazione (obbligatorio se il server espone i piani)
+  const [orgPlansCount, setOrgPlansCount] = useState(0);
   useEffect(() => {
     const p = typeof planParam === "string" ? planParam.trim().toLowerCase() : "";
     if (p === "builder" || p === "professional") { setFounderPlan(p); AsyncStorage.setItem(PENDING_PLAN_KEY, p).catch(() => {}); }
@@ -109,6 +112,7 @@ export default function LoginScreen() {
         if (email.trim().toLowerCase() !== emailConfirm.trim().toLowerCase()) throw new Error("Le due email non coincidono");
         if (password.length < 6) throw new Error("La password deve avere almeno 6 caratteri");
         if (password !== passwordConfirm) throw new Error("Le due password non coincidono");
+        if (orgPlansCount > 0 && !orgPlan) throw new Error("Scegli un piano per continuare");
         if (!privacyOk) throw new Error("Devi accettare l'informativa privacy");
         if (challenge?.turnstile_site_key && !turnstileToken) throw new Error("Completa la verifica anti-bot");
         let ch = challenge;
@@ -120,7 +124,7 @@ export default function LoginScreen() {
         try {
           result = await register(email.trim(), password, name.trim(), {
             lastName: lastName.trim(), promoCode: promoCode.trim().toUpperCase() || undefined,
-            privacyAccepted: privacyOk, newsletter, challengeId: ch.challenge_id, powNonce, turnstileToken, hp, plan: founderPlan,
+            privacyAccepted: privacyOk, newsletter, challengeId: ch.challenge_id, powNonce, turnstileToken, hp, plan: founderPlan, orgPlan,
           });
         } catch (e) {
           void loadChallenge(); // la challenge è monouso: nuova challenge per il prossimo tentativo
@@ -384,6 +388,13 @@ export default function LoginScreen() {
                 placeholderTextColor={HT.muted}
                 style={[styles.input, !!passwordConfirm && passwordConfirm !== password && styles.inputErr]}
               />
+            </View>
+          )}
+          {mode === "register" && (
+            <View style={styles.field}>
+              <Text style={styles.label}>Scegli il tuo piano</Text>
+              <OrgPlanPicker value={orgPlan} onChange={setOrgPlan} onPlans={setOrgPlansCount} testID="auth-org-plan" />
+              <Text style={styles.optional}>14 giorni di prova gratuita su ogni piano. Potrai cambiare piano in qualsiasi momento.</Text>
             </View>
           )}
           {mode === "register" && (

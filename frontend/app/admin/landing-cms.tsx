@@ -15,7 +15,7 @@ import { HT } from "@/src/homeTheme";
 import { theme } from "@/src/theme";
 
 type Content = Record<string, any>;
-type FaqRow = { id: string; icon?: string; q: string; a: string };
+type FaqRow = { id: string; icon?: string; q: string; a: string ; roles?: string[] };
 type Seats = Record<"builder" | "professional", { limit: number; taken: number; left: number }>;
 
 function setPath(obj: Content, path: string[], value: unknown): Content {
@@ -25,6 +25,8 @@ function setPath(obj: Content, path: string[], value: unknown): Content {
   return out;
 }
 const getPath = (obj: Content, path: string[]) => path.reduce<any>((acc, k) => (acc == null ? undefined : acc[k]), obj);
+
+const FAQ_ROLES = [{ id: "superadmin", label: "Supermaster" }, { id: "master", label: "Master" }, { id: "manager", label: "Manager" }, { id: "collab", label: "Collaboratore" }]; // V50.z541 — FAQ per ruolo
 
 export default function LandingCmsScreen() {
   const router = useRouter();
@@ -95,6 +97,7 @@ export default function LandingCmsScreen() {
   const editFaq = (idx: number, key: "q" | "a", v: unknown) => { setFaq((f) => (f ? f.map((it, i) => (i === idx ? { ...it, [key]: String(v) } : it)) : f)); setFaqDirty(true); };
   const moveFaq = (idx: number, dir: -1 | 1) => { setFaq((f) => { if (!f) return f; const j = idx + dir; if (j < 0 || j >= f.length) return f; const c = [...f]; [c[idx], c[j]] = [c[j], c[idx]]; return c; }); setFaqDirty(true); };
   const removeFaq = (idx: number) => { setFaq((f) => (f ? f.filter((_, i) => i !== idx) : f)); setFaqDirty(true); };
+  const toggleFaqRole = (idx: number, role: string) => { setFaq((f) => (f ? f.map((it, i) => (i === idx ? { ...it, roles: (it.roles || []).includes(role) ? (it.roles || []).filter((x) => x !== role) : [...(it.roles || []), role] } : it)) : f)); setFaqDirty(true); }; // V50.z541
   const addFaq = () => { setFaq((f) => [...(f || []), { id: `faq_${Date.now().toString(36)}`, icon: "help-circle-outline", q: "", a: "" }]); setFaqDirty(true); };
   // V50.z536 — anteprima OG italianbrain.it (logo + posti Founder rimasti): rigenerata ogni notte, qui si forza subito
   const [ogInfo, setOgInfo] = useState<{ generated_at?: string | null; left?: number | null; limit?: number | null } | null>(null);
@@ -248,6 +251,12 @@ export default function LandingCmsScreen() {
               </View>
               <CmsField label="Domanda" value={it.q} onChange={(v) => editFaq(idx, "q", v)} testID={`cms-faq-q-${idx}`} />
               <CmsField label="Risposta (indica il percorso: es. Profilo › Impostazioni › Aspetto)" value={it.a} onChange={(v) => editFaq(idx, "a", v)} multiline testID={`cms-faq-a-${idx}`} />
+              <Text style={s.lbl}>Visibile a (nessuno selezionato = tutti)</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                {FAQ_ROLES.map((r) => { const on = (it.roles || []).includes(r.id); return (
+                  <Pressable key={r.id} onPress={() => toggleFaqRole(idx, r.id)} style={[s.roleChip, on && s.roleChipOn]} testID={`cms-faq-role-${idx}-${r.id}`}><Text style={[s.roleChipTxt, on && { color: HT.violet }]}>{r.label}</Text></Pressable>
+                ); })}
+              </View>
             </View>
           ))}
           <View style={{ flexDirection: "row", gap: 10 }}>
@@ -296,6 +305,9 @@ const s = StyleSheet.create({
   cardTitle: { color: HT.text, fontSize: 15, fontWeight: "800" },
   sectionTitle: { color: HT.violet, fontSize: 13, fontWeight: "900", letterSpacing: 1, textTransform: "uppercase" },
   muted: { color: HT.muted, fontSize: 12, lineHeight: 16 },
+  roleChip: { paddingHorizontal: 10, minHeight: 32, justifyContent: "center", borderRadius: 16, borderWidth: 1, borderColor: HT.border, backgroundColor: HT.card2 },
+  roleChipOn: { borderColor: HT.violet, backgroundColor: HT.violetTint },
+  roleChipTxt: { color: HT.text2, fontSize: 12, fontWeight: "700" },
   ogImg: { width: "100%", aspectRatio: 1200 / 630, borderRadius: 10, backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border },
   lbl: { color: HT.text2, fontSize: 12, fontWeight: "700" },
   input: { backgroundColor: HT.card2, borderWidth: 1, borderColor: HT.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, color: HT.text, fontSize: 14, minHeight: 44 },

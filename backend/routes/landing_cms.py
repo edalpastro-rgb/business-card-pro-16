@@ -13,7 +13,7 @@ import hmac
 import os
 import re
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from fastapi import Depends, Header, HTTPException
@@ -295,12 +295,89 @@ FAQ_DEFAULTS: List[Dict[str, str]] = [
 async def _faq_items() -> List[Dict[str, str]]:
     doc = await db.faq_content.find_one({"_id": "global"}, {"_id": 0, "items": 1})  # noqa: F821
     items = (doc or {}).get("items")
-    return items if isinstance(items, list) and items else copy.deepcopy(FAQ_DEFAULTS)
+    if isinstance(items, list) and items:
+        return items
+    out = copy.deepcopy(FAQ_DEFAULTS)
+    for it in out:  # V50.z541 — ruoli di default sulle FAQ storiche
+        it.setdefault("roles", _FAQ_DEFAULT_ROLES.get(it["id"], []))
+    return out + copy.deepcopy(FAQ_ROLE_DEFAULTS)
+
+
+# ───────────────────────────── V50.z541 — FAQ PER RUOLO + FAQ landing / italianbrain.it / inviti ─────────────────────────────
+# Ogni FAQ ha `roles` ⊆ {superadmin, master, manager, collab}; vuoto = visibile a tutti. Il ruolo del lettore si ricava dal
+# token (se presente): super_admin → superadmin (vede TUTTO), owner → master, admin → manager, member/consultant → collab,
+# anonimo → solo FAQ generali. Un Collaboratore non vede le guide del Master; un Master non vede quelle del Supermaster.
+FAQ_ROLES = ("superadmin", "master", "manager", "collab")
+_FAQ_DEFAULT_ROLES: Dict[str, List[str]] = {
+    "faq_01": ["master", "manager"], "faq_07": ["master", "manager"], "faq_09": ["master", "manager"], "faq_13": ["master"],
+}
+FAQ_ROLE_DEFAULTS: List[Dict[str, Any]] = [
+    {"id": "faq_17", "icon": "globe-outline", "roles": ["master"],
+     "q": "Cos'è la landing page italianbrain.it e come la uso?",
+     "a": "italianbrain.it è la pagina pubblica di presentazione di AxonOS: spiega il Manifesto Privacy, i piani e i posti Founder rimasti. È fuori dall'app (sito statico): condividila a chi vuoi presentare AxonOS. Chi clicca «Inizia» arriva alla registrazione dell'app. Il link è in Pannello Master › Condividi landing e nella Business Card."},
+    {"id": "faq_18", "icon": "link-outline", "roles": ["master", "manager"],
+     "q": "Come invito i miei utenti: link via email o creazione manuale?",
+     "a": "Due modi, entrambi da Pannello Master. 1) Link di registrazione: Invita collaboratore › scegli il ruolo (Collaboratore, Manager, Master figlio) › Crea link › invialo via email, WhatsApp o QR; chi lo apre si registra ed entra nella tua organizzazione. 2) Creazione manuale: Gestione Team › «Aggiungi» › inserisci nome, email, password e aree: l'utente è pronto subito. Ogni Manager può creare i propri Collaboratori."},
+    {"id": "faq_19", "icon": "layers-outline", "roles": ["master"],
+     "q": "Quanti utenti posso avere? Come funzionano i piani?",
+     "a": "Il piano scelto alla registrazione fissa il totale di utenti della tua organizzazione (tu + Manager + Collaboratori di ogni livello): Collaboratore singolo (1 utente), Master fino a 10, Master fino a 50, oltre 50 su preventivo. Al limite, inviti e creazioni manuali vengono bloccati con l'avviso «Limite del piano raggiunto»: fai l'upgrade da Gestione Team › «Passa al piano superiore» (pagamento o richiesta al Supermaster)."},
+    {"id": "faq_20", "icon": "git-network-outline", "roles": ["master", "manager"],
+     "q": "Che differenza c'è tra Master, Manager e Collaboratore?",
+     "a": "Master: titolare dell'organizzazione, gestisce piani, team, inviti, aree, Libretto e addestramento di Axon. Manager: coordina i propri Collaboratori (li crea, assegna aree, vede le loro statistiche) ma non i piani. Collaboratore: lavoro operativo su contatti, appuntamenti, contratti e Axon. Il Supermaster è il gestore della piattaforma e vede tutte le organizzazioni."},
+    {"id": "faq_21", "icon": "people-outline", "roles": ["collab"],
+     "q": "Cosa posso fare come Collaboratore?",
+     "a": "Tutto il lavoro operativo: contatti e CRM, calendario e call, contratti compilati da Axon, Knowledge Base personale, chat con Axon, scanner documenti. Le impostazioni di squadra (aree, inviti, Libretto, addestramento) sono del tuo Manager/Master: se ti serve qualcosa di quel tipo chiedi a lui dal tab Help › «Chiedi al Master»."},
+    {"id": "faq_22", "icon": "person-add-outline", "roles": ["manager"],
+     "q": "Come aggiungo un Collaboratore alla mia squadra?",
+     "a": "Pannello Master › Gestione Team › «Aggiungi»: nome, email, password provvisoria e almeno un'area. Il Collaboratore comparirà sotto di te nella gerarchia e vedrai le sue statistiche in Team Insights. Se il Master ha raggiunto il limite utenti del piano l'aggiunta viene bloccata: chiedi al Master l'upgrade."},
+    {"id": "faq_23", "icon": "shield-checkmark-outline", "roles": ["superadmin"],
+     "q": "Dove gestisco tutti gli utenti registrati (ruoli, piani, eliminazione)?",
+     "a": "Pannello Master › sezione Super Admin › «Utenti registrati» (/admin/users): elenco di tutti gli utenti di tutte le organizzazioni con ricerca e filtri. Azioni per utente: Cambia ruolo (Master/Manager/Collaboratore/Consulente), Sposta sotto un altro Master o Manager, Assegna piano, Reinvia email di benvenuto, Verifica email, Elimina (con eliminazione a cascata se ha utenti sotto)."},
+    {"id": "faq_24", "icon": "pricetags-outline", "roles": ["superadmin"],
+     "q": "Come modifico piani e prezzi senza toccare il codice?",
+     "a": "Pannello Master › Super Admin › «Piani e prezzi»: etichetta, prezzo mensile, numero massimo di utenti, badge e flag «preventivo» per ogni piano. Le modifiche sono immediate nel modulo di registrazione, nel paywall (pagamento Stripe) e nei controlli di limite utenti."},
+    {"id": "faq_25", "icon": "mail-open-outline", "roles": ["superadmin"],
+     "q": "L'email di benvenuto non è arrivata a un nuovo iscritto: cosa faccio?",
+     "a": "L'email parte subito alla registrazione e viene ritentata alla verifica del codice. In /admin/users il filtro «Senza benvenuto» mostra chi non l'ha ricevuta e l'eventuale errore del provider; il tasto «Reinvia benvenuto» la rimanda. Il testo si modifica in Super Admin › «Email di benvenuto» (deve essere attiva)."},
+    {"id": "faq_26", "icon": "chatbubbles-outline", "roles": ["superadmin"],
+     "q": "Come gestisco le FAQ per ruolo?",
+     "a": "CMS Landing › sezione FAQ: ogni domanda ha i chip Supermaster / Master / Manager / Collaboratore. Nessun chip = visibile a tutti. Il Centro Assistenza mostra a ogni utente solo le FAQ del suo ruolo (più quelle generali) e Axon usa le stesse FAQ come fonte di verità nelle risposte."},
+]
+
+
+def _faq_role_of(user: Optional[dict]) -> Optional[str]:
+    if not user:
+        return None
+    if is_super_admin(user):  # noqa: F821
+        return "superadmin"
+    r = user.get("role") or "member"
+    return "master" if r == "owner" else "manager" if r == "admin" else "collab"
+
+
+def _faq_visible(items: List[Dict[str, Any]], role: Optional[str]) -> List[Dict[str, Any]]:
+    if role == "superadmin":
+        return items
+    return [it for it in items if not it.get("roles") or (role and role in it.get("roles", []))]
+
+
+async def _faq_optional_user(authorization: Optional[str]) -> Optional[dict]:
+    if not authorization:
+        return None
+    try:
+        return await get_current_user(authorization)  # noqa: F821
+    except Exception:  # noqa: BLE001
+        return None
+
+
+async def _faq_items_for(authorization: Optional[str]) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+    role = _faq_role_of(await _faq_optional_user(authorization))
+    return _faq_visible(await _faq_items(), role), role
 
 
 @api_router.get("/public/faq")  # noqa: F821
-async def public_faq():
-    return {"items": await _faq_items()}
+async def public_faq(authorization: Optional[str] = Header(None)):
+    items, role = await _faq_items_for(authorization)
+    return {"items": items, "role": role}
 
 
 class FaqItemIn(BaseModel):
@@ -308,6 +385,7 @@ class FaqItemIn(BaseModel):
     icon: Optional[str] = "help-circle-outline"
     q: str = Field(min_length=3, max_length=300)
     a: str = Field(min_length=3, max_length=3000)
+    roles: Optional[List[str]] = None  # V50.z541
 
 
 class FaqPutIn(BaseModel):
@@ -318,7 +396,8 @@ class FaqPutIn(BaseModel):
 async def landing_cms_faq_put(body: FaqPutIn, user=Depends(_require_cms)):
     items = []
     for i, it in enumerate(body.items, 1):
-        items.append({"id": (it.id or "").strip() or f"faq_{uuid.uuid4().hex[:8]}", "icon": (it.icon or "help-circle-outline").strip(), "q": it.q.strip(), "a": it.a.strip()})
+        roles = [r for r in (it.roles or []) if r in FAQ_ROLES]
+        items.append({"id": (it.id or "").strip() or f"faq_{uuid.uuid4().hex[:8]}", "icon": (it.icon or "help-circle-outline").strip(), "q": it.q.strip(), "a": it.a.strip(), "roles": roles})
     await db.faq_content.replace_one({"_id": "global"}, {"_id": "global", "items": items, "updated_at": utcnow(), "updated_by": user.get("email") or user.get("user_id")}, upsert=True)  # noqa: F821
     _faq_vec_cache.clear()
     return {"ok": True, "items": items}
@@ -352,8 +431,8 @@ async def _faq_vectors(items: List[Dict[str, str]]) -> List[List[float]]:
     return _faq_vec_cache["vecs"]
 
 
-async def _faq_semantic_top(query: str, k: int = 3) -> List[Dict[str, Any]]:
-    items = await _faq_items()
+async def _faq_semantic_top(query: str, k: int = 3, items: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
+    items = await _faq_items() if items is None else items
     if not items:
         return []
     q = (query or "").strip()[:500]
@@ -386,11 +465,12 @@ async def _faq_semantic_top(query: str, k: int = 3) -> List[Dict[str, Any]]:
 
 
 @api_router.get("/public/faq/suggest")  # noqa: F821
-async def public_faq_suggest(q: str = "", k: int = 3):
+async def public_faq_suggest(q: str = "", k: int = 3, authorization: Optional[str] = Header(None)):
     q = (q or "").strip()
     if len(q) < 3:
         return {"items": [], "engine": "none"}
-    items = await _faq_semantic_top(q, max(1, min(int(k or 3), 6)))
+    visible, _role = await _faq_items_for(authorization)  # V50.z541 — solo FAQ del ruolo del lettore
+    items = await _faq_semantic_top(q, max(1, min(int(k or 3), 6)), items=visible)
     return {"items": items, "engine": "minilm-local" if _kb_embedder.available else "keyword"}  # noqa: F821
 
 
@@ -410,12 +490,12 @@ def _faq_tokens(text: str) -> set:
     return toks
 
 
-async def _build_faq_section(msg: str, k: int = 3) -> str:
+async def _build_faq_section(msg: str, k: int = 3, user: Optional[dict] = None) -> str:
     q_tok = _faq_tokens(msg)
     if len(q_tok) < 1:
         return ""
     scored = []
-    for it in await _faq_items():
+    for it in _faq_visible(await _faq_items(), _faq_role_of(user)) if user else await _faq_items():
         t_q = _faq_tokens(it.get("q", ""))
         t_a = _faq_tokens(it.get("a", ""))
         score = 2.0 * len(q_tok & t_q) + 0.5 * len(q_tok & t_a)

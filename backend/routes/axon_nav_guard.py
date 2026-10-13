@@ -21,7 +21,7 @@ from typing import Optional as _ng_Optional
 # ---------------------------------------------------------------------------
 _NAV_REAL_PATHS = {
     "/", "/home", "/calendario", "/chat", "/contatti", "/help", "/impostazioni", "/report", "/webviewer",
-    "/admin/beta", "/admin/customers", "/admin/onboarding", "/admin/promo-codes", "/admin/register-guard", "/admin/upload-guard", "/admin/wake-samples", "/admin/welcome-email",
+    "/admin/beta", "/admin/customers", "/admin/onboarding", "/admin/org-plans", "/admin/promo-codes", "/admin/users", "/admin/register-guard", "/admin/upload-guard", "/admin/wake-samples", "/admin/welcome-email",
     "/ai-teach", "/anagrafica-master", "/appointment/new", "/appointment-stats", "/auth/forgot-password", "/axon-alarms", "/axon-alerts", "/axon-brain",
     "/axon-cheatsheet", "/axon-expenses", "/axon-homeassistant", "/axon-hub", "/axon-insights", "/axon-integrations", "/axon-lab", "/axon-lab/business",
     "/axon-lab/delegates", "/axon-lab/rules", "/axon-lab/training", "/axon-media", "/axon-memory", "/axon-notifications", "/axon-proactive",
@@ -32,7 +32,7 @@ _NAV_REAL_PATHS = {
     "/call", "/courses", "/courses/dashboard", "/courses/new", "/crt", "/cruscotto", "/custom-fields", "/dashboard-config", "/deadlines", "/devices", "/documenti-axon",
     "/dropbox", "/email-accounts", "/email-config", "/event-banners", "/faq", "/form-templates", "/google-drive-picker", "/google-drive", "/groups",
     "/help-center-admin", "/help-center", "/info-request-chat", "/info-requests", "/invita-amico", "/invita-pick", "/invita", "/invitati", "/invite-collaborator",
-    "/km-report", "/landing", "/le-mie-aree", "/libretto-editor", "/libretto", "/lite", "/login", "/mail-crm-proposals", "/map-clients", "/master-files", "/master",
+    "/km-report", "/le-mie-aree", "/libretto-editor", "/libretto", "/lite", "/login", "/mail-crm-proposals", "/map-clients", "/master-files", "/master",
     "/mercato", "/meteo", "/my-audios", "/my-thing", "/my-web", "/neo-memory", "/offline-sync", "/optimal-route", "/outlook", "/paywall", "/pdf-viewer",
     "/permessi-onboarding", "/permessi", "/personalizzazione-aziendale", "/privacy-policy", "/pun-storico", "/quick-actions", "/reviews-analytics", "/scanner",
     "/security-info", "/security", "/settings-app", "/setup-config", "/setup", "/smtp", "/spazio-personale-anagrafica", "/spazio-personale", "/team-compare",

@@ -50,6 +50,8 @@ MODULES = [
     "34_alarms_homeassistant.py",
     "35_reviews_leads.py",
     "36_admin_clients.py",
+    "org_plans.py",  # V50.z541 — piani organizzazione (CMS Supermaster), limiti utenti, gerarchia, ponte paywall (DOPO 36: require_super_admin)
+    "admin_users.py",  # V50.z541 — Pannello Supermaster /admin/users: elenco, ruoli, sposta, piano, elimina, reinvia benvenuto
     "36b_axon_pdf_link_parser.py",  # V50.z164 — modulo isolato (wrap di _build_axon_teach_section)
     "corporate_gym.py",  # Corporate Gym (Blocco 1) — modulo isolato, collection cgym_* (PRIMA di 37: include_router)
     "corporate_gym_manuals.py",  # Corporate Gym · Manuali Google Drive (AxonOS) — modulo isolato, dipende da 28_google_drive

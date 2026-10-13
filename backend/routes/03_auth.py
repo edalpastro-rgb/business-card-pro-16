@@ -16,6 +16,9 @@ async def register(body: RegisterInput, request: Request):
     if _guard:
         await _guard(body, request)
     guard_meta = getattr(body, "_guard_meta", None) or {}
+    # V50.z541 — piano organizzazione scelto nel modulo (validato contro i piani CMS; mancante → primo piano disponibile)
+    _plans = await _org_plans()  # noqa: F821
+    org_plan = body.org_plan if body.org_plan and any(p["id"] == body.org_plan for p in _plans) else (_plans[0]["id"] if _plans else None)
     user_id = f"user_{uuid.uuid4().hex[:12]}"
     first_name = (body.name or "").strip()
     last_name = (body.last_name or "").strip()
@@ -32,6 +35,7 @@ async def register(body: RegisterInput, request: Request):
         "picture": None,
         "product": body.product or "advisor",  # V50.z323 — Axon Core
         "plan": body.plan or "professional",  # V50.z530 — landing Founder: builder (AxonLite) | professional (AdvisorOS CRM)
+        "org_plan": org_plan,  # V50.z541 — piano organizzazione (limite utenti del team)
         "subscription_status": "trial",  # V50.z329 — prova gratuita di TRIAL_DAYS giorni per ogni nuovo iscritto (promo/referral la estendono)
         "trial_expires_at": utcnow() + timedelta(days=TRIAL_DAYS),
         "created_at": utcnow(),
@@ -75,6 +79,15 @@ async def register(body: RegisterInput, request: Request):
         await _email_verify_send(doc)
     except Exception as exc:  # noqa: BLE001
         logging.getLogger("auth").warning("verify email send failed: %s", exc)
+    # V50.z541 — email di BENVENUTO + onboarding inviata SUBITO alla registrazione (prima partiva solo dopo il codice di verifica,
+    # che molti non inserivano mai → nessun benvenuto). Resta il ritentativo alla verifica se qui fallisce; errore visibile in /admin/users.
+    _welcome = globals().get("_welcome_email_send")
+    if _welcome:
+        try:
+            await _welcome(doc)
+        except Exception as exc:  # noqa: BLE001
+            logging.getLogger("auth").warning("welcome email (register) failed: %s", exc)
+            await db.users.update_one({"user_id": user_id}, {"$set": {"welcome_email_error": str(exc)[:200]}})
     return {"token": token, "user": UserOut(**{k: doc.get(k) for k in ["user_id", "email", "name", "picture", "role", "areas", "parent_user_id", "product", "email_verified"]}).model_dump(), "promo": promo, "requires_email_verification": True}
 
 
@@ -131,8 +144,10 @@ async def verify_email(body: EmailVerifyIn, user=Depends(get_current_user)):
     if _welcome and not fresh.get("welcome_email_sent_at"):
         try:
             await _welcome(fresh)
+            await db.users.update_one({"user_id": user["user_id"]}, {"$unset": {"welcome_email_error": ""}})
         except Exception as exc:  # noqa: BLE001
             logging.getLogger("auth").warning("welcome email failed: %s", exc)
+            await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"welcome_email_error": str(exc)[:200]}})
     strip_id(fresh); fresh.pop("password_hash", None); fresh.pop("email_verify", None)
     return {"ok": True, "user": UserOut(**fresh).model_dump()}
 

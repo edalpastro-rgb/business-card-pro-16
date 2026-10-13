@@ -47,6 +47,7 @@ export type RegisterExtra = {
   lastName?: string; promoCode?: string; privacyAccepted?: boolean; newsletter?: boolean;
   challengeId?: string; powNonce?: string; turnstileToken?: string | null; hp?: string;
   plan?: "builder" | "professional"; // V50.z530 — piano Founder scelto dalla landing
+  orgPlan?: string; // V50.z541 — piano organizzazione scelto nel modulo (collab | master10 | master50 | enterprise)
 };
 
 export type LoginResult =
@@ -333,7 +334,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       method: "POST",
       body: {
         email, password, name, product: "advisor", // V50.z323 — Axon Core: questa app è AdvisorOS
-        last_name: extra?.lastName || undefined, promo_code: extra?.promoCode || undefined, plan: extra?.plan || undefined,
+        last_name: extra?.lastName || undefined, promo_code: extra?.promoCode || undefined, plan: extra?.plan || undefined, org_plan: extra?.orgPlan || undefined,
         privacy_accepted: !!extra?.privacyAccepted, newsletter: !!extra?.newsletter,
         challenge_id: extra?.challengeId, pow_nonce: extra?.powNonce, turnstile_token: extra?.turnstileToken || undefined, hp: extra?.hp || "",
       },

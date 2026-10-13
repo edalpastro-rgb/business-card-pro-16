@@ -21,7 +21,9 @@ _PW_LOG = logging.getLogger("axon_paywall")
 STRIPE_API_KEY = os.environ.get("STRIPE_API_KEY", "")
 BILLING_SUPPORT_EMAIL = os.environ.get("BILLING_SUPPORT_EMAIL", "info@advisoros.it")
 
-# Piani definiti SOLO lato server (mai importi dal client). Modificabili qui.
+# Piani definiti SOLO lato server (mai importi dal client).
+# V50.z541 — i piani acquistabili sono i PIANI ORGANIZZAZIONE del CMS Supermaster (org_plans.py, /admin/org-plans): mensili, importo =
+# price_month, e al pagamento il Master radice riceve anche `org_plan` = piano pagato (upgrade utenti). BILLING_PLANS resta come fallback.
 BILLING_PLANS = {
     "mensile": {"id": "mensile", "label": "Mensile", "amount": 29.0, "currency": "eur", "days": 30, "desc": "Tutte le funzioni AdvisorOS per 30 giorni"},
     "annuale": {"id": "annuale", "label": "Annuale", "amount": 290.0, "currency": "eur", "days": 365, "desc": "12 mesi al prezzo di 10 — tutte le funzioni", "badge": "-17 %"},
@@ -100,8 +102,9 @@ async def billing_plans(user=Depends(get_current_user)):
     tenant = await db.users.find_one({"user_id": tid}, {"_id": 0, "password_hash": 0}) or user
     st = _pw_tenant_state(tenant)
     return {
-        "plans": list(BILLING_PLANS.values()),
+        "plans": list((await _pw_plans()).values()),
         "state": st,
+        "org": await _org_plan_state(user),  # noqa: F821 — V50.z541: piano/utilizzo utenti dell'organizzazione
         "is_owner": tid == user["user_id"],
         "support_email": BILLING_SUPPORT_EMAIL,
         "stripe_enabled": bool(STRIPE_API_KEY),
@@ -109,8 +112,14 @@ async def billing_plans(user=Depends(get_current_user)):
 
 
 # ---------- Stripe Checkout ----------
+async def _pw_plans() -> dict:
+    """V50.z541 — piani acquistabili: org plans (CMS) se presenti, altrimenti BILLING_PLANS."""
+    org = await _org_billing_plans()  # noqa: F821
+    return org or BILLING_PLANS
+
+
 class BillingCheckoutIn(BaseModel):
-    plan: Literal["mensile", "annuale"]
+    plan: str = Field(min_length=2, max_length=40)
     origin_url: str = Field(min_length=8, max_length=300)
 
 
@@ -146,7 +155,9 @@ async def _pw_grant_days(tenant_uid: str, days: int, *, reason: str) -> dict:
 async def billing_checkout(body: BillingCheckoutIn, request: Request, user=Depends(get_current_user)):
     if not STRIPE_API_KEY:
         raise HTTPException(status_code=503, detail="Pagamenti non configurati: contatta il supporto")
-    plan = BILLING_PLANS[body.plan]
+    plan = (await _pw_plans()).get(body.plan)
+    if not plan:
+        raise HTTPException(status_code=400, detail="Piano non valido")
     tid = tenant_id(user)  # noqa: F821
     origin = body.origin_url.rstrip("/")
     if not origin.startswith("http"):
@@ -186,6 +197,9 @@ async def _pw_settle(session_id: str, payment_status: str, status: str) -> dict:
         if r.modified_count:
             granted = await _pw_grant_days(tx["tenant_id"], int(tx["days"]), reason=f"stripe:{tx['plan']}")
             await db.payment_transactions.update_one({"session_id": session_id}, {"$set": {"granted": granted}})
+            if await _org_plan_by_id(tx["plan"]):  # noqa: F821 — V50.z541: il piano pagato diventa il piano organizzazione del Master radice
+                root_id = await _org_root_id(tx["tenant_id"])  # noqa: F821
+                await db.users.update_one({"user_id": root_id}, {"$set": {"org_plan": tx["plan"], "org_plan_paid_at": utcnow()}})
             await db.activation_requests.update_many({"tenant_id": tx["tenant_id"], "status": "open"}, {"$set": {"status": "paid", "handled_at": utcnow()}})
     else:
         await db.payment_transactions.update_one({"session_id": session_id}, {"$set": upd})
@@ -233,7 +247,7 @@ async def stripe_webhook(request: Request):
 # ---------- richiesta di attivazione al Super Admin ----------
 class ActivationRequestIn(BaseModel):
     note: Optional[str] = Field(None, max_length=500)
-    plan: Optional[Literal["mensile", "annuale"]] = None
+    plan: Optional[str] = Field(None, max_length=40)
 
 
 @api_router.post("/billing/activation-request")
@@ -254,7 +268,7 @@ async def billing_activation_request(body: ActivationRequestIn, user=Depends(get
     if not admins:
         admins = [BILLING_SUPPORT_EMAIL]
     subject = f"[AdvisorOS] Richiesta attivazione — {user.get('name') or user.get('email')}"
-    plan_txt = BILLING_PLANS[body.plan]["label"] if body.plan else "non indicato"
+    plan_txt = ((await _pw_plans()).get(body.plan) or {}).get("label", body.plan) if body.plan else "non indicato"
     html = (f"<p>Richiesta di attivazione abbonamento.</p><ul><li><b>Utente:</b> {user.get('name') or ''} &lt;{user.get('email')}&gt;</li>"
             f"<li><b>Azienda:</b> {tenant.get('company') or '—'}</li><li><b>Stato:</b> {st.get('status')} (scad. {st.get('expires_at') or '—'})</li>"
             f"<li><b>Piano richiesto:</b> {plan_txt}</li><li><b>Nota:</b> {doc['note'] or '—'}</li></ul>"

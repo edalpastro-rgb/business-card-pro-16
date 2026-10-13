@@ -59,6 +59,7 @@ async def invite_member(body: TeamInviteInput, user=Depends(get_current_user)):
     existing = await db.users.find_one({"email": body.email.lower()})
     if existing:
         raise HTTPException(status_code=400, detail="Email già registrata")
+    await _org_limit_check(user)  # noqa: F821 — V50.z541: limite utenti del piano dell'organizzazione
     uid = f"user_{uuid.uuid4().hex[:12]}"
     doc = {
         "user_id": uid,

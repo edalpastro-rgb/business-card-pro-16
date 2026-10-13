@@ -388,7 +388,7 @@ async def _prepare_assistant_prompt(
         except Exception as exc:
             logger.debug("[axon-kb] personal RAG failed: %s", exc)
         try:
-            out += await _build_faq_section(msg)  # noqa: F821 — landing_cms.py (V50.z533: FAQ ufficiali pertinenti → «dove trovo X»)
+            out += await _build_faq_section(msg, user=user)  # noqa: F821 — landing_cms.py (V50.z533: FAQ ufficiali pertinenti → «dove trovo X»; V50.z541 per ruolo)
         except Exception as exc:
             logger.debug("[axon-faq] section failed: %s", exc)
         return out
@@ -831,7 +831,7 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     except Exception as exc:
         logger.debug("[axon-kb] personal RAG failed: %s", exc)
     try:
-        kb_section += await _build_faq_section(msg)  # noqa: F821 — landing_cms.py (V50.z533)
+        kb_section += await _build_faq_section(msg, user=user)  # noqa: F821 — landing_cms.py (V50.z533; V50.z541 per ruolo)
     except Exception as exc:
         logger.debug("[axon-faq] section failed: %s", exc)
 

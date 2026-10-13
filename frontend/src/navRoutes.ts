@@ -4,7 +4,7 @@
 // NB: tenere allineato con backend/routes/axon_nav_guard.py (_NAV_REAL_PATHS) quando si aggiunge una schermata.
 export const KNOWN_ROUTES: ReadonlySet<string> = new Set([
   "/", "/home", "/calendario", "/chat", "/contatti", "/help", "/impostazioni", "/report", "/webviewer",
-  "/admin/beta", "/admin/customers", "/admin/onboarding", "/admin/promo-codes", "/admin/register-guard", "/admin/upload-guard", "/admin/wake-samples", "/admin/welcome-email",
+  "/admin/beta", "/admin/customers", "/admin/onboarding", "/admin/org-plans", "/admin/promo-codes", "/admin/users", "/admin/register-guard", "/admin/upload-guard", "/admin/wake-samples", "/admin/welcome-email",
   "/ai-teach", "/anagrafica-master", "/appointment/new", "/appointment-stats", "/auth/forgot-password", "/axon-alarms", "/axon-alerts", "/axon-brain",
   "/axon-cheatsheet", "/axon-expenses", "/axon-homeassistant", "/axon-hub", "/axon-insights", "/axon-integrations", "/axon-lab", "/axon-lab/business",
   "/axon-lab/delegates", "/axon-lab/rules", "/axon-lab/training", "/axon-media", "/axon-memory", "/axon-notifications", "/axon-proactive",
