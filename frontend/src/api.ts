@@ -7,7 +7,12 @@ import * as offline from "@/src/offline"; // V50.z279 — modalità aereo: cache
 // V50.z403 — Riferimento esplicito alla variabile d'ambiente del backend (Preview/Live via pannello Segreti).
 // V50.z431 — UNICO punto che definisce l'indirizzo del backend: EXPO_PUBLIC_API_BASE_URL (VPS Axon Core) ha la priorità,
 // EXPO_PUBLIC_BACKEND_URL resta come fallback. Tutto il resto del progetto importa BACKEND_URL da qui.
-export const BACKEND_URL: string = (process.env.EXPO_PUBLIC_API_BASE_URL || process.env.EXPO_PUBLIC_BACKEND_URL) as string;
+// V50.z539 — Domini Core riconosciuti: se la web app è servita da uno di questi host, il backend è lo STESSO host
+// (same-origin: niente cross-domain, un solo certificato). core.italianbrain.it è trattato esattamente come core.axonos.cloud.
+export const CORE_DOMAINS = ["core.axonos.cloud", "core.italianbrain.it"] as const;
+const _envBackend = (process.env.EXPO_PUBLIC_API_BASE_URL || process.env.EXPO_PUBLIC_BACKEND_URL) as string;
+const _webHost = typeof window !== "undefined" && window.location ? window.location.hostname : "";
+export const BACKEND_URL: string = _webHost && (CORE_DOMAINS as readonly string[]).includes(_webHost) ? `${window.location.protocol}//${window.location.host}` : _envBackend;
 const BASE = BACKEND_URL;
 const TOKEN_KEY = "auth_token_v1";
 

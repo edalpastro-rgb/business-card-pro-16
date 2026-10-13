@@ -7795,3 +7795,8 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 - Repo allineato (senza rebuild): `axon-core.conf` server_name + core.italianbrain.it; `docker-compose.yml` volume /var/www/italianbrain:ro su nginx.
 - Solo `italianbrain-landing.tgz` rigenerato.
 - V50.z538b: fix sed in issue_ssl_vps.sh (delimitatore '#' confliggeva con il commento nella sostituzione → 'unknown option to s'); ora '|' + [[:space:]]. Solo landing tgz rigenerato.
+
+## V50.z539 — core.italianbrain.it riconosciuto come core.axonos.cloud
+- `frontend/src/api.ts`: `CORE_DOMAINS = ["core.axonos.cloud","core.italianbrain.it"]`; su web, se l'host corrente è uno di questi, `BACKEND_URL` = origine corrente (same-origin), altrimenti env. Stesso bundle valido su entrambi i domini.
+- `deploy/axon-core/nginx/conf.d/axon-core.conf`: server_name include core.italianbrain.it (già V50.z538). `install_web_on_vps.sh`: rilevazione dominio robusta (ignora IP e core.italianbrain.it → non perde core.axonos.cloud).
+- Nessun'altra whitelist/redirect per dominio esiste nel codice (CORS = *). Pacchetti core+web rigenerati.

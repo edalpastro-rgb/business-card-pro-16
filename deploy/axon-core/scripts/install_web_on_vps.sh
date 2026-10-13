@@ -9,11 +9,18 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 test -f "$DEST/docker-compose.yml" || { echo "ERRORE: $DEST/docker-compose.yml non trovato (DEST=$DEST)"; exit 1; }
 test -f "$HERE/web/index.html" || { echo "ERRORE: web/index.html mancante nel pacchetto"; exit 1; }
 
-# 1) Dominio già configurato nella conf attuale (CORE_DOMAIN fu sostituito durante la migrazione)
+# 1) Dominio già configurato nella conf attuale (CORE_DOMAIN fu sostituito durante la migrazione).
+#    V50.z539 — il server_name può contenere più host (IP, core.axonos.cloud, core.italianbrain.it): prendo il primo dominio
+#    "principale" ignorando IP e core.italianbrain.it (già presente nel template), così nessun dominio viene perso.
 CUR="$DEST/nginx/conf.d/axon-core.conf"
-DOMAIN="$(grep -m1 -oE 'server_name [^;]+' "$CUR" | awk '{print $NF}' || true)"
-[[ -z "$DOMAIN" || "$DOMAIN" == "CORE_DOMAIN" ]] && DOMAIN="core.axonos.cloud"
-echo "→ dominio: $DOMAIN"
+NAMES="$(grep -m1 -oE 'server_name [^;]+' "$CUR" | cut -d' ' -f2- || true)"
+DOMAIN=""
+for n in $NAMES; do
+  [[ "$n" =~ ^[0-9.]+$ || "$n" == "CORE_DOMAIN" || "$n" == "core.italianbrain.it" ]] && continue
+  DOMAIN="$n"; break
+done
+[[ -z "$DOMAIN" ]] && DOMAIN="core.axonos.cloud"
+echo "→ dominio: $DOMAIN (+ core.italianbrain.it)"
 
 # 2) Backup + copia file
 STAMP="$(date +%Y%m%d-%H%M%S)"

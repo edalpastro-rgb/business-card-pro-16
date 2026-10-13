@@ -2,6 +2,8 @@
 # build_web_package.sh — export web di AdvisorOS (Expo, SPA) + nginx conf + docker-compose aggiornati → axon-web-pkg.tgz
 # Uso: bash deploy/axon-core/scripts/build_web_package.sh [--skip-export]   (dalla root del repo)
 # Il frontend viene compilato con EXPO_PUBLIC_BACKEND_URL=https://core.axonos.cloud (stesso dominio di nginx sul VPS).
+# V50.z539 — src/api.ts riconosce i domini Core (core.axonos.cloud, core.italianbrain.it): se il bundle è servito da uno di
+# essi usa quell'origine come backend → lo STESSO bundle funziona su entrambi i domini senza ricompilare.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 DIST="$ROOT/deploy/axon-core/web-dist"
