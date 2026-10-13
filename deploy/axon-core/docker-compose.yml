@@ -103,6 +103,7 @@ services:
       - ./nginx/certs:/etc/nginx/certs:ro           # fullchain.pem + privkey.pem (Let's Encrypt o autofirmato — vedi guida)
       - ./nginx/www:/var/www/certbot                # ACME http-01 challenge
       - ./web:/usr/share/nginx/html:ro               # AdvisorOS web (export Expo) — link pubblici /wake-training, /public-review, desktop
+      - /var/www/italianbrain:/var/www/italianbrain:ro   # V50.z538 — landing italianbrain.it (HTTPS, stesso certificato SAN)
     depends_on:
       - axon-core
     healthcheck:

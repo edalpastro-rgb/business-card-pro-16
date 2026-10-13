@@ -7789,3 +7789,8 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 - Backend `POST /kb/documents` accetta `pages_base64: [..]` (max 30 foto): OCR pagina per pagina in background (`ocr_progress: "i/N"`), testo unito con «--- Pagina i ---», un unico documento `source_type=image`.
 - Frontend `knowledge-base.tsx`: bottone **Scatta foto** → `ensureDevicePermission("camera")` (contratto permessi esistente) → nativo `LiveCameraScanner` multi-pagina con autocrop, web `shootLegacy()` scatto singolo. Riga documento mostra «OCR in corso (pagina i/N)».
 - Landing: `favicon.svg` rigenerato (XML valido, xmlns, gradiente ciano→ambra, sfondo #020B1E), aggiunti `favicon.png` (64) e `apple-touch-icon.png` (180) come fallback; `<link>` in index.html; README con comando unico di aggiornamento.
+
+## V50.z538 — HTTPS italianbrain.it (procedura unica, nginx in Docker) — NESSUN rebuild core/web
+- `deploy/italianbrain-landing/issue_ssl_vps.sh`: DNS check → copia landing in /var/www/italianbrain + mount nel container nginx → installa italianbrain.conf (80 ACME+redirect, 443 landing, www→apex) → aggiunge core.italianbrain.it ai server_name di axon-core.conf → cert temporaneo se manca → certbot (docker certbot/certbot, webroot ./nginx/www o MODE=standalone) cert SAN unico `italianbrain.it` (3 domini) → copia in ./nginx/certs + reload → renew_ssl.sh + cron lun/gio 04:10 → stampa curl di verifica.
+- Repo allineato (senza rebuild): `axon-core.conf` server_name + core.italianbrain.it; `docker-compose.yml` volume /var/www/italianbrain:ro su nginx.
+- Solo `italianbrain-landing.tgz` rigenerato.
