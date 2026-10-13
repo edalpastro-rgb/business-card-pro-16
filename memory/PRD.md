@@ -7794,3 +7794,4 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 - `deploy/italianbrain-landing/issue_ssl_vps.sh`: DNS check → copia landing in /var/www/italianbrain + mount nel container nginx → installa italianbrain.conf (80 ACME+redirect, 443 landing, www→apex) → aggiunge core.italianbrain.it ai server_name di axon-core.conf → cert temporaneo se manca → certbot (docker certbot/certbot, webroot ./nginx/www o MODE=standalone) cert SAN unico `italianbrain.it` (3 domini) → copia in ./nginx/certs + reload → renew_ssl.sh + cron lun/gio 04:10 → stampa curl di verifica.
 - Repo allineato (senza rebuild): `axon-core.conf` server_name + core.italianbrain.it; `docker-compose.yml` volume /var/www/italianbrain:ro su nginx.
 - Solo `italianbrain-landing.tgz` rigenerato.
+- V50.z538b: fix sed in issue_ssl_vps.sh (delimitatore '#' confliggeva con il commento nella sostituzione → 'unknown option to s'); ora '|' + [[:space:]]. Solo landing tgz rigenerato.

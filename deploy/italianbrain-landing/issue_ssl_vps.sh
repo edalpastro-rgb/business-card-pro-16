@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# issue_ssl_vps.sh — V50.z538 — PROCEDURA UNICA (VPS, nginx in Docker): certificato Let's Encrypt per
+# issue_ssl_vps.sh — V50.z538b (fix sed delimitatore) — PROCEDURA UNICA (VPS, nginx in Docker): certificato Let's Encrypt per
 #   italianbrain.it + www.italianbrain.it + core.italianbrain.it  (un solo certificato SAN, un solo rinnovo)
 # e pubblicazione HTTPS della landing dentro il container nginx di Axon Core.
 #
@@ -60,7 +60,8 @@ ok "Landing copiata in $WEBROOT_HOST"
 if ! grep -q "$WEBROOT_HOST:$WEBROOT_HOST" docker-compose.yml; then
   cp docker-compose.yml "docker-compose.yml.bak-$(date +%Y%m%d-%H%M%S)"
   # aggiunge il volume subito dopo quello della web app (./web:/usr/share/nginx/html:ro) nel servizio nginx
-  sed -i "s#^\(\s*\)- \./web:/usr/share/nginx/html:ro.*#&\n\1- $WEBROOT_HOST:$WEBROOT_HOST:ro   # landing italianbrain.it#" docker-compose.yml
+  # (delimitatore '|' perché pattern e sostituzione contengono '/' e '#')
+  sed -i -E "s|^([[:space:]]*)- \./web:/usr/share/nginx/html:ro.*|&\n\1- $WEBROOT_HOST:$WEBROOT_HOST:ro   # landing italianbrain.it|" docker-compose.yml
   grep -q "$WEBROOT_HOST:$WEBROOT_HOST" docker-compose.yml || die "Non sono riuscito ad aggiungere il volume in docker-compose.yml: aggiungi a mano sotto nginx.volumes →  - $WEBROOT_HOST:$WEBROOT_HOST:ro"
   ok "Volume $WEBROOT_HOST aggiunto a docker-compose.yml (nginx)"
   NEED_RECREATE=1
@@ -80,7 +81,7 @@ if grep -q "core.italianbrain.it" "$CORE_CONF"; then
   ok "core.italianbrain.it già nel server_name di axon-core.conf"
 else
   cp "$CORE_CONF" "$CORE_CONF.bak-$(date +%Y%m%d-%H%M%S)"
-  sed -i -E 's/^(\s*server_name\s+[^;]*);/\1 core.italianbrain.it;/' "$CORE_CONF"
+  sed -i -E 's|^([[:space:]]*server_name[[:space:]]+[^;]*);|\1 core.italianbrain.it;|' "$CORE_CONF"
   grep -q "core.italianbrain.it" "$CORE_CONF" || die "sed su server_name fallito: aggiungi a mano core.italianbrain.it ai due server_name di $CORE_CONF"
   ok "core.italianbrain.it aggiunto ai server_name di axon-core.conf"
 fi
