@@ -5,7 +5,7 @@ import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndic
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { PUBLIC_LANDING_URL } from "@/app/landing"; // V50.z535 — landing esterna italianbrain.it
+import { PUBLIC_LANDING_URL } from "@/src/landing/landingSeen"; // V50.z535 — landing esterna italianbrain.it
 import { LP } from "@/src/landing/palette";
 import { api } from "@/src/api";
 

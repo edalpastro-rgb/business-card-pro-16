@@ -1,32 +1,19 @@
-import { useEffect, useState } from "react";
-import { View, ActivityIndicator, StyleSheet, Platform } from "react-native";
+import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { Redirect } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@/src/auth";
-import { LANDING_SEEN_KEY } from "@/src/landing/landingSeen";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
+// V50.z540 — la route /landing è stata rimossa: all'avvio l'app va DIRETTAMENTE a /login (web e mobile), a /home se già autenticati.
 export default function Index() {
   const { user, loading } = useAuth();
-  // V50.z314 — su telefono la landing pubblica si mostra al PRIMO avvio (prima del login); dalla seconda volta → login
-  const [landingSeen, setLandingSeen] = useState<boolean | null>(Platform.OS === "web" ? false : null);
-  useEffect(() => {
-    if (Platform.OS === "web") return;
-    AsyncStorage.getItem(LANDING_SEEN_KEY).then((v) => setLandingSeen(v === "1")).catch(() => setLandingSeen(true));
-  }, []);
-
-  if (loading || (!user && landingSeen === null)) {
+  if (loading) {
     return (
       <View style={styles.center} testID="app-loading">
         <ActivityIndicator size="large" color={HT.brand} />
       </View>
     );
   }
-  if (!user) {
-    // Web: sempre la landing pubblica. Mobile: landing solo al primo avvio, poi direttamente il login.
-    if (Platform.OS === "web" || !landingSeen) return <Redirect href="/landing" />;
-    return <Redirect href="/login" />;
-  }
+  if (!user) return <Redirect href="/login" />;
   return <Redirect href="/(tabs)/home" />;
 }
 

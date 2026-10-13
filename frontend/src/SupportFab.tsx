@@ -43,7 +43,7 @@ type Ticket = {
   escalated_at?: string;
 };
 
-const HIDE_ON_PATHS = ["/login", "/index", "/", "/landing", "/auth"];
+const HIDE_ON_PATHS = ["/login", "/index", "/", "/auth"];
 
 const C = {
   primary: "#FF6B35",

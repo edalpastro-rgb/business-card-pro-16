@@ -5,7 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, Animated, Easing, Platform, Image, ActivityIndicator, Linking, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { PUBLIC_LANDING_URL } from "@/app/landing"; // V50.z535 — landing esterna italianbrain.it
+import { PUBLIC_LANDING_URL } from "@/src/landing/landingSeen"; // V50.z535 — landing esterna italianbrain.it
 import { useRouter } from "expo-router";
 import { useAudioRecorder, RecordingPresets } from "expo-audio";
 import { api, BACKEND_URL } from "@/src/api";

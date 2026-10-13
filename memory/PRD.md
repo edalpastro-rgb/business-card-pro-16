@@ -7800,3 +7800,9 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 - `frontend/src/api.ts`: `CORE_DOMAINS = ["core.axonos.cloud","core.italianbrain.it"]`; su web, se l'host corrente è uno di questi, `BACKEND_URL` = origine corrente (same-origin), altrimenti env. Stesso bundle valido su entrambi i domini.
 - `deploy/axon-core/nginx/conf.d/axon-core.conf`: server_name include core.italianbrain.it (già V50.z538). `install_web_on_vps.sh`: rilevazione dominio robusta (ignora IP e core.italianbrain.it → non perde core.axonos.cloud).
 - Nessun'altra whitelist/redirect per dominio esiste nel codice (CORS = *). Pacchetti core+web rigenerati.
+
+## V50.z540 — Route /landing RIMOSSA: avvio → /login
+- Eliminato `app/landing.tsx`; `PUBLIC_LANDING_URL` spostata in `src/landing/landingSeen.ts` (usata da lite.tsx, wake-training.tsx).
+- `app/index.tsx`: non autenticato → `/login` sempre (web e mobile, nessun flag "landing vista"); autenticato → /home.
+- Nuovo `app/+not-found.tsx`: qualunque path inesistente (inclusa /landing) → `/login`.
+- Rimosse le menzioni "/landing" da _layout.tsx (inPublicPage), DesktopSidebar, SupportFab, navRoutes, paywall. /lite invariata.

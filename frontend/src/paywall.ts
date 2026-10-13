@@ -6,7 +6,7 @@ import { api } from "@/src/api";
 import { onSubscriptionExpired } from "@/src/paywallEvents";
 
 /** Rotte raggiungibili anche con abbonamento scaduto (blocco, codici, logout, auth). */
-export const PAYWALL_ALLOWED = ["/paywall", "/login", "/landing", "/auth", "/2fa", "/verify", "/faq", "/help-center", "/index", "/"];
+export const PAYWALL_ALLOWED = ["/paywall", "/login", "/auth", "/2fa", "/verify", "/faq", "/help-center", "/index", "/"];
 export function isPaywallAllowed(pathname: string | null | undefined): boolean {
   const p = pathname || "/";
   return PAYWALL_ALLOWED.some((a) => p === a || p.startsWith(a + "/")) || p.startsWith("/impostazioni");

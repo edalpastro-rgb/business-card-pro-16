@@ -171,7 +171,7 @@ function StackWithCallBar() {
   const { user } = useAuth();
   // V50.z257 — Tour conversazionale a schermo intero: niente FAB/Edge/bottom nav sopra
   const pathname = usePathname() || "";
-  const inPublicPage = pathname === "/landing" || pathname === "/lite" || pathname.startsWith("/landing/") || pathname.startsWith("/lite/"); // V50.z493 — landing pubblica SEMPRE pulita (anche da loggati): niente sidebar, FAB, tab bar, edge panel, redirect
+  const inPublicPage = pathname === "/lite" || pathname.startsWith("/lite/"); // V50.z493 — pagina pubblica SEMPRE pulita (anche da loggati): niente sidebar, FAB, tab bar, edge panel, redirect
   const inTour = inPublicPage || pathname.startsWith("/tour") || pathname.startsWith("/paywall") || pathname.startsWith("/permessi-onboarding") || pathname.startsWith("/voice-copilot"); // V50.z330 · V50.z485 permessi primo avvio — sul paywall niente FAB/tab bar/edge panel · V50.z495 Axon Drive a schermo intero (monitor auto/CarPlay)
   const router = useRouter();
   useEffect(() => {
