@@ -202,6 +202,11 @@ LANDING_DEFAULTS: Dict[str, Any] = {
                     {"emoji": "⚡", "title": "Dati di Settore Nativi", "text": "Prezzi PUN e fasce GME in tempo reale, storico 18 mesi, PDF scaricabili da mostrare al cliente."},
                     {"emoji": "📄", "title": "Pipeline Documentale", "text": "Foto di bollette e contratti → anagrafica compilata automaticamente. Trascrizione delle chiamate con estrazione di budget e next step direttamente nelle note CRM."},
                     {"emoji": "🛡️", "title": "Deploy Sovrano", "text": "VPS proprietaria: i dati restano tuoi anche se cambi mandato. Massima reattività anche nelle zone d'ombra. Se internet cade durante il tuo giro visite, l'app non si blocca: usa la rubrica locale come fallback e memorizza le note vocali offline per non lasciarti mai a piedi."},
+                    # V50.z552 — 5° pilastro con punti elenco
+                    {"emoji": "🧠", "title": "Report Comportamentale e Lettura Psicologica del Cliente", "text": "AdvisorOS non si limita a registrare i tuoi dati: impara a conoscere la psicologia dei tuoi clienti. Analizzando lo storico completo della tua interattività (email, messaggi, durata e tono delle chiamate), Axon crea un report comportamentale continuo.", "bullets": [
+                        "Conosci l'approccio ideale: Prima di entrare da un cliente, l'assistente ti dice se il profilo è scettico, analitico o pronto alla chiusura, suggerendoti la strategia di comunicazione esatta per concludere il contratto.",
+                        "Ottimizza il tempismo: Scopri in automatico i giorni e gli orari in cui quel preciso cliente è più ricettivo e reattivo, azzerando le chiamate a vuoto.",
+                    ]},
                 ],
             },
             # V50.z547 — blocco «Advisor Drive» (in coda alla sezione Armatura del Consulente)
@@ -240,6 +245,8 @@ LANDING_DEFAULTS: Dict[str, Any] = {
                         # V50.z550 — confronto con «CRM Gratis + ChatGPT/Gemini»
                         {"need": "Funzionamento Offline", "cells": ["✅ Sì (dati salvati localmente e sincronizzati sulla VPS al ritorno della rete)", "❌ Solo online", "❌ Solo online", "❌ Solo online", "🟡 Lettura parziale", "❌ Solo online", "❌ No (ChatGPT e Gemini vanno in timeout senza internet)"]},
                         {"need": "Setup e Collegamento", "cells": ["✅ 5 Minuti (onboarding guidato nativo tutto in uno)", "❌ Partner e consulenti", "❌ Giorni/Settimane", "❌ Giorni/Settimane", "🟡 Ore", "❌ Giorni/Settimane", "❌ Complesso (richiede configurazioni API e piattaforme ponte come Zapier/Make con costi extra nascosti)"]},
+                        # V50.z552
+                        {"need": "Analisi Psicologica Cliente", "cells": ["✅ Sì (report comportamentale automatico da storico integrato email/WhatsApp/chiamate)", "🟡 Solo sentiment, a consumo extra", "❌", "❌", "❌", "❌", "❌ No (l'AI esterna non ha accesso centralizzato allo storico completo)"]},
                     ],
                     "note": "Nota di trasparenza: I marchi Salesforce, HubSpot, Zoho, Pipedrive e vtenext appartengono ai rispettivi proprietari. Le funzionalità e i prezzi indicati fanno riferimento ai listini pubblici aggiornati al 2026. AdvisorOS è una piattaforma indipendente non affiliata ai suddetti marchi.",
                     "close": "✖️ Chiudi e torna alla pagina",
@@ -276,6 +283,60 @@ def _landing_merge(base: Any, over: Any) -> Any:
     return over if over is not None else base
 
 
+# V50.z552 — Il CMS salva l'intero contenuto e le liste sovrascrivono i default: quando aggiungiamo un nuovo pilastro, una riga
+# o una colonna della tabella, un override già salvato non li mostrerebbe mai. Il CMS non permette di eliminare elementi
+# (solo modificarli), quindi è sicuro RE-INSERIRE gli elementi di default mancanti (match su "title" / "need") e allineare
+# le colonne della tabella comparativa (padding delle celle con "—").
+_LIST_PATHS = (
+    (("pages", "advisor", "features", "items"), "title"),
+    (("pages", "advisor", "why", "items"), "title"),
+    (("pages", "advisor", "why", "modal", "rows"), "need"),
+    (("pages", "advisor", "diff", "items"), "title"),
+    (("pages", "advisor", "drive", "items"), "title"),
+    (("pages", "advisor", "pricing", "tiers"), "name"),
+    (("pages", "axon", "pain", "items"), "title"),
+    (("pages", "axon", "pillars", "items"), "title"),
+    (("pages", "axon", "drive", "items"), "title"),
+    (("pages", "axon", "onboarding", "modal", "steps"), "title"),
+)
+
+
+def _dig(d: Any, path: tuple) -> Any:
+    for k in path:
+        if not isinstance(d, dict):
+            return None
+        d = d.get(k)
+    return d
+
+
+def _migrate_override_lists(over: Dict[str, Any]) -> None:
+    for path, key in _LIST_PATHS:
+        cur, dflt = _dig(over, path), _dig(LANDING_DEFAULTS, path)
+        if not isinstance(cur, list) or not isinstance(dflt, list):
+            continue
+        have = {str((it or {}).get(key, "")).strip().lower() for it in cur if isinstance(it, dict)}
+        for i, d_it in enumerate(dflt):
+            k = str(d_it.get(key, "")).strip().lower()
+            if k and k not in have:
+                cur.insert(min(i, len(cur)), copy.deepcopy(d_it))
+                have.add(k)
+    # colonne tabella comparativa: aggiungi quelle mancanti e allinea le celle di ogni riga
+    cols, dcols = _dig(over, ("pages", "advisor", "why", "modal", "columns")), _dig(LANDING_DEFAULTS, ("pages", "advisor", "why", "modal", "columns"))
+    rows = _dig(over, ("pages", "advisor", "why", "modal", "rows"))
+    if isinstance(cols, list) and isinstance(dcols, list) and len(cols) < len(dcols):
+        drows = {r["need"]: r for r in _dig(LANDING_DEFAULTS, ("pages", "advisor", "why", "modal", "rows"))}
+        for j in range(len(cols), len(dcols)):
+            cols.append(dcols[j])
+            for r in rows or []:
+                if isinstance(r, dict):
+                    cells = r.setdefault("cells", [])
+                    while len(cells) < j:
+                        cells.append("—")
+                    if len(cells) == j:
+                        d_cells = (drows.get(r.get("need")) or {}).get("cells") or []
+                        cells.append(d_cells[j] if j < len(d_cells) else "—")
+
+
 async def _landing_content() -> Dict[str, Any]:
     doc = await db.landing_content.find_one({"_id": "global"}, {"_id": 0, "content": 1, "updated_at": 1, "updated_by": 1})  # noqa: F821
     over = (doc or {}).get("content") or {}
@@ -284,6 +345,7 @@ async def _landing_content() -> Dict[str, Any]:
     axon_over = (over.get("pages") or {}).get("axon")
     if isinstance(axon_over, dict) and "pillars" not in axon_over:
         over = {**over, "pages": {k: v for k, v in over["pages"].items() if k != "axon"}}
+    _migrate_override_lists(over)
     content = _landing_merge(copy.deepcopy(LANDING_DEFAULTS), over)
     return {"content": content, "is_default": not doc, "updated_at": (doc or {}).get("updated_at"), "updated_by": (doc or {}).get("updated_by")}
 

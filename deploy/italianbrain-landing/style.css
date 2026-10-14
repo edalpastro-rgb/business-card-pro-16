@@ -234,3 +234,7 @@ body.modal-open{overflow:hidden}
 .promise h2{font-size:clamp(20px,3vw,26px);line-height:1.15;font-weight:900;letter-spacing:-.4px;margin-bottom:8px}
 .promise p{color:var(--text2);font-size:15px}
 @media(max-width:560px){.promise{flex-direction:column}.half .btn{align-self:stretch}}
+/* V50.z552 — punti elenco dentro i pilastri */
+.pillar-bullets{margin-top:6px;gap:8px}
+.pillar-bullets li{font-size:14px;color:var(--text2)}
+.pillar-brand .pillar-bullets li::before{color:var(--brand)}

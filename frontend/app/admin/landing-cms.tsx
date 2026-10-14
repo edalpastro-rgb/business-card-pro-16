@@ -392,6 +392,7 @@ export default function LandingCmsScreen() {
                   <View style={{ flex: 1 }}>{Field({ label: `Area ${i + 1} · titolo`, path: ["pages", "advisor", "features", "items", String(i), "title"] })}</View>
                 </View>
                 {Field({ label: `Area ${i + 1} · testo`, path: ["pages", "advisor", "features", "items", String(i), "text"], multiline: true })}
+                {ListField({ label: `Area ${i + 1} · punti elenco (opzionali)`, path: ["pages", "advisor", "features", "items", String(i), "bullets"] })}
               </View>
             ))}
           </View>

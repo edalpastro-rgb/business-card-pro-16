@@ -98,13 +98,14 @@ export function Cols({ children }: { children: React.ReactNode }) {
   return <View style={[k.cols, compact && { flexDirection: "column" }]}>{children}</View>;
 }
 
-export function EmojiCard({ emoji, title, text, accent, glow, line, delay, testID }: { emoji: string; title: string; text: string; accent: string; glow: string; line: string; delay: number; testID?: string }) {
+export function EmojiCard({ emoji, title, text, bullets, accent, glow, line, delay, testID }: { emoji: string; title: string; text: string; bullets?: string[]; accent: string; glow: string; line: string; delay: number; testID?: string }) {
   return (
     <Reveal delay={delay} style={k.col}>
       <View style={k.card} testID={testID}>
         <View style={[k.cardIcon, { backgroundColor: glow, borderColor: line }]}><Text style={{ fontSize: 22 }}>{emoji}</Text></View>
         <Text style={[k.h3, { color: LP.onSurface }]}>{title}</Text>
         <Text style={k.p}>{text}</Text>
+        {bullets && bullets.length ? <Bullets items={bullets} accent={accent} /> : null}
         <View style={[k.cardBar, { backgroundColor: accent }]} />
       </View>
     </Reveal>

@@ -58,6 +58,12 @@
         if (!tpl) return;
         var node = tpl.content.cloneNode(true);
         node.querySelectorAll("[data-f]").forEach(function (f) { var val = it[f.getAttribute("data-f")]; if (val != null) f.textContent = sub(val, vars); });
+        // V50.z552 — sotto-liste (es. punti elenco di un pilastro): <ul data-f-list="bullets">
+        node.querySelectorAll("[data-f-list]").forEach(function (ul) {
+          var arr = it[ul.getAttribute("data-f-list")];
+          if (!Array.isArray(arr) || !arr.length) { ul.remove(); return; }
+          arr.forEach(function (b) { var li = document.createElement("li"); li.textContent = sub(b, vars); ul.appendChild(li); });
+        });
         box.appendChild(node);
       });
     });
