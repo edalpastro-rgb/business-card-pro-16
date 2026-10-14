@@ -172,3 +172,31 @@ h1 em{font-style:normal;background:linear-gradient(90deg,var(--axon),var(--brand
 .drive-row p{color:var(--text2);font-size:14px;margin-top:3px}
 .diff-intro{color:var(--text2);text-align:center;max-width:820px;margin:-8px auto 22px;font-size:15.5px}
 .note{color:var(--muted);font-size:12.5px;line-height:1.5;font-style:italic;max-width:900px;margin:18px auto 0;text-align:center}
+/* V50.z548 — «Perché scelgono AdvisorOS» + modal confronto tecnico */
+button.btn{border:0;cursor:pointer;font:inherit;font-weight:900;font-size:15px}
+#perche .cta-row{margin-top:24px}
+body.modal-open{overflow:hidden}
+.modal{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:12px}
+.modal[hidden]{display:none}
+.modal-backdrop{position:absolute;inset:0;background:rgba(4,10,20,.86);backdrop-filter:blur(3px)}
+.modal-box{position:relative;width:100%;max-width:1240px;max-height:calc(100vh - 24px);display:flex;flex-direction:column;background:var(--bg);border:1px solid rgba(255,255,255,.14);border-radius:22px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+.modal-head{display:flex;align-items:center;gap:12px;padding:10px 10px 10px 20px;border-bottom:1px solid var(--line);background:var(--bg2)}
+.modal-head h3{flex:1;font-size:19px;font-weight:900;letter-spacing:-.3px}
+.modal-x{flex:0 0 60px;width:60px;height:60px;border-radius:50%;border:1px solid rgba(255,255,255,.18);background:var(--bg3);color:var(--text);font-size:44px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding-bottom:4px}
+.modal-x:hover{background:var(--brand);color:#0B1220;border-color:var(--brand)}
+.modal-body{overflow:auto;padding:16px;display:flex;flex-direction:column;gap:14px}
+.cmp-full{overflow:auto}
+.cmp-wide{min-width:1080px;font-size:13.5px}
+.cmp-wide th,.cmp-wide td{padding:12px 12px}
+.cmp-wide thead th:first-child{min-width:200px}
+.modal .note{margin:0;text-align:left}
+.modal .cta-row{margin:0}
+@media(max-width:640px){
+  .cmp-wide{min-width:1080px}
+  .cmp-wide thead{display:table-header-group}
+  .cmp-wide tbody tr{display:table-row;padding:0}
+  .cmp-wide tbody th,.cmp-wide tbody td{display:table-cell;padding:12px;border-bottom:1px solid var(--line)}
+  .cmp-wide td.cmp-us{border-radius:0;margin:0;padding:12px}
+  .cmp-wide td::before{content:none!important}
+  .modal-x{width:52px;height:52px;flex-basis:52px;font-size:38px}
+}

@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-14 | D2026.10.14-1141 | V50.z548 perché AdvisorOS + modal confronto tecnico |
 | 2026-10-14 | D2026.10.14-1128 | V50.z547 video Vimeo CMS + blocchi Drive/Perché diverso |
 | 2026-10-14 | D2026.10.14-1110 | V50.z546 pagine approfondimento AxonOS/AdvisorOS CMS |
 | 2026-10-14 | D2026.10.14-0941 | V50.z545 — Calendario stress test rispettato (niente run quotidiano se c'è una programmazione; controllo giorno + anti-doppione) · Sveglia: suonerie integrate udibili in anteprima e riprodotte allo squillo (loop fino al tocco) · «186 funzioni integrate» in evidenza su landing interna e italianbrain.it |

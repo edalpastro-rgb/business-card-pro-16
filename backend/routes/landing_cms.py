@@ -212,6 +212,34 @@ LANDING_DEFAULTS: Dict[str, Any] = {
                     {"emoji": "✅", "title": "Doppia Conferma Vocale o Touch", "text": "Verifichi i dettagli del cliente prima di salvare nel CRM. Un cenno vocale o un Tap sullo schermo autorizza il salvataggio, eliminando ogni rischio di errore con gli occhi fissi sulla strada."},
                 ],
             },
+            # V50.z548 — «Perché i consulenti scelgono AdvisorOS» (subito prima di Pacchetti e prezzi) + modal confronto tecnico (tabella configurabile)
+            "why": {
+                "kicker": "Il confronto",
+                "title": "Perché i consulenti sul campo scelgono AdvisorOS rispetto ai CRM tradizionali?",
+                "items": [
+                    {"emoji": "🚗", "title": "Uso in Auto (Voice-First)", "text": "I colossi del software sono nati per chi sta seduto dietro a una scrivania. AdvisorOS è l'unico sistema operativo mobile progettato per essere usato a mani libere mentre guidi tramite Apple CarPlay e Android Auto."},
+                    {"emoji": "🇮🇹", "title": "Proprietà e Privacy del Dato", "text": "Con i CRM tradizionali, se cambi mandato o agenzia perdi i tuoi clienti. AdvisorOS gira sulla tua VPS privata: i tuoi dati restano tuoi al 100% e non finiscono in mano al fornitore di energia o ai cloud USA."},
+                    {"emoji": "💶", "title": "Un Decimo del Costo", "text": "I giganti partono da 100€/utente/mese più costi extra a consumo per l'AI. Il nostro target è una tariffa flat accessibile e trasparente."},
+                ],
+                "cta": "🔍 Guarda il confronto tecnico completo con gli altri software",
+                "modal": {
+                    "title": "Confronto tecnico completo",
+                    "col_need": "Cosa ti serve sul campo",
+                    "columns": ["AdvisorOS", "Salesforce + Agentforce", "HubSpot (Breeze)", "Zoho CRM (Zia)", "Pipedrive (AI)", "vtenext / CRM Italiani"],
+                    "rows": [
+                        {"need": "Uso in auto (Voce-First, CarPlay/Android Auto)", "cells": ["✅ Nativo (Advisor Drive)", "🟡 App buona, non voice-first", "🟡 Solo da fermo", "🟡 Solo da fermo", "🟡 Solo da fermo", "❌ Assente"]},
+                        {"need": "AI che ESEGUE azioni (Comandi Multi-Step)", "cells": ["✅ Nativo con conferma", "✅ Disponibile a consumo extra", "🟡 Solo piani Enterprise", "🟡 Assistenti di testo", "🟡 Pochi suggerimenti", "❌ Assente"]},
+                        {"need": "Dati Mercato Energia Nativi (PUN/GME + PDF)", "cells": ["✅ Nativo (Storico 18 mesi)", "❌", "❌", "❌", "❌", "❌"]},
+                        {"need": "Gestione Imprevisti (Ricalcolo agenda + SMS)", "cells": ["✅ Nativo", "🟡 Da costruire da zero", "❌", "❌", "❌", "❌"]},
+                        {"need": "Pipeline Documentale (Scanner bollette e foto)", "cells": ["✅ Offline-ready", "🟡 Via app partner esterne", "❌", "🟡 Solo biglietti da visita", "❌", "❌"]},
+                        {"need": "Privacy: Dati cifrati on-device + VPS Propria", "cells": ["✅ Totale (No Cloud USA)", "❌ Cloud USA", "❌ Cloud USA", "❌ Cloud USA", "❌ Cloud USA", "🟡 On-premise possibile"]},
+                        {"need": "Tempo per essere Operativi sul campo", "cells": ["⏱️ Minuti", "❌ Settimane/Mesi", "❌ Giorni/Settimane", "❌ Giorni/Settimane", "⏱️ Ore", "❌ Giorni/Settimane"]},
+                        {"need": "Prezzo indicativo/utente/mese", "cells": ["Target 25–49€", "❌ 100–330€ + AI a consumo", "❌ 20–150€", "❌ 14–52€", "❌ 14–99€ + add-on AI", "❌ 20–60€"]},
+                    ],
+                    "note": "Nota di trasparenza: I marchi Salesforce, HubSpot, Zoho, Pipedrive e vtenext appartengono ai rispettivi proprietari. Le funzionalità e i prezzi indicati fanno riferimento ai listini pubblici aggiornati al 2026. AdvisorOS è una piattaforma indipendente non affiliata ai suddetti marchi.",
+                    "close": "✖️ Chiudi e torna alla pagina",
+                },
+            },
             "pricing": {
                 "kicker": "Pacchetti e prezzi",
                 "title": "Dal professionista singolo alla rete Enterprise",

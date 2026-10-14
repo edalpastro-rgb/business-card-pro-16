@@ -108,7 +108,7 @@
   </section>
 
   <!-- 4 · FUNZIONALITÀ SPECIALISTICHE -->
-  <section class="section" id="funzioni">
+  <section class="section section-alt" id="funzioni">
     <div class="wrap">
       <p class="kicker kicker-brand" data-cms="features.kicker">Funzionalità specialistiche</p>
       <h2 class="h-big" data-cms="features.title">L'Armatura del Consulente: quattro aree costruite per chi vende sul campo</h2>
@@ -134,6 +134,53 @@
     </div>
   </section>
 
+
+  <!-- PERCHÉ SCELGONO ADVISOROS + MODAL CONFRONTO TECNICO (V50.z548) -->
+  <section class="section" id="perche">
+    <div class="wrap">
+      <p class="kicker kicker-brand" data-cms="why.kicker">Il confronto</p>
+      <h2 class="h-big" data-cms="why.title">Perché i consulenti sul campo scelgono AdvisorOS rispetto ai CRM tradizionali?</h2>
+      <div class="cols cols-3" data-cms-list="why.items">
+        <template><article class="pillar pillar-brand"><div class="pillar-icon" aria-hidden="true" data-f="emoji"></div><h3 data-f="title"></h3><p data-f="text"></p></article></template>
+        <article class="pillar pillar-brand"><div class="pillar-icon" aria-hidden="true">🚗</div><h3>Uso in Auto (Voice-First)</h3><p>I colossi del software sono nati per chi sta seduto dietro a una scrivania. AdvisorOS è l'unico sistema operativo mobile progettato per essere usato a mani libere mentre guidi tramite Apple CarPlay e Android Auto.</p></article>
+        <article class="pillar pillar-brand"><div class="pillar-icon" aria-hidden="true">🇮🇹</div><h3>Proprietà e Privacy del Dato</h3><p>Con i CRM tradizionali, se cambi mandato o agenzia perdi i tuoi clienti. AdvisorOS gira sulla tua VPS privata: i tuoi dati restano tuoi al 100% e non finiscono in mano al fornitore di energia o ai cloud USA.</p></article>
+        <article class="pillar pillar-brand"><div class="pillar-icon" aria-hidden="true">💶</div><h3>Un Decimo del Costo</h3><p>I giganti partono da 100€/utente/mese più costi extra a consumo per l'AI. Il nostro target è una tariffa flat accessibile e trasparente.</p></article>
+      </div>
+      <div class="cta-row">
+        <button type="button" class="btn btn-ghost btn-ghost-brand" id="open-compare" data-cms="why.cta" aria-haspopup="dialog" aria-controls="compare-modal">🔍 Guarda il confronto tecnico completo con gli altri software</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- MODAL confronto tecnico: dati da data-cms-table (CMS) o dalla tabella statica di fallback -->
+  <div class="modal" id="compare-modal" role="dialog" aria-modal="true" aria-labelledby="compare-title" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-box">
+      <div class="modal-head">
+        <h3 id="compare-title" data-cms="why.modal.title">Confronto tecnico completo</h3>
+        <button type="button" class="modal-x" data-close aria-label="Chiudi">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="cmp-wrap cmp-full">
+          <table class="cmp cmp-wide" data-cms-table="why.modal">
+            <thead><tr><th data-cms="why.modal.col_need">Cosa ti serve sul campo</th><th class="cmp-us">AdvisorOS</th><th>Salesforce + Agentforce</th><th>HubSpot (Breeze)</th><th>Zoho CRM (Zia)</th><th>Pipedrive (AI)</th><th>vtenext / CRM Italiani</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">Uso in auto (Voce-First, CarPlay/Android Auto)</th><td class="cmp-us ok">✅ Nativo (Advisor Drive)</td><td class=" mid">🟡 App buona, non voice-first</td><td class=" mid">🟡 Solo da fermo</td><td class=" mid">🟡 Solo da fermo</td><td class=" mid">🟡 Solo da fermo</td><td class=" no">❌ Assente</td></tr>
+              <tr><th scope="row">AI che ESEGUE azioni (Comandi Multi-Step)</th><td class="cmp-us ok">✅ Nativo con conferma</td><td class=" ok">✅ Disponibile a consumo extra</td><td class=" mid">🟡 Solo piani Enterprise</td><td class=" mid">🟡 Assistenti di testo</td><td class=" mid">🟡 Pochi suggerimenti</td><td class=" no">❌ Assente</td></tr>
+              <tr><th scope="row">Dati Mercato Energia Nativi (PUN/GME + PDF)</th><td class="cmp-us ok">✅ Nativo (Storico 18 mesi)</td><td class=" no">❌</td><td class=" no">❌</td><td class=" no">❌</td><td class=" no">❌</td><td class=" no">❌</td></tr>
+              <tr><th scope="row">Gestione Imprevisti (Ricalcolo agenda + SMS)</th><td class="cmp-us ok">✅ Nativo</td><td class=" mid">🟡 Da costruire da zero</td><td class=" no">❌</td><td class=" no">❌</td><td class=" no">❌</td><td class=" no">❌</td></tr>
+              <tr><th scope="row">Pipeline Documentale (Scanner bollette e foto)</th><td class="cmp-us ok">✅ Offline-ready</td><td class=" mid">🟡 Via app partner esterne</td><td class=" no">❌</td><td class=" mid">🟡 Solo biglietti da visita</td><td class=" no">❌</td><td class=" no">❌</td></tr>
+              <tr><th scope="row">Privacy: Dati cifrati on-device + VPS Propria</th><td class="cmp-us ok">✅ Totale (No Cloud USA)</td><td class=" no">❌ Cloud USA</td><td class=" no">❌ Cloud USA</td><td class=" no">❌ Cloud USA</td><td class=" no">❌ Cloud USA</td><td class=" mid">🟡 On-premise possibile</td></tr>
+              <tr><th scope="row">Tempo per essere Operativi sul campo</th><td class="cmp-us ok">⏱️ Minuti</td><td class=" no">❌ Settimane/Mesi</td><td class=" no">❌ Giorni/Settimane</td><td class=" no">❌ Giorni/Settimane</td><td class=" ok">⏱️ Ore</td><td class=" no">❌ Giorni/Settimane</td></tr>
+              <tr><th scope="row">Prezzo indicativo/utente/mese</th><td class="cmp-us">Target 25–49€</td><td class=" no">❌ 100–330€ + AI a consumo</td><td class=" no">❌ 20–150€</td><td class=" no">❌ 14–52€</td><td class=" no">❌ 14–99€ + add-on AI</td><td class=" no">❌ 20–60€</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="note" data-cms="why.modal.note">Nota di trasparenza: I marchi Salesforce, HubSpot, Zoho, Pipedrive e vtenext appartengono ai rispettivi proprietari. Le funzionalità e i prezzi indicati fanno riferimento ai listini pubblici aggiornati al 2026. AdvisorOS è una piattaforma indipendente non affiliata ai suddetti marchi.</p>
+        <div class="cta-row"><button type="button" class="btn btn-primary" data-close data-cms="why.modal.close">✖️ Chiudi e torna alla pagina</button></div>
+      </div>
+    </div>
+  </div>
   <!-- 5 · PACCHETTI E PREZZI -->
   <section class="section section-alt" id="prezzi">
     <div class="wrap">

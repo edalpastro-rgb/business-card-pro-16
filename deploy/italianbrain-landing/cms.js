@@ -64,14 +64,39 @@
       var mail = get(page, a.getAttribute("data-cms-mail")), subject = get(page, a.getAttribute("data-cms-subject") || "");
       if (mail) a.setAttribute("href", "mailto:" + mail + (subject ? "?subject=" + encodeURIComponent(subject) : ""));
     });
-    // stato ✅ / 🟡 / ❌ nelle celle del confronto → colore
+    // V50.z548 — tabella comparativa del modal: colonne/righe/celle dal CMS (array), ricostruita da zero
+    document.querySelectorAll("[data-cms-table]").forEach(function (tbl) {
+      var md = get(page, tbl.getAttribute("data-cms-table"));
+      if (!md || !Array.isArray(md.columns) || !Array.isArray(md.rows) || !md.rows.length) return;
+      var thead = tbl.querySelector("thead tr"), tbody = tbl.querySelector("tbody");
+      if (!thead || !tbody) return;
+      var first = thead.querySelector("th"); thead.innerHTML = ""; thead.appendChild(first);
+      md.columns.forEach(function (c, i) { var th = document.createElement("th"); th.textContent = c; if (i === 0) th.className = "cmp-us"; thead.appendChild(th); });
+      tbody.innerHTML = "";
+      md.rows.forEach(function (r) {
+        var tr = document.createElement("tr"), th = document.createElement("th"); th.scope = "row"; th.textContent = r.need || ""; tr.appendChild(th);
+        md.columns.forEach(function (_, i) { var td = document.createElement("td"); td.textContent = (r.cells || [])[i] || "—"; if (i === 0) td.className = "cmp-us"; tr.appendChild(td); });
+        tbody.appendChild(tr);
+      });
+    });
+    // stato ✅ ⏱️ / 🟡 / ❌ nelle celle del confronto → colore
     document.querySelectorAll(".cmp td").forEach(function (td) {
-      var t = td.textContent.trim().charAt(0);
+      var t = td.textContent.trim();
       td.classList.remove("ok", "mid", "no");
-      if (t === "✅") td.classList.add("ok"); else if (t === "🟡") td.classList.add("mid"); else if (t === "❌") td.classList.add("no");
+      if (t.indexOf("✅") === 0 || t.indexOf("⏱") === 0) td.classList.add("ok"); else if (t.indexOf("🟡") === 0) td.classList.add("mid"); else if (t.indexOf("❌") === 0) td.classList.add("no");
     });
     var sold = seats.left != null && seats.left <= 0;
     document.querySelectorAll("[data-cms-founder]").forEach(function (el) { el.classList.toggle("sold", sold); });
+  }
+
+  // V50.z548 — modal confronto tecnico: overlay, blocco scroll, X / backdrop / Esc per chiudere (nessun link esterno)
+  var modal = document.getElementById("compare-modal"), opener = document.getElementById("open-compare");
+  if (modal && opener) {
+    var openM = function () { modal.hidden = false; document.body.classList.add("modal-open"); modal.querySelector(".modal-x").focus(); };
+    var closeM = function () { modal.hidden = true; document.body.classList.remove("modal-open"); opener.focus(); };
+    opener.addEventListener("click", openM);
+    modal.querySelectorAll("[data-close]").forEach(function (el) { el.addEventListener("click", closeM); });
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !modal.hidden) closeM(); });
   }
 
   var url = slug === "home" ? "/api/public/landing" : "/api/public/landing/page/" + encodeURIComponent(slug);

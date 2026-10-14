@@ -406,6 +406,34 @@ export default function LandingCmsScreen() {
               </View>
             ))}
           </View>
+          <View style={s.planBox} testID="cms-page-advisor-why">
+            <Text style={s.cardTitle}>Perché scelgono AdvisorOS (prima dei prezzi) + modal confronto tecnico</Text>
+            {Field({ label: "Etichetta", path: ["pages", "advisor", "why", "kicker"] })}
+            {Field({ label: "Titolo H2", path: ["pages", "advisor", "why", "title"], multiline: true })}
+            {((getPath(content || {}, ["pages", "advisor", "why", "items"]) || []) as any[]).map((_, i) => (
+              <View key={i} style={{ gap: 8 }}>
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <View style={{ width: 70 }}>{Field({ label: "Icona", path: ["pages", "advisor", "why", "items", String(i), "emoji"] })}</View>
+                  <View style={{ flex: 1 }}>{Field({ label: `Blocco ${i + 1} · titolo`, path: ["pages", "advisor", "why", "items", String(i), "title"] })}</View>
+                </View>
+                {Field({ label: `Blocco ${i + 1} · testo`, path: ["pages", "advisor", "why", "items", String(i), "text"], multiline: true })}
+              </View>
+            ))}
+            {Field({ label: "Pulsante apri confronto", path: ["pages", "advisor", "why", "cta"] })}
+            <Text style={[s.cardTitle, { marginTop: 6 }]}>Modal · tabella comparativa</Text>
+            {Field({ label: "Titolo modal", path: ["pages", "advisor", "why", "modal", "title"] })}
+            {Field({ label: "Intestazione prima colonna", path: ["pages", "advisor", "why", "modal", "col_need"] })}
+            {ListField({ label: "Colonne software (la prima è AdvisorOS)", path: ["pages", "advisor", "why", "modal", "columns"] })}
+            <Text style={s.muted}>Per ogni riga: esigenza + una cella per colonna (stesso ordine delle colonne, una per riga). Inizia la cella con ✅ ⏱️ 🟡 ❌ per il colore.</Text>
+            {((getPath(content || {}, ["pages", "advisor", "why", "modal", "rows"]) || []) as any[]).map((_, i) => (
+              <View key={i} style={{ gap: 8, borderTopWidth: 1, borderColor: HT.border, paddingTop: 8 }}>
+                {Field({ label: `Riga ${i + 1} · esigenza`, path: ["pages", "advisor", "why", "modal", "rows", String(i), "need"] })}
+                {ListField({ label: `Riga ${i + 1} · celle`, path: ["pages", "advisor", "why", "modal", "rows", String(i), "cells"] })}
+              </View>
+            ))}
+            {Field({ label: "Nota di trasparenza (in calce)", path: ["pages", "advisor", "why", "modal", "note"], multiline: true })}
+            {Field({ label: "Pulsante chiudi", path: ["pages", "advisor", "why", "modal", "close"] })}
+          </View>
           <View style={s.planBox}>
             <Text style={s.cardTitle}>Pacchetti e prezzi (prezzo = piano Professional, sezione 4)</Text>
             {Field({ label: "Etichetta", path: ["pages", "advisor", "pricing", "kicker"] })}
