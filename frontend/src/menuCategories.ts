@@ -69,6 +69,7 @@ export const ROUTE_CATEGORY: Record<string, MenuCategoryKey> = {
   "/team-insights":       "team",
   "/invite-collaborator": "team",
   "/report":              "team",
+  "/admin/users":         "team", // V50.z542
 
   // Amministrazione
   "/settings-app":        "admin",

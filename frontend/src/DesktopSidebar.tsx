@@ -11,7 +11,8 @@ import { HT } from "@/src/homeTheme";
 import { useAuth } from "@/src/auth";
 import { TABS, HIDE_ON_PATHS } from "@/src/PersistentBottomNav";
 import { SIDEBAR_W } from "@/src/hooks/useResponsive";
-import { ITEMS as DRAWER_ITEMS, type DrawerItem } from "@/src/DrawerMenu"; // V50.z489 — stesse voci del menu hamburger
+import { ITEMS as DRAWER_ITEMS, type DrawerItem } from "@/src/DrawerMenu";
+import { useSuperAdmin } from "@/src/useSuperAdmin"; // V50.z542 // V50.z489 — stesse voci del menu hamburger
 import { MENU_CATEGORIES } from "@/src/menuCategories";
 import { MenuIcon } from "@/src/LockKeyIcon";
 
@@ -22,7 +23,7 @@ const MASTER_LINKS: { label: string; icon: any; route: string }[] = [
   { label: "Contratti", icon: "document-text-outline", route: "/crt" },
   { label: "Team", icon: "people-circle-outline", route: "/team" },
 ];
-const GROUPED = Object.values(MENU_CATEGORIES)
+const GROUPED_ALL = Object.values(MENU_CATEGORIES)
   .sort((a, b) => a.order - b.order)
   .map((cat) => ({ cat, items: DRAWER_ITEMS.filter((i) => i.categoryKey === cat.key) }))
   .filter((g) => g.items.length > 0);
@@ -40,6 +41,8 @@ export function DesktopSidebar() {
   const pathname = usePathname() || "";
   const router = useRouter();
   const { user, logout } = useAuth();
+  const isSuperAdmin = useSuperAdmin(); // V50.z542
+  const GROUPED = GROUPED_ALL.map((g) => ({ cat: g.cat, items: g.items.filter((i) => !i.superAdminOnly || isSuperAdmin) })).filter((g) => g.items.length > 0);
   const current = TABS.find((t) =>
     t.activePrefixes ? t.activePrefixes.some((p) => pathname.startsWith(p)) : pathname.includes(`/${t.name}`),
   )?.name;

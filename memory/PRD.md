@@ -7814,3 +7814,4 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 - **FAQ per ruolo** (`landing_cms.py`): `roles` ⊆ {superadmin, master, manager, collab}; GET /public/faq e /suggest leggono il Bearer opzionale; superadmin vede tutto, anonimo solo generali; Axon prompt filtrato per ruolo. 10 nuove FAQ (landing/italianbrain.it, inviti, piani, gerarchia, collab, manager, supermaster). CMS: chip ruolo per FAQ.
 - **Help fuzzy** (`src/FaqSearch.tsx`): edit distance, prefissi/parole parziali, bigrammi + tendina suggerimenti automatici; token inviato → FAQ del ruolo.
 - Test backend: 31/31 (`backend/tests/test_v50z541_supermaster.py`).
+- V50.z542: «Utenti Registrati» nel menu laterale/drawer (sezione Team & Insights, solo Supermaster via useSuperAdmin); /admin/users mostra errore+Riprova invece dello spinner infinito (causa: Core sul VPS senza l'endpoint finché non si aggiorna axon-core-pkg).

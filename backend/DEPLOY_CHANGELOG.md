@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-14 | D2026.10.14 | V50.z542 — «Utenti Registrati» nel menu laterale (Team & Insights, solo Supermaster) · /admin/users: messaggio chiaro + Riprova se l'endpoint non risponde |
 | 2026-10-13 | D2026.10.13-1754 | V50.z541 — Pannello Supermaster Utenti registrati (/admin/users: ruoli, sposta, piano, elimina, reinvia benvenuto) · Piani abbonamento organizzazione modificabili dal CMS con limite utenti e upgrade · Email di benvenuto subito alla registrazione · FAQ per ruolo + ricerca fuzzy con suggerimenti |
 | 2026-10-13 | D2026.10.13-1403 | V50.z540 — Route /landing rimossa dall'app: avvio diretto su /login (web e mobile), qualsiasi URL inesistente → /login |
 | 2026-10-13 | D2026.10.13 | V50.z539 — core.italianbrain.it riconosciuto come dominio Core al pari di core.axonos.cloud (web app same-origin su entrambi, nginx server_name, installer web senza perdita domini) |

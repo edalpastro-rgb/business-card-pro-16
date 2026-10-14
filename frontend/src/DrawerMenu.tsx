@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { MenuIcon, MenuIconName, LOCK_KEY_ICON } from "@/src/LockKeyIcon"; // V50.z237
 import { useRouter } from "expo-router";
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
+import { useSuperAdmin } from "@/src/useSuperAdmin"; // V50.z542
 import { MENU_CATEGORIES } from "@/src/menuCategories";
 import { CgymDrawerBadge } from "@/src/corporate-gym/CgymDrawerBadge"; // Corporate Gym (Blocco 3)
 
@@ -33,6 +34,7 @@ export type DrawerItem = {
   categoryKey: keyof typeof MENU_CATEGORIES;
   badge?: React.ComponentType; // indicatore opzionale a destra (es. Corporate Gym "3/7")
   action?: () => void; // V50.z334 — azione al posto della navigazione (es. apre la chat Axon)
+  superAdminOnly?: boolean; // V50.z542 — visibile solo al Supermaster
 };
 
 export const ITEMS: DrawerItem[] = [
@@ -81,6 +83,7 @@ export const ITEMS: DrawerItem[] = [
   { label: "Invita Collaboratore", icon: "person-add-outline",href: "/invite-collaborator",categoryKey: "team" },
   { label: "Statistiche",       icon: "bar-chart-outline",    href: "/(tabs)/report",      categoryKey: "team" }, // V50.z141 — ex tab "Report"
   { label: "Corporate Gym",     icon: "barbell-outline",      href: "/corporate-gym",      categoryKey: "team", badge: CgymDrawerBadge }, // Corporate Gym (Blocco 1/3)
+  { label: "Utenti Registrati", icon: "shield-checkmark-outline", href: "/admin/users",    categoryKey: "team", superAdminOnly: true }, // V50.z542 — Pannello Supermaster
   // Amministrazione (grigio #475569)
   { label: "Impostazioni",      icon: "settings-outline",     href: "/(tabs)/impostazioni",categoryKey: "admin" },
   { label: "Setting App",       icon: "color-palette-outline",href: "/settings-app",       categoryKey: "admin" },
@@ -93,6 +96,7 @@ const DRAWER_W = Math.min(SCREEN_W * 0.85, 340);
 
 export function DrawerMenu({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const router = useRouter();
+  const isSuperAdmin = useSuperAdmin(); // V50.z542
   const insets = useInsetsSafe(); // V50.z165 — fallback bottom dentro Modal
   const slideX = useRef(new Animated.Value(-DRAWER_W)).current;
   const opacity = useRef(new Animated.Value(0)).current;
@@ -120,7 +124,7 @@ export function DrawerMenu({ visible, onClose }: { visible: boolean; onClose: ()
   // Raggruppa per categoria in ordine palette
   const grouped = Object.values(MENU_CATEGORIES)
     .sort((a, b) => a.order - b.order)
-    .map((cat) => ({ cat, items: ITEMS.filter((i) => i.categoryKey === cat.key) }))
+    .map((cat) => ({ cat, items: ITEMS.filter((i) => i.categoryKey === cat.key && (!i.superAdminOnly || isSuperAdmin)) }))
     .filter((g) => g.items.length > 0);
 
   return (

@@ -38,6 +38,7 @@ export default function AdminUsersScreen() {
   const router = useRouter();
   const [data, setData] = useState<{ items: AdminUser[]; counts: Record<string, number>; plans: Plan[]; me: string } | null>(null);
   const [denied, setDenied] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null); // V50.z542 — niente spinner infinito: errore visibile + Riprova
   const [q, setQ] = useState("");
   const [roleF, setRoleF] = useState("all");
   const [statusF, setStatusF] = useState("all");
@@ -48,13 +49,15 @@ export default function AdminUsersScreen() {
 
   const load = useCallback(async () => {
     try {
+      setLoadError(null);
       const r = await api<typeof data>(`/admin/users?role=${roleF}&status=${statusF}`);
+      if (!r || !Array.isArray((r as any).items)) throw new Error("Risposta inattesa dal server (endpoint /admin/users assente?)");
       setData(r); setDenied(false);
     } catch (e: any) {
       const msg = String(e?.message || "");
       if (/401|Not authenticated|Invalid token/i.test(msg)) { router.replace("/login" as any); return; }
-      if (String(e?.status) === "403" || /super-admin|403/i.test(msg)) setDenied(true);
-      else notify("Errore", msg || "Impossibile caricare gli utenti");
+      if (String(e?.status) === "403" || /super-admin|403/i.test(msg)) { setDenied(true); return; }
+      setLoadError(/404|Not Found/i.test(msg) ? "Il server non espone ancora /api/admin/users: aggiorna il pacchetto Core (axon-core-pkg) sul VPS." : msg || "Impossibile caricare gli utenti");
     }
   }, [roleF, statusF, router]);
   useEffect(() => { void load(); }, [load]);
@@ -122,7 +125,13 @@ export default function AdminUsersScreen() {
       </KScrollView>
 
       <KScrollView contentContainerStyle={s.list}>
-        {!data ? <ActivityIndicator color={HT.violet} style={{ marginTop: 40 }} /> : items.length === 0 ? <Text style={s.empty} testID="admin-users-empty">Nessun utente corrisponde ai filtri.</Text> : items.map((u) => {
+        {loadError ? (
+          <View style={s.center} testID="admin-users-error">
+            <Ionicons name="cloud-offline-outline" size={34} color={HT.danger} />
+            <Text style={s.deniedTxt}>{loadError}</Text>
+            <Pressable onPress={() => void load()} style={s.act} testID="admin-users-retry"><Ionicons name="refresh" size={15} color={HT.violet} /><Text style={s.actTxt}>Riprova</Text></Pressable>
+          </View>
+        ) : !data ? <ActivityIndicator color={HT.violet} style={{ marginTop: 40 }} /> : items.length === 0 ? <Text style={s.empty} testID="admin-users-empty">Nessun utente corrisponde ai filtri.</Text> : items.map((u) => {
           const isBusy = busy === u.user_id;
           return (
             <View key={u.user_id} style={[s.card, u.super_admin && s.cardSA]} testID={`admin-user-${u.user_id}`}>
