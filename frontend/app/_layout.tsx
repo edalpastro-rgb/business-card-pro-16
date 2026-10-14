@@ -46,7 +46,7 @@ import { usePaywallGuard } from "@/src/paywall"; // V50.z330
 import { ActiveCallProvider } from "@/src/CallTimerBar";
 import { storage } from "@/src/utils/storage";
 import { configureNotifHandler } from "@/src/notifs";
-import { configureAlarmNotifications } from "@/src/alarmNotifs";
+import { configureAlarmNotifications, installAlarmRinger } from "@/src/alarmNotifs";
 import { registerForPush } from "@/src/pushRegister";
 import { AndroidKeyboardPadding } from "@/src/keyboard/AndroidKeyboardPadding";
 import { RootInsetsProbe } from "@/src/hooks/useSafeBottom"; // V50.z187 — inset bottom radice uniforme // V50.z186 — tastiera Android edge-to-edge
@@ -63,6 +63,7 @@ import { navRestoreGuard } from "@/src/utils/appStatePersist";
 
 configureNotifHandler();
 configureAlarmNotifications();
+installAlarmRinger(); // V50.z545 — squilla con la suoneria scelta quando arriva la notifica sveglia
 
 LogBox.ignoreAllLogs(true);
 SplashScreen.preventAutoHideAsync();

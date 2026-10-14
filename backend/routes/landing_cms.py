@@ -26,6 +26,12 @@ LANDING_DEFAULTS: Dict[str, Any] = {
         "subtitle": "Scopri l'ecosistema modulare protetto dal GDPR europeo. Fai decollare la tua produttività con il CRM AdvisorOS o custodisci i tuoi ricordi per sempre nel caveau privato di AxonOS. Senza che un solo dato venga mai regalato ai cloud americani.",
         "cta_primary": "Attiva AxonLite (Promo Founder)",
         "cta_secondary": "Scopri AdvisorOS per Professionisti",
+        # V50.z545 — fascia numeri sotto le CTA (modificabile dal CMS)
+        "stats": [
+            {"n": "186", "label": "funzioni integrate tra AdvisorOS e AxonOS", "accent": True},
+            {"n": "2", "label": "mondi, un solo cervello italiano", "accent": False},
+            {"n": "100%", "label": "dati su server in Italia · GDPR", "accent": False},
+        ],
     },
     "worlds": {
         "title": "I due mondi",

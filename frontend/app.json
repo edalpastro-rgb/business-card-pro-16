@@ -118,7 +118,7 @@
         {
           "icon": "./assets/images/icon.png",
           "color": "#EA580C",
-          "sounds": ["./assets/sounds/find_phone.wav"]
+          "sounds": ["./assets/sounds/find_phone.wav", "./assets/sounds/alarm_classic.wav", "./assets/sounds/alarm_gentle.wav", "./assets/sounds/alarm_energic.wav", "./assets/sounds/alarm_chirp.wav", "./assets/sounds/alarm_beep.wav"]
         }
       ],
       "expo-asset",

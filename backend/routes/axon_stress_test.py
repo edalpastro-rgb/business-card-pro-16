@@ -723,13 +723,20 @@ async def _st_finalize(run_id: str):  # noqa: F811
 
 
 async def _st_nightly_tick():
-    """Ogni 10 minuti: avvia il test notturno per gli owner con enabled e ora raggiunta (max 1/giorno)."""
+    """Ogni 10 minuti: avvia il test notturno per gli owner con enabled e ora raggiunta (max 1/giorno).
+    V50.z545 — Il test QUOTIDIANO legacy è escluso per chi ha un CALENDARIO (axon_stress_schedules): prima partiva ogni giorno
+    anche con una programmazione settimanale (es. «ogni lunedì»), perché `stress_nightly.enabled` restava True nelle impostazioni
+    salvate prima del calendario. Il calendario ha la precedenza; il flag legacy viene spento automaticamente."""
     try:
         from zoneinfo import ZoneInfo
         now_local = datetime.now(ZoneInfo(_AXN_TZ))  # noqa: F821
         today = now_local.strftime("%Y-%m-%d")
         async for us in db.user_settings.find({"stress_nightly.enabled": True}, {"_id": 0, "user_id": 1, "stress_nightly": 1}):
             cfg = _st_nightly_norm(us.get("stress_nightly") or {})
+            if await db.axon_stress_schedules.count_documents({"user_id": us["user_id"]}) > 0:
+                await db.user_settings.update_one({"user_id": us["user_id"]}, {"$set": {"stress_nightly.enabled": False, "stress_nightly.disabled_reason": "calendario attivo (V50.z545)"}})
+                logger.info("[STRESS] nightly quotidiano disattivato per %s: usa il calendario", us["user_id"])
+                continue
             if now_local.hour < cfg["hour"] or (us.get("stress_nightly") or {}).get("last_date") == today:
                 continue
             user = await db.users.find_one({"user_id": us["user_id"]}, {"_id": 0})

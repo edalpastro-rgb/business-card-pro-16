@@ -18,7 +18,7 @@ type Plan = { badge: string; name: string; price_old: number; price: number; lim
 type Seats = { limit: number; taken: number; left: number };
 type LandingData = {
   content: {
-    hero: { badge: string; title: string; subtitle: string; cta_primary: string; cta_secondary: string };
+    hero: { badge: string; title: string; subtitle: string; cta_primary: string; cta_secondary: string; stats?: { n: string; label: string; accent?: boolean }[] };
     worlds: { title: string; left_kicker: string; left_title: string; left_text: string; right_kicker: string; right_title: string; right_text: string };
     manifesto: { title: string; pillars: { icon: string; title: string; text: string }[] };
     plans: { title: string; subtitle: string; builder: Plan; professional: Plan; seats_label: string; sold_out_label: string };
@@ -28,6 +28,13 @@ type LandingData = {
 };
 
 const fmtPrice = (n: number) => (Number.isInteger(n) ? `${n}€` : `${n.toFixed(2).replace(".", ",")}€`);
+
+// V50.z545 — fascia numeri hero (CMS: hero.stats); fallback se il backend non la espone ancora
+const HERO_STATS_FALLBACK = [
+  { n: "186", label: "funzioni integrate tra AdvisorOS e AxonOS", accent: true },
+  { n: "2", label: "mondi, un solo cervello italiano", accent: false },
+  { n: "100%", label: "dati su server in Italia · GDPR", accent: false },
+];
 
 export function AxonCoreLanding() {
   const router = useRouter();
@@ -71,6 +78,8 @@ export function AxonCoreLanding() {
   };
 
   const c = data?.content;
+
+  const heroStats: { n: string; label: string; accent?: boolean }[] = Array.isArray(c?.hero?.stats) && c.hero.stats.length ? c.hero.stats : HERO_STATS_FALLBACK; // V50.z545
   const seats = data?.seats;
   const pillarsIcons = useMemo(() => ["shield-checkmark", "wallet", "infinite"], []);
 
@@ -121,6 +130,16 @@ export function AxonCoreLanding() {
             <Text style={s.btnGhostTxt}>{c.hero.cta_secondary}</Text><Ionicons name="arrow-forward" size={16} color={LP.axon} />
           </Pressable>
         </Reveal>
+        {heroStats.length ? (
+          <Reveal delay={520} style={StyleSheet.flatten([s.statsRow, compact && { gap: 8 }])}>
+            {heroStats.map((st: any, i: number) => (
+              <View key={i} style={[s.stat, st.accent && s.statMain, compact && { minWidth: "46%" as any }]} testID={`landing-stat-${i}`}>
+                <Text style={[s.statN, st.accent && { color: LP.brand }]}>{st.n}</Text>
+                <Text style={s.statL}>{st.label}</Text>
+              </View>
+            ))}
+          </Reveal>
+        ) : null}
       </View>
 
       {/* ───────────── 2 · I DUE MONDI ───────────── */}
@@ -252,6 +271,11 @@ const s = StyleSheet.create({
   inviter: { color: LP.onSurface2, textAlign: "center", marginTop: 10, fontWeight: "700" },
   p: { color: LP.onSurface2, fontSize: 14.5, lineHeight: 22 },
   kicker: { color: LP.axon, fontSize: 12, fontWeight: "800", letterSpacing: 2.5, textTransform: "uppercase", textAlign: "center", marginBottom: 12 },
+  statsRow: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 12, marginTop: 22 }, // V50.z545
+  stat: { minWidth: 150, flexGrow: 1, maxWidth: 220, alignItems: "center", gap: 4, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 16, backgroundColor: LP.surface2, borderWidth: 1, borderColor: LP.border },
+  statMain: { backgroundColor: LP.brandTint, borderColor: LP.brand + "77" },
+  statN: { color: LP.onSurface, fontSize: 32, lineHeight: 36, fontWeight: "900", letterSpacing: -1 },
+  statL: { color: LP.onSurface2, fontSize: 12.5, lineHeight: 16, fontWeight: "700", textAlign: "center" },
   ctaRow: { flexDirection: "row", gap: 12, justifyContent: "center", alignItems: "center", marginTop: 6 },
   btnPrimary: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: LP.brand, borderRadius: 999, minHeight: 52, paddingHorizontal: 22 },
   btnPrimaryTxt: { color: LP.onBrand, fontWeight: "900", fontSize: 15 },

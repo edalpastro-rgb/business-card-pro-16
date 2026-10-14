@@ -22,22 +22,14 @@ import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { syncAlarmNotifs, removeAlarmNotifs, syncAllAlarms, getCustomSoundUri, type Alarm, type AlarmKind } from "@/src/alarmNotifs";
 import { useTimeFormat, formatHHMM, formatDateTime, formatHM } from "@/src/utils/timeFormat";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
+import { PRESET_SOUNDS, PRESET_BY_ID } from "@/src/alarmSounds"; // V50.z545 — suonerie integrate (assets/sounds)
 
 type Tab = "timer" | "alarm" | "reminder";
 type Sound = { id: string; name: string; mime: string; size_bytes?: number; created_at: string };
 
 // V50.z78 — Preset sound list: audio pubblici (Pixabay CDN — royalty free).
 // Il player fetcha l'URL una sola volta e lo cachea. Volume applicato dal player.
-type PresetSound = { id: string; name: string; icon: keyof typeof Ionicons.glyphMap; url: string };
-const PRESET_SOUNDS: PresetSound[] = [
-  { id: "preset:default", name: "Predefinito (sistema)", icon: "notifications-outline", url: "" },
-  { id: "preset:classic", name: "Sveglia classica", icon: "alarm-outline", url: "https://cdn.pixabay.com/download/audio/2022/03/15/audio_1abb4e1e05.mp3" },
-  { id: "preset:gentle", name: "Melodia delicata", icon: "musical-notes-outline", url: "https://cdn.pixabay.com/download/audio/2022/10/25/audio_775a10b0d1.mp3" },
-  { id: "preset:energic", name: "Energico", icon: "flash-outline", url: "https://cdn.pixabay.com/download/audio/2023/03/06/audio_b8a41b4a04.mp3" },
-  { id: "preset:chirp", name: "Cinguettio", icon: "leaf-outline", url: "https://cdn.pixabay.com/download/audio/2022/03/24/audio_c8d3ed4d95.mp3" },
-  { id: "preset:beep", name: "Beep digitale", icon: "radio-outline", url: "https://cdn.pixabay.com/download/audio/2023/09/29/audio_69a61cd6d6.mp3" },
-];
-const PRESET_BY_ID: Record<string, PresetSound> = Object.fromEntries(PRESET_SOUNDS.map((p) => [p.id, p]));
+// V50.z545 — suonerie INTEGRATE nell'app (assets/sounds/*.wav): le vecchie URL Pixabay rispondevano 403 (hotlink bloccato) → anteprima muta.
 
 const TABS: { id: Tab; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { id: "timer", label: "Timer", icon: "timer-outline" },
@@ -390,7 +382,7 @@ function AlarmEditor({ initial, initialKind, timeFmt, onClose, onSaved }: {
       // Preset built-in
       if (id.startsWith("preset:")) {
         const preset = PRESET_BY_ID[id];
-        if (!preset || !preset.url) {
+        if (!preset || !preset.source) {
           // preset:default → usa notifica di sistema
           await Notifications.scheduleNotificationAsync({
             content: { title: "Anteprima suono", body: "Suono predefinito", sound: "default", data: { tag: "preview_default" } },
@@ -401,7 +393,7 @@ function AlarmEditor({ initial, initialKind, timeFmt, onClose, onSaved }: {
         try {
           await AudioModule.setAudioModeAsync({ playsInSilentMode: true });
         } catch { /* ignore */ }
-        const player = createAudioPlayer({ uri: preset.url });
+        const player = createAudioPlayer(preset.source);
         try { (player as any).volume = Math.max(0, Math.min(1, volume / 100)); } catch { /* ignore */ }
         player.play();
         setTimeout(() => {

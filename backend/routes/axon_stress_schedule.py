@@ -220,6 +220,28 @@ async def _ss_tick():
     now = utcnow()  # noqa: F821
     async for s in db.axon_stress_schedules.find({"enabled": True, "next_run_at": {"$lte": now}}, {"_id": 0}):  # noqa: F821
         try:
+            # V50.z545 — guardie anti-ripetizione: (a) il giorno di oggi deve rispettare la programmazione (weekly/monthly/once);
+            # (b) mai due esecuzioni della stessa programmazione a meno di 20 ore (next_run_at errato o duplicato → ricalcolo).
+            today_rome = now.astimezone(_SS_ROME)
+            kind = s.get("kind")
+            wd_ok = True
+            if kind == "weekly" or (kind == "custom" and s.get("weekdays")):
+                wd_ok = today_rome.weekday() in {int(x) for x in (s.get("weekdays") or [0])}
+            elif kind == "monthly":
+                md = int(s.get("month_day") or 1)
+                last = _ss_monthrange(today_rome.year, today_rome.month)[1]
+                wd_ok = today_rome.day == min(md, last)
+            elif kind == "once":
+                wd_ok = today_rome.strftime("%Y-%m-%d") == (s.get("once_date") or "")
+            lr = s.get("last_run_at")
+            if lr is not None and lr.tzinfo is None:
+                lr = lr.replace(tzinfo=_ss_tz.utc)
+            recent = lr is not None and (now - lr) < _ss_td(hours=20)
+            if not wd_ok or recent:
+                nxt = _ss_next_run(s, after=now)
+                await db.axon_stress_schedules.update_one({"schedule_id": s["schedule_id"]}, {"$set": {"next_run_at": nxt, **({"enabled": False} if nxt is None and kind == "once" else {})}})  # noqa: F821
+                logger.info("[STRESS-SCHEDULE] «%s» saltata (%s) → prossima %s", s.get("title"), "giorno non previsto" if not wd_ok else "già eseguita <20h", nxt)  # noqa: F821
+                continue
             user = await db.users.find_one({"user_id": s["user_id"]}, {"_id": 0})  # noqa: F821
             if not user:
                 continue

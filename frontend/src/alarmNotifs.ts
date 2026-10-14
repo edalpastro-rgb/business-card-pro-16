@@ -14,6 +14,8 @@ import { Platform } from "react-native";
 import { storage } from "@/src/utils/storage";
 import { api } from "@/src/api";
 import { ensureNotifPermission } from "@/src/notifs";
+import { AudioModule, createAudioPlayer, type AudioPlayer } from "expo-audio";
+import { PRESET_BY_ID, notificationSoundFor } from "@/src/alarmSounds";
 
 export type AlarmKind = "timer" | "alarm" | "reminder";
 
@@ -22,6 +24,53 @@ export type AlarmKind = "timer" | "alarm" | "reminder";
 // V50.z333 — nuovo id canale: su Android le proprietà di un canale sono congelate alla creazione; «axon-alarms» poteva essere nato
 // senza bypass DnD / vibrazione → v2 garantisce MAX + suono + vibrazione + DnD.
 export const ALARM_CHANNEL = "axon-alarms-v2";
+
+// ───────────── V50.z545 — SQUILLO IN-APP: la notifica da sola vibrava (3 impulsi) ma la suoneria scelta non veniva mai riprodotta ─────────────
+// Quando una notifica «alarm_*» arriva con l'app aperta (foreground), riproduciamo la suoneria selezionata (preset integrato o mp3
+// personalizzato) in loop finché l'utente tocca la notifica/la chiude, max 90 s. Volume dalla sveglia (0-100).
+let _ringer: { player: AudioPlayer; timer: ReturnType<typeof setTimeout>; alarmId: string } | null = null;
+let _ringerSubs: { remove: () => void }[] = [];
+
+export function stopAlarmRinger(): void {
+  if (!_ringer) return;
+  try { clearTimeout(_ringer.timer); _ringer.player.pause(); _ringer.player.remove(); } catch { /* ignore */ }
+  _ringer = null;
+}
+
+export async function playAlarmRinger(soundRef: string | null | undefined, alarmId: string, volume = 100): Promise<boolean> {
+  if (Platform.OS === "web" || !soundRef || soundRef === "default" || soundRef === "preset:default") return false;
+  try {
+    stopAlarmRinger();
+    const preset = PRESET_BY_ID[soundRef];
+    let player: AudioPlayer | null = null;
+    if (preset?.source) player = createAudioPlayer(preset.source);
+    else {
+      const uri = await getCustomSoundUri(soundRef);
+      if (!uri) return false;
+      player = createAudioPlayer({ uri });
+    }
+    try { await AudioModule.setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: true, interruptionMode: "doNotMix" } as any); } catch { /* ignore */ }
+    try { (player as any).loop = true; } catch { /* ignore */ }
+    try { (player as any).volume = Math.max(0.1, Math.min(1, volume / 100)); } catch { /* ignore */ }
+    player.play();
+    const timer = setTimeout(stopAlarmRinger, 90_000);
+    _ringer = { player, timer, alarmId };
+    return true;
+  } catch { return false; }
+}
+
+/** Ascolta le notifiche sveglia: in arrivo → squilla con la suoneria scelta; toccata/chiusa → stop. Idempotente. */
+export function installAlarmRinger(): void {
+  if (Platform.OS === "web" || _ringerSubs.length) return;
+  try {
+    const recv = Notifications.addNotificationReceivedListener((n) => {
+      const d: any = n?.request?.content?.data || {};
+      if (typeof d.tag === "string" && d.tag.startsWith("alarm_")) void playAlarmRinger(d.soundRef, String(d.alarmId || d.tag), typeof d.volume === "number" ? d.volume : 100);
+    });
+    const resp = Notifications.addNotificationResponseReceivedListener(() => stopAlarmRinger());
+    _ringerSubs = [recv, resp];
+  } catch { /* ignore */ }
+}
 let _handlerConfigured = false;
 export async function configureAlarmNotifications(): Promise<void> {
   if (_handlerConfigured || Platform.OS === "web") return;
@@ -143,11 +192,12 @@ export async function syncAlarmNotifs(a: Alarm): Promise<void> {
   const commonContent = {
     title: a.label || (a.kind === "timer" ? "Timer scaduto" : a.kind === "alarm" ? "Sveglia" : "Promemoria"),
     body: a.note || (a.kind === "timer" ? "Il tuo timer è scaduto" : a.kind === "alarm" ? "È ora di svegliarsi" : "Promemoria da Axon"),
-    sound: "default" as const,
+    // V50.z545 — suoneria scelta anche nella notifica di sistema (file integrato, attivo nelle build native; Expo Go → default)
+    sound: notificationSoundFor(a.sound_ref) as any,
     vibrate: a.vibrate === false ? undefined : [0, 400, 200, 400, 200, 400],
     priority: Notifications.AndroidNotificationPriority.MAX,
     sticky: false,
-    data: { tag: `alarm_${a.id}`, alarmId: a.id, kind: a.kind, soundRef: a.sound_ref },
+    data: { tag: `alarm_${a.id}`, alarmId: a.id, kind: a.kind, soundRef: a.sound_ref, volume: (a as any).volume ?? 100 },
   };
 
   const newIds: string[] = [];
