@@ -1,4 +1,8 @@
-italianbrain.it — landing statica (index.html + style.css + og-preview.png [anteprima OG] + favicon.svg/favicon.png/apple-touch-icon.png)
+italianbrain.it — landing statica (index.html + axonos.html + advisoros.html + cms.js + style.css + og-preview.png [anteprima OG] + favicon.svg/favicon.png/apple-touch-icon.png)
+★ V50.z546 — PAGINE DI APPROFONDIMENTO: /axonos (bottoni «Attiva AxonLite» e «19€») e /advisoros (bottone «Scopri AdvisorOS»).
+  I testi sono nell'HTML (SEO/fallback) e vengono SOVRASCRITTI da quelli pubblicati nel CMS (/admin/landing-cms › sezioni 5 e 6)
+  via cms.js → GET /api/public/landing/page/axon|advisor (proxy nginx same-origin → axon-core:8001, vedi nginx-italianbrain.conf).
+  Le stesse pagine esistono anche nell'app: https://core.italianbrain.it/landing/axonos e /landing/advisoros.
 Permessi: chmod 644 /var/www/italianbrain/*  (nginx deve poter leggere og-preview.png)
 
 ★ HTTPS / CERTIFICATO (V50.z538) — PROCEDURA UNICA, nginx in Docker (/opt/axon-core):
@@ -9,13 +13,13 @@ Permessi: chmod 644 /var/www/italianbrain/*  (nginx deve poter leggere og-previe
   Prerequisito: record DNS A di italianbrain.it, www e core → IP del VPS (lo script lo controlla e si ferma se non è così).
 
 AGGIORNAMENTO IN UN SOLO COMANDO (dal VPS, con italianbrain-landing.tgz già copiato in /root o /opt/axon-core):
-  tar xzf italianbrain-landing.tgz -C /tmp && mkdir -p /var/www/italianbrain && cp /tmp/italianbrain-landing/{index.html,style.css,og-preview.png,og-image.png,favicon.svg,favicon.png,apple-touch-icon.png} /var/www/italianbrain/ && chmod 644 /var/www/italianbrain/* && cp /tmp/italianbrain-landing/nginx-italianbrain.conf /opt/axon-core/nginx/conf.d/italianbrain.conf && (cd /opt/axon-core && docker compose exec nginx nginx -t && docker compose exec nginx nginx -s reload) && echo "✅ landing aggiornata"
+  tar xzf italianbrain-landing.tgz -C /tmp && mkdir -p /var/www/italianbrain && cp /tmp/italianbrain-landing/{index.html,axonos.html,advisoros.html,cms.js,style.css,og-preview.png,og-image.png,favicon.svg,favicon.png,apple-touch-icon.png} /var/www/italianbrain/ && chmod 644 /var/www/italianbrain/* && cp /tmp/italianbrain-landing/nginx-italianbrain.conf /opt/axon-core/nginx/conf.d/italianbrain.conf && (cd /opt/axon-core && docker compose exec nginx nginx -t && docker compose exec nginx nginx -s reload) && echo "✅ landing aggiornata"
   (se nginx gira sull'host e non in Docker: sostituisci l'ultima parte con  cp … /etc/nginx/conf.d/italianbrain.conf && nginx -t && systemctl reload nginx)
   Favicon: i browser la tengono in cache a lungo → verifica con https://italianbrain.it/favicon.svg?v=2 o in finestra anonima.
 
 DEPLOY INIZIALE SU NGINX (VPS):
   mkdir -p /var/www/italianbrain
-  tar xzf italianbrain-landing.tgz -C /tmp && cp /tmp/italianbrain-landing/{index.html,style.css,og-preview.png,og-image.png,favicon.svg,favicon.png,apple-touch-icon.png} /var/www/italianbrain/
+  tar xzf italianbrain-landing.tgz -C /tmp && cp /tmp/italianbrain-landing/{index.html,axonos.html,advisoros.html,cms.js,style.css,og-preview.png,og-image.png,favicon.svg,favicon.png,apple-touch-icon.png} /var/www/italianbrain/
   cp /tmp/italianbrain-landing/nginx-italianbrain.conf /etc/nginx/conf.d/italianbrain.conf
   nginx -t && systemctl reload nginx
   certbot --nginx -d italianbrain.it -d www.italianbrain.it     # HTTPS (gli OG richiedono URL https raggiungibili)

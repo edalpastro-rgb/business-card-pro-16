@@ -71,6 +71,8 @@ export function AxonCoreLanding() {
     AsyncStorage.setItem(PENDING_PLAN_KEY, plan).catch(() => {});
     router.push({ pathname: "/login", params: { plan, mode: "register", ...(refCode ? { ref: refCode } : {}) } } as any);
   };
+  // V50.z546 — «Attiva AxonLite» e «19€» → approfondimento AxonOS; «Scopri AdvisorOS» → approfondimento AdvisorOS (testi dal CMS)
+  const goPage = (slug: "axonos" | "advisoros") => router.push({ pathname: `/landing/${slug}`, params: refCode ? { ref: refCode } : {} } as any);
   const goLogin = () => router.push("/login" as any);
   const openMail = () => {
     const url = "mailto:info@advisoros.it";
@@ -123,10 +125,10 @@ export function AxonCoreLanding() {
           {inviter ? <Text style={s.inviter} testID="landing-inviter">🤝 Ti ha invitato: <Text style={{ color: LP.onSurface, fontWeight: "900" }}>{inviter}</Text></Text> : null}
         </Reveal>
         <Reveal delay={420} style={StyleSheet.flatten([s.ctaRow, compact && { flexDirection: "column" as const }])}>
-          <Pressable onPress={() => goRegister("builder")} style={[s.btnPrimary, compact && { alignSelf: "stretch" }]} testID="landing-cta-lite">
+          <Pressable onPress={() => goPage("axonos")} style={[s.btnPrimary, compact && { alignSelf: "stretch" }]} testID="landing-cta-lite">
             <Ionicons name="rocket" size={18} color={LP.onBrand} /><Text style={s.btnPrimaryTxt}>{c.hero.cta_primary}</Text>
           </Pressable>
-          <Pressable onPress={() => goRegister("professional")} style={[s.btnGhost, compact && { alignSelf: "stretch" }]} testID="landing-cta-advisor">
+          <Pressable onPress={() => goPage("advisoros")} style={[s.btnGhost, compact && { alignSelf: "stretch" }]} testID="landing-cta-advisor">
             <Text style={s.btnGhostTxt}>{c.hero.cta_secondary}</Text><Ionicons name="arrow-forward" size={16} color={LP.axon} />
           </Pressable>
         </Reveal>
@@ -186,7 +188,7 @@ export function AxonCoreLanding() {
         <Text style={s.kicker}>{c.plans.title}</Text>
         <Text style={[s.p, { textAlign: "center", marginBottom: 16 }]}>{c.plans.subtitle}</Text>
         <View style={[s.cols, compact && { flexDirection: "column" }]}>
-          <PlanCard plan={c.plans.builder} seats={seats?.builder} accent={LP.axon} glow={LP.axonGlow} line={LP.axonLine} seatsLabel={c.plans.seats_label} soldOut={c.plans.sold_out_label} onPress={() => goRegister("builder")} testID="landing-plan-builder" delay={80} />
+          <PlanCard plan={c.plans.builder} seats={seats?.builder} accent={LP.axon} glow={LP.axonGlow} line={LP.axonLine} seatsLabel={c.plans.seats_label} soldOut={c.plans.sold_out_label} onPress={() => goPage("axonos")} testID="landing-plan-builder" delay={80} />
           <PlanCard plan={c.plans.professional} seats={seats?.professional} accent={LP.brand} glow={LP.brandGlow} line={LP.brandLine} seatsLabel={c.plans.seats_label} soldOut={c.plans.sold_out_label} onPress={() => goRegister("professional")} testID="landing-plan-professional" delay={180} featured />
         </View>
       </View>

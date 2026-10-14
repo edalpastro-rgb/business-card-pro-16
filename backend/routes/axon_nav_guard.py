@@ -32,7 +32,7 @@ _NAV_REAL_PATHS = {
     "/call", "/courses", "/courses/dashboard", "/courses/new", "/crt", "/cruscotto", "/custom-fields", "/dashboard-config", "/deadlines", "/devices", "/documenti-axon",
     "/dropbox", "/email-accounts", "/email-config", "/event-banners", "/faq", "/form-templates", "/google-drive-picker", "/google-drive", "/groups",
     "/help-center-admin", "/help-center", "/info-request-chat", "/info-requests", "/invita-amico", "/invita-pick", "/invita", "/invitati", "/invite-collaborator",
-    "/km-report", "/landing", "/le-mie-aree", "/libretto-editor", "/libretto", "/lite", "/login", "/mail-crm-proposals", "/map-clients", "/master-files", "/master",
+    "/km-report", "/landing", "/landing/axonos", "/landing/advisoros", "/le-mie-aree", "/libretto-editor", "/libretto", "/lite", "/login", "/mail-crm-proposals", "/map-clients", "/master-files", "/master",
     "/mercato", "/meteo", "/my-audios", "/my-thing", "/my-web", "/neo-memory", "/offline-sync", "/optimal-route", "/outlook", "/paywall", "/pdf-viewer",
     "/permessi-onboarding", "/permessi", "/personalizzazione-aziendale", "/privacy-policy", "/pun-storico", "/quick-actions", "/reviews-analytics", "/scanner",
     "/security-info", "/security", "/settings-app", "/setup-config", "/setup", "/smtp", "/spazio-personale-anagrafica", "/spazio-personale", "/team-compare",

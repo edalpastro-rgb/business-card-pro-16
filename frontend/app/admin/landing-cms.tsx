@@ -125,7 +125,7 @@ export default function LandingCmsScreen() {
       <Pressable onPress={() => router.back()} hitSlop={10} testID="back-btn"><Ionicons name="chevron-back" size={26} color={HT.text} /></Pressable>
       <View style={{ flex: 1 }}>
         <Text style={s.title}>CMS Landing</Text>
-        <Text style={s.sub}>Testi, prezzi e posti Founder della pagina pubblica</Text>
+        <Text style={s.sub}>Testi, prezzi, posti Founder e pagine di approfondimento</Text>
       </View>
       {unlocked ? (
         <Pressable onPress={save} disabled={busy || !dirty} style={[s.saveBtn, (!dirty || busy) && { opacity: 0.5 }]} testID="cms-save">
@@ -224,6 +224,145 @@ export default function LandingCmsScreen() {
         </Section>
         <Section title="Footer">
           {Field({ label: "Testo footer", path: ["footer", "text"], multiline: true })}
+        </Section>
+
+        {/* V50.z546 — pagine di approfondimento: italianbrain.it/axonos · /advisoros e, nell'app, /landing/axonos · /landing/advisoros */}
+        <Section title="5 · Pagina AxonOS (approfondimento)">
+          <Text style={s.muted}>Raggiunta da «Attiva AxonLite» e dal bottone 19€. Nei testi puoi usare {"{left}"} {"{limit}"} {"{price}"} {"{price_old}"} (posti e prezzo del piano Builder).</Text>
+          <View style={s.planBox} testID="cms-page-axon-hero">
+            <Text style={s.cardTitle}>Hero</Text>
+            {Field({ label: "Etichetta", path: ["pages", "axon", "hero", "kicker"] })}
+            {Field({ label: "Titolo H1", path: ["pages", "axon", "hero", "title"], multiline: true })}
+            {Field({ label: "Sottotitolo", path: ["pages", "axon", "hero", "subtitle"], multiline: true })}
+            {Field({ label: "Etichetta placeholder video", path: ["pages", "axon", "hero", "video_label"] })}
+            {Field({ label: "Pulsante (→ registrazione AxonOS)", path: ["pages", "axon", "hero", "cta"] })}
+            {Field({ label: "Nota sotto il pulsante", path: ["pages", "axon", "hero", "cta_note"] })}
+          </View>
+          <View style={s.planBox}>
+            <Text style={s.cardTitle}>Concetto chiave «Svuota la Scrivania»</Text>
+            {Field({ label: "Etichetta", path: ["pages", "axon", "concept", "kicker"] })}
+            {Field({ label: "Titolo", path: ["pages", "axon", "concept", "title"] })}
+            {Field({ label: "Testo 1 (metafora)", path: ["pages", "axon", "concept", "text1"], multiline: true })}
+            {Field({ label: "Testo 2 (famiglia come impresa)", path: ["pages", "axon", "concept", "text2"], multiline: true })}
+          </View>
+          <View style={s.planBox}>
+            <Text style={s.cardTitle}>L&apos;assistente in azione (4 scenari)</Text>
+            {Field({ label: "Etichetta", path: ["pages", "axon", "scenarios", "kicker"] })}
+            {Field({ label: "Titolo", path: ["pages", "axon", "scenarios", "title"] })}
+            {((getPath(content || {}, ["pages", "axon", "scenarios", "items"]) || []) as any[]).map((_, i) => (
+              <View key={i} style={{ gap: 8 }}>
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <View style={{ width: 70 }}>{Field({ label: "Icona", path: ["pages", "axon", "scenarios", "items", String(i), "emoji"] })}</View>
+                  <View style={{ flex: 1 }}>{Field({ label: `Scenario ${i + 1} · titolo`, path: ["pages", "axon", "scenarios", "items", String(i), "title"] })}</View>
+                </View>
+                {Field({ label: `Scenario ${i + 1} · testo`, path: ["pages", "axon", "scenarios", "items", String(i), "text"], multiline: true })}
+              </View>
+            ))}
+          </View>
+          <View style={s.planBox}>
+            <Text style={s.cardTitle}>Onboarding lampo</Text>
+            {Field({ label: "Etichetta", path: ["pages", "axon", "onboarding", "kicker"] })}
+            {Field({ label: "Titolo", path: ["pages", "axon", "onboarding", "title"] })}
+            {Field({ label: "Testo", path: ["pages", "axon", "onboarding", "text"], multiline: true })}
+            {ListField({ label: "Passi", path: ["pages", "axon", "onboarding", "bullets"] })}
+          </View>
+          <View style={s.planBox}>
+            <Text style={s.cardTitle}>Offerta Soci Fondatori</Text>
+            {Field({ label: "Etichetta", path: ["pages", "axon", "founders", "kicker"] })}
+            {Field({ label: "Titolo", path: ["pages", "axon", "founders", "title"] })}
+            {Field({ label: "Testo", path: ["pages", "axon", "founders", "text"], multiline: true })}
+            {Field({ label: "Pillola posti ({left}/{limit})", path: ["pages", "axon", "founders", "highlight"] })}
+          </View>
+          <View style={s.planBox}>
+            <Text style={s.cardTitle}>Box tariffa unica (prezzo = piano Builder, sezione 4)</Text>
+            {Field({ label: "Badge", path: ["pages", "axon", "pricing", "badge"] })}
+            {Field({ label: "Titolo", path: ["pages", "axon", "pricing", "title"] })}
+            {Field({ label: "Testo", path: ["pages", "axon", "pricing", "text"], multiline: true })}
+            {ListField({ label: "Punti", path: ["pages", "axon", "pricing", "bullets"] })}
+            {Field({ label: "Pulsante (→ registrazione AxonOS)", path: ["pages", "axon", "pricing", "cta"] })}
+          </View>
+          <View style={s.planBox}>
+            <Text style={s.cardTitle}>Ponte verso il Business (→ pagina AdvisorOS)</Text>
+            {Field({ label: "Etichetta", path: ["pages", "axon", "bridge", "kicker"] })}
+            {Field({ label: "Titolo", path: ["pages", "axon", "bridge", "title"] })}
+            {Field({ label: "Testo", path: ["pages", "axon", "bridge", "text"], multiline: true })}
+            {Field({ label: "Pulsante", path: ["pages", "axon", "bridge", "cta"] })}
+          </View>
+        </Section>
+
+        <Section title="6 · Pagina AdvisorOS (approfondimento)">
+          <Text style={s.muted}>Raggiunta da «Scopri AdvisorOS» e dal ponte della pagina AxonOS. Variabili: {"{left}"} {"{limit}"} {"{price}"} {"{price_old}"} (piano Professional). Nelle celle del confronto inizia con ✅ 🟡 ❌ per il colore.</Text>
+          <View style={s.planBox} testID="cms-page-advisor-hero">
+            <Text style={s.cardTitle}>Hero</Text>
+            {Field({ label: "Etichetta", path: ["pages", "advisor", "hero", "kicker"] })}
+            {Field({ label: "Titolo H1", path: ["pages", "advisor", "hero", "title"], multiline: true })}
+            {Field({ label: "Sottotitolo", path: ["pages", "advisor", "hero", "subtitle"], multiline: true })}
+            {Field({ label: "Etichetta placeholder video", path: ["pages", "advisor", "hero", "video_label"] })}
+            {Field({ label: "Pulsante (→ registrazione AdvisorOS)", path: ["pages", "advisor", "hero", "cta"] })}
+          </View>
+          <View style={s.planBox}>
+            <Text style={s.cardTitle}>Il dolore</Text>
+            {Field({ label: "Etichetta", path: ["pages", "advisor", "pain", "kicker"] })}
+            {Field({ label: "Titolo", path: ["pages", "advisor", "pain", "title"] })}
+            {Field({ label: "Testo 1 (la giornata)", path: ["pages", "advisor", "pain", "text1"], multiline: true })}
+            {Field({ label: "Testo 2 (la svolta)", path: ["pages", "advisor", "pain", "text2"], multiline: true })}
+          </View>
+          <View style={s.planBox}>
+            <Text style={s.cardTitle}>Confronto AdvisorOS vs I Giganti</Text>
+            {Field({ label: "Etichetta", path: ["pages", "advisor", "compare", "kicker"] })}
+            {Field({ label: "Titolo", path: ["pages", "advisor", "compare", "title"] })}
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <View style={{ flex: 1 }}>{Field({ label: "Colonna 1", path: ["pages", "advisor", "compare", "col_need"] })}</View>
+              <View style={{ flex: 1 }}>{Field({ label: "Colonna 2", path: ["pages", "advisor", "compare", "col_us"] })}</View>
+              <View style={{ flex: 1 }}>{Field({ label: "Colonna 3", path: ["pages", "advisor", "compare", "col_them"] })}</View>
+            </View>
+            {((getPath(content || {}, ["pages", "advisor", "compare", "rows"]) || []) as any[]).map((_, i) => (
+              <View key={i} style={{ gap: 8, borderTopWidth: 1, borderColor: HT.border, paddingTop: 8 }}>
+                {Field({ label: `Riga ${i + 1} · esigenza`, path: ["pages", "advisor", "compare", "rows", String(i), "need"] })}
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <View style={{ flex: 1 }}>{Field({ label: "AdvisorOS", path: ["pages", "advisor", "compare", "rows", String(i), "us"] })}</View>
+                  <View style={{ flex: 1 }}>{Field({ label: "Giganti", path: ["pages", "advisor", "compare", "rows", String(i), "them"] })}</View>
+                </View>
+              </View>
+            ))}
+          </View>
+          <View style={s.planBox}>
+            <Text style={s.cardTitle}>Funzionalità specialistiche (4 aree)</Text>
+            {Field({ label: "Etichetta", path: ["pages", "advisor", "features", "kicker"] })}
+            {Field({ label: "Titolo", path: ["pages", "advisor", "features", "title"] })}
+            {((getPath(content || {}, ["pages", "advisor", "features", "items"]) || []) as any[]).map((_, i) => (
+              <View key={i} style={{ gap: 8 }}>
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <View style={{ width: 70 }}>{Field({ label: "Icona", path: ["pages", "advisor", "features", "items", String(i), "emoji"] })}</View>
+                  <View style={{ flex: 1 }}>{Field({ label: `Area ${i + 1} · titolo`, path: ["pages", "advisor", "features", "items", String(i), "title"] })}</View>
+                </View>
+                {Field({ label: `Area ${i + 1} · testo`, path: ["pages", "advisor", "features", "items", String(i), "text"], multiline: true })}
+              </View>
+            ))}
+          </View>
+          <View style={s.planBox}>
+            <Text style={s.cardTitle}>Pacchetti e prezzi (prezzo = piano Professional, sezione 4)</Text>
+            {Field({ label: "Etichetta", path: ["pages", "advisor", "pricing", "kicker"] })}
+            {Field({ label: "Titolo", path: ["pages", "advisor", "pricing", "title"] })}
+            {Field({ label: "Box Founder · badge", path: ["pages", "advisor", "pricing", "founders_title"] })}
+            {Field({ label: "Box Founder · testo", path: ["pages", "advisor", "pricing", "founders_text"], multiline: true })}
+            {Field({ label: "Box Founder · pillola posti ({left}/{limit})", path: ["pages", "advisor", "pricing", "founders_highlight"] })}
+            {((getPath(content || {}, ["pages", "advisor", "pricing", "tiers"]) || []) as any[]).map((_, i) => (
+              <View key={i} style={{ gap: 8 }}>
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <View style={{ width: 70 }}>{Field({ label: "Icona", path: ["pages", "advisor", "pricing", "tiers", String(i), "emoji"] })}</View>
+                  <View style={{ flex: 1 }}>{Field({ label: `Pacchetto ${i + 1} · nome`, path: ["pages", "advisor", "pricing", "tiers", String(i), "name"] })}</View>
+                </View>
+                {Field({ label: `Pacchetto ${i + 1} · descrizione`, path: ["pages", "advisor", "pricing", "tiers", String(i), "text"], multiline: true })}
+              </View>
+            ))}
+            {Field({ label: "Pulsante prova (→ registrazione AdvisorOS)", path: ["pages", "advisor", "pricing", "cta_trial"] })}
+            {Field({ label: "Pulsante preventivo (→ email)", path: ["pages", "advisor", "pricing", "cta_quote"] })}
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <View style={{ flex: 1 }}>{Field({ label: "Email preventivi", path: ["pages", "advisor", "pricing", "quote_email"] })}</View>
+              <View style={{ flex: 1 }}>{Field({ label: "Oggetto email", path: ["pages", "advisor", "pricing", "quote_subject"] })}</View>
+            </View>
+          </View>
         </Section>
 
         <View style={s.card} testID="cms-og">

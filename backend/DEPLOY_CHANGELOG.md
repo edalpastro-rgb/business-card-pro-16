@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-14 | D2026.10.14-1110 | V50.z546 pagine approfondimento AxonOS/AdvisorOS CMS |
 | 2026-10-14 | D2026.10.14-0941 | V50.z545 — Calendario stress test rispettato (niente run quotidiano se c'è una programmazione; controllo giorno + anti-doppione) · Sveglia: suonerie integrate udibili in anteprima e riprodotte allo squillo (loop fino al tocco) · «186 funzioni integrate» in evidenza su landing interna e italianbrain.it |
 | 2026-10-14 | D2026.10.14-0924 | V50.z544 — Supermaster riconosciuto anche da SUPER_MASTER_EMAILS (fix: voce «Utenti Registrati» e sezione Super Admin nascoste in produzione, /admin/users 403) · bootstrap automatico del primo Master come Supermaster se nessuna email configurata · /admin/me diagnostico |
 | 2026-10-14 | D2026.10.14-0915 | V50.z543 — Home page pubblica Axon Core ripristinata dentro l'app: visitatori non autenticati su core.axonos.cloud vedono la landing (CMS) con pulsante Accedi; login sempre raggiungibile |

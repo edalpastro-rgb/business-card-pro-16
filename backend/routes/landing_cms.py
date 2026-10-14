@@ -71,6 +71,118 @@ LANDING_DEFAULTS: Dict[str, Any] = {
         "sold_out_label": "Posti Founder esauriti",
     },
     "footer": {"text": "Axon Core · AdvisorOS · AxonOS — Infrastruttura dedicata in Italia, GDPR europeo."},
+    # V50.z546 — PAGINE DI APPROFONDIMENTO (italianbrain.it/axonos · /advisoros e, nell'app, /landing/axonos · /landing/advisoros).
+    # Stesso singleton del CMS: ogni testo è modificabile da /admin/landing-cms. Le icone sono emoji (identiche su web statico e app).
+    "pages": {
+        "axon": {
+            "hero": {
+                "kicker": "AxonOS · Impresa Familiare",
+                "title": "AxonOS: L'Assistente Personale Vocale che elimina 100 app e organizza la tua Impresa Familiare.",
+                "subtitle": "Smetti di impazzire tra mille calendari, note, scontrini, scadenze e file sparsi. Versa tutto dentro il tuo Caveau Digitale protetto su server italiani. Configuralo in meno di 5 minuti senza essere un esperto, dagli il nome che preferisci e lascia che sia lui a semplificarti la vita.",
+                "video_label": "[VIDEO 90 secondi — AxonOS in azione: sarà inserito il link Vimeo]",
+                "cta": "Inizia Ora: 15 Giorni di Prova Gratuita",
+                "cta_note": "Nessuna carta di credito richiesta",
+            },
+            "concept": {
+                "kicker": "Il concetto chiave",
+                "title": "«Svuota la Scrivania»: 100 App in Una",
+                "text1": "Immagina l'impiegato sommerso da post-it, fogli volanti, promemoria sul frigo e dieci app che non si parlano. È la tua giornata. AxonOS non è un'app in più: è lo svuotatasche digitale che centralizza tutto in un unico posto, raggiungibile con la voce.",
+                "text2": "La famiglia gestita come un'impresa: la potenza di un sistema avanzato con la semplicità di una conversazione.",
+            },
+            "scenarios": {
+                "kicker": "L'assistente in azione",
+                "title": "Quattro scenari reali, zero mani sulla tastiera",
+                "items": [
+                    {"emoji": "🚗", "title": "Hands-Free e Riconoscimento Familiare", "text": "Mani libere in auto e in casa. Riconoscimento vocale biometrico di partner e figli: ognuno ha il suo profilo. Navigazione predittiva: «Portami dal bambino», «Vai a Casa 2»."},
+                    {"emoji": "🩺", "title": "Guardiano della Salute", "text": "Foto del referto → storico clinico digitale di tutta la famiglia. Foto della ricetta → sveglie e promemoria automatici per ogni assunzione."},
+                    {"emoji": "🔐", "title": "Caveau Documenti", "text": "Archivio crittografato su server italiani con ricerca vocale: «Mostrami il passaporto di Chiara». Diario privato e appunti di studio sempre a portata di voce."},
+                    {"emoji": "🧾", "title": "Bilancio Familiare e Memoria Proattiva", "text": "Foto degli scontrini → resoconto mensile per articoli e budget. E un assistente che pensa prima di te: «Emanuele, sono 15 giorni che non compri il latte, lo aggiungo alla lista?»"},
+                ],
+            },
+            "onboarding": {
+                "kicker": "Onboarding lampo",
+                "title": "A prova di nonno",
+                "text": "Setup in 5 minuti, guidato dalla voce dell'assistente: nessun manuale, nessun tecnico.",
+                "bullets": ["Configurazione vocale guidata passo passo", "Scegli tu il nome dell'assistente: Axon, Orsetto, Nonna Pina…", "Funziona da subito su telefono, tablet e computer"],
+            },
+            "founders": {
+                "kicker": "Offerta Soci Fondatori",
+                "title": "500 interazioni vocali al mese incluse",
+                "text": "Per i primi 100 clienti: risposte ILLIMITATE per sempre non appena si raggiunge il 100° utente, senza alcun aumento di prezzo.",
+                "highlight": "🔥 Solo {left} posti Founder rimasti su {limit}",
+            },
+            "pricing": {
+                "badge": "TARIFFA UNICA",
+                "title": "Un solo prezzo per tutto il nucleo familiare",
+                "text": "Partner, figli, nonni: tutti dentro, nessun costo per utente aggiuntivo.",
+                "bullets": ["Prezzo unico per tutta la famiglia", "Server 100% italiani · GDPR europeo", "15 giorni di prova gratuita, senza carta di credito"],
+                "cta": "Blocca la tua Offerta — Inizia la Prova di 15 Giorni",
+            },
+            "bridge": {
+                "kicker": "Lavori nel commerciale?",
+                "title": "AdvisorOS: il sistema operativo da campo per il consulente",
+                "text": "Lo stesso cervello italiano, pensato per chi vende: CRM vocale mentre guidi, dati energia integrati, pipeline documentale automatica.",
+                "cta": "Scopri AdvisorOS per il Business",
+            },
+        },
+        "advisor": {
+            "hero": {
+                "kicker": "AdvisorOS · Consulenti Commerciali",
+                "title": "AdvisorOS: Il sistema operativo da campo per il consulente commerciale che parla con il suo CRM mentre guida.",
+                "subtitle": "Cancella l'inferno di 15 applicazioni diverse aperte contemporaneamente. Prendi il controllo totale di contatti, trattative, scadenze e dati del mercato energetico in un'unica schermata, a mani libere e in totale mobilità.",
+                "video_label": "[VIDEO specialistico — AdvisorOS sul campo: sarà inserito il link Vimeo]",
+                "cta": "Attiva la Prova Gratuita — Operativo in 5 Minuti",
+            },
+            "pain": {
+                "kicker": "Il dolore",
+                "title": "Smetti di fare l'impiegato la sera a casa",
+                "text1": "La giornata del consulente: auto, navigatore, WhatsApp che squilla, un Excel aperto sul telefono e un CRM rigido che va compilato la sera, a casa, quando i clienti sono già un ricordo. Ogni dato va riscritto due volte.",
+                "text2": "La svolta: un'interfaccia mobile-first che si modella sulla tua azienda, non il contrario. Onboarding guidato, campi personalizzabili in pochi secondi, voce al posto della tastiera.",
+            },
+            "compare": {
+                "kicker": "Confronto",
+                "title": "AdvisorOS vs I Giganti",
+                "col_need": "Cosa ti serve sul campo",
+                "col_us": "AdvisorOS",
+                "col_them": "I Giganti Generalisti (Salesforce, HubSpot…)",
+                "rows": [
+                    {"need": "Uso in auto Voce-First", "us": "✅ Nativo", "them": "🟡 App mobile digitata"},
+                    {"need": "AI che ESEGUE azioni", "us": "✅ Comandi multi-step", "them": "🟡 Solo suggerimenti costosi"},
+                    {"need": "Dati Energia Integrati", "us": "✅ Nativi PUN e GME", "them": "❌ Assenti, a tue spese"},
+                    {"need": "Gestione Imprevisti", "us": "✅ Ricalcola agenda", "them": "❌ Assente"},
+                    {"need": "Privacy e Sovranità", "us": "✅ VPS proprio, dati tuoi", "them": "❌ Cloud americani"},
+                    {"need": "Tempo di Attivazione", "us": "✅ Minuti", "them": "❌ Settimane con partner costosi"},
+                ],
+            },
+            "features": {
+                "kicker": "Funzionalità specialistiche",
+                "title": "Quattro aree costruite per chi vende sul campo",
+                "items": [
+                    {"emoji": "🎙️", "title": "Axon Operativo", "text": "Wake-word personalizzabile («Viola»). Comandi multi-step vocali con conferma vocale: «Sposta l'appuntamento con Rossi a giovedì e avvisalo via WhatsApp»."},
+                    {"emoji": "⚡", "title": "Dati di Settore Nativi", "text": "Prezzi PUN e fasce GME in tempo reale, storico 18 mesi, PDF scaricabili da mostrare al cliente."},
+                    {"emoji": "📄", "title": "Pipeline Documentale", "text": "Foto di bollette e contratti → anagrafica compilata automaticamente. Trascrizione delle chiamate con estrazione di budget e next step direttamente nelle note CRM."},
+                    {"emoji": "🛡️", "title": "Deploy Sovrano", "text": "VPS proprietaria: i dati restano tuoi anche se cambi mandato. Fallback sulla rubrica se internet cade: non resti mai a piedi."},
+                ],
+            },
+            "pricing": {
+                "kicker": "Pacchetti e prezzi",
+                "title": "Dal professionista singolo alla rete Enterprise",
+                "founders_title": "Offerta Soci Fondatori",
+                "founders_text": "500 interazioni/mese incluse. ILLIMITATE per i primi 100 iscritti, senza aumento di prezzo.",
+                "founders_highlight": "🔥 Solo {left} posti Founder rimasti su {limit}",
+                "tiers": [
+                    {"emoji": "👤", "name": "Professionista Singolo", "text": "Interfaccia personale focalizzata: contatti, trattative, scadenze e Axon vocale."},
+                    {"emoji": "👥", "name": "Master Small (1-10 collaboratori)", "text": "Pannello centralizzato, onboarding del team, permessi granulari."},
+                    {"emoji": "🏢", "name": "Master Medium (11-50 collaboratori)", "text": "Tutto Small + report di squadra avanzati."},
+                    {"emoji": "🏛️", "name": "Master Enterprise (oltre 51)", "text": "Integrazioni verticali con i sistemi back-office aziendali."},
+                ],
+                "cta_trial": "Attiva la Prova Gratuita",
+                "cta_quote": "Richiedi un Preventivo su Misura",
+                "quote_email": "info@advisoros.cloud",
+                "quote_subject": "Richiesta preventivo AdvisorOS",
+            },
+        },
+    },
 }
 
 
@@ -104,6 +216,17 @@ async def _landing_seats(content: Dict[str, Any]) -> Dict[str, Dict[str, int]]:
 async def public_landing():
     data = await _landing_content()
     return {"content": data["content"], "seats": await _landing_seats(data["content"]), "updated_at": data["updated_at"].isoformat() if data.get("updated_at") else None}
+
+
+@api_router.get("/public/landing/page/{slug}")  # noqa: F821
+async def public_landing_page(slug: str):
+    """V50.z546 — Contenuti di UNA pagina di approfondimento (axon | advisor) + piani/posti: usata dalle pagine statiche
+    italianbrain.it/axonos e /advisoros (JS leggero, same-origin via proxy nginx) e dalle route /landing/axonos · /landing/advisoros."""
+    if slug not in ("axon", "advisor"):
+        raise HTTPException(status_code=404, detail="Pagina non trovata")
+    data = await _landing_content()
+    content = data["content"]
+    return {"slug": slug, "page": content["pages"][slug], "plans": content["plans"], "seats": await _landing_seats(content)}
 
 
 # ───────────────────────────── CMS (Super Admin + password dedicata) ─────────────────────────────
@@ -320,7 +443,7 @@ _FAQ_DEFAULT_ROLES: Dict[str, List[str]] = {
 FAQ_ROLE_DEFAULTS: List[Dict[str, Any]] = [
     {"id": "faq_17", "icon": "globe-outline", "roles": ["master"],
      "q": "Cos'è la landing page italianbrain.it e come la uso?",
-     "a": "italianbrain.it è la pagina pubblica di presentazione di AxonOS: spiega il Manifesto Privacy, i piani e i posti Founder rimasti. È fuori dall'app (sito statico): condividila a chi vuoi presentare AxonOS. Chi clicca «Inizia» arriva alla registrazione dell'app. Il link è in Pannello Master › Condividi landing e nella Business Card."},
+     "a": "italianbrain.it è la pagina pubblica di presentazione di AxonOS: spiega il Manifesto Privacy, i piani e i posti Founder rimasti. È fuori dall'app (sito statico): condividila a chi vuoi presentare AxonOS. Chi clicca «Inizia» arriva alla registrazione dell'app. Il link è in Pannello Master › Condividi landing e nella Business Card. Dai bottoni «Attiva AxonLite»/«19€» e «Scopri AdvisorOS» si aprono le due pagine di approfondimento (italianbrain.it/axonos e /advisoros), i cui testi si modificano dal CMS Landing › sezioni 5 e 6."},
     {"id": "faq_18", "icon": "link-outline", "roles": ["master", "manager"],
      "q": "Come invito i miei utenti: link via email o creazione manuale?",
      "a": "Due modi, entrambi da Pannello Master. 1) Link di registrazione: Invita collaboratore › scegli il ruolo (Collaboratore, Manager, Master figlio) › Crea link › invialo via email, WhatsApp o QR; chi lo apre si registra ed entra nella tua organizzazione. 2) Creazione manuale: Gestione Team › «Aggiungi» › inserisci nome, email, password e aree: l'utente è pronto subito. Ogni Manager può creare i propri Collaboratori."},

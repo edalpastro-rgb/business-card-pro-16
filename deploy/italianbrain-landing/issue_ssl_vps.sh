@@ -53,7 +53,7 @@ fi
 
 # ── 2. file landing + mount nel container nginx ─────────────────────────────────────────────────────────────────
 mkdir -p "$WEBROOT_HOST" nginx/certs nginx/www nginx/conf.d letsencrypt
-for f in index.html style.css og-preview.png og-image.png favicon.svg favicon.png apple-touch-icon.png; do
+for f in index.html axonos.html advisoros.html cms.js style.css og-preview.png og-image.png favicon.svg favicon.png apple-touch-icon.png; do
   [[ -f "$HERE/$f" ]] && install -m 644 "$HERE/$f" "$WEBROOT_HOST/$f"
 done
 ok "Landing copiata in $WEBROOT_HOST"
