@@ -209,3 +209,28 @@ body.modal-open{overflow:hidden}
 .founder-inline .founder-pill{margin:0;align-self:flex-start}
 .founder-inline .strong{font-size:14px}
 #dolore .concept-art{margin-bottom:18px}
+/* V50.z551 — home: bivio split-screen (viola famiglia · ambra business) + promessa sicurezza */
+:root{--family:#A78BFA;--family-deep:#2A1B5E;--family-glow:rgba(167,139,250,.16);--family-line:rgba(167,139,250,.5)}
+.split{display:grid;grid-template-columns:1fr;gap:16px}
+@media(min-width:860px){.split{grid-template-columns:1fr 1fr;gap:0;border-radius:var(--r);overflow:hidden;border:1px solid var(--line)}
+  .split .half{border-radius:0;border:0}.split .half-family{border-right:1px solid var(--line)}}
+.half{position:relative;padding:30px 26px 28px;display:flex;flex-direction:column;gap:12px;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.half-family{background:linear-gradient(165deg,var(--family-deep) 0%,#1A1240 55%,#120C2E 100%);color:var(--text)}
+.half-business{background:linear-gradient(165deg,var(--bg3) 0%,#1A1A2A 55%,rgba(245,158,11,.10) 100%)}
+.half::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(420px 220px at 15% 0%,rgba(255,255,255,.08),transparent 70%)}
+.half-icon{width:72px;height:72px;border-radius:22px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line)}
+.half-family .half-icon{background:var(--family-glow);border-color:var(--family-line);color:var(--family)}
+.half-business .half-icon{background:var(--brand-glow);border-color:var(--brand-line);color:var(--brand)}
+.half h2{font-size:clamp(26px,3.8vw,34px);line-height:1.1;font-weight:900;letter-spacing:-.8px}
+.half .payoff{font-weight:800;font-size:16px;letter-spacing:-.2px}
+.half-family .payoff{color:var(--family)}.half-business .payoff{color:var(--brand)}
+.half p{color:var(--text2);font-size:15px}
+.half .video{margin:6px 0 4px}
+.half .btn{margin-top:auto;align-self:flex-start}
+.btn-family{background:var(--family);color:#120C2E;box-shadow:0 10px 30px rgba(167,139,250,.28)}
+.bivio .kicker{margin-bottom:18px}
+.promise{display:flex;gap:18px;align-items:flex-start;background:var(--bg);border:1px solid var(--axon-line);border-radius:var(--r);padding:26px}
+.promise-icon{flex:0 0 56px;width:56px;height:56px;border-radius:18px;background:var(--axon-glow);border:1px solid var(--axon-line);display:flex;align-items:center;justify-content:center;font-size:26px}
+.promise h2{font-size:clamp(20px,3vw,26px);line-height:1.15;font-weight:900;letter-spacing:-.4px;margin-bottom:8px}
+.promise p{color:var(--text2);font-size:15px}
+@media(max-width:560px){.promise{flex-direction:column}.half .btn{align-self:stretch}}

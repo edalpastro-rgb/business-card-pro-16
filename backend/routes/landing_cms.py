@@ -316,6 +316,32 @@ async def public_landing_page(slug: str):
     return {"slug": slug, "page": content["pages"][slug], "plans": content["plans"], "seats": await _landing_seats(content)}
 
 
+# ───────────────────────────── V50.z551 — Statistiche landing (visite + click per giorno) ─────────────────────────────
+STATS_PAGES = ("home", "axon", "advisor")
+STATS_EVENTS = ("view", "cta_register", "cta_axonos", "cta_advisoros", "onboarding_open", "compare_open", "cta_quote", "video_play")
+STATS_EVENT_LABELS = {
+    "view": "Visite", "cta_register": "Click «Attiva / Registrati»", "cta_axonos": "Click «Entra in AxonOS»", "cta_advisoros": "Click «Entra in AdvisorOS»",
+    "onboarding_open": "Apertura modal Onboarding", "compare_open": "Apertura confronto tecnico", "cta_quote": "Click «Richiedi preventivo»", "video_play": "Avvio video",
+}
+
+
+class TrackIn(BaseModel):
+    page: str = Field(min_length=1, max_length=20)
+    event: str = Field(min_length=1, max_length=30)
+    src: str = Field(default="web", max_length=10)  # web = italianbrain.it statico · app = Expo
+
+
+@api_router.post("/public/landing/track")  # noqa: F821
+async def public_landing_track(body: TrackIn):
+    """Contatore giornaliero anonimo (nessun dato personale, nessun cookie): un documento per giorno/pagina/evento/sorgente, $inc."""
+    if body.page not in STATS_PAGES or body.event not in STATS_EVENTS:
+        return {"ok": False}
+    src = "app" if body.src == "app" else "web"
+    day = utcnow().strftime("%Y-%m-%d")  # noqa: F821
+    await db.landing_stats.update_one({"_id": f"{day}|{body.page}|{body.event}|{src}"}, {"$inc": {"n": 1}, "$set": {"day": day, "page": body.page, "event": body.event, "src": src}}, upsert=True)  # noqa: F821
+    return {"ok": True}
+
+
 # ───────────────────────────── CMS (Super Admin + password dedicata) ─────────────────────────────
 def _cms_password_ok(pw: Optional[str]) -> bool:
     expected = (os.environ.get("LANDING_CMS_PASSWORD") or "").strip()
@@ -378,6 +404,28 @@ async def landing_cms_unlock(body: CmsUnlockIn, user=Depends(_require_cms_admin)
 async def landing_cms_get(user=Depends(_require_cms)):
     data = await _landing_content()
     return {**data, "updated_at": data["updated_at"].isoformat() if data.get("updated_at") else None, "defaults": LANDING_DEFAULTS, "seats": await _landing_seats(data["content"])}
+
+
+@api_router.get("/landing/cms/stats")  # noqa: F821
+async def landing_cms_stats(days: int = 14, user=Depends(_require_cms)):
+    """Riepilogo per il CMS: ultimi N giorni × pagina × evento (web + app sommati, con dettaglio sorgente) + totali."""
+    days = max(1, min(int(days or 14), 90))
+    from datetime import timedelta  # noqa: PLC0415
+    today = utcnow().date()  # noqa: F821
+    day_list = [(today - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(days)]
+    rows = await db.landing_stats.find({"day": {"$in": day_list}}, {"_id": 0}).to_list(length=20000)  # noqa: F821
+    by_day: Dict[str, Dict[str, Dict[str, int]]] = {d: {p: {} for p in STATS_PAGES} for d in day_list}
+    totals: Dict[str, Dict[str, int]] = {p: {} for p in STATS_PAGES}
+    by_src: Dict[str, int] = {"web": 0, "app": 0}
+    for r in rows:
+        d, p, e, n = r.get("day"), r.get("page"), r.get("event"), int(r.get("n") or 0)
+        if d not in by_day or p not in STATS_PAGES:
+            continue
+        by_day[d][p][e] = by_day[d][p].get(e, 0) + n
+        totals[p][e] = totals[p].get(e, 0) + n
+        if e == "view":
+            by_src[r.get("src") or "web"] = by_src.get(r.get("src") or "web", 0) + n
+    return {"days": day_list, "by_day": by_day, "totals": totals, "views_by_src": by_src, "events": STATS_EVENTS, "labels": STATS_EVENT_LABELS, "pages": {"home": "Home italianbrain.it", "axon": "Pagina AxonOS", "advisor": "Pagina AdvisorOS"}}
 
 
 @api_router.put("/landing/cms/content")  # noqa: F821

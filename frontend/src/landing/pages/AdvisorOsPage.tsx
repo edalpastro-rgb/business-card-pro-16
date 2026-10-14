@@ -8,6 +8,7 @@ import { LP } from "@/src/landing/palette";
 import { Reveal } from "@/src/landing/LandingFx";
 import { usePageContent, fillVars } from "@/src/landing/pages/usePageContent";
 import { WhySection, type WhyBlock } from "@/src/landing/pages/CompareModal"; // V50.z548
+import { trackLanding } from "@/src/landing/landingTrack"; // V50.z551
 import { PageHero, Section, Cols, EmojiCard, InfoBlock, FounderPill, PriceRow, BigButton, PageFooter, PageLoading, goRegister, openMail, useCompact, k } from "@/src/landing/pages/PageKit";
 
 type Block = { kicker: string; title: string; intro: string; items: { emoji: string; title: string; text: string }[]; note?: string };
@@ -32,7 +33,7 @@ export function AdvisorOsPage() {
   const { data, failed } = usePageContent<AdvisorPage>("advisor");
   if (!data) return <PageLoading failed={failed} />;
   const p = data.page, plan = data.plans.professional, seats = data.seats.professional;
-  const register = () => goRegister(router, "professional");
+  const register = () => { trackLanding("advisor", "cta_register"); goRegister(router, "professional"); };
 
   return (
     <ScrollView style={k.root} contentContainerStyle={{ flexGrow: 1, paddingTop: insets.top, paddingBottom: insets.bottom + 24 }} showsVerticalScrollIndicator={false} testID="advisoros-page">
@@ -104,7 +105,7 @@ export function AdvisorOsPage() {
         </Cols>
         <View style={[s.ctaRow, compact && { flexDirection: "column" }]}>
           <BigButton label={p.pricing.cta_trial} onPress={register} color={LP.brand} icon="rocket" testID="advisoros-cta-trial" />
-          <BigButton label={p.pricing.cta_quote} onPress={() => openMail(p.pricing.quote_email, p.pricing.quote_subject)} color={LP.brand} outline icon="mail" testID="advisoros-cta-quote" />
+          <BigButton label={p.pricing.cta_quote} onPress={() => { trackLanding("advisor", "cta_quote"); openMail(p.pricing.quote_email, p.pricing.quote_subject); }} color={LP.brand} outline icon="mail" testID="advisoros-cta-quote" />
         </View>
       </Section>
 

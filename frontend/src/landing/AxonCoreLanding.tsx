@@ -14,6 +14,7 @@ import { AxonOrb, Aurora, Reveal, LiveDot } from "@/src/landing/LandingFx";
 import { DemoRequestForm } from "@/src/landing/DemoRequestForm";
 import { LANDING_SEEN_KEY, PENDING_PLAN_KEY } from "@/src/landing/landingSeen";
 import { VideoEmbed } from "@/src/landing/VideoEmbed"; // V50.z547 — video Vimeo dei due mondi (link dal CMS)
+import { trackLanding } from "@/src/landing/landingTrack"; // V50.z551 — statistiche landing
 
 type Plan = { badge: string; name: string; price_old: number; price: number; limit: number; features: string[]; cta: string };
 type Seats = { limit: number; taken: number; left: number };
@@ -73,7 +74,8 @@ export function AxonCoreLanding() {
     router.push({ pathname: "/login", params: { plan, mode: "register", ...(refCode ? { ref: refCode } : {}) } } as any);
   };
   // V50.z546 — «Attiva AxonLite» e «19€» → approfondimento AxonOS; «Scopri AdvisorOS» → approfondimento AdvisorOS (testi dal CMS)
-  const goPage = (slug: "axonos" | "advisoros") => router.push({ pathname: `/landing/${slug}`, params: refCode ? { ref: refCode } : {} } as any);
+  const goPage = (slug: "axonos" | "advisoros") => { trackLanding("home", slug === "axonos" ? "cta_axonos" : "cta_advisoros"); router.push({ pathname: `/landing/${slug}`, params: refCode ? { ref: refCode } : {} } as any); };
+  useEffect(() => { trackLanding("home", "view"); }, []); // V50.z551
   const goLogin = () => router.push("/login" as any);
   const openMail = () => {
     const url = "mailto:info@advisoros.it";

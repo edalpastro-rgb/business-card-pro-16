@@ -12,6 +12,7 @@ import { PasswordInput } from "@/src/PasswordInput";
 import { KScrollView } from "@/src/ui/keyboard";
 import { usePageBottomPadding } from "@/src/utils/bottomSheetInsets";
 import { HT } from "@/src/homeTheme";
+import { LandingStatsPanel } from "@/src/landing/LandingStatsPanel"; // V50.z551 — statistiche visite/click
 import { theme } from "@/src/theme";
 
 type Content = Record<string, any>;
@@ -176,6 +177,8 @@ export default function LandingCmsScreen() {
             ))}
           </View>
         ) : null}
+
+        <LandingStatsPanel headers={H} />
 
         <Section title="1 · Hero">
           {Field({ label: "Badge", path: ["hero", "badge"] })}

@@ -9,6 +9,7 @@ import { Reveal } from "@/src/landing/LandingFx";
 import { usePageContent, fillVars } from "@/src/landing/pages/usePageContent";
 import { PageHero, Section, Cols, EmojiCard, InfoBlock, FounderPill, PriceRow, Bullets, BigButton, PageFooter, PageLoading, goRegister, useCompact, k } from "@/src/landing/pages/PageKit";
 import { ModalShell } from "@/src/landing/pages/CompareModal";
+import { trackLanding } from "@/src/landing/landingTrack"; // V50.z551
 
 type Item = { emoji: string; title: string; text: string };
 type AxonPage = {
@@ -30,7 +31,7 @@ export function AxonOsPage() {
   const { data, failed } = usePageContent<AxonPage>("axon");
   if (!data) return <PageLoading failed={failed} />;
   const p = data.page, plan = data.plans.builder, seats = data.seats.builder;
-  const register = () => goRegister(router, "builder");
+  const register = () => { trackLanding("axon", "cta_register"); goRegister(router, "builder"); };
 
   return (
     <ScrollView style={k.root} contentContainerStyle={{ flexGrow: 1, paddingTop: insets.top, paddingBottom: insets.bottom + 24 }} showsVerticalScrollIndicator={false} testID="axonos-page">
@@ -71,7 +72,7 @@ export function AxonOsPage() {
         <Text style={[k.p, { textAlign: "center", maxWidth: 760, alignSelf: "center" }]}>{p.onboarding.text}</Text>
         {p.onboarding.modal && p.onboarding.cta ? (
         <Reveal delay={200} style={{ alignItems: "center", marginTop: 20 }}>
-          <BigButton label={p.onboarding.cta} onPress={() => setOnbOpen(true)} color={LP.axon} outline testID="axonos-onb-cta" />
+          <BigButton label={p.onboarding.cta} onPress={() => { trackLanding("axon", "onboarding_open"); setOnbOpen(true); }} color={LP.axon} outline testID="axonos-onb-cta" />
         </Reveal>
         ) : null}
         {p.onboarding.modal ? (
@@ -119,7 +120,7 @@ export function AxonOsPage() {
             <Text style={[k.kicker, { color: LP.brand, textAlign: "left", marginBottom: 4 }]}>{p.bridge.kicker}</Text>
             <Text style={[k.h3, { color: LP.onSurface, fontSize: compact ? 22 : 26, lineHeight: compact ? 28 : 32 }]}>{p.bridge.title}</Text>
             <Text style={k.p}>{p.bridge.text}</Text>
-            <View style={{ marginTop: 10, alignSelf: compact ? "stretch" : "flex-start" }}><BigButton label={p.bridge.cta} onPress={() => router.push("/landing/advisoros" as any)} color={LP.brand} icon="briefcase" testID="axonos-bridge-cta" /></View>
+            <View style={{ marginTop: 10, alignSelf: compact ? "stretch" : "flex-start" }}><BigButton label={p.bridge.cta} onPress={() => { trackLanding("axon", "cta_advisoros"); router.push("/landing/advisoros" as any); }} color={LP.brand} icon="briefcase" testID="axonos-bridge-cta" /></View>
           </View>
         </Reveal>
       </Section>

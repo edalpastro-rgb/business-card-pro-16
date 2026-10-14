@@ -7,6 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LP } from "@/src/landing/palette";
 import { Reveal } from "@/src/landing/LandingFx";
 import { Section, Cols, EmojiCard, BigButton, k } from "@/src/landing/pages/PageKit";
+import { trackLanding } from "@/src/landing/landingTrack"; // V50.z551
 
 export type WhyBlock = {
   kicker: string; title: string; items: { emoji: string; title: string; text: string }[]; cta: string;
@@ -24,7 +25,7 @@ export function WhySection({ why }: { why: WhyBlock }) {
         {why.items.map((it, i) => <EmojiCard key={i} emoji={it.emoji} title={it.title} text={it.text} accent={LP.brand} glow={LP.brandGlow} line={LP.brandLineSoft} delay={80 + i * 90} testID={`advisoros-why-${i}`} />)}
       </Cols>
       <Reveal delay={320} style={{ alignItems: "center", marginTop: 22 }}>
-        <BigButton label={why.cta} onPress={() => setOpen(true)} color={LP.brand} outline testID="advisoros-why-cta" />
+        <BigButton label={why.cta} onPress={() => { trackLanding("advisor", "compare_open"); setOpen(true); }} color={LP.brand} outline testID="advisoros-why-cta" />
       </Reveal>
       <CompareModal visible={open} onClose={() => setOpen(false)} modal={why.modal} />
     </Section>

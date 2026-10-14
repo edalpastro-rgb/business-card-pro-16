@@ -26,6 +26,7 @@
       f.src = src; f.loading = "lazy"; f.allow = "autoplay; fullscreen; picture-in-picture"; f.allowFullscreen = true;
       f.title = box.getAttribute("aria-label") || "Video";
       box.innerHTML = ""; box.appendChild(f); box.classList.add("video-live");
+      box.addEventListener("pointerdown", function () { if (typeof track === "function") track("video_play"); }, { once: true });
     });
   }
 
@@ -99,6 +100,19 @@
     modal.querySelectorAll("[data-close]").forEach(function (el) { el.addEventListener("click", closeM); });
     document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !modal.hidden) closeM(); });
   });
+
+  // V50.z551 — statistiche: visita pagina + click sui pulsanti marcati data-track="evento" (contatore anonimo, nessun cookie).
+  var API_BASES = ["", "https://core.italianbrain.it"];
+  function track(ev) {
+    var body = JSON.stringify({ page: slug, event: ev, src: "web" });
+    var sent = false;
+    try { sent = !!(navigator.sendBeacon && navigator.sendBeacon(API_BASES[0] + "/api/public/landing/track", new Blob([body], { type: "application/json" }))); } catch (e) { sent = false; }
+    if (!sent) fetch(API_BASES[0] + "/api/public/landing/track", { method: "POST", headers: { "Content-Type": "application/json" }, body: body, keepalive: true }).catch(function () {
+      fetch(API_BASES[1] + "/api/public/landing/track", { method: "POST", headers: { "Content-Type": "application/json" }, body: body, keepalive: true }).catch(function () {});
+    });
+  }
+  track("view");
+  document.querySelectorAll("[data-track]").forEach(function (el) { el.addEventListener("click", function () { track(el.getAttribute("data-track")); }); });
 
   var url = slug === "home" ? "/api/public/landing" : "/api/public/landing/page/" + encodeURIComponent(slug);
   fetch(url, { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); }).then(apply).catch(function () {
