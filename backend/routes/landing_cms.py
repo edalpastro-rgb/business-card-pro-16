@@ -196,11 +196,12 @@ LANDING_DEFAULTS: Dict[str, Any] = {
             "features": {
                 "kicker": "Funzionalità specialistiche",
                 "title": "L'Armatura del Consulente: quattro aree costruite per chi vende sul campo",
+                "subtitle": "Progettato per l'utilizzo in mobilità con una sola mano direttamente dallo smartphone, o integrato sul cruscotto della tua vettura.",  # V50.z550
                 "items": [
                     {"emoji": "🎙️", "title": "Axon Operativo", "text": "Wake-word personalizzabile («Viola»). Comandi multi-step vocali con conferma vocale: «Sposta l'appuntamento con Rossi a giovedì e avvisalo via WhatsApp»."},
                     {"emoji": "⚡", "title": "Dati di Settore Nativi", "text": "Prezzi PUN e fasce GME in tempo reale, storico 18 mesi, PDF scaricabili da mostrare al cliente."},
                     {"emoji": "📄", "title": "Pipeline Documentale", "text": "Foto di bollette e contratti → anagrafica compilata automaticamente. Trascrizione delle chiamate con estrazione di budget e next step direttamente nelle note CRM."},
-                    {"emoji": "🛡️", "title": "Deploy Sovrano", "text": "VPS proprietaria: i dati restano tuoi anche se cambi mandato. Fallback sulla rubrica se internet cade: non resti mai a piedi."},
+                    {"emoji": "🛡️", "title": "Deploy Sovrano", "text": "VPS proprietaria: i dati restano tuoi anche se cambi mandato. Massima reattività anche nelle zone d'ombra. Se internet cade durante il tuo giro visite, l'app non si blocca: usa la rubrica locale come fallback e memorizza le note vocali offline per non lasciarti mai a piedi."},
                 ],
             },
             # V50.z547 — blocco «Advisor Drive» (in coda alla sezione Armatura del Consulente)
@@ -226,16 +227,19 @@ LANDING_DEFAULTS: Dict[str, Any] = {
                 "modal": {
                     "title": "Confronto tecnico completo",
                     "col_need": "Cosa ti serve sul campo",
-                    "columns": ["AdvisorOS", "Salesforce + Agentforce", "HubSpot (Breeze)", "Zoho CRM (Zia)", "Pipedrive (AI)", "vtenext / CRM Italiani"],
+                    "columns": ["AdvisorOS", "Salesforce + Agentforce", "HubSpot (Breeze)", "Zoho CRM (Zia)", "Pipedrive (AI)", "vtenext / CRM Italiani", "CRM Gratis + ChatGPT/Gemini"],  # V50.z550 — 7ª colonna
                     "rows": [
-                        {"need": "Uso in auto (Voce-First, CarPlay/Android Auto)", "cells": ["✅ Nativo (Advisor Drive)", "🟡 App buona, non voice-first", "🟡 Solo da fermo", "🟡 Solo da fermo", "🟡 Solo da fermo", "❌ Assente"]},
-                        {"need": "AI che ESEGUE azioni (Comandi Multi-Step)", "cells": ["✅ Nativo con conferma", "✅ Disponibile a consumo extra", "🟡 Solo piani Enterprise", "🟡 Assistenti di testo", "🟡 Pochi suggerimenti", "❌ Assente"]},
-                        {"need": "Dati Mercato Energia Nativi (PUN/GME + PDF)", "cells": ["✅ Nativo (Storico 18 mesi)", "❌", "❌", "❌", "❌", "❌"]},
-                        {"need": "Gestione Imprevisti (Ricalcolo agenda + SMS)", "cells": ["✅ Nativo", "🟡 Da costruire da zero", "❌", "❌", "❌", "❌"]},
-                        {"need": "Pipeline Documentale (Scanner bollette e foto)", "cells": ["✅ Offline-ready", "🟡 Via app partner esterne", "❌", "🟡 Solo biglietti da visita", "❌", "❌"]},
-                        {"need": "Privacy: Dati cifrati on-device + VPS Propria", "cells": ["✅ Totale (No Cloud USA)", "❌ Cloud USA", "❌ Cloud USA", "❌ Cloud USA", "❌ Cloud USA", "🟡 On-premise possibile"]},
-                        {"need": "Tempo per essere Operativi sul campo", "cells": ["⏱️ Minuti", "❌ Settimane/Mesi", "❌ Giorni/Settimane", "❌ Giorni/Settimane", "⏱️ Ore", "❌ Giorni/Settimane"]},
-                        {"need": "Prezzo indicativo/utente/mese", "cells": ["Target 25–49€", "❌ 100–330€ + AI a consumo", "❌ 20–150€", "❌ 14–52€", "❌ 14–99€ + add-on AI", "❌ 20–60€"]},
+                        {"need": "Uso in auto (Voce-First, CarPlay/Android Auto)", "cells": ["✅ Nativo (Advisor Drive)", "🟡 App buona, non voice-first", "🟡 Solo da fermo", "🟡 Solo da fermo", "🟡 Solo da fermo", "❌ Assente", "❌ App separate, solo da fermo"]},
+                        {"need": "AI che ESEGUE azioni (Comandi Multi-Step)", "cells": ["✅ Nativo con conferma", "✅ Disponibile a consumo extra", "🟡 Solo piani Enterprise", "🟡 Assistenti di testo", "🟡 Pochi suggerimenti", "❌ Assente", "🟡 Solo chat: copia-incolla manuale"]},
+                        {"need": "Dati Mercato Energia Nativi (PUN/GME + PDF)", "cells": ["✅ Nativo (Storico 18 mesi)", "❌", "❌", "❌", "❌", "❌", "❌"]},
+                        {"need": "Gestione Imprevisti (Ricalcolo agenda + SMS)", "cells": ["✅ Nativo", "🟡 Da costruire da zero", "❌", "❌", "❌", "❌", "❌"]},
+                        {"need": "Pipeline Documentale (Scanner bollette e foto)", "cells": ["✅ Offline-ready", "🟡 Via app partner esterne", "❌", "🟡 Solo biglietti da visita", "❌", "❌", "🟡 Manuale: foto → chat → ricopiare"]},
+                        {"need": "Privacy: Dati cifrati on-device + VPS Propria", "cells": ["✅ Totale (No Cloud USA)", "❌ Cloud USA", "❌ Cloud USA", "❌ Cloud USA", "❌ Cloud USA", "🟡 On-premise possibile", "❌ Dati clienti nelle chat su cloud USA"]},
+                        {"need": "Tempo per essere Operativi sul campo", "cells": ["⏱️ Minuti", "❌ Settimane/Mesi", "❌ Giorni/Settimane", "❌ Giorni/Settimane", "⏱️ Ore", "❌ Giorni/Settimane", "🟡 Ore + configurazioni"]},
+                        {"need": "Prezzo indicativo/utente/mese", "cells": ["Target 25–49€", "❌ 100–330€ + AI a consumo", "❌ 20–150€", "❌ 14–52€", "❌ 14–99€ + add-on AI", "❌ 20–60€", "🟡 0–20€ + abbonamento AI"]},
+                        # V50.z550 — confronto con «CRM Gratis + ChatGPT/Gemini»
+                        {"need": "Funzionamento Offline", "cells": ["✅ Sì (dati salvati localmente e sincronizzati sulla VPS al ritorno della rete)", "❌ Solo online", "❌ Solo online", "❌ Solo online", "🟡 Lettura parziale", "❌ Solo online", "❌ No (ChatGPT e Gemini vanno in timeout senza internet)"]},
+                        {"need": "Setup e Collegamento", "cells": ["✅ 5 Minuti (onboarding guidato nativo tutto in uno)", "❌ Partner e consulenti", "❌ Giorni/Settimane", "❌ Giorni/Settimane", "🟡 Ore", "❌ Giorni/Settimane", "❌ Complesso (richiede configurazioni API e piattaforme ponte come Zapier/Make con costi extra nascosti)"]},
                     ],
                     "note": "Nota di trasparenza: I marchi Salesforce, HubSpot, Zoho, Pipedrive e vtenext appartengono ai rispettivi proprietari. Le funzionalità e i prezzi indicati fanno riferimento ai listini pubblici aggiornati al 2026. AdvisorOS è una piattaforma indipendente non affiliata ai suddetti marchi.",
                     "close": "✖️ Chiudi e torna alla pagina",

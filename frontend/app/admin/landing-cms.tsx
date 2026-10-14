@@ -381,6 +381,7 @@ export default function LandingCmsScreen() {
             <Text style={s.cardTitle}>L&apos;Armatura del Consulente (4 aree)</Text>
             {Field({ label: "Etichetta", path: ["pages", "advisor", "features", "kicker"] })}
             {Field({ label: "Titolo", path: ["pages", "advisor", "features", "title"] })}
+            {Field({ label: "Sottotitolo", path: ["pages", "advisor", "features", "subtitle"], multiline: true })}
             {((getPath(content || {}, ["pages", "advisor", "features", "items"]) || []) as any[]).map((_, i) => (
               <View key={i} style={{ gap: 8 }}>
                 <View style={{ flexDirection: "row", gap: 10 }}>

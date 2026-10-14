@@ -186,13 +186,13 @@ body.modal-open{overflow:hidden}
 .modal-x:hover{background:var(--brand);color:#0B1220;border-color:var(--brand)}
 .modal-body{overflow:auto;padding:16px;display:flex;flex-direction:column;gap:14px}
 .cmp-full{overflow:auto}
-.cmp-wide{min-width:1080px;font-size:13.5px}
+.cmp-wide{min-width:1260px;font-size:13.5px}
 .cmp-wide th,.cmp-wide td{padding:12px 12px}
 .cmp-wide thead th:first-child{min-width:200px}
 .modal .note{margin:0;text-align:left}
 .modal .cta-row{margin:0}
 @media(max-width:640px){
-  .cmp-wide{min-width:1080px}
+  .cmp-wide{min-width:1260px}
   .cmp-wide thead{display:table-header-group}
   .cmp-wide tbody tr{display:table-row;padding:0}
   .cmp-wide tbody th,.cmp-wide tbody td{display:table-cell;padding:12px;border-bottom:1px solid var(--line)}

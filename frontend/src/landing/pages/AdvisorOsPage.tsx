@@ -18,7 +18,7 @@ type AdvisorPage = {
   why?: WhyBlock; // V50.z548 — perché scelgono AdvisorOS + modal confronto tecnico
   pain: { kicker: string; title: string; text1: string; text2: string };
   compare: { kicker: string; title: string; col_need: string; col_us: string; col_them: string; rows: { need: string; us: string; them: string }[] };
-  features: { kicker: string; title: string; items: { emoji: string; title: string; text: string }[] };
+  features: { kicker: string; title: string; subtitle?: string; items: { emoji: string; title: string; text: string }[] };
   pricing: { kicker: string; title: string; founders_title: string; founders_text: string; founders_highlight: string; tiers: { emoji: string; name: string; text: string }[]; cta_trial: string; cta_quote: string; quote_email: string; quote_subject?: string };
 };
 
@@ -73,6 +73,7 @@ export function AdvisorOsPage() {
       </Section>
 
       <Section kicker={p.features.kicker} title={p.features.title} alt kickerColor={LP.brand} testID="advisoros-features">
+        {p.features.subtitle ? <Text style={[k.p, { textAlign: "center", maxWidth: 820, alignSelf: "center", marginTop: -6, marginBottom: 18 }]} testID="advisoros-features-subtitle">{p.features.subtitle}</Text> : null}
         <Cols>
           {p.features.items.map((it, i) => <EmojiCard key={i} emoji={it.emoji} title={it.title} text={it.text} accent={LP.brand} glow={LP.brandGlow} line={LP.brandLineSoft} delay={80 + i * 90} testID={`advisoros-feature-${i}`} />)}
         </Cols>
