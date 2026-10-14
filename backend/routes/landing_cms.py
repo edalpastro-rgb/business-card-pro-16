@@ -77,71 +77,72 @@ LANDING_DEFAULTS: Dict[str, Any] = {
     # V50.z546 — PAGINE DI APPROFONDIMENTO (italianbrain.it/axonos · /advisoros e, nell'app, /landing/axonos · /landing/advisoros).
     # Stesso singleton del CMS: ogni testo è modificabile da /admin/landing-cms. Le icone sono emoji (identiche su web statico e app).
     "pages": {
+        # V50.z549 — struttura aggiornata: hero · dolore · 4 pilastri · Axon Drive & Domotica · onboarding (modal) · tariffa+founder · ponte
         "axon": {
             "hero": {
                 "kicker": "AxonOS · Impresa Familiare",
                 "title": "AxonOS: L'Assistente Personale Vocale che elimina 100 app e organizza la tua Impresa Familiare.",
-                "subtitle": "Smetti di impazzire tra mille calendari, note, scontrini, scadenze e file sparsi. Versa tutto dentro il tuo Caveau Digitale protetto su server italiani. Configuralo in meno di 5 minuti senza essere un esperto, dagli il nome che preferisci e lascia che sia lui a semplificarti la vita.",
+                "subtitle": "Smetti di impazzire dietro a mille calendari, note scritte, scontrini e scadenze sanitarie. Riversa tutto dentro il tuo Caveau Digitale protetto su server italiani. Configuralo in meno di 5 minuti, dagli il nome che preferisci e lascia che sia lui a semplificarti la vita quotidiana.",
                 "video_label": "[VIDEO 90 secondi — AxonOS in azione: sarà inserito il link Vimeo]",
                 "video_url": "",
-                "cta": "Inizia Ora: 15 Giorni di Prova Gratuita",
+                "cta": "Attiva AxonOS: Prova Gratuita di 15 Giorni",
                 "cta_note": "Nessuna carta di credito richiesta",
             },
-            "concept": {
-                "kicker": "Il concetto chiave",
-                "title": "«Svuota la Scrivania»: 100 App in Una",
-                "text1": "Immagina l'impiegato sommerso da post-it, fogli volanti, promemoria sul frigo e dieci app che non si parlano. È la tua giornata. AxonOS non è un'app in più: è lo svuotatasche digitale che centralizza tutto in un unico posto, raggiungibile con la voce.",
-                "text2": "La famiglia gestita come un'impresa: la potenza di un sistema avanzato con la semplicità di una conversazione.",
-            },
-            "scenarios": {
-                "kicker": "L'assistente in azione",
-                "title": "Quattro scenari reali, zero mani sulla tastiera",
+            "pain": {
+                "kicker": "Il dolore",
+                "title": "Lo «Svuotatasche» digitale della famiglia",
                 "items": [
-                    {"emoji": "🚗", "title": "Hands-Free e Riconoscimento Familiare", "text": "Mani libere in auto e in casa. Riconoscimento vocale biometrico di partner e figli: ognuno ha il suo profilo. Navigazione predittiva: «Portami dal bambino», «Vai a Casa 2»."},
-                    {"emoji": "🩺", "title": "Guardiano della Salute", "text": "Foto del referto → storico clinico digitale di tutta la famiglia. Foto della ricetta → sveglie e promemoria automatici per ogni assunzione."},
-                    {"emoji": "🔐", "title": "Caveau Documenti", "text": "Archivio crittografato su server italiani con ricerca vocale: «Mostrami il passaporto di Chiara». Diario privato e appunti di studio sempre a portata di voce."},
-                    {"emoji": "🧾", "title": "Bilancio Familiare e Memoria Proattiva", "text": "Foto degli scontrini → resoconto mensile per articoli e budget. E un assistente che pensa prima di te: «Emanuele, sono 15 giorni che non compri il latte, lo aggiungo alla lista?»"},
+                    {"emoji": "📱", "title": "Il Concetto delle 100 app", "text": "L'utente privato vive sommerso da notifiche e app frammentate: note, spese di casa, promemoria farmaci, documenti cartacei. AxonOS centralizza tutto in un unico interlocutore."},
+                    {"emoji": "🏠", "title": "La Famiglia è un'Impresa", "text": "Gestire scadenze dei figli, visite e bilancio di casa richiede l'efficacia di un software aziendale, ma con la semplicità di una chiacchierata vocale."},
                 ],
             },
-            # V50.z547 — blocco «Axon Drive» (in coda alla sezione assistente in azione / auto)
+            "pillars": {
+                "kicker": "I quattro pilastri",
+                "title": "Un solo assistente, quattro superpoteri per la tua famiglia",
+                "items": [
+                    {"emoji": "🗣️", "title": "Assistente Vocale di Casa (Hands-Free)", "text": "Ascolta a mani libere. Riconosce le voci biometriche dei familiari, associando a ciascuno la propria agenda e le proprie abitudini."},
+                    {"emoji": "🩺", "title": "Guardiano della Salute e Cartella Clinica", "text": "Foto referti → cartella clinica digitale. Foto ricetta → sveglie e promemoria automatici nel calendario."},
+                    {"emoji": "🗄️", "title": "Caveau Documenti", "text": "Archiviazione crittografata, ricerca vocale («Axon, mostrami la patente di papà»). Diario privato e appunti di studio."},
+                    {"emoji": "🔮", "title": "Memoria Proattiva per le Spese", "text": "Foto scontrini → bilancio mensile per articoli. Proattivo: «Emanuele, sono 15 giorni che non compri il latte, lo aggiungo alla lista?»"},
+                ],
+            },
             "drive": {
-                "kicker": "Axon Drive",
-                "title": "Axon Drive: Il controllo visivo sul monitor della tua auto",
-                "intro": "Axon si trasferisce direttamente sul grande schermo del cruscotto grazie alla compatibilità nativa con Apple CarPlay e Android Auto.",
+                "kicker": "Axon Drive & Domotica",
+                "title": "Axon Drive & Domotica: dal cruscotto al cancello di casa",
+                "intro": "Axon si trasferisce sul grande schermo della vettura e comanda la casa, senza mai passare da cloud americani.",
                 "items": [
-                    {"emoji": "🖥️", "title": "Risposte scritte sul monitor", "text": "Quando chiedi di inserire un impegno («Axon, segna la visita medica di mio figlio per domani alle 12:00»), lui ti risponde a voce e proietta la scheda scritta sul monitor di bordo."},
-                    {"emoji": "✅", "title": "Verifica e Conferma (Zero Errori)", "text": "Guardi lo schermo per verificare i dati. Confermi con un cenno vocale («Sì, procedi») o un singolo Tap sul display, senza mai toccare il telefono."},
-                ],
-            },
-            # V50.z547 — blocco comparativo (subito dopo gli scenari)
-            "diff": {
-                "kicker": "La differenza",
-                "title": "Perché AxonOS è diverso da Alexa, Google Home o Siri",
-                "intro": "I normali assistenti commerciali vivono chiusi dentro una cassa acustica o dentro app nate per profilare i tuoi dati e venderti pubblicità. AxonOS spezza questa catena.",
-                "items": [
-                    {"emoji": "🚘", "title": "Unicità sul Mercato (Auto + Domotica)", "text": "È l'unico sistema che unisce lo schermo della tua vettura (Android Auto e Apple CarPlay) alla domotica di casa in un unico flusso sicuro a mani libere. Mentre rientri, ti basta dire «Axon, sto arrivando, apri il cancello elettrico»."},
-                    {"emoji": "🇮🇹", "title": "Privacy Sovrana (No Cloud USA)", "text": "I comandi della tua casa, i documenti d'identità e i dati della tua salute restano nel tuo caveau privato su server 100% italiani. Nessuno profila le tue abitudini: nessuno sa quando esci o quando torni a casa."},
-                    {"emoji": "🧘", "title": "Eliminazione del carico mentale", "text": "Non è un'app in più, ma lo svuotatasche digitale che sostituisce 100 applicazioni frammentate per darti un unico interlocutore vocale con onboarding guidato in meno di 5 minuti."},
+                    {"emoji": "🖥️", "title": "Interfaccia su CarPlay e Android Auto", "text": "Proietta schede riassuntive scritte sul monitor della vettura: vedi quello che hai chiesto prima che venga salvato."},
+                    {"emoji": "✅", "title": "Conferma senza distrazioni", "text": "Confermi con un cenno vocale o un Tap sul display, con gli occhi sulla strada."},
+                    {"emoji": "🧭", "title": "Navigazione predittiva", "text": "«Portami da mio figlio», «Vai a Casa 2»: Axon conosce i tuoi luoghi e imposta il percorso."},
+                    {"emoji": "🏡", "title": "Integrazione Domotica Privata", "text": "Collegato alla tua VPS italiana senza passare da Cloud americani. «Axon, sto arrivando, apri il cancello elettrico.»"},
                 ],
             },
             "onboarding": {
-                "kicker": "Onboarding lampo",
-                "title": "A prova di nonno",
-                "text": "Setup in 5 minuti, guidato dalla voce dell'assistente: nessun manuale, nessun tecnico.",
-                "bullets": ["Configurazione vocale guidata passo passo", "Scegli tu il nome dell'assistente: Axon, Orsetto, Nonna Pina…", "Funziona da subito su telefono, tablet e computer"],
-            },
-            "founders": {
-                "kicker": "Offerta Soci Fondatori",
-                "title": "500 interazioni vocali al mese incluse",
-                "text": "Per i primi 100 clienti: risposte ILLIMITATE per sempre non appena si raggiunge il 100° utente, senza alcun aumento di prezzo.",
-                "highlight": "🔥 Solo {left} posti Founder rimasti su {limit}",
+                "kicker": "Onboarding guidato",
+                "title": "A prova di nonno, in 5 minuti",
+                "text": "Pensi che configurare un assistente familiare sia complicato? Scopri come Axon ti prende per mano e costruisce la tua struttura in meno di 5 minuti.",
+                "cta": "🔍 Guarda come funziona l'Onboarding Guidato",
+                "modal": {
+                    "title": "L'Onboarding Guidato, minuto per minuto",
+                    "steps": [
+                        {"emoji": "🎙️", "title": "Minuto 1: Riconoscimento Vocale Setup", "text": "L'assistente impara a riconoscere la tua frequenza vocale e quella dei tuoi cari."},
+                        {"emoji": "🏷️", "title": "Minuto 2: Personalizzazione del Nome", "text": "Scegli come chiamarlo (Axon, Orsetto, o il nome che preferisci). Risponderà solo a te."},
+                        {"emoji": "🔗", "title": "Minuto 3: Sincronizzazione Account", "text": "Colleghi i calendari precedenti (Google o Apple) con un click."},
+                        {"emoji": "🗄️", "title": "Minuto 4: Creazione del Caveau", "text": "Carichi il tuo primo documento o scontrino per testare l'assistente fotografico."},
+                        {"emoji": "🚀", "title": "Minuto 5: Sei Pronto!", "text": "L'assistente è attivo per comandi vocali in auto e a casa."},
+                    ],
+                    "close": "✖ Chiudi e torna alla pagina",
+                },
             },
             "pricing": {
-                "badge": "TARIFFA UNICA",
+                "kicker": "Pacchetti e Offerta Soci Fondatori",
+                "badge": "TARIFFA UNICA FAMILIARE",
                 "title": "Un solo prezzo per tutto il nucleo familiare",
-                "text": "Partner, figli, nonni: tutti dentro, nessun costo per utente aggiuntivo.",
-                "bullets": ["Prezzo unico per tutta la famiglia", "Server 100% italiani · GDPR europeo", "15 giorni di prova gratuita, senza carta di credito"],
-                "cta": "Blocca la tua Offerta — Inizia la Prova di 15 Giorni",
+                "text": "Spazio Caveau crittografato su server 100% italiani. 500 interazioni vocali al mese incluse.",
+                "bullets": ["Caveau crittografato su server 100% italiani", "500 interazioni vocali al mese incluse", "Partner, figli, nonni: tutti dentro, nessun costo per utente aggiuntivo"],
+                "founders_text": "Per i primi 100 iscritti: interazioni ILLIMITATE per sempre non appena si raggiunge il 100° utente, allo stesso prezzo.",
+                "highlight": "🔥 Solo {left} posti Founder rimasti su {limit}",
+                "cta": "Attiva AxonOS: Prova Gratuita di 15 Giorni",
             },
             "bridge": {
                 "kicker": "Lavori nel commerciale?",
@@ -273,7 +274,13 @@ def _landing_merge(base: Any, over: Any) -> Any:
 
 async def _landing_content() -> Dict[str, Any]:
     doc = await db.landing_content.find_one({"_id": "global"}, {"_id": 0, "content": 1, "updated_at": 1, "updated_by": 1})  # noqa: F821
-    content = _landing_merge(copy.deepcopy(LANDING_DEFAULTS), (doc or {}).get("content") or {})
+    over = (doc or {}).get("content") or {}
+    # V50.z549 — la pagina AxonOS ha cambiato struttura (pain/pillars/onboarding.modal): un override salvato con la vecchia
+    # struttura (senza «pillars») riporterebbe i testi vecchi → viene ignorato e ripartono i nuovi default.
+    axon_over = (over.get("pages") or {}).get("axon")
+    if isinstance(axon_over, dict) and "pillars" not in axon_over:
+        over = {**over, "pages": {k: v for k, v in over["pages"].items() if k != "axon"}}
+    content = _landing_merge(copy.deepcopy(LANDING_DEFAULTS), over)
     return {"content": content, "is_default": not doc, "updated_at": (doc or {}).get("updated_at"), "updated_by": (doc or {}).get("updated_by")}
 
 

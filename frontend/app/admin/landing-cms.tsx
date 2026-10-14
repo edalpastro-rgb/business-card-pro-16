@@ -242,29 +242,36 @@ export default function LandingCmsScreen() {
             {Field({ label: "Pulsante (→ registrazione AxonOS)", path: ["pages", "axon", "hero", "cta"] })}
             {Field({ label: "Nota sotto il pulsante", path: ["pages", "axon", "hero", "cta_note"] })}
           </View>
-          <View style={s.planBox}>
-            <Text style={s.cardTitle}>Concetto chiave «Svuota la Scrivania»</Text>
-            {Field({ label: "Etichetta", path: ["pages", "axon", "concept", "kicker"] })}
-            {Field({ label: "Titolo", path: ["pages", "axon", "concept", "title"] })}
-            {Field({ label: "Testo 1 (metafora)", path: ["pages", "axon", "concept", "text1"], multiline: true })}
-            {Field({ label: "Testo 2 (famiglia come impresa)", path: ["pages", "axon", "concept", "text2"], multiline: true })}
-          </View>
-          <View style={s.planBox}>
-            <Text style={s.cardTitle}>L&apos;assistente in azione (4 scenari)</Text>
-            {Field({ label: "Etichetta", path: ["pages", "axon", "scenarios", "kicker"] })}
-            {Field({ label: "Titolo", path: ["pages", "axon", "scenarios", "title"] })}
-            {((getPath(content || {}, ["pages", "axon", "scenarios", "items"]) || []) as any[]).map((_, i) => (
+          <View style={s.planBox} testID="cms-page-axon-pain">
+            <Text style={s.cardTitle}>Il dolore · Lo «Svuotatasche» digitale</Text>
+            {Field({ label: "Etichetta", path: ["pages", "axon", "pain", "kicker"] })}
+            {Field({ label: "Titolo", path: ["pages", "axon", "pain", "title"] })}
+            {((getPath(content || {}, ["pages", "axon", "pain", "items"]) || []) as any[]).map((_, i) => (
               <View key={i} style={{ gap: 8 }}>
                 <View style={{ flexDirection: "row", gap: 10 }}>
-                  <View style={{ width: 70 }}>{Field({ label: "Icona", path: ["pages", "axon", "scenarios", "items", String(i), "emoji"] })}</View>
-                  <View style={{ flex: 1 }}>{Field({ label: `Scenario ${i + 1} · titolo`, path: ["pages", "axon", "scenarios", "items", String(i), "title"] })}</View>
+                  <View style={{ width: 70 }}>{Field({ label: "Icona", path: ["pages", "axon", "pain", "items", String(i), "emoji"] })}</View>
+                  <View style={{ flex: 1 }}>{Field({ label: `Blocco ${i + 1} · titolo`, path: ["pages", "axon", "pain", "items", String(i), "title"] })}</View>
                 </View>
-                {Field({ label: `Scenario ${i + 1} · testo`, path: ["pages", "axon", "scenarios", "items", String(i), "text"], multiline: true })}
+                {Field({ label: `Blocco ${i + 1} · testo`, path: ["pages", "axon", "pain", "items", String(i), "text"], multiline: true })}
+              </View>
+            ))}
+          </View>
+          <View style={s.planBox} testID="cms-page-axon-pillars">
+            <Text style={s.cardTitle}>I quattro pilastri</Text>
+            {Field({ label: "Etichetta", path: ["pages", "axon", "pillars", "kicker"] })}
+            {Field({ label: "Titolo", path: ["pages", "axon", "pillars", "title"] })}
+            {((getPath(content || {}, ["pages", "axon", "pillars", "items"]) || []) as any[]).map((_, i) => (
+              <View key={i} style={{ gap: 8 }}>
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <View style={{ width: 70 }}>{Field({ label: "Icona", path: ["pages", "axon", "pillars", "items", String(i), "emoji"] })}</View>
+                  <View style={{ flex: 1 }}>{Field({ label: `Pilastro ${i + 1} · titolo`, path: ["pages", "axon", "pillars", "items", String(i), "title"] })}</View>
+                </View>
+                {Field({ label: `Pilastro ${i + 1} · testo`, path: ["pages", "axon", "pillars", "items", String(i), "text"], multiline: true })}
               </View>
             ))}
           </View>
           <View style={s.planBox} testID="cms-page-axon-drive">
-            <Text style={s.cardTitle}>Axon Drive (in coda agli scenari · CarPlay / Android Auto)</Text>
+            <Text style={s.cardTitle}>Axon Drive &amp; Domotica</Text>
             {Field({ label: "Etichetta", path: ["pages", "axon", "drive", "kicker"] })}
             {Field({ label: "Titolo", path: ["pages", "axon", "drive", "title"], multiline: true })}
             {Field({ label: "Introduzione", path: ["pages", "axon", "drive", "intro"], multiline: true })}
@@ -278,42 +285,35 @@ export default function LandingCmsScreen() {
               </View>
             ))}
           </View>
-          <View style={s.planBox} testID="cms-page-axon-diff">
-            <Text style={s.cardTitle}>Perché AxonOS è diverso (Alexa / Google Home / Siri)</Text>
-            {Field({ label: "Etichetta", path: ["pages", "axon", "diff", "kicker"] })}
-            {Field({ label: "Titolo", path: ["pages", "axon", "diff", "title"], multiline: true })}
-            {Field({ label: "Introduzione", path: ["pages", "axon", "diff", "intro"], multiline: true })}
-            {((getPath(content || {}, ["pages", "axon", "diff", "items"]) || []) as any[]).map((_, i) => (
-              <View key={i} style={{ gap: 8 }}>
-                <View style={{ flexDirection: "row", gap: 10 }}>
-                  <View style={{ width: 70 }}>{Field({ label: "Icona", path: ["pages", "axon", "diff", "items", String(i), "emoji"] })}</View>
-                  <View style={{ flex: 1 }}>{Field({ label: `Punto ${i + 1} · titolo`, path: ["pages", "axon", "diff", "items", String(i), "title"] })}</View>
-                </View>
-                {Field({ label: `Punto ${i + 1} · testo`, path: ["pages", "axon", "diff", "items", String(i), "text"], multiline: true })}
-              </View>
-            ))}
-          </View>
-          <View style={s.planBox}>
-            <Text style={s.cardTitle}>Onboarding lampo</Text>
+          <View style={s.planBox} testID="cms-page-axon-onboarding">
+            <Text style={s.cardTitle}>Onboarding guidato (testo fisso + modal interno)</Text>
             {Field({ label: "Etichetta", path: ["pages", "axon", "onboarding", "kicker"] })}
             {Field({ label: "Titolo", path: ["pages", "axon", "onboarding", "title"] })}
-            {Field({ label: "Testo", path: ["pages", "axon", "onboarding", "text"], multiline: true })}
-            {ListField({ label: "Passi", path: ["pages", "axon", "onboarding", "bullets"] })}
+            {Field({ label: "Testo fisso in pagina", path: ["pages", "axon", "onboarding", "text"], multiline: true })}
+            {Field({ label: "Pulsante apri modal", path: ["pages", "axon", "onboarding", "cta"] })}
+            <Text style={[s.cardTitle, { marginTop: 6 }]}>Modal · i 5 minuti</Text>
+            {Field({ label: "Titolo modal", path: ["pages", "axon", "onboarding", "modal", "title"] })}
+            {((getPath(content || {}, ["pages", "axon", "onboarding", "modal", "steps"]) || []) as any[]).map((_, i) => (
+              <View key={i} style={{ gap: 8 }}>
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <View style={{ width: 70 }}>{Field({ label: "Icona", path: ["pages", "axon", "onboarding", "modal", "steps", String(i), "emoji"] })}</View>
+                  <View style={{ flex: 1 }}>{Field({ label: `Minuto ${i + 1} · titolo`, path: ["pages", "axon", "onboarding", "modal", "steps", String(i), "title"] })}</View>
+                </View>
+                {Field({ label: `Minuto ${i + 1} · testo`, path: ["pages", "axon", "onboarding", "modal", "steps", String(i), "text"], multiline: true })}
+              </View>
+            ))}
+            {Field({ label: "Pulsante chiudi", path: ["pages", "axon", "onboarding", "modal", "close"] })}
           </View>
-          <View style={s.planBox}>
-            <Text style={s.cardTitle}>Offerta Soci Fondatori</Text>
-            {Field({ label: "Etichetta", path: ["pages", "axon", "founders", "kicker"] })}
-            {Field({ label: "Titolo", path: ["pages", "axon", "founders", "title"] })}
-            {Field({ label: "Testo", path: ["pages", "axon", "founders", "text"], multiline: true })}
-            {Field({ label: "Pillola posti ({left}/{limit})", path: ["pages", "axon", "founders", "highlight"] })}
-          </View>
-          <View style={s.planBox}>
-            <Text style={s.cardTitle}>Box tariffa unica (prezzo = piano Builder, sezione 4)</Text>
+          <View style={s.planBox} testID="cms-page-axon-pricing">
+            <Text style={s.cardTitle}>Pacchetti e Offerta Soci Fondatori (prezzo = piano Builder, sezione 4)</Text>
+            {Field({ label: "Etichetta sezione", path: ["pages", "axon", "pricing", "kicker"] })}
             {Field({ label: "Badge", path: ["pages", "axon", "pricing", "badge"] })}
             {Field({ label: "Titolo", path: ["pages", "axon", "pricing", "title"] })}
             {Field({ label: "Testo", path: ["pages", "axon", "pricing", "text"], multiline: true })}
             {ListField({ label: "Punti", path: ["pages", "axon", "pricing", "bullets"] })}
-            {Field({ label: "Pulsante (→ registrazione AxonOS)", path: ["pages", "axon", "pricing", "cta"] })}
+            {Field({ label: "Testo Soci Fondatori", path: ["pages", "axon", "pricing", "founders_text"], multiline: true })}
+            {Field({ label: "Pillola posti ({left}/{limit})", path: ["pages", "axon", "pricing", "highlight"] })}
+            {Field({ label: "Pulsante finale (→ registrazione AxonOS)", path: ["pages", "axon", "pricing", "cta"] })}
           </View>
           <View style={s.planBox}>
             <Text style={s.cardTitle}>Ponte verso il Business (→ pagina AdvisorOS)</Text>

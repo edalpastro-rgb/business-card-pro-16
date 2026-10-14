@@ -200,3 +200,12 @@ body.modal-open{overflow:hidden}
   .cmp-wide td::before{content:none!important}
   .modal-x{width:52px;height:52px;flex-basis:52px;font-size:38px}
 }
+/* V50.z549 — pagina AxonOS aggiornata: onboarding modal + founder inline */
+.modal-narrow{max-width:760px}
+.steps-wide{max-width:none}
+.steps li h4{font-size:16px;font-weight:900;letter-spacing:-.2px;color:var(--text)}
+.steps li p{color:var(--text2);font-size:14px;margin-top:3px;font-weight:500}
+.founder-inline{margin:4px 0 16px;background:var(--bg);border:1px solid var(--brand-line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.founder-inline .founder-pill{margin:0;align-self:flex-start}
+.founder-inline .strong{font-size:14px}
+#dolore .concept-art{margin-bottom:18px}

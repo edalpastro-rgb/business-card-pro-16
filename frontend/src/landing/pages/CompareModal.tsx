@@ -1,5 +1,5 @@
 // CompareModal.tsx — V50.z548 — «Perché i consulenti scelgono AdvisorOS» + modal con tabella comparativa configurabile dal CMS
-// (pages.advisor.why.modal: colonne/righe/celle in array → nessun dato fisso nel codice). Overlay scuro, X grande, scroll interno.
+// (pages.advisor.why.modal: colonne/righe/celle in array → nessun dato fisso nel codice). ModalShell (V50.z549) riusato dall'onboarding AxonOS.
 import React, { useState } from "react";
 import { View, Text, StyleSheet, Pressable, Modal, ScrollView, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -31,44 +31,53 @@ export function WhySection({ why }: { why: WhyBlock }) {
   );
 }
 
-function CompareModal({ visible, onClose, modal }: { visible: boolean; onClose: () => void; modal: WhyBlock["modal"] }) {
+/** V50.z549 — contenitore modal riusabile (overlay scuro, X grande, scroll interno, pulsante chiudi): confronto tecnico, onboarding AxonOS. */
+export function ModalShell({ visible, onClose, title, closeLabel, children, testID }: { visible: boolean; onClose: () => void; title: string; closeLabel: string; children: React.ReactNode; testID: string }) {
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  const colW = Math.max(150, Math.min(190, (width - 40) / 3));
-  const needW = Math.max(170, colW + 20);
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
-      <View style={m.overlay} testID="advisoros-compare-modal">
+      <View style={m.overlay} testID={testID}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Chiudi" />
         <View style={[m.sheet, { marginTop: insets.top + 12, marginBottom: insets.bottom + 12 }]}>
           <View style={m.head}>
-            <Text style={m.title} numberOfLines={2}>{modal.title}</Text>
-            <Pressable onPress={onClose} hitSlop={10} style={m.x} accessibilityLabel="Chiudi" testID="advisoros-compare-x"><Ionicons name="close" size={34} color={LP.onSurface} /></Pressable>
+            <Text style={m.title} numberOfLines={2}>{title}</Text>
+            <Pressable onPress={onClose} hitSlop={10} style={m.x} accessibilityLabel="Chiudi" testID={`${testID}-x`}><Ionicons name="close" size={34} color={LP.onSurface} /></Pressable>
           </View>
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 14, gap: 14 }} showsVerticalScrollIndicator>
-            <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={{ paddingBottom: 6 }}>
-              <View style={m.table}>
-                <View style={[m.tr, m.thead]}>
-                  <Text style={[m.th, { width: needW }]}>{modal.col_need}</Text>
-                  {modal.columns.map((c, i) => <Text key={i} style={[m.th, { width: colW }, i === 0 && { color: LP.brand }]}>{c}</Text>)}
-                </View>
-                {modal.rows.map((r, ri) => (
-                  <View key={ri} style={[m.tr, ri === modal.rows.length - 1 && { borderBottomWidth: 0 }]} testID={`advisoros-compare-row-${ri}`}>
-                    <Text style={[m.need, { width: needW }]}>{r.need}</Text>
-                    {modal.columns.map((_, ci) => {
-                      const t = r.cells[ci] || "—";
-                      return <View key={ci} style={[m.td, { width: colW }, ci === 0 && m.tdUs]}><Text style={[m.tdTxt, { color: cellColor(t) }, ci === 0 && { fontWeight: "800" }]}>{t}</Text></View>;
-                    })}
-                  </View>
-                ))}
-              </View>
-            </ScrollView>
-            <Text style={k.note}>{modal.note}</Text>
-            <BigButton label={modal.close} onPress={onClose} color={LP.brand} testID="advisoros-compare-close" />
+            {children}
+            <BigButton label={closeLabel} onPress={onClose} color={LP.brand} testID={`${testID}-close`} />
           </ScrollView>
         </View>
       </View>
     </Modal>
+  );
+}
+
+function CompareModal({ visible, onClose, modal }: { visible: boolean; onClose: () => void; modal: WhyBlock["modal"] }) {
+  const { width } = useWindowDimensions();
+  const colW = Math.max(150, Math.min(190, (width - 40) / 3));
+  const needW = Math.max(170, colW + 20);
+  return (
+    <ModalShell visible={visible} onClose={onClose} title={modal.title} closeLabel={modal.close} testID="advisoros-compare-modal">
+      <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={{ paddingBottom: 6 }}>
+        <View style={m.table}>
+          <View style={[m.tr, m.thead]}>
+            <Text style={[m.th, { width: needW }]}>{modal.col_need}</Text>
+            {modal.columns.map((c, i) => <Text key={i} style={[m.th, { width: colW }, i === 0 && { color: LP.brand }]}>{c}</Text>)}
+          </View>
+          {modal.rows.map((r, ri) => (
+            <View key={ri} style={[m.tr, ri === modal.rows.length - 1 && { borderBottomWidth: 0 }]} testID={`advisoros-compare-row-${ri}`}>
+              <Text style={[m.need, { width: needW }]}>{r.need}</Text>
+              {modal.columns.map((_, ci) => {
+                const t = r.cells[ci] || "—";
+                return <View key={ci} style={[m.td, { width: colW }, ci === 0 && m.tdUs]}><Text style={[m.tdTxt, { color: cellColor(t) }, ci === 0 && { fontWeight: "800" }]}>{t}</Text></View>;
+              })}
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+      <Text style={k.note}>{modal.note}</Text>
+    </ModalShell>
   );
 }
 

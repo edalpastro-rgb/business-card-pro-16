@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-14 | D2026.10.14-1215 | V50.z549 pagina AxonOS ristrutturata + onboarding modal |
 | 2026-10-14 | D2026.10.14-1141 | V50.z548 perché AdvisorOS + modal confronto tecnico |
 | 2026-10-14 | D2026.10.14-1128 | V50.z547 video Vimeo CMS + blocchi Drive/Perché diverso |
 | 2026-10-14 | D2026.10.14-1110 | V50.z546 pagine approfondimento AxonOS/AdvisorOS CMS |

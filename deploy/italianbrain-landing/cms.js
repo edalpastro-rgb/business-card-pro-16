@@ -89,15 +89,16 @@
     document.querySelectorAll("[data-cms-founder]").forEach(function (el) { el.classList.toggle("sold", sold); });
   }
 
-  // V50.z548 — modal confronto tecnico: overlay, blocco scroll, X / backdrop / Esc per chiudere (nessun link esterno)
-  var modal = document.getElementById("compare-modal"), opener = document.getElementById("open-compare");
-  if (modal && opener) {
+  // V50.z548/z549 — modal interni (confronto tecnico, onboarding): overlay, blocco scroll, X / backdrop / Esc / pulsante per chiudere
+  document.querySelectorAll("[data-modal-open]").forEach(function (opener) {
+    var modal = document.getElementById(opener.getAttribute("data-modal-open"));
+    if (!modal) return;
     var openM = function () { modal.hidden = false; document.body.classList.add("modal-open"); modal.querySelector(".modal-x").focus(); };
     var closeM = function () { modal.hidden = true; document.body.classList.remove("modal-open"); opener.focus(); };
     opener.addEventListener("click", openM);
     modal.querySelectorAll("[data-close]").forEach(function (el) { el.addEventListener("click", closeM); });
     document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !modal.hidden) closeM(); });
-  }
+  });
 
   var url = slug === "home" ? "/api/public/landing" : "/api/public/landing/page/" + encodeURIComponent(slug);
   fetch(url, { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); }).then(apply).catch(function () {
