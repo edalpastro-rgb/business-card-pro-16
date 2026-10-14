@@ -31,8 +31,8 @@ const GROUPED_ALL = Object.values(MENU_CATEGORIES)
 const LOGO = require("@/assets/images/advisoros-logo-transparent.png");
 
 export function desktopSidebarHidden(pathname: string): boolean {
-  // V50.z493 — /lite è pagina pubblica: mai sidebar, anche da loggati (V50.z540: /landing rimossa)
-  if (pathname === "/lite" || pathname.startsWith("/lite/")) return true;
+  // V50.z493 — /landing e /lite sono pagine pubbliche: mai sidebar, anche da loggati (V50.z543: /landing ripristinata)
+  if (pathname === "/landing" || pathname === "/lite" || pathname.startsWith("/landing/") || pathname.startsWith("/lite/")) return true;
   if (pathname.startsWith("/voice-copilot")) return true; // V50.z495 — Axon Drive: solo la schermata di guida, niente sidebar/menu
   return HIDE_ON_PATHS.some((p) => pathname === p) || pathname.startsWith("/auth") || pathname.startsWith("/login") || pathname.startsWith("/register") || pathname.startsWith("/reset-password");
 }

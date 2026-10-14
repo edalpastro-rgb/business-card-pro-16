@@ -7815,3 +7815,4 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 - **Help fuzzy** (`src/FaqSearch.tsx`): edit distance, prefissi/parole parziali, bigrammi + tendina suggerimenti automatici; token inviato → FAQ del ruolo.
 - Test backend: 31/31 (`backend/tests/test_v50z541_supermaster.py`).
 - V50.z542: «Utenti Registrati» nel menu laterale/drawer (sezione Team & Insights, solo Supermaster via useSuperAdmin); /admin/users mostra errore+Riprova invece dello spinner infinito (causa: Core sul VPS senza l'endpoint finché non si aggiorna axon-core-pkg).
+- V50.z543: RIPRISTINATA la home pubblica interna /landing (AxonCoreLanding, contenuti CMS GET /public/landing) esattamente come al commit pre-redirect; index.tsx: web non autenticato → /landing, mobile landing al primo avvio poi /login; «Accedi» nella landing; +not-found → /landing; riferimenti /landing ripristinati in _layout/DesktopSidebar/SupportFab/navRoutes/paywall/nav guard.
