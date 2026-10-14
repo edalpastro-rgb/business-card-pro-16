@@ -7854,3 +7854,7 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 ## V50.z552 — AdvisorOS: 5° pilastro «🧠 Report Comportamentale» (con punti elenco) + riga «Analisi Psicologica Cliente» · migrazione liste CMS
 - `features.items[4]` con `bullets[]` (EmojiCard accetta `bullets`; statico: template `<ul data-f-list="bullets">` gestito da cms.js; CMS: ListField punti per area). Riga tabella aggiunta (7 celle).
 - `_migrate_override_lists`: un override CMS salvato in precedenza non nasconde più pilastri/righe/colonne/step aggiunti ai default (re-inserimento per `title`/`need`/`name`, padding celle). I TESTI già modificati dal CMS restano quelli dell'utente (es. Deploy Sovrano): per riallinearli ai default → CMS «Ripristina» o modifica manuale.
+
+## V50.z553 — Home italianbrain.it: bottone AxonOS Lite ambra · header «🔐 ENTRA (Se sei già registrato)» · session check
+- `index.html`: CTA AxonOS Lite → `btn-primary` (stesso stile ambra di AdvisorOS); header `.top-enter` (ambra, su tutte e 3 le pagine); script inline nel `<head>`: se cookie `ib_session=1` → `location.replace("https://core.italianbrain.it/")` senza mostrare la landing (`?stay=1` la forza).
+- App web (`src/api.ts`): `_setSessionCookie` scrive/rimuove `ib_session` su `Domain=.italianbrain.it` (solo se servita da un dominio Core) al setToken/clearToken, alla prima risposta OK con token (utenti già loggati) e su 401. Nessun token nel cookie: solo flag; la web app verifica comunque il token.

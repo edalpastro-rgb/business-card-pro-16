@@ -26,9 +26,25 @@ export async function getAuthHeader(): Promise<Record<string, string>> {
 }
 export async function setToken(t: string) {
   await storage.secureSet(TOKEN_KEY, t);
+  _setSessionCookie(true);
 }
 export async function clearToken() {
   await storage.secureRemove(TOKEN_KEY);
+  _setSessionCookie(false);
+}
+
+// V50.z553 — Marcatore di sessione condiviso con la landing italianbrain.it (solo web, solo sui domini Core):
+// cookie `ib_session=1` su `.italianbrain.it` → la home statica reindirizza chi è già loggato alla piattaforma senza mostrare
+// la landing. Non contiene il token (resta nel secure storage): è solo un flag; la web app verifica comunque il token al caricamento.
+let _cookieSynced = false;
+function _setSessionCookie(on: boolean) {
+  if (typeof document === "undefined" || !_webHost) return;
+  const parts = _webHost.split(".");
+  if (parts.length < 2) return;
+  const root = parts.slice(-2).join(".");
+  if (!(CORE_DOMAINS as readonly string[]).some((d) => d.endsWith(root))) return;
+  const exp = on ? new Date(Date.now() + 30 * 86400_000).toUTCString() : "Thu, 01 Jan 1970 00:00:00 GMT";
+  document.cookie = `ib_session=${on ? "1" : ""}; Domain=.${root}; Path=/; Expires=${exp}; SameSite=Lax; Secure`;
 }
 
 export type ApiOptions = {
@@ -104,6 +120,9 @@ export async function api<T = any>(path: string, opts: ApiOptions = {}): Promise
     throw netErr;
   } finally { if (killer) clearTimeout(killer); }
   offline.markOnline();
+  // V50.z553 — sessione valida (token accettato dal backend) → marcatore cookie per la landing; 401 → marcatore rimosso
+  if (res.ok && token && !_cookieSynced) { _cookieSynced = true; _setSessionCookie(true); }
+  if (res.status === 401 && token) { _cookieSynced = false; _setSessionCookie(false); }
   if (!res.ok) {
     let msg = `HTTP ${res.status}`;
     try {
