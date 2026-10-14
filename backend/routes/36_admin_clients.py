@@ -58,10 +58,15 @@ def _tip_public(doc: dict) -> dict:
 
 
 def _super_admin_emails_env() -> set:
-    raw = os.environ.get("ADVISOR_SUPER_ADMIN_EMAILS", "").strip()
-    if not raw:
-        return set()
-    return {e.strip().lower() for e in raw.split(",") if e.strip()}
+    """Email Super Admin: ADVISOR_SUPER_ADMIN_EMAILS ∪ SUPER_MASTER_EMAILS (V50.z544 — in produzione il «Supermaster» è
+    configurato in SUPER_MASTER_EMAILS: senza questa unione /admin/me rispondeva super_admin=false, la voce «Utenti Registrati»
+    e la sezione Super Admin del hub restavano nascoste e /admin/users dava 403)."""
+    out: set = set()
+    for var in ("ADVISOR_SUPER_ADMIN_EMAILS", "SUPER_MASTER_EMAILS"):
+        raw = os.environ.get(var, "").strip()
+        if raw:
+            out |= {e.strip().lower() for e in raw.split(",") if e.strip()}
+    return out
 
 
 def is_super_admin(user: dict) -> bool:
@@ -477,6 +482,7 @@ async def list_admin_broadcasts(user=Depends(require_super_admin)):
 
 @api_router.get("/admin/me")
 async def admin_me(user=Depends(get_current_user)):
-    """Endpoint leggero per il frontend: dice se l'utente è super_admin."""
-    return {"super_admin": is_super_admin(user), "email": user.get("email")}
+    """Endpoint leggero per il frontend: dice se l'utente è super_admin (+ da dove viene il permesso, utile per diagnosi in produzione)."""
+    src = "flag" if user.get("super_admin") is True else ("env" if (user.get("email") or "").lower() in _super_admin_emails_env() else "none")
+    return {"super_admin": is_super_admin(user), "email": user.get("email"), "user_id": user.get("user_id"), "source": src, "env_configured": bool(_super_admin_emails_env())}
 

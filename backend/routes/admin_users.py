@@ -201,3 +201,23 @@ async def admin_users_parents(user=Depends(require_super_admin)):  # noqa: F821
     """Elenco Master e Manager (destinazioni possibili per «Sposta sotto…»)."""
     rows = await db.users.find({"role": {"$in": ["owner", "admin"]}}, {"_id": 0, "user_id": 1, "email": 1, "name": 1, "role": 1, "parent_user_id": 1}).sort("email", 1).to_list(5000)  # noqa: F821
     return {"items": [{**r, "role_label": _AU_ROLE_LABEL.get(r.get("role"), r.get("role")), "is_root": r.get("role") == "owner" and not r.get("parent_user_id")} for r in rows]}
+
+
+@app.on_event("startup")  # noqa: F821
+async def _au_bootstrap_super_admin():
+    """V50.z544 — Bootstrap Supermaster: se NESSUN super admin è configurato (né ADVISOR_SUPER_ADMIN_EMAILS/SUPER_MASTER_EMAILS
+    né flag `super_admin` su un utente), il Master radice registrato per PRIMO diventa super_admin (è il titolare della
+    piattaforma). Così il pannello Supermaster non resta mai inaccessibile in produzione. Logga l'operazione."""
+    try:
+        if _super_admin_emails_env():
+            return
+        if await db.users.count_documents({"super_admin": True}) > 0:  # noqa: F821
+            return
+        first = await db.users.find({"role": "owner", "parent_user_id": None}, {"_id": 0, "user_id": 1, "email": 1}).sort("created_at", 1).limit(1).to_list(1)  # noqa: F821
+        if not first:
+            first = await db.users.find({"role": "owner"}, {"_id": 0, "user_id": 1, "email": 1}).sort("created_at", 1).limit(1).to_list(1)  # noqa: F821
+        if first:
+            await db.users.update_one({"user_id": first[0]["user_id"]}, {"$set": {"super_admin": True, "super_admin_bootstrap_at": utcnow()}})  # noqa: F821
+            logging.getLogger("admin_users").warning("[admin-users] bootstrap Supermaster: %s è ora super_admin (nessuna email configurata in .env)", first[0].get("email"))  # noqa: F821
+    except Exception as e:  # noqa: BLE001
+        logging.getLogger("admin_users").warning("[admin-users] bootstrap super admin fallito: %s", e)  # noqa: F821
