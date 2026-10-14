@@ -6,12 +6,37 @@
   if (!slug) return;
   var PLAN = slug === "axon" ? "builder" : "professional";
 
+  // V50.z547 — link Vimeo/YouTube incollato nel CMS → URL del player (dnt / nocookie)
+  function toEmbed(raw) {
+    var u = String(raw || "").trim(), m;
+    if (!u) return "";
+    if (/player\.vimeo\.com\/video\/\d+/.test(u)) return u;
+    m = u.match(/vimeo\.com\/(?:video\/)?(\d+)(?:\/([a-zA-Z0-9]+))?/);
+    if (m) return "https://player.vimeo.com/video/" + m[1] + "?dnt=1" + (m[2] ? "&h=" + m[2] : "");
+    if (/youtube(-nocookie)?\.com\/embed\//.test(u)) return u;
+    m = u.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/))([A-Za-z0-9_-]{6,})/);
+    if (m) return "https://www.youtube-nocookie.com/embed/" + m[1];
+    return u;
+  }
+  function applyVideos(page) {
+    document.querySelectorAll("[data-cms-video]").forEach(function (box) {
+      var src = toEmbed(get(page, box.getAttribute("data-cms-video")));
+      if (!src) return;
+      var f = document.createElement("iframe");
+      f.src = src; f.loading = "lazy"; f.allow = "autoplay; fullscreen; picture-in-picture"; f.allowFullscreen = true;
+      f.title = box.getAttribute("aria-label") || "Video";
+      box.innerHTML = ""; box.appendChild(f); box.classList.add("video-live");
+    });
+  }
+
   function get(obj, path) { return path.split(".").reduce(function (a, k) { return a == null ? undefined : a[k]; }, obj); }
   function fmt(n) { return Number.isInteger(n) ? n + "€" : String(n.toFixed(2)).replace(".", ",") + "€"; }
   function sub(str, vars) { return String(str).replace(/\{(left|limit|price|price_old|taken)\}/g, function (_, k) { return vars[k] != null ? vars[k] : ""; }); }
 
   function apply(data) {
-    var page = data.page || {}, plans = data.plans || {}, seats = (data.seats || {})[PLAN] || {}, plan = plans[PLAN] || {};
+    var page = data.page || data.content || {}, plans = data.plans || (data.content || {}).plans || {}, seats = (data.seats || {})[PLAN] || {}, plan = plans[PLAN] || {};
+    applyVideos(page);
+    if (slug === "home") return; // home: solo i video dei due mondi (testi dell'index restano statici)
     var vars = { left: seats.left, limit: seats.limit, taken: seats.taken, price: plan.price != null ? fmt(plan.price) : "", price_old: plan.price_old != null ? fmt(plan.price_old) : "" };
 
     document.querySelectorAll("[data-cms]").forEach(function (el) {
@@ -49,7 +74,7 @@
     document.querySelectorAll("[data-cms-founder]").forEach(function (el) { el.classList.toggle("sold", sold); });
   }
 
-  var url = "/api/public/landing/page/" + encodeURIComponent(slug);
+  var url = slug === "home" ? "/api/public/landing" : "/api/public/landing/page/" + encodeURIComponent(slug);
   fetch(url, { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); }).then(apply).catch(function () {
     // fallback: dominio dell'app (CORS aperto sul backend) se il proxy same-origin non è ancora configurato
     fetch("https://core.italianbrain.it" + url, { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); }).then(apply).catch(function () {});

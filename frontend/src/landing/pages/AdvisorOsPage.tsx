@@ -7,10 +7,13 @@ import { useRouter } from "expo-router";
 import { LP } from "@/src/landing/palette";
 import { Reveal } from "@/src/landing/LandingFx";
 import { usePageContent, fillVars } from "@/src/landing/pages/usePageContent";
-import { PageHero, Section, Cols, EmojiCard, FounderPill, PriceRow, BigButton, PageFooter, PageLoading, goRegister, openMail, useCompact, k } from "@/src/landing/pages/PageKit";
+import { PageHero, Section, Cols, EmojiCard, InfoBlock, FounderPill, PriceRow, BigButton, PageFooter, PageLoading, goRegister, openMail, useCompact, k } from "@/src/landing/pages/PageKit";
 
+type Block = { kicker: string; title: string; intro: string; items: { emoji: string; title: string; text: string }[]; note?: string };
 type AdvisorPage = {
-  hero: { kicker: string; title: string; subtitle: string; video_label: string; cta: string };
+  hero: { kicker: string; title: string; subtitle: string; video_label: string; video_url?: string; cta: string };
+  diff?: Block; // V50.z547 — Perché cancella i CRM tradizionali (+ nota marchi)
+  drive?: Block; // V50.z547 — Advisor Drive
   pain: { kicker: string; title: string; text1: string; text2: string };
   compare: { kicker: string; title: string; col_need: string; col_us: string; col_them: string; rows: { need: string; us: string; them: string }[] };
   features: { kicker: string; title: string; items: { emoji: string; title: string; text: string }[] };
@@ -31,7 +34,7 @@ export function AdvisorOsPage() {
 
   return (
     <ScrollView style={k.root} contentContainerStyle={{ flexGrow: 1, paddingTop: insets.top, paddingBottom: insets.bottom + 24 }} showsVerticalScrollIndicator={false} testID="advisoros-page">
-      <PageHero kicker={p.hero.kicker} title={p.hero.title} subtitle={p.hero.subtitle} videoLabel={p.hero.video_label} accent={LP.brand} glow={LP.brandGlow} line={LP.brandLine}>
+      <PageHero kicker={p.hero.kicker} title={p.hero.title} subtitle={p.hero.subtitle} videoLabel={p.hero.video_label} videoUrl={p.hero.video_url} accent={LP.brand} glow={LP.brandGlow} line={LP.brandLine}>
         <BigButton label={p.hero.cta} onPress={register} color={LP.brand} icon="rocket" testID="advisoros-hero-cta" />
       </PageHero>
 
@@ -64,12 +67,14 @@ export function AdvisorOsPage() {
             ))}
           </View>
         </Reveal>
+        {p.diff ? <InfoBlock {...p.diff} accent={LP.brand} glow={LP.brandGlow} line={LP.brandLine} testID="advisoros-diff" /> : null}
       </Section>
 
       <Section kicker={p.features.kicker} title={p.features.title} kickerColor={LP.brand} testID="advisoros-features">
         <Cols>
           {p.features.items.map((it, i) => <EmojiCard key={i} emoji={it.emoji} title={it.title} text={it.text} accent={LP.brand} glow={LP.brandGlow} line={LP.brandLineSoft} delay={80 + i * 90} testID={`advisoros-feature-${i}`} />)}
         </Cols>
+        {p.drive ? <InfoBlock {...p.drive} accent={LP.brand} glow={LP.brandGlow} line={LP.brandLine} testID="advisoros-drive" /> : null}
       </Section>
 
       <Section kicker={p.pricing.kicker} title={p.pricing.title} alt testID="advisoros-pricing">

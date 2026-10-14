@@ -189,9 +189,12 @@ export default function LandingCmsScreen() {
           {Field({ label: "Sinistra · etichetta", path: ["worlds", "left_kicker"] })}
           {Field({ label: "Sinistra · titolo", path: ["worlds", "left_title"] })}
           {Field({ label: "Sinistra · testo", path: ["worlds", "left_text"], multiline: true })}
+          {Field({ label: "Sinistra · link video Vimeo/YouTube (vuoto = placeholder)", path: ["worlds", "left_video_url"] })}
           {Field({ label: "Destra · etichetta", path: ["worlds", "right_kicker"] })}
           {Field({ label: "Destra · titolo", path: ["worlds", "right_title"] })}
           {Field({ label: "Destra · testo", path: ["worlds", "right_text"], multiline: true })}
+          {Field({ label: "Destra · link video Vimeo/YouTube (vuoto = placeholder)", path: ["worlds", "right_video_url"] })}
+          <Text style={s.muted}>Incolla il link così com&apos;è (es. https://vimeo.com/123456789): viene convertito nel player. I video compaiono nella landing interna, su italianbrain.it e nelle pagine di approfondimento.</Text>
         </Section>
         <Section title="3 · Manifesto privacy">
           {Field({ label: "Titolo", path: ["manifesto", "title"], multiline: true })}
@@ -235,6 +238,7 @@ export default function LandingCmsScreen() {
             {Field({ label: "Titolo H1", path: ["pages", "axon", "hero", "title"], multiline: true })}
             {Field({ label: "Sottotitolo", path: ["pages", "axon", "hero", "subtitle"], multiline: true })}
             {Field({ label: "Etichetta placeholder video", path: ["pages", "axon", "hero", "video_label"] })}
+            {Field({ label: "Link video Vimeo/YouTube (vuoto = placeholder)", path: ["pages", "axon", "hero", "video_url"] })}
             {Field({ label: "Pulsante (→ registrazione AxonOS)", path: ["pages", "axon", "hero", "cta"] })}
             {Field({ label: "Nota sotto il pulsante", path: ["pages", "axon", "hero", "cta_note"] })}
           </View>
@@ -256,6 +260,36 @@ export default function LandingCmsScreen() {
                   <View style={{ flex: 1 }}>{Field({ label: `Scenario ${i + 1} · titolo`, path: ["pages", "axon", "scenarios", "items", String(i), "title"] })}</View>
                 </View>
                 {Field({ label: `Scenario ${i + 1} · testo`, path: ["pages", "axon", "scenarios", "items", String(i), "text"], multiline: true })}
+              </View>
+            ))}
+          </View>
+          <View style={s.planBox} testID="cms-page-axon-drive">
+            <Text style={s.cardTitle}>Axon Drive (in coda agli scenari · CarPlay / Android Auto)</Text>
+            {Field({ label: "Etichetta", path: ["pages", "axon", "drive", "kicker"] })}
+            {Field({ label: "Titolo", path: ["pages", "axon", "drive", "title"], multiline: true })}
+            {Field({ label: "Introduzione", path: ["pages", "axon", "drive", "intro"], multiline: true })}
+            {((getPath(content || {}, ["pages", "axon", "drive", "items"]) || []) as any[]).map((_, i) => (
+              <View key={i} style={{ gap: 8 }}>
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <View style={{ width: 70 }}>{Field({ label: "Icona", path: ["pages", "axon", "drive", "items", String(i), "emoji"] })}</View>
+                  <View style={{ flex: 1 }}>{Field({ label: `Punto ${i + 1} · titolo`, path: ["pages", "axon", "drive", "items", String(i), "title"] })}</View>
+                </View>
+                {Field({ label: `Punto ${i + 1} · testo`, path: ["pages", "axon", "drive", "items", String(i), "text"], multiline: true })}
+              </View>
+            ))}
+          </View>
+          <View style={s.planBox} testID="cms-page-axon-diff">
+            <Text style={s.cardTitle}>Perché AxonOS è diverso (Alexa / Google Home / Siri)</Text>
+            {Field({ label: "Etichetta", path: ["pages", "axon", "diff", "kicker"] })}
+            {Field({ label: "Titolo", path: ["pages", "axon", "diff", "title"], multiline: true })}
+            {Field({ label: "Introduzione", path: ["pages", "axon", "diff", "intro"], multiline: true })}
+            {((getPath(content || {}, ["pages", "axon", "diff", "items"]) || []) as any[]).map((_, i) => (
+              <View key={i} style={{ gap: 8 }}>
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <View style={{ width: 70 }}>{Field({ label: "Icona", path: ["pages", "axon", "diff", "items", String(i), "emoji"] })}</View>
+                  <View style={{ flex: 1 }}>{Field({ label: `Punto ${i + 1} · titolo`, path: ["pages", "axon", "diff", "items", String(i), "title"] })}</View>
+                </View>
+                {Field({ label: `Punto ${i + 1} · testo`, path: ["pages", "axon", "diff", "items", String(i), "text"], multiline: true })}
               </View>
             ))}
           </View>
@@ -298,6 +332,7 @@ export default function LandingCmsScreen() {
             {Field({ label: "Titolo H1", path: ["pages", "advisor", "hero", "title"], multiline: true })}
             {Field({ label: "Sottotitolo", path: ["pages", "advisor", "hero", "subtitle"], multiline: true })}
             {Field({ label: "Etichetta placeholder video", path: ["pages", "advisor", "hero", "video_label"] })}
+            {Field({ label: "Link video Vimeo/YouTube (vuoto = placeholder)", path: ["pages", "advisor", "hero", "video_url"] })}
             {Field({ label: "Pulsante (→ registrazione AdvisorOS)", path: ["pages", "advisor", "hero", "cta"] })}
           </View>
           <View style={s.planBox}>
@@ -326,8 +361,24 @@ export default function LandingCmsScreen() {
               </View>
             ))}
           </View>
+          <View style={s.planBox} testID="cms-page-advisor-diff">
+            <Text style={s.cardTitle}>Perché AdvisorOS cancella i CRM tradizionali (sotto la tabella)</Text>
+            {Field({ label: "Etichetta", path: ["pages", "advisor", "diff", "kicker"] })}
+            {Field({ label: "Titolo", path: ["pages", "advisor", "diff", "title"], multiline: true })}
+            {Field({ label: "Introduzione", path: ["pages", "advisor", "diff", "intro"], multiline: true })}
+            {((getPath(content || {}, ["pages", "advisor", "diff", "items"]) || []) as any[]).map((_, i) => (
+              <View key={i} style={{ gap: 8 }}>
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <View style={{ width: 70 }}>{Field({ label: "Icona", path: ["pages", "advisor", "diff", "items", String(i), "emoji"] })}</View>
+                  <View style={{ flex: 1 }}>{Field({ label: `Punto ${i + 1} · titolo`, path: ["pages", "advisor", "diff", "items", String(i), "title"] })}</View>
+                </View>
+                {Field({ label: `Punto ${i + 1} · testo`, path: ["pages", "advisor", "diff", "items", String(i), "text"], multiline: true })}
+              </View>
+            ))}
+            {Field({ label: "Nota di trasparenza (marchi)", path: ["pages", "advisor", "diff", "note"], multiline: true })}
+          </View>
           <View style={s.planBox}>
-            <Text style={s.cardTitle}>Funzionalità specialistiche (4 aree)</Text>
+            <Text style={s.cardTitle}>L&apos;Armatura del Consulente (4 aree)</Text>
             {Field({ label: "Etichetta", path: ["pages", "advisor", "features", "kicker"] })}
             {Field({ label: "Titolo", path: ["pages", "advisor", "features", "title"] })}
             {((getPath(content || {}, ["pages", "advisor", "features", "items"]) || []) as any[]).map((_, i) => (
@@ -337,6 +388,21 @@ export default function LandingCmsScreen() {
                   <View style={{ flex: 1 }}>{Field({ label: `Area ${i + 1} · titolo`, path: ["pages", "advisor", "features", "items", String(i), "title"] })}</View>
                 </View>
                 {Field({ label: `Area ${i + 1} · testo`, path: ["pages", "advisor", "features", "items", String(i), "text"], multiline: true })}
+              </View>
+            ))}
+          </View>
+          <View style={s.planBox} testID="cms-page-advisor-drive">
+            <Text style={s.cardTitle}>Advisor Drive (in coda all'Armatura · CarPlay / Android Auto)</Text>
+            {Field({ label: "Etichetta", path: ["pages", "advisor", "drive", "kicker"] })}
+            {Field({ label: "Titolo", path: ["pages", "advisor", "drive", "title"], multiline: true })}
+            {Field({ label: "Introduzione", path: ["pages", "advisor", "drive", "intro"], multiline: true })}
+            {((getPath(content || {}, ["pages", "advisor", "drive", "items"]) || []) as any[]).map((_, i) => (
+              <View key={i} style={{ gap: 8 }}>
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <View style={{ width: 70 }}>{Field({ label: "Icona", path: ["pages", "advisor", "drive", "items", String(i), "emoji"] })}</View>
+                  <View style={{ flex: 1 }}>{Field({ label: `Punto ${i + 1} · titolo`, path: ["pages", "advisor", "drive", "items", String(i), "title"] })}</View>
+                </View>
+                {Field({ label: `Punto ${i + 1} · testo`, path: ["pages", "advisor", "drive", "items", String(i), "text"], multiline: true })}
               </View>
             ))}
           </View>

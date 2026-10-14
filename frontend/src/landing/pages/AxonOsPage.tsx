@@ -7,12 +7,15 @@ import { useRouter } from "expo-router";
 import { LP } from "@/src/landing/palette";
 import { Reveal } from "@/src/landing/LandingFx";
 import { usePageContent, fillVars } from "@/src/landing/pages/usePageContent";
-import { PageHero, Section, Cols, EmojiCard, FounderPill, PriceRow, Bullets, BigButton, PageFooter, PageLoading, goRegister, useCompact, k } from "@/src/landing/pages/PageKit";
+import { PageHero, Section, Cols, EmojiCard, InfoBlock, FounderPill, PriceRow, Bullets, BigButton, PageFooter, PageLoading, goRegister, useCompact, k } from "@/src/landing/pages/PageKit";
 
+type Block = { kicker: string; title: string; intro: string; items: { emoji: string; title: string; text: string }[]; note?: string };
 type AxonPage = {
-  hero: { kicker: string; title: string; subtitle: string; video_label: string; cta: string; cta_note: string };
+  hero: { kicker: string; title: string; subtitle: string; video_label: string; video_url?: string; cta: string; cta_note: string };
   concept: { kicker: string; title: string; text1: string; text2: string };
   scenarios: { kicker: string; title: string; items: { emoji: string; title: string; text: string }[] };
+  drive?: Block; // V50.z547 — Axon Drive (CarPlay / Android Auto)
+  diff?: Block; // V50.z547 — Perché diverso da Alexa/Google/Siri
   onboarding: { kicker: string; title: string; text: string; bullets: string[] };
   founders: { kicker: string; title: string; text: string; highlight: string };
   pricing: { badge: string; title: string; text: string; bullets: string[]; cta: string };
@@ -30,7 +33,7 @@ export function AxonOsPage() {
 
   return (
     <ScrollView style={k.root} contentContainerStyle={{ flexGrow: 1, paddingTop: insets.top, paddingBottom: insets.bottom + 24 }} showsVerticalScrollIndicator={false} testID="axonos-page">
-      <PageHero kicker={p.hero.kicker} title={p.hero.title} subtitle={p.hero.subtitle} videoLabel={p.hero.video_label} accent={LP.axon} glow={LP.axonGlow} line={LP.axonLine}>
+      <PageHero kicker={p.hero.kicker} title={p.hero.title} subtitle={p.hero.subtitle} videoLabel={p.hero.video_label} videoUrl={p.hero.video_url} accent={LP.axon} glow={LP.axonGlow} line={LP.axonLine}>
         <BigButton label={p.hero.cta} onPress={register} color={LP.axon} textColor={LP.surface} icon="rocket" testID="axonos-hero-cta" />
         {p.hero.cta_note ? <Text style={s.note}>{p.hero.cta_note}</Text> : null}
       </PageHero>
@@ -49,9 +52,19 @@ export function AxonOsPage() {
         <Cols>
           {p.scenarios.items.map((it, i) => <EmojiCard key={i} emoji={it.emoji} title={it.title} text={it.text} accent={LP.axon} glow={LP.axonGlow} line={LP.axonLineSoft} delay={80 + i * 90} testID={`axonos-scenario-${i}`} />)}
         </Cols>
+        {p.drive ? <InfoBlock {...p.drive} accent={LP.axon} glow={LP.axonGlow} line={LP.axonLine} testID="axonos-drive" /> : null}
       </Section>
 
-      <Section kicker={p.onboarding.kicker} title={p.onboarding.title} testID="axonos-onboarding">
+      {p.diff ? (
+        <Section kicker={p.diff.kicker} title={p.diff.title} testID="axonos-diff">
+          <Text style={[k.p, { textAlign: "center", maxWidth: 820, alignSelf: "center", marginBottom: 18 }]}>{p.diff.intro}</Text>
+          <Cols>
+            {p.diff.items.map((it, i) => <EmojiCard key={i} emoji={it.emoji} title={it.title} text={it.text} accent={LP.brand} glow={LP.brandGlow} line={LP.brandLineSoft} delay={80 + i * 90} testID={`axonos-diff-${i}`} />)}
+          </Cols>
+        </Section>
+      ) : null}
+
+      <Section kicker={p.onboarding.kicker} title={p.onboarding.title} alt testID="axonos-onboarding">
         <Text style={[k.p, { textAlign: "center", marginBottom: 16 }]}>{p.onboarding.text}</Text>
         <View style={{ gap: 10, maxWidth: 620, width: "100%", alignSelf: "center" }}>
           {p.onboarding.bullets.map((b, i) => (
@@ -62,12 +75,12 @@ export function AxonOsPage() {
         </View>
       </Section>
 
-      <Section kicker={p.founders.kicker} title={p.founders.title} alt kickerColor={LP.brand} testID="axonos-founders">
+      <Section kicker={p.founders.kicker} title={p.founders.title} kickerColor={LP.brand} testID="axonos-founders">
         <Text style={[k.p, { textAlign: "center", maxWidth: 760, alignSelf: "center" }]}>{p.founders.text}</Text>
         <FounderPill text={fillVars(p.founders.highlight, seats, plan)} seats={seats} />
       </Section>
 
-      <Section testID="axonos-pricing">
+      <Section alt testID="axonos-pricing">
         <Reveal>
           <View style={s.priceBox}>
             <View style={s.badge}><Text style={s.badgeTxt}>{p.pricing.badge}</Text></View>
@@ -80,7 +93,7 @@ export function AxonOsPage() {
         </Reveal>
       </Section>
 
-      <Section alt testID="axonos-bridge">
+      <Section testID="axonos-bridge">
         <Reveal>
           <View style={s.bridge}>
             <Text style={[k.kicker, { color: LP.brand, textAlign: "left", marginBottom: 4 }]}>{p.bridge.kicker}</Text>

@@ -8,6 +8,7 @@ import { LP } from "@/src/landing/palette";
 import { Aurora, Reveal, LiveDot } from "@/src/landing/LandingFx";
 import { PENDING_PLAN_KEY } from "@/src/landing/landingSeen";
 import type { Seats } from "@/src/landing/pages/usePageContent";
+import { VideoEmbed } from "@/src/landing/VideoEmbed";
 
 export const useCompact = () => useWindowDimensions().width < 760;
 
@@ -37,7 +38,7 @@ export function PageTopBar({ accent }: { accent: string }) {
   );
 }
 
-export function PageHero({ kicker, title, subtitle, videoLabel, accent, glow, line, children }: { kicker: string; title: string; subtitle: string; videoLabel?: string; accent: string; glow: string; line: string; children?: React.ReactNode }) {
+export function PageHero({ kicker, title, subtitle, videoLabel, videoUrl, accent, glow, line, children }: { kicker: string; title: string; subtitle: string; videoLabel?: string; videoUrl?: string; accent: string; glow: string; line: string; children?: React.ReactNode }) {
   const compact = useCompact();
   return (
     <View style={k.hero} testID="page-hero">
@@ -48,16 +49,34 @@ export function PageHero({ kicker, title, subtitle, videoLabel, accent, glow, li
       </Reveal>
       <Reveal delay={160}><Text style={[k.h1, compact && { fontSize: 30, lineHeight: 36 }]} testID="page-title">{title}</Text></Reveal>
       <Reveal delay={260}><Text style={k.lead}>{subtitle}</Text></Reveal>
-      {videoLabel ? (
-        <Reveal delay={340} style={{ alignItems: "center" }}>
-          <View style={[k.video, { borderColor: line }]} testID="page-video">
-            <Ionicons name="play-circle" size={48} color={accent} />
-            <Text style={k.videoLbl}>{videoLabel}</Text>
-          </View>
-        </Reveal>
-      ) : null}
+      <Reveal delay={340} style={{ alignItems: "center" }}>
+        <VideoEmbed url={videoUrl} label={videoLabel} accent={accent} line={line} testID="page-video" />
+      </Reveal>
       <Reveal delay={420} style={{ alignItems: "center", gap: 8 }}>{children}</Reveal>
     </View>
+  );
+}
+
+/** V50.z547 — blocco «Drive» / approfondimento: card unica con intro + righe emoji·titolo·testo. */
+export function InfoBlock({ kicker, title, intro, items, note, accent, glow, line, testID }: { kicker: string; title: string; intro: string; items: { emoji: string; title: string; text: string }[]; note?: string; accent: string; glow: string; line: string; testID?: string }) {
+  const compact = useCompact();
+  return (
+    <Reveal delay={80}>
+      <View style={[k.infoBlock, { borderColor: line }]} testID={testID}>
+        <Text style={[k.kicker, { color: accent, textAlign: "left", marginBottom: 4 }]}>{kicker}</Text>
+        <Text style={[k.h3, { color: LP.onSurface, fontSize: compact ? 21 : 25, lineHeight: compact ? 27 : 31 }]}>{title}</Text>
+        <Text style={k.p}>{intro}</Text>
+        <View style={{ gap: 12, marginTop: 6 }}>
+          {items.map((it, i) => (
+            <View key={i} style={k.infoRow}>
+              <View style={[k.cardIcon, { backgroundColor: glow, borderColor: line }]}><Text style={{ fontSize: 22 }}>{it.emoji}</Text></View>
+              <View style={{ flex: 1, gap: 3 }}><Text style={[k.h3, { color: LP.onSurface, fontSize: 16.5 }]}>{it.title}</Text><Text style={k.p}>{it.text}</Text></View>
+            </View>
+          ))}
+        </View>
+        {note ? <Text style={k.note}>{note}</Text> : null}
+      </View>
+    </Reveal>
   );
 }
 
@@ -178,8 +197,9 @@ export const k = StyleSheet.create({
   h3: { fontSize: 18, fontWeight: "900", letterSpacing: -0.3 },
   lead: { color: LP.onSurface2, fontSize: 16, lineHeight: 24, textAlign: "center", maxWidth: 760, alignSelf: "center" },
   p: { color: LP.onSurface2, fontSize: 14.5, lineHeight: 22 },
-  video: { width: "100%", maxWidth: 820, aspectRatio: 16 / 9, borderRadius: 16, borderWidth: 1, borderStyle: "dashed", backgroundColor: LP.surfaceInk, alignItems: "center", justifyContent: "center", gap: 8, marginTop: 10 },
-  videoLbl: { color: LP.muted, fontSize: 13, fontWeight: "700", textAlign: "center", paddingHorizontal: 16 },
+  infoBlock: { backgroundColor: LP.surface3, borderRadius: 20, padding: 22, borderWidth: 1, gap: 10, maxWidth: 1100, width: "100%", alignSelf: "center", marginTop: 18 },
+  infoRow: { flexDirection: "row", gap: 14, alignItems: "flex-start", backgroundColor: LP.surface, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: LP.border },
+  note: { color: LP.muted, fontSize: 12, lineHeight: 17, marginTop: 8, fontStyle: "italic" },
   kicker: { color: LP.axon, fontSize: 12, fontWeight: "800", letterSpacing: 2.5, textTransform: "uppercase", textAlign: "center", marginBottom: 12 },
   section: { paddingHorizontal: 20, paddingVertical: 40, width: "100%" },
   sectionAlt: { backgroundColor: LP.surface2, borderTopWidth: 1, borderBottomWidth: 1, borderColor: LP.border },

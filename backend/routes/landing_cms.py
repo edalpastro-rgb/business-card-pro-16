@@ -41,6 +41,9 @@ LANDING_DEFAULTS: Dict[str, Any] = {
         "right_kicker": "AxonOS · AxonLite",
         "right_title": "Il Custode della tua Storia e del tuo Studio",
         "right_text": "Un assistente vocale ambientale con microfono sempre aperto e ascolto locale protetto, pensato per conoscerti intimamente giorno dopo giorno. Carica i tuoi libri di testo, i tuoi appunti privati o le tue riflessioni quotidiane in un'area totalmente blindata e isolata dal mondo, creando la tua vera memoria ereditaria digitale.",
+        # V50.z547 — link Vimeo (o YouTube) dei due video: vuoto = placeholder «sarà inserito il link Vimeo»
+        "left_video_url": "",
+        "right_video_url": "",
     },
     "manifesto": {
         "title": "La tua mente e il tuo lavoro non sono in vendita.",
@@ -80,6 +83,7 @@ LANDING_DEFAULTS: Dict[str, Any] = {
                 "title": "AxonOS: L'Assistente Personale Vocale che elimina 100 app e organizza la tua Impresa Familiare.",
                 "subtitle": "Smetti di impazzire tra mille calendari, note, scontrini, scadenze e file sparsi. Versa tutto dentro il tuo Caveau Digitale protetto su server italiani. Configuralo in meno di 5 minuti senza essere un esperto, dagli il nome che preferisci e lascia che sia lui a semplificarti la vita.",
                 "video_label": "[VIDEO 90 secondi — AxonOS in azione: sarà inserito il link Vimeo]",
+                "video_url": "",
                 "cta": "Inizia Ora: 15 Giorni di Prova Gratuita",
                 "cta_note": "Nessuna carta di credito richiesta",
             },
@@ -97,6 +101,27 @@ LANDING_DEFAULTS: Dict[str, Any] = {
                     {"emoji": "🩺", "title": "Guardiano della Salute", "text": "Foto del referto → storico clinico digitale di tutta la famiglia. Foto della ricetta → sveglie e promemoria automatici per ogni assunzione."},
                     {"emoji": "🔐", "title": "Caveau Documenti", "text": "Archivio crittografato su server italiani con ricerca vocale: «Mostrami il passaporto di Chiara». Diario privato e appunti di studio sempre a portata di voce."},
                     {"emoji": "🧾", "title": "Bilancio Familiare e Memoria Proattiva", "text": "Foto degli scontrini → resoconto mensile per articoli e budget. E un assistente che pensa prima di te: «Emanuele, sono 15 giorni che non compri il latte, lo aggiungo alla lista?»"},
+                ],
+            },
+            # V50.z547 — blocco «Axon Drive» (in coda alla sezione assistente in azione / auto)
+            "drive": {
+                "kicker": "Axon Drive",
+                "title": "Axon Drive: Il controllo visivo sul monitor della tua auto",
+                "intro": "Axon si trasferisce direttamente sul grande schermo del cruscotto grazie alla compatibilità nativa con Apple CarPlay e Android Auto.",
+                "items": [
+                    {"emoji": "🖥️", "title": "Risposte scritte sul monitor", "text": "Quando chiedi di inserire un impegno («Axon, segna la visita medica di mio figlio per domani alle 12:00»), lui ti risponde a voce e proietta la scheda scritta sul monitor di bordo."},
+                    {"emoji": "✅", "title": "Verifica e Conferma (Zero Errori)", "text": "Guardi lo schermo per verificare i dati. Confermi con un cenno vocale («Sì, procedi») o un singolo Tap sul display, senza mai toccare il telefono."},
+                ],
+            },
+            # V50.z547 — blocco comparativo (subito dopo gli scenari)
+            "diff": {
+                "kicker": "La differenza",
+                "title": "Perché AxonOS è diverso da Alexa, Google Home o Siri",
+                "intro": "I normali assistenti commerciali vivono chiusi dentro una cassa acustica o dentro app nate per profilare i tuoi dati e venderti pubblicità. AxonOS spezza questa catena.",
+                "items": [
+                    {"emoji": "🚘", "title": "Unicità sul Mercato (Auto + Domotica)", "text": "È l'unico sistema che unisce lo schermo della tua vettura (Android Auto e Apple CarPlay) alla domotica di casa in un unico flusso sicuro a mani libere. Mentre rientri, ti basta dire «Axon, sto arrivando, apri il cancello elettrico»."},
+                    {"emoji": "🇮🇹", "title": "Privacy Sovrana (No Cloud USA)", "text": "I comandi della tua casa, i documenti d'identità e i dati della tua salute restano nel tuo caveau privato su server 100% italiani. Nessuno profila le tue abitudini: nessuno sa quando esci o quando torni a casa."},
+                    {"emoji": "🧘", "title": "Eliminazione del carico mentale", "text": "Non è un'app in più, ma lo svuotatasche digitale che sostituisce 100 applicazioni frammentate per darti un unico interlocutore vocale con onboarding guidato in meno di 5 minuti."},
                 ],
             },
             "onboarding": {
@@ -131,6 +156,7 @@ LANDING_DEFAULTS: Dict[str, Any] = {
                 "title": "AdvisorOS: Il sistema operativo da campo per il consulente commerciale che parla con il suo CRM mentre guida.",
                 "subtitle": "Cancella l'inferno di 15 applicazioni diverse aperte contemporaneamente. Prendi il controllo totale di contatti, trattative, scadenze e dati del mercato energetico in un'unica schermata, a mani libere e in totale mobilità.",
                 "video_label": "[VIDEO specialistico — AdvisorOS sul campo: sarà inserito il link Vimeo]",
+                "video_url": "",
                 "cta": "Attiva la Prova Gratuita — Operativo in 5 Minuti",
             },
             "pain": {
@@ -154,14 +180,36 @@ LANDING_DEFAULTS: Dict[str, Any] = {
                     {"need": "Tempo di Attivazione", "us": "✅ Minuti", "them": "❌ Settimane con partner costosi"},
                 ],
             },
+            # V50.z547 — blocco comparativo (subito sotto la tabella) con nota di trasparenza sui marchi
+            "diff": {
+                "kicker": "La differenza",
+                "title": "Perché AdvisorOS cancella i CRM tradizionali",
+                "intro": "Salesforce e HubSpot sono piattaforme rigide nate per chi lavora seduto a una scrivania. AdvisorOS è l'unico sistema operativo mobile-first nato per chi ha l'auto come ufficio.",
+                "items": [
+                    {"emoji": "🚘", "title": "Unicità sul Mercato", "text": "Nessun CRM al mondo ti permette di aggiornare una trattativa via voce mentre guidi e, un secondo dopo, aprire il garage o vedere i prezzi PUN in tempo reale. Integrazione nativa con Android Auto e Apple CarPlay."},
+                    {"emoji": "🔓", "title": "Nessun Vendor Lock-in", "text": "Con i CRM classici, se smetti di pagare perdi lo storico clienti. AdvisorOS gira sulla tua VPS: i dati restano tuoi anche se cambi mandato o agenzia."},
+                    {"emoji": "⏱️", "title": "Time-to-Value immediato", "text": "I CRM generalisti richiedono settimane e consulenti costosi. AdvisorOS ti rende operativo sul campo in meno di 5 minuti."},
+                ],
+                "note": "Nota di trasparenza: i marchi Salesforce, HubSpot, Zoho, Pipedrive e vtenext appartengono ai rispettivi proprietari. Le funzionalità e i prezzi indicati fanno riferimento ai listini pubblici aggiornati al 2026. AdvisorOS è una piattaforma indipendente non affiliata ai suddetti marchi.",
+            },
             "features": {
                 "kicker": "Funzionalità specialistiche",
-                "title": "Quattro aree costruite per chi vende sul campo",
+                "title": "L'Armatura del Consulente: quattro aree costruite per chi vende sul campo",
                 "items": [
                     {"emoji": "🎙️", "title": "Axon Operativo", "text": "Wake-word personalizzabile («Viola»). Comandi multi-step vocali con conferma vocale: «Sposta l'appuntamento con Rossi a giovedì e avvisalo via WhatsApp»."},
                     {"emoji": "⚡", "title": "Dati di Settore Nativi", "text": "Prezzi PUN e fasce GME in tempo reale, storico 18 mesi, PDF scaricabili da mostrare al cliente."},
                     {"emoji": "📄", "title": "Pipeline Documentale", "text": "Foto di bollette e contratti → anagrafica compilata automaticamente. Trascrizione delle chiamate con estrazione di budget e next step direttamente nelle note CRM."},
                     {"emoji": "🛡️", "title": "Deploy Sovrano", "text": "VPS proprietaria: i dati restano tuoi anche se cambi mandato. Fallback sulla rubrica se internet cade: non resti mai a piedi."},
+                ],
+            },
+            # V50.z547 — blocco «Advisor Drive» (in coda alla sezione Armatura del Consulente)
+            "drive": {
+                "kicker": "Advisor Drive",
+                "title": "Advisor Drive: L'ufficio sul tuo cruscotto (Zero errori, Massima sicurezza)",
+                "intro": "AdvisorOS porta il CRM sul grande schermo della tua vettura tramite Apple CarPlay e Android Auto.",
+                "items": [
+                    {"emoji": "🖥️", "title": "Interfaccia Visiva d'Impatto", "text": "Se chiedi di fissare un appuntamento o aggiornare una trattativa, il sistema ti mostra sul monitor la scheda di riepilogo con i dati inseriti."},
+                    {"emoji": "✅", "title": "Doppia Conferma Vocale o Touch", "text": "Verifichi i dettagli del cliente prima di salvare nel CRM. Un cenno vocale o un Tap sullo schermo autorizza il salvataggio, eliminando ogni rischio di errore con gli occhi fissi sulla strada."},
                 ],
             },
             "pricing": {

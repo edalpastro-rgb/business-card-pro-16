@@ -50,7 +50,7 @@
       <span class="badge badge-axon" data-cms="hero.kicker">AxonOS · Impresa Familiare</span>
       <h1 data-cms="hero.title">AxonOS: L'Assistente Personale Vocale che elimina 100 app e organizza la tua Impresa Familiare.</h1>
       <p class="lead" data-cms="hero.subtitle">Smetti di impazzire tra mille calendari, note, scontrini, scadenze e file sparsi. Versa tutto dentro il tuo Caveau Digitale protetto su server italiani. Configuralo in meno di 5 minuti senza essere un esperto, dagli il nome che preferisci e lascia che sia lui a semplificarti la vita.</p>
-      <div class="video video-hero" id="video-axonos">
+      <div class="video video-hero" id="video-axonos" data-cms-video="hero.video_url" aria-label="Video AxonOS">
         <video preload="none" controls playsinline poster="" aria-label="Video AxonOS"></video>
         <span class="video-label" data-cms="hero.video_label">[VIDEO 90 secondi — AxonOS in azione: sarà inserito il link Vimeo]</span>
       </div>
@@ -88,11 +88,36 @@
         <article class="pillar pillar-axon"><div class="pillar-icon" aria-hidden="true">🔐</div><h3>Caveau Documenti</h3><p>Archivio crittografato su server italiani con ricerca vocale: «Mostrami il passaporto di Chiara». Diario privato e appunti di studio sempre a portata di voce.</p></article>
         <article class="pillar pillar-axon"><div class="pillar-icon" aria-hidden="true">🧾</div><h3>Bilancio Familiare e Memoria Proattiva</h3><p>Foto degli scontrini → resoconto mensile per articoli e budget. E un assistente che pensa prima di te: «Emanuele, sono 15 giorni che non compri il latte, lo aggiungo alla lista?»</p></article>
       </div>
+      <article class="drive " id="drive">
+        <span class="label label-axon" data-cms="drive.kicker">Axon Drive</span>
+        <h3 data-cms="drive.title">Axon Drive: Il controllo visivo sul monitor della tua auto</h3>
+        <p data-cms="drive.intro">Axon si trasferisce direttamente sul grande schermo del cruscotto grazie alla compatibilità nativa con Apple CarPlay e Android Auto.</p>
+        <div class="drive-rows" data-cms-list="drive.items">
+          <template><div class="drive-row"><div class="pillar-icon" aria-hidden="true" data-f="emoji"></div><div><h4 data-f="title"></h4><p data-f="text"></p></div></div></template>
+          <div class="drive-row"><div class="pillar-icon" aria-hidden="true">🖥️</div><div><h4>Risposte scritte sul monitor</h4><p>Quando chiedi di inserire un impegno («Axon, segna la visita medica di mio figlio per domani alle 12:00»), lui ti risponde a voce e proietta la scheda scritta sul monitor di bordo.</p></div></div>
+          <div class="drive-row"><div class="pillar-icon" aria-hidden="true">✅</div><div><h4>Verifica e Conferma (Zero Errori)</h4><p>Guardi lo schermo per verificare i dati. Confermi con un cenno vocale («Sì, procedi») o un singolo Tap sul display, senza mai toccare il telefono.</p></div></div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- PERCHÉ DIVERSO (V50.z547) -->
+  <section class="section" id="differenza">
+    <div class="wrap">
+      <p class="kicker kicker-brand" data-cms="diff.kicker">La differenza</p>
+      <h2 class="h-big" data-cms="diff.title">Perché AxonOS è diverso da Alexa, Google Home o Siri</h2>
+      <p class="diff-intro" data-cms="diff.intro">I normali assistenti commerciali vivono chiusi dentro una cassa acustica o dentro app nate per profilare i tuoi dati e venderti pubblicità. AxonOS spezza questa catena.</p>
+      <div class="cols cols-3" data-cms-list="diff.items">
+        <template><article class="pillar pillar-brand"><div class="pillar-icon" aria-hidden="true" data-f="emoji"></div><h3 data-f="title"></h3><p data-f="text"></p></article></template>
+        <article class="pillar pillar-brand"><div class="pillar-icon" aria-hidden="true">🚘</div><h3>Unicità sul Mercato (Auto + Domotica)</h3><p>È l'unico sistema che unisce lo schermo della tua vettura (Android Auto e Apple CarPlay) alla domotica di casa in un unico flusso sicuro a mani libere. Mentre rientri, ti basta dire «Axon, sto arrivando, apri il cancello elettrico».</p></article>
+        <article class="pillar pillar-brand"><div class="pillar-icon" aria-hidden="true">🇮🇹</div><h3>Privacy Sovrana (No Cloud USA)</h3><p>I comandi della tua casa, i documenti d'identità e i dati della tua salute restano nel tuo caveau privato su server 100% italiani. Nessuno profila le tue abitudini: nessuno sa quando esci o quando torni a casa.</p></article>
+        <article class="pillar pillar-brand"><div class="pillar-icon" aria-hidden="true">🧘</div><h3>Eliminazione del carico mentale</h3><p>Non è un'app in più, ma lo svuotatasche digitale che sostituisce 100 applicazioni frammentate per darti un unico interlocutore vocale con onboarding guidato in meno di 5 minuti.</p></article>
+      </div>
     </div>
   </section>
 
   <!-- 4 · ONBOARDING LAMPO -->
-  <section class="section" id="onboarding">
+  <section class="section section-alt" id="onboarding">
     <div class="wrap narrow">
       <p class="kicker" data-cms="onboarding.kicker">Onboarding lampo</p>
       <h2 class="h-big" data-cms="onboarding.title">A prova di nonno</h2>
@@ -106,7 +131,7 @@
   </section>
 
   <!-- 5 · OFFERTA SOCI FONDATORI -->
-  <section class="section section-alt" id="founder">
+  <section class="section" id="founder">
     <div class="wrap narrow">
       <p class="kicker kicker-brand" data-cms="founders.kicker">Offerta Soci Fondatori</p>
       <h2 class="h-big" data-cms="founders.title">500 interazioni vocali al mese incluse</h2>
@@ -116,7 +141,7 @@
   </section>
 
   <!-- 6 · BOX TARIFFA UNICA -->
-  <section class="section" id="tariffa">
+  <section class="section section-alt" id="tariffa">
     <div class="wrap narrow">
       <article class="plan plan-builder plan-solo">
         <span class="plan-badge plan-badge-axon" data-cms="pricing.badge">TARIFFA UNICA</span>
@@ -134,7 +159,7 @@
   </section>
 
   <!-- 7 · PONTE VERSO IL BUSINESS -->
-  <section class="section section-alt" id="business">
+  <section class="section" id="business">
     <div class="wrap narrow">
       <article class="bridge">
         <span class="label label-brand" data-cms="bridge.kicker">Lavori nel commerciale?</span>

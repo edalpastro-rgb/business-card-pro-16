@@ -13,13 +13,14 @@ import { LP } from "@/src/landing/palette";
 import { AxonOrb, Aurora, Reveal, LiveDot } from "@/src/landing/LandingFx";
 import { DemoRequestForm } from "@/src/landing/DemoRequestForm";
 import { LANDING_SEEN_KEY, PENDING_PLAN_KEY } from "@/src/landing/landingSeen";
+import { VideoEmbed } from "@/src/landing/VideoEmbed"; // V50.z547 — video Vimeo dei due mondi (link dal CMS)
 
 type Plan = { badge: string; name: string; price_old: number; price: number; limit: number; features: string[]; cta: string };
 type Seats = { limit: number; taken: number; left: number };
 type LandingData = {
   content: {
     hero: { badge: string; title: string; subtitle: string; cta_primary: string; cta_secondary: string; stats?: { n: string; label: string; accent?: boolean }[] };
-    worlds: { title: string; left_kicker: string; left_title: string; left_text: string; right_kicker: string; right_title: string; right_text: string };
+    worlds: { title: string; left_kicker: string; left_title: string; left_text: string; right_kicker: string; right_title: string; right_text: string; left_video_url?: string; right_video_url?: string };
     manifesto: { title: string; pillars: { icon: string; title: string; text: string }[] };
     plans: { title: string; subtitle: string; builder: Plan; professional: Plan; seats_label: string; sold_out_label: string };
     footer: { text: string };
@@ -154,6 +155,7 @@ export function AxonCoreLanding() {
               <Text style={[s.worldKicker, { color: LP.brand }]}>{c.worlds.left_kicker}</Text>
               <Text style={s.h2}>{c.worlds.left_title}</Text>
               <Text style={s.p}>{c.worlds.left_text}</Text>
+              <VideoEmbed url={c.worlds.left_video_url} accent={LP.brand} line={LP.brandLine} testID="landing-video-advisor" />
             </LinearGradient>
           </Reveal>
           <Reveal delay={180} style={s.col}>
@@ -162,6 +164,7 @@ export function AxonCoreLanding() {
               <Text style={[s.worldKicker, { color: LP.axon }]}>{c.worlds.right_kicker}</Text>
               <Text style={s.h2}>{c.worlds.right_title}</Text>
               <Text style={s.p}>{c.worlds.right_text}</Text>
+              <VideoEmbed url={c.worlds.right_video_url} accent={LP.axon} line={LP.axonLine} testID="landing-video-axon" />
             </LinearGradient>
           </Reveal>
         </View>
