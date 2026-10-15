@@ -234,3 +234,23 @@ async def _ce_check_watchdog_restart():
                                           voice_text="Attenzione: Axon è stato riavviato automaticamente dal watchdog per un'anomalia critica. Vuoi che ti mostri i dettagli?")
     except Exception as exc:  # noqa: BLE001
         logger.warning("[critical] watchdog restart alert failed: %s", exc)  # noqa: F821
+
+
+# ───────── V50.z562 — TELEMETRIA TTFT → allarme in Home (core.streaming.stats) ─────────
+@app.on_event("startup")  # noqa: F821
+async def _ce_ttft_monitor_start():
+    async def _loop():
+        await asyncio.sleep(300)
+        while True:
+            try:
+                st = _core_stream_stats(60)  # noqa: F821
+                if st.get("n", 0) >= 5 and st.get("anomalies"):
+                    await axon_critical_alert_masters(
+                        "telemetria", "Axon risponde lentamente",
+                        " · ".join(st["anomalies"]) + f" (p50 {st['p50']}s, p95 {st['p95']}s su {st['n']} risposte)",
+                        route="/axon-system", dedupe_key=f"ttft-{int(time.time() // 3600)}",
+                    )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("[critical] ttft monitor: %s", exc)  # noqa: F821
+            await asyncio.sleep(300)
+    asyncio.create_task(_loop())

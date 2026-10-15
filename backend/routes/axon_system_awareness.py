@@ -326,7 +326,8 @@ async def _axs_status(user: dict, events_limit: int = 30) -> dict:
         pass
     push_dev = await db.push_devices.count_documents({"user_id": uid})
     uptime_s = int((now - _AXS_STARTED_AT).total_seconds())
-    return {"now": now.isoformat(), "backend": {"version": cl["version"], "boot_id": _AXS_BOOT_ID, "started_at": _AXS_STARTED_AT.isoformat(), "uptime_sec": uptime_s,
+    _ttft = _core_stream_stats(60)  # noqa: F821 — V50.z562 — telemetria TTFT p50/p95 ultimi 60 min (core.streaming)
+    return {"now": now.isoformat(), "ttft": _ttft, "core_integrity": __import__("core.integrity", fromlist=["last"]).last(), "backend": {"version": cl["version"], "boot_id": _AXS_BOOT_ID, "started_at": _AXS_STARTED_AT.isoformat(), "uptime_sec": uptime_s,
                                                   "uptime_label": f"{uptime_s // 86400}g {uptime_s % 86400 // 3600}h {uptime_s % 3600 // 60}m", "python": _axs_platform.python_version(),
                                                   "llm_key": bool(os.environ.get("EMERGENT_LLM_KEY")), "push_configured": bool(os.environ.get("EMERGENT_PUSH_KEY")) and os.environ.get("EMERGENT_PUSH_KEY") != "placeholder",
                                                   "modules": len(__import__("routes").MODULES)},

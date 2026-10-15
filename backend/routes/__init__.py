@@ -8,6 +8,7 @@ Per aggiungere un modulo: crearlo in routes/ e inserirlo QUI nella posizione cor
 MODULES = [
     "00_core.py",
     "01_helpers.py",
+    "01e_core_bridge.py",  # V50.z562 — ponte verso backend/core (namespace protetto: retrieval Drive semantico, regole, telemetria TTFT)
     "01b_heavy_bridge.py",  # V50.z210 — heavy_call/heavy_call_sync → sottoprocesso workers/heavy_worker.py (cv2/fitz/pdfplumber MAI nel processo API)
     "01c_pdf_compress.py",
     "01d_kokoro_tts.py",  # V50.z347 — TTS locale Kokoro-82M (onnxruntime) + fallback OpenAI; axon_tts_generate usato da /assistant/tts e /ai/tts  # V50.z345 — compressione automatica PDF post-upload (PyMuPDF via heavy_call)

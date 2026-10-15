@@ -759,6 +759,12 @@ async def _reindex_drive_files_for_user(user_id: str, max_files: int = 300) -> D
                     upsert=True,
                 )
                 stats["updated"] += 1
+                # V50.z562 — indice SEMANTICO (ChromaDB, backend/core): il CONTENUTO del file diventa ricercabile
+                try:
+                    _n_chunks = await asyncio.to_thread(_core_drive_upsert, user_id, fid, f.get("name") or fid, f.get("_folder_path") or "", text or "", f.get("modifiedTime") or "")  # noqa: F821
+                    stats["semantic_chunks"] = stats.get("semantic_chunks", 0) + int(_n_chunks or 0)
+                except Exception as _ce:  # noqa: BLE001
+                    logger.warning(f"[drive-reindex] indice semantico {fid}: {_ce}")
             except Exception as e:
                 stats["failed"] += 1
                 logger.debug(f"[drive-reindex] {fid} failed: {e}")
@@ -777,8 +783,14 @@ async def _reindex_drive_files_for_user(user_id: str, max_files: int = 300) -> D
                     pass
         # Rimuovi dall'indice i file non più presenti nelle cartelle (solo se la scansione ha prodotto qualcosa)
         if folders_scanned > 0 or single_files:
+            _gone = await db.drive_snapshots.find({"user_id": user_id, "file_id": {"$nin": list(current_ids)}}, {"_id": 0, "file_id": 1}).to_list(5000)
             r = await db.drive_snapshots.delete_many({"user_id": user_id, "file_id": {"$nin": list(current_ids)}})
             stats["removed"] = int(r.deleted_count or 0)
+            for _g in _gone:  # V50.z562 — allinea l'indice semantico
+                try:
+                    await asyncio.to_thread(_core_drive_delete, user_id, _g["file_id"])  # noqa: F821
+                except Exception:  # noqa: BLE001
+                    pass
     except HTTPException as e:
         err_msg = str(e.detail)
         logger.warning(f"[drive-reindex] user {user_id} auth/config error: {e.detail}")

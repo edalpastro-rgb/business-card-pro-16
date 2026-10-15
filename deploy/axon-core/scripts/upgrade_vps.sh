@@ -27,6 +27,8 @@ diag() {
 }
 
 rebuild_and_wait() {
+  # V50.z562 — snapshot dell'immagine attuale per il ROLLBACK automatico dello smoke gate
+  if docker image inspect axon-core:latest >/dev/null 2>&1; then docker tag axon-core:latest axon-core:prev && echo "→ immagine precedente salvata come axon-core:prev"; fi
   docker compose up -d --build axon-core
   echo "→ attendo l'avvio del backend…"
   for i in $(seq 1 60); do
@@ -94,7 +96,33 @@ if [[ -n "$PKG_TAG" && "$RUN_TAG" != "$PKG_TAG" ]]; then
   RUN_TAG="$(curl -sk https://localhost/api/health 2>/dev/null | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p')"
   echo "→ versione in esecuzione dopo la ricreazione: ${RUN_TAG:-?}"
 fi
-docker compose logs --since 3m axon-core 2>/dev/null | grep -E "\[boot\] Google Drive" | tail -n 2 | cut -c1-220 | sed 's/^/    /' || true
+docker compose logs --since 3m axon-core 2>/dev/null | grep -E "\[boot\] Google Drive|\[boot\] core|core-integrity" | tail -n 4 | cut -c1-220 | sed 's/^/    /' || true
+
+# V50.z562 — SMOKE GATE + ROLLBACK AUTOMATICO (Accordo di produzione V1423+)
+# Legge SMOKE_EMAIL / SMOKE_PASSWORD / SMOKE_DRIVE_QUERY / SMOKE_TTFT_MAX_S dal .env di compose ($DEST/.env).
+SMOKE_SCRIPT="$TMP/axon-core-pkg/smoke_gate.py"; [[ -f "$SMOKE_SCRIPT" ]] || SMOKE_SCRIPT="$DEST/smoke_gate.py"
+if [[ -f "$SMOKE_SCRIPT" && "${SKIP_SMOKE_GATE:-0}" != "1" ]]; then
+  cp -f "$SMOKE_SCRIPT" "$DEST/smoke_gate.py" 2>/dev/null || true
+  _senv() { grep -m1 "^$1=" "$DEST/.env" 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'"; }
+  sleep 5  # warm-up del modello/embedder
+  if BASE_URL="https://localhost" PKG_TAG="$PKG_TAG" SMOKE_EMAIL="$(_senv SMOKE_EMAIL)" SMOKE_PASSWORD="$(_senv SMOKE_PASSWORD)" \
+     SMOKE_DRIVE_QUERY="$(_senv SMOKE_DRIVE_QUERY)" SMOKE_TTFT_MAX_S="${SMOKE_TTFT_MAX_S:-$(_senv SMOKE_TTFT_MAX_S)}" \
+     python3 "$SMOKE_SCRIPT"; then
+    docker image rm axon-core:prev >/dev/null 2>&1 || true
+  else
+    echo "✘✘ SMOKE GATE FALLITO → ROLLBACK IMMEDIATO all'immagine precedente"
+    if docker image inspect axon-core:prev >/dev/null 2>&1; then
+      docker tag axon-core:prev axon-core:latest
+      docker compose up -d --no-build --force-recreate axon-core
+      sleep 8
+      echo "→ versione dopo il rollback: $(curl -sk https://localhost/api/health 2>/dev/null | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p')"
+      echo "   (il codice nuovo resta in $DEST/backend: correggi e rilancia; per forzare senza gate: SKIP_SMOKE_GATE=1)"
+    else
+      echo "   nessuna immagine precedente disponibile: container lasciato com'è, CONTROLLA i log."
+    fi
+    exit 4
+  fi
+fi
 
 # 3) Web (SPA Expo) — install_web_on_vps.sh mantiene il dominio già configurato e ricrea solo nginx
 bash "$TMP/axon-web-pkg/install_web_on_vps.sh"

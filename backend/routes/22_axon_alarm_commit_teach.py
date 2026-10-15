@@ -751,6 +751,7 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
         # inattività e l'utente vede che Axon sta lavorando.
         _prep_task = asyncio.create_task(_prepare_assistant_prompt(user, body))
         _prep_started = asyncio.get_event_loop().time()
+        _tm_first = None; _tm_deltas = 0  # V50.z562 — telemetria TTFT (core.streaming)
         _hb_msgs = ["Sto verificando…", "Sto raccogliendo dati aggiornati…", "Ancora un momento, sto preparando la risposta…"]
         _hb_i = 0
         while True:
@@ -914,6 +915,9 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
                         _piece = _navf.feed(ev.content)
                         if _piece:
                             collected.append(_piece)
+                            if _tm_first is None:
+                                _tm_first = asyncio.get_event_loop().time() - _prep_started
+                            _tm_deltas += 1
                             if not _bare:
                                 yield sse("delta", {"text": _piece})
                 elif isinstance(ev, StreamDone):
@@ -946,6 +950,11 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
             yield sse("delta", {"text": _clean})
 
         reply_text = ("".join(collected)).strip() or "Non ho ricevuto una risposta. Riprova."
+        try:  # V50.z562 — telemetria: TTFT misurato dal server (prep + primo token), p50/p95 in /axon/system/status e /api/health
+            _tm_total = asyncio.get_event_loop().time() - _prep_started
+            _core_stream_record(_tm_first if _tm_first is not None else _tm_total, float(prep.get("prep_seconds") or 0), _tm_deltas, _tm_total, str(prep.get("query_class") or ""))  # noqa: F821
+        except Exception:  # noqa: BLE001
+            pass
         _mn_fb = globals().get("_mn_nav_fallback")  # V50.z555 — chip [[NAV]] di sicurezza se il modello l'ha omesso
         if _mn_fb:
             try:

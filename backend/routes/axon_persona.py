@@ -86,9 +86,7 @@ _PERSONAL_LOOKUP_RX = re.compile(
 )
 
 
-_LLM_SELF_RX = re.compile(  # V50.z556 — domande che il modello risolve da solo: NIENTE Tavily (costava 4-5 s di attesa prima del primo token)
-    r"\b(quanto fa|calcola|converti|convertimi|traduci|traducimi|come si dice|come si scrive|significato di|definizione di|sinonim[oi]|contrario di|"
-    r"quanti giorni (mancano|ci sono|passano)|che giorno (della settimana )?(è|era|sarà|cade)|barzelletta|indovinello|curiosità|quanto è \d|radice quadrata|percentuale di)\b", re.I)
+from core.response_rules import llm_can_answer_without_web as _core_llm_self_fn  # V50.z562 — regola protetta in backend/core
 
 
 def _axon_wants_general_web(user: dict, msg: str) -> bool:
@@ -97,7 +95,7 @@ def _axon_wants_general_web(user: dict, msg: str) -> bool:
     try:
         if not msg or _detect_energy_query(msg):  # noqa: F821 — già gestita con le fonti energia
             return False
-        if _LLM_SELF_RX.search(msg) and not re.search(r"\b(oggi|ieri|attual\w*|ultim\w*|in tempo reale|aggiornat\w*|notizi\w*|news|prezzo|costa|borsa)\b", msg, re.I):
+        if _core_llm_self_fn(msg):
             return False  # V50.z556 — matematica/traduzioni/conversioni/definizioni: risposta diretta del modello
         _info = globals().get("_nav_is_info_query")
         if _info and _info(msg):

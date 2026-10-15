@@ -90,6 +90,10 @@ async def _api_health():
         _st = globals().get("_AXS_STARTED_AT")
         if _st:
             out["started_at"] = _st.isoformat()
+        from core import integrity as _ci  # V50.z562 — namespace protetto
+        out["core_integrity"] = _ci.last().get("ok")
+        from core import streaming as _cs
+        out["ttft"] = _cs.stats(60)
     except Exception:  # noqa: BLE001
         pass
     return out

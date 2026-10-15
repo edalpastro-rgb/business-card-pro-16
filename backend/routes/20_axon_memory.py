@@ -275,9 +275,7 @@ async def _build_pinned_rules_ack_text(tenant: str, user_msg: str) -> str:
 
 
 import time as _time_mod  # V50.z556
-import re as _gme_re
-_GME_KEYS_RX = _gme_re.compile(r"\b(pun|fascia|fasce|f1|f2|f3|prezzo ?medio|gme|mercatoelettrico|monorario)\b|€/[mk]wh", _gme_re.I)
-_PUN_LIKE_RX = _gme_re.compile(r"\b(pun|fascia|fasce|f1|f2|f3|prezzo ?medio|gme|mercato ?elettrico|arera|[mk]wh|bollett[ae]|tariff[ae]|listino energia)\b|€/[mk]wh", _gme_re.I)
+from core.response_rules import GME_KEYS_RX as _GME_KEYS_RX, PUN_LIKE_RX as _PUN_LIKE_RX  # V50.z562 — regole protette in backend/core
 
 
 async def _build_axon_teach_section(tenant: str, user_msg: str) -> str:
@@ -1584,6 +1582,31 @@ _DRIVE_TEACH_STOPWORDS = {
 }
 
 
+_DRIVE_SEM_BACKFILL_RUNNING: set = set()
+
+
+def _schedule_drive_semantic_backfill(tenant: str) -> None:
+    """V50.z562 — Popola l'indice semantico ChromaDB dagli snapshot Mongo già esistenti (una volta, in background)."""
+    if tenant in _DRIVE_SEM_BACKFILL_RUNNING:
+        return
+    _DRIVE_SEM_BACKFILL_RUNNING.add(tenant)
+
+    async def _run():
+        try:
+            rows = await db.drive_snapshots.find({"user_id": tenant}, {"_id": 0, "file_id": 1, "name": 1, "folder_path": 1, "text": 1, "modified_time": 1}).to_list(5000)
+            n = 0
+            for r in rows:
+                if (r.get("text") or "").strip():
+                    n += int(await asyncio.to_thread(_core_drive_upsert, tenant, r["file_id"], r.get("name") or r["file_id"], r.get("folder_path") or "", r["text"], r.get("modified_time") or "") or 0)  # noqa: F821
+            logger.info("[drive-semantic] backfill tenant %s: %d file, %d chunk", tenant, len(rows), n)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[drive-semantic] backfill failed: %s", exc)
+        finally:
+            _DRIVE_SEM_BACKFILL_RUNNING.discard(tenant)
+
+    asyncio.create_task(_run())
+
+
 async def _fetch_teach_drive_pdfs_for_query(
     tenant: str, user_msg: str, max_pdfs: int = 4
 ) -> str:
@@ -1672,7 +1695,24 @@ async def _fetch_teach_drive_pdfs_for_query(
         return sc
 
     scored = sorted(snaps, key=lambda s: (_score(s), s.get("modified_time") or ""), reverse=True)
-    top = [s for s in scored if _score(s) > 0][:max_pdfs]
+    # V50.z562 — RETRIEVAL SEMANTICO sul CONTENUTO (backend/core/drive_retrieval, ChromaDB + MiniLM): «potenza impegnata kW»
+    # trova 01_POWER.pdf anche se nessuna parola compare nel nome. Il lessicale sul nome resta come fallback/complemento.
+    top: List[Dict[str, Any]] = []
+    try:
+        _by_id = {s.get("file_id"): s for s in snaps}
+        _sem = await asyncio.to_thread(_core_drive_search, tenant, user_msg or "", max_pdfs)  # noqa: F821
+        if not _sem and snaps and any((s.get("text") or "").strip() for s in snaps):
+            _schedule_drive_semantic_backfill(tenant)  # indice semantico vuoto ma snapshot presenti → costruiscilo in background
+        top = [_by_id[r["file_id"]] for r in _sem if r.get("score", 0) >= 0.25 and r["file_id"] in _by_id]
+        if _sem:
+            header_lines.append("RICERCA SEMANTICA: " + "; ".join(f"{r['name']} ({r['score']:.2f})" for r in _sem[:max_pdfs]))
+    except Exception as _se:  # noqa: BLE001
+        logger.warning("[drive-teach] semantic search failed: %s", _se)
+    for s in [s for s in scored if _score(s) > 0]:
+        if len(top) >= max_pdfs:
+            break
+        if s not in top:
+            top.append(s)
     if not top:
         # Nessuna keyword pertinente: includi i più recenti (utile per "cosa c'è di nuovo")
         top = scored[:2]

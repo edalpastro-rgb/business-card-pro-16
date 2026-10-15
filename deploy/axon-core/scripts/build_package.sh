@@ -32,6 +32,17 @@ os.replace(tmp, path)
 print("DEPLOY_CHANGELOG.md ← " + row)
 PY
 fi
+# V50.z562 — TEST BLOCCANTI (Accordo di produzione V1423+): nessun .tgz se le guardie core non passano al 100%.
+# tests/core_guards: regole («appuntamenti» NON scarica GME, niente web per calcoli/traduzioni), retrieval Drive semantico
+# (ChromaDB + MiniLM: trova 01_POWER dal CONTENUTO), telemetria TTFT, contratto SSE. + worker PDF (stdout blindato).
+if [[ "${SKIP_CORE_TESTS:-0}" != "1" ]]; then
+  echo "▶ Test bloccanti core (tests/core_guards + worker PDF)…"
+  if ! (cd "$ROOT/backend" && python -m pytest tests/core_guards tests/test_v50z559_heavy_worker_stdout.py -q -p no:cacheprovider 2>&1 | tail -n 15); then
+    echo "✘ TEST CORE FALLITI: pacchetto NON generato. Correggi e rilancia (SKIP_CORE_TESTS=1 solo per emergenze documentate)."; exit 3
+  fi
+  (cd "$ROOT/backend" && python -m pytest tests/core_guards tests/test_v50z559_heavy_worker_stdout.py -q -p no:cacheprovider >/dev/null 2>&1) || { echo "✘ TEST CORE FALLITI (verifica finale): pacchetto NON generato."; exit 3; }
+  echo "✔ test core passati al 100%"
+fi
 PKG="$(mktemp -d)/axon-core-pkg"
 mkdir -p "$PKG"
 rsync -a --exclude '__pycache__' --exclude '*.pyc' --exclude 'assets/kokoro' --exclude 'models/minilm' --exclude 'data' --exclude '.env' --exclude 'tests' "$ROOT/backend/" "$PKG/backend/"
@@ -65,7 +76,8 @@ cp "$ROOT/deploy/axon-core/.env.example" "$PKG/"
 cp -r "$ROOT/deploy/axon-core/nginx" "$PKG/nginx"
 mkdir -p "$PKG/nginx/certs" "$PKG/nginx/www"
 cp "$ROOT/deploy/axon-core/MIGRATION_GUIDE.md" "$PKG/"
-cp "$ROOT/deploy/axon-core/scripts/upgrade_vps.sh" "$PKG/upgrade_vps.sh"  # V50.z435 — aggiornamento VPS in un comando
+cp "$ROOT/deploy/axon-core/scripts/upgrade_vps.sh" "$PKG/upgrade_vps.sh"
+cp "$ROOT/deploy/axon-core/scripts/smoke_gate.py" "$PKG/smoke_gate.py"  # V50.z562 — smoke gate post-deploy (usato da upgrade_vps.sh)  # V50.z435 — aggiornamento VPS in un comando
 # PKG_VERSION: diagnostica leggibile. `litellm_req_lines` conta le righe `^litellm` in requirements.txt DOPO la rimozione voluta
 # qui sopra → 0 è il valore ATTESO (litellm arriva come dipendenza di emergentintegrations). `axon_llm_helper` conta le occorrenze
 # dell'helper ANTHROPIC_API_KEY (_axon_llm_key/_axon_llm_chat) nei moduli 19/21 così da verificare al volo che il codice sia aggiornato.
