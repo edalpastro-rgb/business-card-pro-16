@@ -14,6 +14,10 @@ Quando l'utente scrive «Neo, leggi i prompt in coda» (o simili), esegui SUBITO
 `python3 /app/scripts/neo_queue.py list` → `show #N` → esegui il task → `done #N "nota"` (o `reject #N "motivo"`, `read #N`).
 I prompt sono salvati da Axon in `master_files` con `category: "neo_prompts"`, `neo_status: pending|read|done|rejected`, `neo_seq`, `neo_note`. Axon mostra lo stato all'utente con «stato prompt Neo».
 
+## V50.z557 (Giu 2026) — Google Drive OAuth: rimosso `include_granted_scopes="true"` (28_google_drive.py, richiesta utente)
+- Solo quella riga nel `flow.authorization_url(...)`; restano `access_type="offline"` e `prompt="consent"`. Pacchetto core rigenerato (verificato: 0 occorrenze nel .tgz).
+
+
 ## V50.z556 (Giu 2026) — Latenza Axon: risposta immediata alle domande semplici · streaming parola per parola
 - **Causa #1 (grave)**: `_fetch_gme_pun_canonical` e `_fetch_teach_url_pdfs_for_query` (20) usavano `"pun" in msg` → «appuntamenti» conteneva «pun» → download PDF GME (5-6 s) a OGNI domanda sull'agenda. Ora regex a confine di parola (`_GME_KEYS_RX`, `_PUN_LIKE_RX`).
 - **Causa #2**: Tavily (4-5 s) partiva anche per matematica/traduzioni/conversioni/definizioni («Quanto fa 12 per 8?», «Traduci…»): `_LLM_SELF_RX` in `axon_persona._axon_wants_general_web` le esclude (salvo riferimenti ad attualità/prezzi).

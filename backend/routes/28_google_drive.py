@@ -193,7 +193,6 @@ async def google_drive_oauth_start(body: Optional[OAuthStartIn] = None, user=Dep
     flow = Flow.from_client_config(_gd_client_config(), scopes=_GD_SCOPES, state=nonce, redirect_uri=clean_redirect)
     authorization_url, _ = flow.authorization_url(
         access_type="offline",
-        include_granted_scopes="true",
         prompt="consent",
     )
     # V29.aw — CRITICAL: google_auth_oauthlib >= 1.0 automatically generates a

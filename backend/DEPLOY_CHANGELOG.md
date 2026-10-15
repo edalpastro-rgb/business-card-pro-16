@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-15 | D2026.10.15-1320 | V50.z557 — Google Drive OAuth: rimosso include_granted_scopes (scope incrementali) dall'URL di autorizzazione |
 | 2026-10-15 | D2026.10.15-1232 | V50.z556 — Latenza Axon: fix «appuntamenti»→PUN (download GME 5-6 s a ogni domanda agenda), niente Tavily per matematica/traduzioni, classe «simple» ampliata, non-stream riusa il prompt parallelo/gated, profilo [prep-timing]; chat: resa parola per parola |
 | 2026-10-15 | D2026.10.15-1149 | V50.z555c — Navigatore: risposte istantanee «Dove trovo X» con 📍 Percorso dal manuale |
 | 2026-10-15 | D2026.10.15-1146 | V50.z555b — Manuale: chip [[NAV]] di sicurezza (stream + non-stream), intento navigate per how-to in forma libera, fix «]» orfano nei marker rimossi |
