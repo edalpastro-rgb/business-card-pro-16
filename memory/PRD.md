@@ -14,6 +14,14 @@ Quando l'utente scrive «Neo, leggi i prompt in coda» (o simili), esegui SUBITO
 `python3 /app/scripts/neo_queue.py list` → `show #N` → esegui il task → `done #N "nota"` (o `reject #N "motivo"`, `read #N`).
 I prompt sono salvati da Axon in `master_files` con `category: "neo_prompts"`, `neo_status: pending|read|done|rejected`, `neo_seq`, `neo_note`. Axon mostra lo stato all'utente con «stato prompt Neo».
 
+## V50.z559 (Giu 2026) — OCR Drive nel container VPS: worker PDF blindato
+- Prod (D2026.10.15-1320) loggava «[drive-reindex] OCR … failed: worker pdf_render_pages output non valido: Expecting value: line 1 column 1» → qualcosa scriveva su stdout PRIMA del JSON del worker (banner/warning di librerie native nel container) → ogni PDF scansionato falliva → «0 file letti».
+- `workers/heavy_worker.py`: `os.dup2(2,1)` + `sys.stdout=sys.stderr` per tutta l'elaborazione; il JSON finale va sul fd stdout originale (`os.dup(1)`).
+- `routes/01b_heavy_bridge._hv_parse`: se il parse fallisce recupera l'ultimo `{"ok": …}` nello stdout; l'errore riporta `stdout[:200]` e `stderr[-300:]` per diagnosi.
+- Router `/google-drive/refresh-frequency` verificato registrato (openapi GET+PUT; 34 nel loader; presente nel .tgz). Il 404 in prod = backend fermo alla z557: installare il core D2026.10.15-1423.
+- Test: `backend/tests/test_v50z559_heavy_worker_stdout.py` (3/3).
+
+
 ## V50.z558 (Giu 2026) — Google Drive: contatore «Indice Axon» reale · Frequenza aggiornamento + «Aggiorna ora» · callback OAuth senza «Not authenticated»
 - **Contatore** (`34_alarms_homeassistant.py`): `GET /google-drive/reindex/status` conta `drive_snapshots` su utente + Master del tenant (come il prompt di Axon in 21); i file il cui download/estrazione fallisce vengono comunque salvati nell'indice (`text:""`, `error`) → `indexed_files` reale + `failed_files` + `stats` dell'ultima scansione (trovati/aggiornati/invariati/errori) mostrati in UI (testID `gd-index-count`, `gd-index-stats`).
 - **Frequenza**: `GET/PUT /google-drive/refresh-frequency` (`hourly|daily|weekly|monthly|manual`, default hourly) salvata in `drive_index_meta.refresh_frequency`; `_run_drive_reindex_job` (ogni 30 min) rilegge solo se `_drive_refresh_due` (manuale = mai). UI: card «Frequenza aggiornamento» (`gd-freq-card`, pill `gd-freq-*`) + bottone «Aggiorna ora» (`gd-refresh-now-btn`, POST /google-drive/reindex, ignora il timer).

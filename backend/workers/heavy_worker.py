@@ -6,6 +6,7 @@ Il processo importa cv2/fitz/pdfplumber/PIL, esegue UNA operazione, scrive il ri
 """
 import base64
 import json
+import os
 import sys
 import traceback
 
@@ -31,6 +32,13 @@ def _encode(v):
 
 
 def main() -> int:
+    # V50.z559 — PROTOCOLLO BLINDATO: qualunque cosa venga stampata su stdout durante import/elaborazione (banner di librerie
+    # native, warning di MuPDF/Leptonica/OpenCV, print di debug) finisce su STDERR; il JSON di risposta viene scritto sul
+    # descrittore stdout ORIGINALE. Prima, nel container VPS, una riga spuria in testa allo stdout rompeva il parse
+    # («worker pdf_render_pages output non valido: Expecting value: line 1 column 1») e l'OCR dei PDF Drive falliva sempre.
+    real_stdout_fd = os.dup(1)
+    os.dup2(2, 1)
+    sys.stdout = sys.stderr
     try:
         req = json.loads(sys.stdin.buffer.read().decode("utf-8"))
         from heavy_ops import OPS  # import qui: è il sottoprocesso a pagare il costo
@@ -41,8 +49,13 @@ def main() -> int:
         out = {"ok": True, "result": _encode(result)}
     except Exception as exc:  # noqa: BLE001
         out = {"ok": False, "error": f"{type(exc).__name__}: {exc}", "trace": traceback.format_exc()[-2000:]}
-    sys.stdout.buffer.write(json.dumps(out).encode("utf-8"))
-    sys.stdout.flush()
+    sys.stderr.flush()
+    payload = json.dumps(out).encode("utf-8")
+    view = memoryview(payload)
+    while view:
+        n = os.write(real_stdout_fd, view)
+        view = view[n:]
+    os.close(real_stdout_fd)
     return 0
 
 

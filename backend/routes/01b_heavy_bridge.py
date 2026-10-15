@@ -54,7 +54,20 @@ def _hv_parse(out: bytes, err: bytes, rc: int, op: str) -> dict:
     try:
         res = _hv_json.loads(out.decode("utf-8"))
     except Exception as exc:  # noqa: BLE001
-        raise HeavyWorkerError(f"worker {op} output non valido: {exc}")
+        # V50.z559 — recupero: se qualcosa ha sporcato lo stdout PRIMA del JSON (banner di librerie native nel container),
+        # il JSON di risposta è comunque l'ultimo oggetto {"ok": …} nello stream → lo isoliamo. Se nemmeno così va, l'errore
+        # riporta l'inizio dello stdout e la coda dello stderr per capire CHI ha scritto cosa.
+        idx = max(out.rfind(b'{"ok": true'), out.rfind(b'{"ok": false'))
+        res = None
+        if idx > 0:
+            try:
+                res = _hv_json.loads(out[idx:].decode("utf-8"))
+            except Exception:  # noqa: BLE001
+                res = None
+        if res is None:
+            raise HeavyWorkerError(
+                f"worker {op} output non valido: {exc} · stdout[:200]={out[:200]!r} · stderr[-300:]={(err or b'')[-300:].decode('utf-8', 'ignore')!r}"
+            )
     if not res.get("ok"):
         raise HeavyWorkerError(res.get("error") or f"worker {op} fallito")
     return _hv_dec(res.get("result") or {})
