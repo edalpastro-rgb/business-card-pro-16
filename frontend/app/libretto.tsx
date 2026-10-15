@@ -16,6 +16,7 @@ import {
   ActivityIndicator,
   Platform,
   TextInput,
+  Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
@@ -304,13 +305,14 @@ export default function LibrettoScreen() {
   const norm = (t: string) => (t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const visibleSections = useMemo(() => {
     const q = norm(query.trim());
-    if (q.length < 2) return sections;
+    const base = sections.filter((s) => !s.superMasterOnly || canEdit); // V50.z563 — sezioni riservate al Super Master
+    if (q.length < 2) return base;
     const toks = q.split(/\s+/).filter(Boolean);
-    return sections.filter((s) => {
+    return base.filter((s) => {
       const hay = norm([s.title, s.subtitle, s.highlight, ...(s.paragraphs || []), ...(s.tips || []).map((t) => t.text), ...(s.bullets || []).map((b) => b.text), ...(s.faqs || []).flatMap((f) => [f.q, f.a])].filter(Boolean).join(" "));
       return toks.every((t) => hay.includes(t));
     });
-  }, [sections, query]);
+  }, [sections, query, canEdit]);
 
   const onExport = useCallback(async () => {
     try {
@@ -440,7 +442,7 @@ export default function LibrettoScreen() {
               <Text style={styles.searchCount} testID="libretto-search-count">{visibleSections.length ? `${visibleSections.length} sezioni trovate` : "Nessuna sezione corrisponde: prova con un'altra parola o chiedi ad Axon."}</Text>
             ) : (
               <View style={styles.indexWrap} testID="libretto-index">
-                {sections.map((s) => (
+                {sections.filter((s) => !s.superMasterOnly || canEdit).map((s) => (
                   <Pressable key={s.id} onPress={() => scrollToSection(s.id)} style={[styles.indexChip, { borderColor: s.color }]} testID={`libretto-index-${s.id}`}>
                     <Text style={styles.indexEmoji}>{s.emoji}</Text>
                     <Text style={styles.indexTxt} numberOfLines={1}>{s.title.replace(/^\d+\s*·\s*/, "")}</Text>
@@ -586,7 +588,7 @@ function SectionCard({ section, highlightId }: { section: LibrettoSection; highl
         {section.links?.length ? (
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
             {section.links.map((l, i) => (
-              <Pressable key={i} onPress={() => router.push(l.href as any)} style={[styles.linkBtn, { borderColor: section.color }]} testID={`libretto-link-${section.id}-${i}`}>
+              <Pressable key={i} onPress={() => (/^https?:\/\//.test(l.href) ? Linking.openURL(l.href).catch(() => {}) : router.push(l.href as any))} style={[styles.linkBtn, { borderColor: section.color }]} testID={`libretto-link-${section.id}-${i}`}>
                 <Ionicons name={(l.icon as any) || "open-outline"} size={15} color={section.color} />
                 <Text style={[styles.linkBtnTxt, { color: section.color }]}>{l.label}</Text>
               </Pressable>

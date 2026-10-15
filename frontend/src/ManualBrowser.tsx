@@ -2,7 +2,7 @@
 // risposte FAQ) + elenco per categoria. Ogni articolo: nome, percorso di navigazione, cosa fa/come si usa, pulsante «Apri» (deep link).
 // Dati: GET /public/manual · GET /public/manual/search?q= (stesso manuale che Axon usa per guidare l'utente).
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Linking } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
@@ -31,7 +31,7 @@ export function ManualBrowser({ autoFocus, initialQuery }: { autoFocus?: boolean
     if (t.length < 2) { setResults(null); setBusy(false); return; }
     setBusy(true);
     timer.current = setTimeout(async () => {
-      try { const d = await api<{ items: ManualArticle[] }>(`/public/manual/search?q=${encodeURIComponent(t)}&k=12`); setResults(d.items || []); }
+      try { const d = await api<{ items: ManualArticle[] }>(`/public/manual/search?q=${encodeURIComponent(t)}&k=20`); setResults(d.items || []); }
       catch { setResults([]); } finally { setBusy(false); }
     }, 220);
   }, []);
@@ -40,11 +40,12 @@ export function ManualBrowser({ autoFocus, initialQuery }: { autoFocus?: boolean
 
   const byCat = useMemo(() => { const m: Record<string, ManualArticle[]> = {}; all.forEach((a) => { (m[a.category] ||= []).push(a); }); return m; }, [all]);
 
-  const open = (a: ManualArticle) => { const r = a.route ? resolveNavRoute(a.route) : null; if (r) router.push(r as any); };
+  const open = (a: ManualArticle) => { if (a.route && /^https?:\/\//.test(a.route)) { Linking.openURL(a.route).catch(() => {}); return; } const r = a.route ? resolveNavRoute(a.route) : null; if (r) router.push(r as any); }; // V50.z563 — link esterni (ecosistema domini)
 
   const Article = ({ a }: { a: ManualArticle }) => {
     const expanded = openId === a.id || !!results;
-    const canOpen = !!(a.route && resolveNavRoute(a.route));
+    const isExternal = !!a.route && /^https?:\/\//.test(a.route); // V50.z563 — ecosistema domini (link esterni)
+    const canOpen = isExternal || !!(a.route && resolveNavRoute(a.route));
     return (
       <Pressable onPress={() => setOpenId(expanded && !results ? null : a.id)} style={s.article} testID={`manual-article-${a.id}`}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>

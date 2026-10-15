@@ -46,6 +46,45 @@ export const LIBRETTO_FAQS: Record<string, LibrettoFaq[]> = {
 /** Nuove sezioni (V50.z456–z466). Inserite dopo «axon-chat» (o prima di «consigli» se manca). */
 export const LIBRETTO_EXTRA_SECTIONS: (LibrettoSection & { faqs?: LibrettoFaq[] })[] = [
   {
+    // V50.z563 — SOLO SUPER MASTER: tutti i domini e le sottopagine configurate su nginx del VPS (80.211.27.80).
+    // Stessa fonte del Manuale d'uso (axon_manual_data.py → categoria «Ecosistema AdvisorOS completo») e del contesto Axon.
+    id: "ecosistema-advisoros", icon: "globe", emoji: "🌐", color: "#0EA5E9", title: "Ecosistema AdvisorOS completo",
+    subtitle: "Domini, mirror, landing e pagine di stato: cosa sono, come si usano, link diretti (riservato al Super Master)",
+    superMasterOnly: true,
+    paragraphs: [
+      "Tutto l'ecosistema gira su un unico VPS (80.211.27.80) con nginx davanti: core.axonos.cloud è l'app CRM principale (web app + API sotto /api), core.italianbrain.it è il mirror con brand Italian Brain (stesso container, stesso database), italianbrain.it / www.italianbrain.it è la landing pubblica con le pagine di approfondimento /axonos e /advisoros, www.italianbrain.com è il dominio internazionale che oggi atterra sulla stessa landing.",
+      "Pagine di servizio: /axon-core-status mostra lo stato del server (raggiungibilità, versione, uptime); /api/health risponde senza login con versione del backend, integrità del core e telemetria TTFT; /api/public espone manuale e contenuti landing. Ogni voce dettagliata (descrizione, come si usa, link) è nel Manuale d'uso → categoria «Ecosistema AdvisorOS completo» e la trovi cercando «landing», «italian brain», «axon» o «core».",
+    ],
+    bullets: [
+      { icon: "home-outline", text: "core.axonos.cloud — App CRM principale (AdvisorOS / Axon Core): web app + /api" },
+      { icon: "copy-outline", text: "core.italianbrain.it — Mirror dell'app (stesso backend e database)" },
+      { icon: "rocket-outline", text: "italianbrain.it / www.italianbrain.it — Landing Italian Brain (home split AxonOS/AdvisorOS, CMS, statistiche)" },
+      { icon: "sparkles-outline", text: "italianbrain.it/axonos — Approfondimento AxonOS · italianbrain.it/advisoros — Approfondimento AdvisorOS" },
+      { icon: "earth-outline", text: "www.italianbrain.com — Dominio internazionale (atterra sulla landing)" },
+      { icon: "pulse-outline", text: "core.axonos.cloud/axon-core-status — Stato server · /api/health — versione, integrità, TTFT" },
+      { icon: "server-outline", text: "80.211.27.80 — VPS: nginx, container axon-core, MongoDB, ClamAV · /opt/axon-core · upgrade_vps.sh con smoke gate e rollback" },
+    ],
+    tips: [
+      { emoji: "🔎", text: "Nel Manuale d'uso cerca «landing», «italian brain», «axon», «core»: ogni dominio ha nome, descrizione, come si usa e pulsante «Apri» che apre il link nel browser." },
+      { emoji: "✅", text: "Dopo ogni deploy: curl -s https://core.axonos.cloud/api/health → version deve coincidere con il tag del pacchetto." },
+    ],
+    links: [
+      { label: "core.axonos.cloud", href: "https://core.axonos.cloud", icon: "globe-outline" },
+      { label: "core.italianbrain.it (mirror)", href: "https://core.italianbrain.it", icon: "copy-outline" },
+      { label: "italianbrain.it (landing)", href: "https://italianbrain.it", icon: "rocket-outline" },
+      { label: "/axonos", href: "https://italianbrain.it/axonos", icon: "sparkles-outline" },
+      { label: "/advisoros", href: "https://italianbrain.it/advisoros", icon: "people-outline" },
+      { label: "www.italianbrain.com", href: "https://www.italianbrain.com", icon: "earth-outline" },
+      { label: "Stato server", href: "https://core.axonos.cloud/axon-core-status", icon: "pulse-outline" },
+      { label: "/api/health", href: "https://core.axonos.cloud/api/health", icon: "medkit-outline" },
+      { label: "Manuale → Ecosistema", href: "/manuale?q=ecosistema", icon: "book-outline" },
+    ],
+    faqs: [
+      { q: "core.axonos.cloud e core.italianbrain.it sono due installazioni?", a: "No: stesso container, stesso database, stessi utenti. Sono due nomi per lo stesso servizio; usa un solo dominio per i link pubblici." },
+      { q: "Dove si cambiano i testi della landing?", a: "Pannello Master → CMS Landing (pagine home, axonos, advisoros): la landing legge i contenuti da /api/landing/cms. L'HTML si aggiorna solo con il pacchetto italianbrain-landing.tgz." },
+    ],
+  },
+  {
     // V50.z561 — REGOLA PERMANENTE: ogni funzione nuova o modificata viene registrata nel Manuale d'uso (backend
     // axon_manual_data.py) che alimenta questa voce, la pagina /manuale, la Mappa completa (admin) e il contesto di Axon.
     id: "manuale-duso", icon: "book", emoji: "📘", color: "#7C3AED", title: "Manuale d'uso: tutte le funzioni",

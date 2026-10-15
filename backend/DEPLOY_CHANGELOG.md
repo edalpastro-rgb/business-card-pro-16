@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-15 | D2026.10.15-2122 | V50.z563 — Ecosistema AdvisorOS completo (solo Super Master): domini e sottopagine del VPS nel Manuale d'uso, nel Libretto e nel contesto Axon, con link esterni cliccabili |
 | 2026-10-15 | D2026.10.15-2030 | V50.z562 — Blindatura strutturale: backend/core protetto (regole, retrieval Drive semantico ChromaDB, telemetria TTFT, integrità), test bloccanti nel build, smoke gate + rollback automatico in upgrade_vps.sh, p50/p95 TTFT + allarme Home |
 | 2026-10-15 | D2026.10.15-1904 | V50.z561 — Manuale d'uso completo (nome · descrizione · come si usa · link, 181 voci), Mappa completa dell'app (admin /admin/app-map), sezione Libretto «Manuale d'uso», Axon con «Cosa fa / Come si usa» + percorso sempre presente; include z558-z560 |
 | 2026-10-15 | D2026.10.15-1432 | V50.z560 — Deploy verificabile: /api/health espone version/boot_id/started_at, log [boot] Google Drive route registrate/MANCANTI, upgrade_vps.sh confronta tag pacchetto vs versione in esecuzione e forza --force-recreate; include z558/z559 (frequenza Drive, Indice Axon reale, OCR worker blindato) |

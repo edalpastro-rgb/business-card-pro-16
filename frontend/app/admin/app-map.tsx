@@ -3,7 +3,7 @@
 // diretto, raggruppate per categoria con conteggi. Fonte: GET /api/public/manual (axon_manual_data.py) — la stessa che
 // alimenta /manuale e il contesto di Axon, quindi si aggiorna da sola a ogni nuova funzione (regola permanente).
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Platform } from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Platform, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -49,7 +49,7 @@ export default function AppMapScreen() {
     try { await Clipboard.setStringAsync(txt); notify("Copiato", `${filtered.length} funzioni copiate come testo`); } catch { notify("Errore", "Copia non riuscita"); }
   }, [byCat, filtered.length]);
 
-  const open = (a: ManualArticle) => { const r = a.route ? resolveNavRoute(a.route) : null; if (r) router.push(r as any); };
+  const open = (a: ManualArticle) => { if (a.route && /^https?:\/\//.test(a.route)) { Linking.openURL(a.route).catch(() => {}); return; } const r = a.route ? resolveNavRoute(a.route) : null; if (r) router.push(r as any); }; // V50.z563 — link esterni (ecosistema domini)
 
   return (
     <SafeAreaView style={s.root} edges={["top"]} testID="app-map-screen">
@@ -79,7 +79,7 @@ export default function AppMapScreen() {
                 <Text style={s.catCount}>{arr.length}</Text>
               </Pressable>
               {!isCollapsed ? arr.map((a) => {
-                const canOpen = !!(a.route && resolveNavRoute(a.route));
+                const canOpen = (!!a.route && /^https?:\/\//.test(a.route)) || !!(a.route && resolveNavRoute(a.route));
                 return (
                   <View key={a.id} style={s.item} testID={`app-map-item-${a.id}`}>
                     <Text style={s.itemTitle}>{a.title}</Text>

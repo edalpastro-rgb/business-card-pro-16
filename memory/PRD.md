@@ -34,6 +34,11 @@
 - **Smoke gate + rollback** (`upgrade_vps.sh` + `smoke_gate.py` incluso nel pacchetto): prima del rebuild `docker tag axon-core:latest axon-core:prev`; dopo: health/version/core_integrity, login `SMOKE_EMAIL/SMOKE_PASSWORD` (dal `.env` di compose), 3 domande SSE (TTFT ≤ `SMOKE_TTFT_MAX_S` 2 s, fluidità), `retrieval-check?q=SMOKE_DRIVE_QUERY` (01_POWER) → se fallisce: `docker tag axon-core:prev axon-core:latest && docker compose up -d --no-build --force-recreate axon-core`, exit 4. Senza credenziali smoke: solo health/integrità con WARN. `SKIP_SMOKE_GATE=1` per bypass.
 - Manuale: +2 voci (telemetria/allarmi, verifica lettura Drive semantica) → 183.
 
+## V50.z563 (Giu 2026) — «Ecosistema AdvisorOS completo» (solo Super Master): domini e sottopagine del VPS nel Manuale + Libretto + Axon
+- `axon_manual_data.py`: costante `ECO = "Ecosistema AdvisorOS"`, 9 voci `roles="superadmin"` con route ESTERNE (https://…): core.axonos.cloud (app), /api (health, public, pkg), /axon-core-status, core.italianbrain.it (mirror), italianbrain.it (+www), /axonos, /advisoros, www.italianbrain.com, 80.211.27.80 (VPS). Totale 192 voci. Categoria «Ecosistema AdvisorOS completo» (`_CAT_OF_PATH`).
+- `axon_manual.py`: `_MN_ECO_TOKENS` (+1.2 per landing/italian/brain/axon/core…) → le 4 ricerche richieste portano l'ecosistema in testa (verificato: posizioni 0-3); link esterni nel prompt Axon come «LINK ESTERNO (citalo per esteso)» invece del chip NAV; `_mn_nav_fallback` non crea chip per http.
+- Frontend: `ManualBrowser` e `admin/app-map` aprono le route http con `Linking.openURL` («Apri https://…»); ricerca manuale k=20. Libretto: `LibrettoSection.superMasterOnly` (filtrato con `canEdit` = permesso Super Master) + sezione `ecosistema-advisoros` con 9 pulsanti link esterni (`libretto-link-ecosistema-advisoros-*`); `axon_help_links._HL_EXTRA` la conosce. Verificato: utente anonimo → 0 voci eco; superadmin → 9; Axon risponde «core.italianbrain.it = mirror, stesso container/DB».
+
 ## ⚠️ ISTRUZIONE PERMANENTE PER NEO (agente di sviluppo) — V50.z239 «Prompt per Neo»
 Quando l'utente scrive «Neo, leggi i prompt in coda» (o simili), esegui SUBITO:
 `python3 /app/scripts/neo_queue.py list` → `show #N` → esegui il task → `done #N "nota"` (o `reject #N "motivo"`, `read #N`).

@@ -17,7 +17,8 @@ from routes.axon_manual_data import MANUAL
 
 _CAT_OF_PATH = (("Barra in basso", "Schermate principali"), ("Menu → CRM Core", "CRM Core"), ("Menu → AI & Axon", "AI & Axon"),
                 ("Menu → Comunicazioni", "Comunicazioni"), ("Menu → Anagrafica", "Anagrafica & DB Master"), ("Menu → Team", "Team & Insights"),
-                ("Menu → Amministrazione", "Amministrazione"), ("Pannello Master", "Pannello Master"), ("Pagine pubbliche", "Pagine pubbliche"))
+                ("Menu → Amministrazione", "Amministrazione"), ("Pannello Master", "Pannello Master"), ("Pagine pubbliche", "Pagine pubbliche"),
+                ("Ecosistema", "Ecosistema AdvisorOS completo"))  # V50.z563 — domini e sottopagine del VPS (solo Super Master)
 
 
 def _mn_norm(s: str) -> str:
@@ -82,10 +83,16 @@ def _mn_faq_as_articles(faq_items: List[Dict[str, Any]]) -> List[Dict[str, Any]]
              "body": f.get("a", ""), "kw": "", "roles": f.get("roles") or []} for f in faq_items]
 
 
+_MN_ECO_TOKENS = {"axon", "axonos", "core", "landing", "italian", "brain", "italianbrain", "dominio", "domini", "ecosistema", "mirror", "vps", "sito"}
+
+
 def _mn_score(a: Dict[str, Any], q_norm: str, q_tokens: List[str]) -> float:
     title, path, body, kw = _mn_norm(a["title"]), _mn_norm(a["path"]), _mn_norm(a["body"]), _mn_norm(a.get("kw", ""))
     full = f"{title} {path} {body} {kw} {_mn_norm(a.get('route') or '')}"
     score = 0.5 if a.get("kind") == "manual" else 0.0  # a parità, l'articolo del manuale (percorso + deep link) precede la FAQ
+    # V50.z563 — richiesta Super Master: «landing», «italian brain», «axon», «core» devono far emergere l'Ecosistema (domini VPS)
+    if path.startswith("ecosistema") and any(t in _MN_ECO_TOKENS for t in q_tokens):
+        score += 1.2
     if q_norm and q_norm in title:
         score += 6
     elif q_norm and q_norm in full:
@@ -156,7 +163,10 @@ def _mn_manual_section(user: dict, msg: str) -> str:
     logger.info("[manual] prompt: %d articoli → %s", len(best), ", ".join(a["title"][:30] for _, a in best))
     lines = []
     for _, a in best:
-        link = f" · deep link: [[NAV:{a['route']}|{a['title']}]]" if a.get("route") and not a["route"].endswith("/") else ""
+        if (a.get("route") or "").startswith("http"):
+            link = f" · LINK ESTERNO (citalo per esteso, cliccabile): {a['route']}"  # V50.z563 — ecosistema domini
+        else:
+            link = f" · deep link: [[NAV:{a['route']}|{a['title']}]]" if a.get("route") and not a["route"].endswith("/") else ""
         lines.append(f"- {a['title']} — PERCORSO: {a['path']}{link}\n  Cosa fa: {a.get('desc') or a['body']}\n  Come si usa: {a.get('how') or ''}")
     return (
         "\n\n🗺️ MAPPA DELL'APP (Manuale ufficiale — articoli pertinenti alla domanda):\n" + "\n".join(lines) +
@@ -188,7 +198,7 @@ def _mn_nav_fallback(user: dict, msg: str, reply: str) -> str:
     out = ""
     if not has_path and a.get("path"):
         out += f"\n\n📍 Percorso: {a['path']}"  # V50.z561 — il percorso di menu c'è SEMPRE, anche nelle risposte rapide/cache
-    if not has_chip and a.get("route") and not a["route"].endswith("/"):
+    if not has_chip and a.get("route") and not a["route"].endswith("/") and not a["route"].startswith("http"):
         logger.info("[manual] chip fallback → %s (%s)", a["title"][:30], a["route"])
         out += f"\n\n[[NAV:{a['route']}|Apri: {a['title']}]]"
     return out
