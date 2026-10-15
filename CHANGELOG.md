@@ -956,6 +956,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z556 | Giu 2026 | **Latenza Axon**: fix «appuntamenti»→«pun» (download GME 5-6 s a ogni domanda agenda) · niente Tavily per matematica/traduzioni · classe «simple» ampliata (risposta immediata senza contesto CRM) · voce/non-stream riusa il prompt parallelo e gated · profilo `[prep-timing]` · chat: testo rivelato parola per parola. |
 | V50.z555 | Giu 2026 | **Manuale + Axon guida (test completo)**: chiave Anthropic malformata ignorata → Emergent (fine «temporaneamente offline») · risposte di errore mai in cache · mappa dell'app anche nel non-stream (voce) · chip [[NAV]] di sicurezza · intento navigate per how-to in forma libera · «Dove trovo X» con 📍 Percorso · `/manuale?q=` precompila la ricerca. |
 
 | V50.z493 | Giu 2026 | **/landing sempre pubblica** (niente interfaccia app sovrapposta da loggati) · **box Axon Lite / AdvisorOS paritetici** (stessa struttura, testi nuovi) · **suono «Trova il mio telefono» personalizzabile** (4 preset o registrazione, Impostazioni → AI & Axon) · **foto frontale silenziosa di chi ferma lo squillo**, mostrata al dispositivo che ha chiesto. |

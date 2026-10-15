@@ -86,12 +86,19 @@ _PERSONAL_LOOKUP_RX = re.compile(
 )
 
 
+_LLM_SELF_RX = re.compile(  # V50.z556 — domande che il modello risolve da solo: NIENTE Tavily (costava 4-5 s di attesa prima del primo token)
+    r"\b(quanto fa|calcola|converti|convertimi|traduci|traducimi|come si dice|come si scrive|significato di|definizione di|sinonim[oi]|contrario di|"
+    r"quanti giorni (mancano|ci sono|passano)|che giorno (della settimana )?(è|era|sarà|cade)|barzelletta|indovinello|curiosità|quanto è \d|radice quadrata|percentuale di)\b", re.I)
+
+
 def _axon_wants_general_web(user: dict, msg: str) -> bool:
     """True → Tavily senza filtro domini. V50.z442: per TUTTI i tenant quando la domanda è informativa/di ricerca generale
     (classificatore del Navigatore `_nav_is_info_query`); la persona «personal» usa anche il lookup più ampio."""
     try:
         if not msg or _detect_energy_query(msg):  # noqa: F821 — già gestita con le fonti energia
             return False
+        if _LLM_SELF_RX.search(msg) and not re.search(r"\b(oggi|ieri|attual\w*|ultim\w*|in tempo reale|aggiornat\w*|notizi\w*|news|prezzo|costa|borsa)\b", msg, re.I):
+            return False  # V50.z556 — matematica/traduzioni/conversioni/definizioni: risposta diretta del modello
         _info = globals().get("_nav_is_info_query")
         if _info and _info(msg):
             return True

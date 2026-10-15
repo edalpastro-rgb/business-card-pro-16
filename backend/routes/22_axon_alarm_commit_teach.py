@@ -756,6 +756,9 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
         while True:
             try:
                 prep = await asyncio.wait_for(asyncio.shield(_prep_task), timeout=6.0)
+                _prep_total = asyncio.get_event_loop().time() - _prep_started
+                if _prep_total >= 0.8:  # V50.z556 — profilo: tempo totale (base 21 + tutti i wrapper axon_*.py)
+                    logger.info("[prep-total] «%s» class=%s totale=%.2fs base=%.2fs wrapper=%.2fs", (body.message or "")[:50], prep.get("query_class"), _prep_total, prep.get("prep_seconds") or 0, _prep_total - (prep.get("prep_seconds") or 0))
                 break
             except asyncio.TimeoutError:
                 yield sse("progress", {"stage": "preflight", "text": _hb_msgs[_hb_i % len(_hb_msgs)], "elapsed": round(asyncio.get_event_loop().time() - _prep_started)})

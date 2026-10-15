@@ -830,6 +830,46 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       speakerRef.current = sp;
       cleanupAudioRef.current = () => sp.stop();
     }
+    // V50.z556 — RESA «PAROLA PER PAROLA»: i delta SSE possono arrivare a blocchi grossi (proxy/modello). Invece di incollarli
+    // nella bolla tutti insieme, finiscono in una coda rivelata a passi di 1-2 parole ogni frame (16 ms); il passo cresce con
+    // l'arretrato (≥ 1/6 della coda) così il testo non resta mai indietro più di ~100 ms rispetto al server. Un marker
+    // [[NAV:…]] non viene mai spezzato. La voce (speaker) riceve i delta grezzi subito. flushReveal() svuota tutto in un colpo.
+    let revealQueue = "";
+    let revealTimer: ReturnType<typeof setTimeout> | null = null;
+    const appendToBubble = (text: string) => {
+      if (!text) return;
+      setMessages((prev) => {
+        if (!prev.length) return prev;
+        const last = prev[prev.length - 1];
+        if (last.role !== "assistant" || !last.streaming) return prev;
+        const next = prev.slice(0, -1);
+        next.push({ ...last, content: (last.content || "") + text });
+        return next;
+      });
+    };
+    const pumpReveal = () => {
+      revealTimer = null;
+      const q = revealQueue;
+      if (!q) return;
+      let cut = Math.max(2, Math.ceil(q.length / 6));
+      const sp = q.indexOf(" ", cut);
+      if (sp !== -1 && sp - cut < 14) cut = sp + 1; // chiudi sulla parola
+      const open = q.lastIndexOf("[[", cut);
+      if (open !== -1) {
+        const close = q.indexOf("]]", open);
+        if (close === -1) cut = open; // marker incompleto: resta in coda finché non arriva «]]»
+        else if (close + 2 > cut) cut = close + 2; // marker completo: mai spezzato
+      }
+      if (cut <= 0) { revealTimer = setTimeout(pumpReveal, 16); return; }
+      revealQueue = q.slice(cut);
+      appendToBubble(q.slice(0, cut));
+      if (revealQueue) revealTimer = setTimeout(pumpReveal, 16);
+    };
+    const flushReveal = () => {
+      if (revealTimer) { clearTimeout(revealTimer); revealTimer = null; }
+      const rest = revealQueue; revealQueue = "";
+      appendToBubble(rest);
+    };
     try {
       // V50.z142 — Feedback immediato locale: mostra subito "Sto ragionando…" nella bolla
       // di typing; il server invia lo stesso ack come primo evento SSE (stage "ack").
@@ -875,16 +915,11 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
           armWatchdog();
           prog.onFirstDelta();
           speaker?.feed(chunk);
-          setMessages((prev) => {
-            if (!prev.length) return prev;
-            const last = prev[prev.length - 1];
-            if (last.role !== "assistant" || !last.streaming) return prev;
-            const next = prev.slice(0, -1);
-            next.push({ ...last, content: (last.content || "") + chunk });
-            return next;
-          });
+          revealQueue += chunk;
+          if (!revealTimer) pumpReveal();
         },
         onDone: (done) => {
+          flushReveal(); // V50.z556 — tutto il testo residuo nella bolla PRIMA di finalizzarla
           // V50.z125 — Comando timer/sveglia/promemoria: schedula la notifica locale
           if (done.alarm) { void syncAlarmNotifs(done.alarm).catch(() => {}); emitAlarmsChanged(); } // V50.z501 — header/menu aggiornati subito
           setMessages((prev) => {
@@ -910,6 +945,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       // V50.z112 — Voce: chiudi la coda (residuo + eventuale fallback se lo
       // stream non ha prodotto delta, es. risposta non-stream). onSpoken viene
       // chiamato dal SentenceSpeaker alla fine dell'ultimo audio.
+      flushReveal(); // V50.z556 — stream chiuso senza `done`: nessun testo deve restare in coda
       const finalReply = streamResult.reply;
       // V50.z469 — Feature 7: marker [[RUBRICA:Nome]] → cerca nella rubrica del telefono (fallback silenzioso se negato/web)
       const pbMatch = /\[\[RUBRICA:([^\]]{2,80})\]\]/.exec(finalReply || "");
@@ -980,6 +1016,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       }
       if (opts?.onSpoken && !wantSpeech) opts.onSpoken();
     } finally {
+      flushReveal(); // V50.z556
       refreshAxonPending(); // V50.z507 — la card «Axon chiede conferma» si aggiorna dopo ogni risposta
       if (watchdog) clearTimeout(watchdog);
       if (silence) clearTimeout(silence); // V50.z469

@@ -220,6 +220,7 @@ _HEAVY_KEYWORDS = {
 #   "crm":    nomi/clienti/contatti/appuntamenti/numeri → contesto CRM completo, modello via _pick_axon_model.
 #   "full":   analisi, contratti, documenti, allegati → tutto + Sonnet 4.5.
 import re as _qc_re
+import time as _time  # V50.z556 — profilo latenza prompt
 _QC_SIMPLE_RX = _qc_re.compile(
     r"^(ciao|buongiorno|buonasera|buonanotte|salve|hey|ehi|ok|okay|grazie|grazie mille|perfetto|bene|va bene|d'accordo|"
     r"sì|si|no|esatto|certo|ottimo|bravo|brava|a dopo|a presto|arrivederci)\b[\s!.,]*$|"
@@ -227,7 +228,12 @@ _QC_SIMPLE_RX = _qc_re.compile(
     r"che tempo fa|meteo|previsioni|piove|pioverà|nevica|temperatura fuori|gradi ci sono)\b|"
     r"\b(accendi|spegni|abbassa|alza|apri|chiudi) (la |le |il |lo |i |gli |l')?(luce|luci|lampad|termostato|riscaldamento|tapparell|tenda|tende|musica|tv|televisore|volume|allarme|caldaia|condizionat)|"
     r"\b(chi sei|come ti chiami|cosa sai fare|cosa puoi fare|come stai|sei sveglio|ci sei|mi senti|ripeti|ripetilo|leggi di nuovo|"
-    r"parla più (piano|forte|lentamente|veloce)|racconta(mi)? una barzelletta|dimmi una curiosità)\b",
+    r"parla più (piano|forte|lentamente|veloce)|racconta(mi)? una barzelletta|dimmi una curiosità)\b|"
+    # V50.z556 — «brevi informazioni» autosufficienti (matematica, traduzioni, conversioni, calendario, definizioni): risposta
+    # immediata senza snapshot CRM/omniscienza/KB/teach — restano identità, regole assolute, data/ora, meteo se richiesto.
+    r"\b(quanto fa|calcola(mi)? \d|converti(mi)?|traduci(mi)?|come si dice|come si scrive|significato di|definizione di|sinonim[oi] di|contrario di|"
+    r"quanti giorni (mancano|ci sono|passano)|che giorno (della settimana )?(è|era|sarà|cade)|in che anno|quanto è \d|radice quadrata|"
+    r"indovinello|curiosità|buon (lavoro|pranzo|fine settimana|weekend|riposo))\b",
     _qc_re.I)
 _QC_CRM_HINTS = {"cliente", "clienti", "contatto", "contatti", "appuntamento", "appuntamenti", "agenda", "calendario", "ritelefon", "richiam",
                  "contratto", "contratti", "bolletta", "fattura", "pun", "listino", "offerta", "preventivo", "scadenz", "lead", "provvigion",
@@ -410,24 +416,34 @@ async def _prepare_assistant_prompt(
             logger.warning("[axon-omni] section failed: %s", exc)
             return ""
 
+    _t_prep0 = _time.monotonic()  # V50.z556 — profilo latenza prompt (log [prep-timing])
+    _t_phase: Dict[str, float] = {}
+
+    async def _timed(name: str, coro):
+        _t0 = _time.monotonic()
+        try:
+            return await coro
+        finally:
+            _t_phase[name] = _time.monotonic() - _t0
+
     context, weather_ctx, _prefetch_rag_chunks, memories, attachments_section, axon_teach_section, web_search_ctx, kb_section, omni_section = await asyncio.gather(
-        _safe_context(),
-        _safe_weather(),
-        _safe_rag_prefetch(),
-        _safe_memories(),
-        _safe_attachments(),
-        _safe_teach_section(),
-        _safe_tavily(),
-        _safe_kb(),
-        _safe_omni(),
+        _timed("context", _safe_context()),
+        _timed("weather", _safe_weather()),
+        _timed("rag", _safe_rag_prefetch()),
+        _timed("memories", _safe_memories()),
+        _timed("attachments", _safe_attachments()),
+        _timed("teach", _safe_teach_section()),
+        _timed("tavily", _safe_tavily()),
+        _timed("kb", _safe_kb()),
+        _timed("omni", _safe_omni()),
     )
 
     # V50.z51 — PINNED rules + tenant memory (rewrite architettura memoria).
     # Recuperate in parallelo per non aggiungere latenza al preflight.
     try:
         _pinned_section, _tenant_mem_section = await asyncio.gather(
-            _build_pinned_rules_section(_tenant_id_val, msg),
-            _load_tenant_memory_section(_tenant_id_val),
+            _timed("pinned", _build_pinned_rules_section(_tenant_id_val, msg)),
+            _timed("tenant_mem", _load_tenant_memory_section(_tenant_id_val)),
         )
     except Exception:
         _pinned_section, _tenant_mem_section = "", ""
@@ -592,69 +608,73 @@ async def _prepare_assistant_prompt(
         f"{attachments_section}"
     )
 
-    # V50.w — Iniezione Axon Brain (memoria distillata + profilo appreso)
-    try:
-        _brain = await _load_axon_brain(user["user_id"])
-        _brain_section = _brain_section_for_prompt(_brain)
-    except Exception:
-        _brain_section = ""
-    try:
-        _scripts_section = await _load_scripts_index(tenant_id(user))
-    except Exception:
-        _scripts_section = ""
-    try:
-        _cheat_section = await _cheatsheet_section_for_prompt(user["user_id"])
-    except Exception:
-        _cheat_section = ""
-    # V50.z8 — Elenca cartelle Drive collegate + connessioni cloud attive.
-    # Axon deve sapere di essere COLLEGATO al Drive del Master.
-    _cloud_section = ""
-    try:
-        # V50.z155 — Collaboratori: le connessioni cloud sono del Master (tenant)
-        _cloud_q = {"user_id": {"$in": list({user["user_id"], tenant_id(user)})}}
-        _drive_folders = await db.google_drive_folders.find(
-            _cloud_q, {"_id": 0, "folder_name": 1, "folder_id": 1}
-        ).to_list(30)
-        _dropbox_ok = await db.dropbox_credentials.find_one(_cloud_q) is not None
-        _drive_ok = await db.google_drive_connections.find_one(_cloud_q) is not None
-        # V50.z54 — Sessione scaduta detection: attiva SOLO se ci sono cartelle
-        # in `google_drive_folders`. Rimosso il proxy su `ai_teach_urls` che
-        # causava falsi positivi "sessione scaduta" quando l'utente aveva mai
-        # aggiunto un link drive.google.com a "Insegna ad Axon".
-        _drive_had_before = (not _drive_ok) and (len(_drive_folders) > 0)
-        lines = ["\n\nCLOUD & DRIVE COLLEGATI AL MASTER (usa queste info se l'utente chiede 'a cosa hai accesso'):"]
-        if _drive_ok:
-            if _drive_folders:
-                _idx_cnt = await db.drive_snapshots.count_documents(_cloud_q)
-                lines.append(f"- ✅ Google Drive COLLEGATO. Cartelle Axon monitorate ({len(_drive_folders)}), file indicizzati: {_idx_cnt}:")
-                for f in _drive_folders[:20]:
-                    lines.append(f"    • {f.get('folder_name') or f.get('name') or '?'}")
-                lines.append("  → HAI ACCESSO a queste cartelle: l'indice automatico (sezione 'GOOGLE DRIVE — INDICE AUTOMATICO') contiene elenco e testo dei file. In più l'utente può allegare singoli file con l'icona G blu.")
-            else:
-                lines.append("- ⚠️ Google Drive collegato ma NESSUNA cartella Axon configurata. Dì all'utente di andare in Impostazioni → Google Drive → Scegli cartella.")
-        elif _drive_had_before:
-            lines.append(
-                "- 🔴 Google Drive SESSIONE SCADUTA (era collegato prima). L'utente deve RICONNETTERSI: "
-                "dì ESATTAMENTE 'Il tuo collegamento Google Drive è scaduto. Vai in **Impostazioni → Google Drive → Ricollega** "
-                "(basta un tap). Le tue cartelle monitorate vengono ripristinate automaticamente dopo il nuovo login.' "
-                "**NON dire 'non ho accesso'** – dì che è scaduto e va rinnovato."
-            )
-        else:
-            lines.append(
-                "- ❌ Google Drive NON ANCORA COLLEGATO. Se l'utente chiede file, dì: "
-                "'Vai in **Impostazioni → Google Drive → Collega** per darmi accesso alle tue cartelle.'"
-            )
-        lines.append(f"- {'✅' if _dropbox_ok else '❌'} Dropbox {'collegato' if _dropbox_ok else 'non collegato'}.")
-        lines.append(
-            "REGOLA: non dire mai 'non ho accesso a Drive' senza qualifica. Se scaduto dì 'sessione scaduta, "
-            "vai in Impostazioni per riconnettermi'. Se mai collegato spiega come collegarlo. **Non suggerire mai** "
-            "di 'contattare Neo/Admin' per Drive – è auto-servito dall'utente in 2 tap."
-        )
-        _cloud_section = "\n".join(lines) + "\n"
-    except Exception:
+    # V50.z556 — per «simple» il blocco brain/script/cheat/cloud (3 loader + 4 query Drive/Dropbox) NON gira più: prima veniva
+    # calcolato per intero e poi scartato. Le sezioni restano vuote per le domande semplici.
+    _t_tail0 = _time.monotonic()
+    _brain_section = _scripts_section = _cheat_section = _cloud_section = ""
+    if not _simple:
+        # V50.w — Iniezione Axon Brain (memoria distillata + profilo appreso)
+        try:
+            _brain = await _load_axon_brain(user["user_id"])
+            _brain_section = _brain_section_for_prompt(_brain)
+        except Exception:
+            _brain_section = ""
+        try:
+            _scripts_section = await _load_scripts_index(tenant_id(user))
+        except Exception:
+            _scripts_section = ""
+        try:
+            _cheat_section = await _cheatsheet_section_for_prompt(user["user_id"])
+        except Exception:
+            _cheat_section = ""
+        # V50.z8 — Elenca cartelle Drive collegate + connessioni cloud attive.
+        # Axon deve sapere di essere COLLEGATO al Drive del Master.
         _cloud_section = ""
-    if _simple:  # V50.z413 — domanda semplice: niente brain/script/cheat/cloud/few-shot (restano identità, regole, ora, meteo/web se rilevati)
-        _brain_section = _scripts_section = _cheat_section = _cloud_section = ""
+        try:
+            # V50.z155 — Collaboratori: le connessioni cloud sono del Master (tenant)
+            _cloud_q = {"user_id": {"$in": list({user["user_id"], tenant_id(user)})}}
+            _drive_folders = await db.google_drive_folders.find(
+                _cloud_q, {"_id": 0, "folder_name": 1, "folder_id": 1}
+            ).to_list(30)
+            _dropbox_ok = await db.dropbox_credentials.find_one(_cloud_q) is not None
+            _drive_ok = await db.google_drive_connections.find_one(_cloud_q) is not None
+            # V50.z54 — Sessione scaduta detection: attiva SOLO se ci sono cartelle
+            # in `google_drive_folders`. Rimosso il proxy su `ai_teach_urls` che
+            # causava falsi positivi "sessione scaduta" quando l'utente aveva mai
+            # aggiunto un link drive.google.com a "Insegna ad Axon".
+            _drive_had_before = (not _drive_ok) and (len(_drive_folders) > 0)
+            lines = ["\n\nCLOUD & DRIVE COLLEGATI AL MASTER (usa queste info se l'utente chiede 'a cosa hai accesso'):"]
+            if _drive_ok:
+                if _drive_folders:
+                    _idx_cnt = await db.drive_snapshots.count_documents(_cloud_q)
+                    lines.append(f"- ✅ Google Drive COLLEGATO. Cartelle Axon monitorate ({len(_drive_folders)}), file indicizzati: {_idx_cnt}:")
+                    for f in _drive_folders[:20]:
+                        lines.append(f"    • {f.get('folder_name') or f.get('name') or '?'}")
+                    lines.append("  → HAI ACCESSO a queste cartelle: l'indice automatico (sezione 'GOOGLE DRIVE — INDICE AUTOMATICO') contiene elenco e testo dei file. In più l'utente può allegare singoli file con l'icona G blu.")
+                else:
+                    lines.append("- ⚠️ Google Drive collegato ma NESSUNA cartella Axon configurata. Dì all'utente di andare in Impostazioni → Google Drive → Scegli cartella.")
+            elif _drive_had_before:
+                lines.append(
+                    "- 🔴 Google Drive SESSIONE SCADUTA (era collegato prima). L'utente deve RICONNETTERSI: "
+                    "dì ESATTAMENTE 'Il tuo collegamento Google Drive è scaduto. Vai in **Impostazioni → Google Drive → Ricollega** "
+                    "(basta un tap). Le tue cartelle monitorate vengono ripristinate automaticamente dopo il nuovo login.' "
+                    "**NON dire 'non ho accesso'** – dì che è scaduto e va rinnovato."
+                )
+            else:
+                lines.append(
+                    "- ❌ Google Drive NON ANCORA COLLEGATO. Se l'utente chiede file, dì: "
+                    "'Vai in **Impostazioni → Google Drive → Collega** per darmi accesso alle tue cartelle.'"
+                )
+            lines.append(f"- {'✅' if _dropbox_ok else '❌'} Dropbox {'collegato' if _dropbox_ok else 'non collegato'}.")
+            lines.append(
+                "REGOLA: non dire mai 'non ho accesso a Drive' senza qualifica. Se scaduto dì 'sessione scaduta, "
+                "vai in Impostazioni per riconnettermi'. Se mai collegato spiega come collegarlo. **Non suggerire mai** "
+                "di 'contattare Neo/Admin' per Drive – è auto-servito dall'utente in 2 tap."
+            )
+            _cloud_section = "\n".join(lines) + "\n"
+        except Exception:
+            _cloud_section = ""
+    _t_phase["tail"] = _time.monotonic() - _t_tail0
     system_message = system_message + _brain_section + _scripts_section + _cheat_section + _cloud_section
     # V50.z284 — profilo interessi (form spuntabile + risposte libere del tour) → personalizzazione e suggerimenti proattivi
     try:
@@ -699,9 +719,15 @@ async def _prepare_assistant_prompt(
         for r in (web_search_ctx.get("results", []) if web_search_ctx else [])
     ][:5] if used_web_search else []
 
+    _t_prep_total = _time.monotonic() - _t_prep0
+    if _t_prep_total >= 0.8:  # V50.z556 — profilo: solo le fasi lente (≥0.3s), in ordine decrescente
+        _slow = sorted(((k, v) for k, v in _t_phase.items() if v >= 0.3), key=lambda kv: -kv[1])
+        logger.info("[prep-timing] «%s» class=%s base=%.2fs → %s", msg[:50], query_class, _t_prep_total, ", ".join(f"{k}={v:.2f}s" for k, v in _slow) or "nessuna fase ≥0.3s")
+
     return {
         "msg": msg,
         "query_class": query_class,  # V50.z413
+        "prep_seconds": round(_t_prep_total, 3),  # V50.z556 — tempo del prompt base (i wrapper si aggiungono: vedi [prep-total] in 22)
         "session_id": session_id,
         "assistant_name": assistant_name,
         "system_message": system_message,
@@ -777,349 +803,24 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
                 "cache_similarity": cached.get("_similarity", 1.0),
             }
 
-    # Build CRM context snapshot
-    try:
-        context = await _build_assistant_context(user)
-    except Exception as e:
-        context = {"error": f"Impossibile caricare i dati CRM: {e}"}
-    # V50.z180 — dati completi di tutte le sezioni + schede contatti citati
-    try:
-        omni_section = await _build_crm_omniscience_section(user, msg)
-    except Exception as exc:
-        logger.warning("[axon-omni] section failed (non-stream): %s", exc)
-        omni_section = ""
-
-    # Detect weather intent and prefetch data if a city is mentioned
-    weather_ctx: Optional[dict] = None
-    weather_city = _detect_weather_query(msg)
-    if weather_city and weather_city != "?":
-        weather_ctx = await _fetch_weather(weather_city)
-
-    # V38T — Detect energy market intent and prefetch data via Tavily
-    web_search_ctx: Optional[dict] = None
-    used_web_search = False
-    _needs_energy = _detect_energy_query(msg)
-    _needs_tavily = _needs_energy or _axon_wants_general_web(user, msg)  # noqa: F821 — V50.z440 axon_persona.py
-    logger.info("[web-search] (non-stream) «%s» → energy=%s tavily=%s", (msg or "")[:70], _needs_energy, "SI" if _needs_tavily else "NO")  # V50.z445
-    if _needs_tavily:
-        try:
-            web_search_ctx = await _tavily_search_smart(msg, _needs_energy)
-        except Exception as exc:  # noqa: BLE001
-            logger.error("[tavily] eccezione (non-stream) per «%s»: %s", (msg or "")[:80], exc); web_search_ctx = None
-        if web_search_ctx and (web_search_ctx.get("answer") or web_search_ctx.get("results")):
-            used_web_search = True
-        else:
-            logger.warning("[tavily] nessun risultato/ricerca non eseguita (non-stream) per «%s»", (msg or "")[:80])
-
-    # V38T — Load persistent memories for this user
-    memories = await _load_neo_memories(user["user_id"], limit=5)
-
-    # V28.l — Extract text from any attachments (unified helper V50.z90)
-    attachments_section = await _build_attachments_section_advanced(msg, body.attachments or [], merge_images=body.merge_images is not False)
-
-    # V29.k — FIX REGRESSIONE: base di conoscenza "Insegna ad Axon" (regole + file estratti).
-    # Prima gli allegati alle regole (PDF GME, Optima, ecc.) non venivano letti nella chat.
-    axon_teach_section = ""
-    try:
-        axon_teach_section = await _build_axon_teach_section(tenant_id(user), msg)
-    except Exception as exc:
-        logger.warning("[axon-teach] section build failed: %s", exc)
-        axon_teach_section = ""
-
-    # V50.kb — Knowledge Base personale (pagine WebView salvate). V50.z529 — + RAG personale (ChromaDB + MiniLM locale).
-    kb_section = ""
-    try:
-        kb_section = await _build_kb_section(tenant_id(user), msg)
-    except Exception as exc:
-        logger.debug("[axon-kb] section build failed: %s", exc)
-        kb_section = ""
-    try:
-        kb_section += await _build_personal_kb_section(user["user_id"], msg)  # noqa: F821 — axon_knowledge_base.py
-    except Exception as exc:
-        logger.debug("[axon-kb] personal RAG failed: %s", exc)
-    try:
-        kb_section += await _build_faq_section(msg, user=user)  # noqa: F821 — landing_cms.py (V50.z533; V50.z541 per ruolo)
-    except Exception as exc:
-        logger.debug("[axon-faq] section failed: %s", exc)
-
-    # V42 — RAG on Master documents (per-tenant knowledge base)
-    rag_section = ""
-    try:
-        # V49.p — Riusa i chunk già prefetched (evita doppia query Mongo).
-        _prefetched = locals().get("_prefetch_rag_chunks")
-        rag_chunks = _prefetched if _prefetched else await _retrieve_master_doc_chunks(tenant_id(user), msg)
-        if rag_chunks:
-            rag_section = (
-                "\n\nDOCUMENTI MASTER (base di conoscenza personale del Master — usa questi estratti "
-                "come FONTE PRIMARIA. Se contengono i dati richiesti (es. tabelle PUN, listini, "
-                "valori per fascia F1/F2/F3), RISPONDI CON QUEI DATI senza cercare altrove e senza "
-                "dichiarare che i dati mancano):\n"
-            )
-            for i, c in enumerate(rag_chunks, 1):
-                dname = c.get("doc_name") or "?"
-                pg = c.get("page_number") or 0
-                score = c.get("_score", 0.0)
-                content = (c.get("content") or "")[:2000]
-                # V50.z144 — voci testuali (FAQ/Dati/Nota) mostrano la categoria invece della pagina
-                _where = f"pagina {pg}" if (c.get("doc_kind") or "pdf") == "pdf" else (c.get("doc_category") or "Nota")
-                rag_section += (
-                    f"\n--- Estratto {i} da \"{dname}\" ({_where}, rilevanza {score:.2f}) ---\n"
-                    f"{content}\n"
-                )
-            rag_section += (
-                "\nCita il nome del documento quando produci prosa (es. «Listino Optima 2026»). "
-                "Quando produci una TABELLA, NON aggiungere note sulle fonti — solo la tabella pura.\n"
-            )
-    except Exception as exc:
-        logger.warning("[axon-rag] retrieval failed: %s", exc)
-        rag_section = ""
-
-
-    import json as _json
-    ctx_json = _json.dumps(context, ensure_ascii=False, default=str)
-    # Trim if too large (Claude Sonnet accepts a lot but let's be safe)
-    if len(ctx_json) > 25000:
-        ctx_json = ctx_json[:12000] + "\n... (dati troncati)"
-
-    weather_section = ""
-    if weather_ctx is not None:
-        weather_section = (
-            "\n\nMETEO (dati aggiornati, timezone Europe/Rome — DATO FORNITO DAL SISTEMA perché il messaggio dell'utente contiene una richiesta meteo esplicita; "
-            "se in realtà l'utente NON ha chiesto del meteo, IGNORA questa sezione e non parlarne):\n"
-            f"{_json.dumps(weather_ctx, ensure_ascii=False, default=str)}\n"
-            "Usa questi dati per rispondere in modo naturale alla domanda meteo. "
-            "Se l'utente chiede un momento specifico (oggi pomeriggio, domani mattina, ecc.) "
-            "cita la temperatura, la condizione (es. sereno, pioggia leggera) e la probabilità di pioggia se rilevante.\n"
-        )
-    elif weather_city == "?":
-        weather_section = (
-            "\n\nAVVISO (dal sistema): il messaggio contiene una richiesta meteo esplicita senza città. "
-            "SOLO se l'utente sta davvero chiedendo del meteo, chiedi per quale città; altrimenti ignora questo avviso.\n"
-        )
-
-    # V38T — Inject web-search results when energy topic detected
-    web_section = ""
-    if _needs_tavily and not used_web_search:  # V50.z444 — vedi sopra (percorso non-stream)
-        web_section = ("\n\nRICERCA WEB AGGIORNATA: NON DISPONIBILE per questa domanda (servizio di ricerca non configurato o nessun risultato). "
-                       "Per fatti attuali (borsa, prezzi, notizie, sport, eventi) rispondi ESATTAMENTE «Non ho dati aggiornati su questo.» e fermati.\n")
-    if web_search_ctx and used_web_search:
-        web_section = (
-            "\n\nRICERCA WEB AGGIORNATA (dati reali dal mercato energetico italiano):\n"
-            f"Query utente: {web_search_ctx.get('query')}\n"
-            f"Risposta sintetizzata (Tavily): {web_search_ctx.get('answer') or 'nessuna sintesi'}\n"
-            "Fonti primarie (usa questi contenuti come base per la tua risposta):\n"
-        )
-        for i, r in enumerate(web_search_ctx.get("results", [])[:5], 1):
-            web_section += f"[{i}] {r.get('title')} — {r.get('url')}\n{r.get('content')}\n\n"
-        web_section += (
-            "REGOLE per usare questi dati:\n"
-            "- Cita i numeri esatti (€/MWh, €/kWh, mesi, delibere ARERA con numero e data).\n"
-            "- NON rimandare l'utente a siti esterni. Rispondi TU con la risposta.\n"
-            "- Se i dati sono aggiornati a un mese specifico, dillo (es. 'PUN novembre 2026').\n"
-            "- Se la ricerca non ha trovato dati precisi, dillo apertamente.\n"
-        )
-
-    # V38T — Inject long-term memory
-    memory_section = ""
-    if memories:
-        memory_section = "\n\nMEMORIA PERSISTENTE (contesto delle conversazioni precedenti):\n"
-        for m in memories[:3]:  # V50.z421 — consolidamento: 3 memorie, sintesi ≤220 car., max 4 fatti ≤120 car.
-            memory_section += f"- {str(m.get('summary', ''))[:220]}\n"
-            for f in (m.get("facts") or [])[:4]:
-                memory_section += f"  • {str(f)[:120]}\n"
-        memory_section += "Usa la memoria per personalizzare, senza citare «ricordo che…» se non utile.\n"
-
-    # V49.n — Few-shot dinamico basato sui feedback 👍/👎 del tenant.
-    # Carica gli ultimi 5 esempi con 👍 (best answers da imitare) e gli ultimi
-    # 2 con 👎 (anti-esempi da evitare). Iniezione leggera, solo Q+A troncati.
-    few_shot_section = ""
-    try:
-        _fs_tid = tenant_id(user)
-        _fs_ups_cur = db.assistant_feedback.find(
-            {"tenant_id": _fs_tid, "rating": "up"},
-            {"_id": 0, "question": 1, "reply": 1},
-        ).sort("created_at", -1).limit(5)
-        _fs_downs_cur = db.assistant_feedback.find(
-            {"tenant_id": _fs_tid, "rating": "down"},
-            {"_id": 0, "question": 1, "reply": 1, "comment": 1},
-        ).sort("created_at", -1).limit(2)
-        _fs_ups = [d async for d in _fs_ups_cur]
-        _fs_downs = [d async for d in _fs_downs_cur]
-        if _fs_ups or _fs_downs:
-            _fs_lines: List[str] = ["\n\nESEMPI DI RISPOSTE (feedback storico del tenant):"]
-            if _fs_ups:
-                _fs_lines.append("👍 Esempi apprezzati — imita QUESTO stile/tono/dettaglio:")
-                for _fs_i, _fs_ex in enumerate(_fs_ups, 1):
-                    _fs_q = (_fs_ex.get("question") or "").strip()[:180]
-                    _fs_a = (_fs_ex.get("reply") or "").strip()[:280]
-                    if _fs_q and _fs_a:
-                        _fs_lines.append(f"  {_fs_i}) Domanda: {_fs_q}")
-                        _fs_lines.append(f"     Risposta ottima: {_fs_a}")
-            if _fs_downs:
-                _fs_lines.append("👎 Esempi NON apprezzati — evita QUESTI pattern:")
-                for _fs_i, _fs_ex in enumerate(_fs_downs, 1):
-                    _fs_q = (_fs_ex.get("question") or "").strip()[:180]
-                    _fs_a = (_fs_ex.get("reply") or "").strip()[:220]
-                    _fs_cm = (_fs_ex.get("comment") or "").strip()[:120]
-                    if _fs_q and _fs_a:
-                        _fs_lines.append(f"  {_fs_i}) Domanda: {_fs_q}")
-                        _fs_lines.append(f"     Risposta da NON riprodurre: {_fs_a}")
-                        if _fs_cm:
-                            _fs_lines.append(f"     Motivo del 👎: {_fs_cm}")
-            _fs_lines.append("Applica il TONO e la STRUTTURA degli esempi 👍; evita difetti di quelli 👎.")
-            few_shot_section = "\n".join(_fs_lines) + "\n"
-    except Exception as _fs_exc:
-        logger.debug("[few-shot] skipped: %s", _fs_exc)
-        few_shot_section = ""
-
-    system_message = (
-        # V50.z518 — blocco STATICO cacheable (identità + personalità + regole complete + sezione prodotto) tra sentinelle: la patch
-        # LlmChat lo invia per primo con cache_control=ephemeral. Prima: identità + regole dipendenti dal messaggio (prefisso instabile).
-        _axon_static_block(user, assistant_name, assistant_language) +
-        f"ORA ATTUALE: {context.get('ora_attuale', '')}\n\n"
-        "SNAPSHOT_CRM (JSON):\n"
-        f"{ctx_json}\n"
-        f"{omni_section}"
-        f"{weather_section}"
-        f"{axon_teach_section}"
-        f"{rag_section}"
-        f"{kb_section}"
-        f"{memory_section}"
-        f"{web_section}"
-        f"{few_shot_section}"
-        f"{attachments_section}"
-    )
-
-    # V50.w — Iniezione Axon Brain (memoria distillata + profilo appreso)
-    try:
-        _brain = await _load_axon_brain(user["user_id"])
-        _brain_section = _brain_section_for_prompt(_brain)
-    except Exception:
-        _brain_section = ""
-    try:
-        _scripts_section = await _load_scripts_index(tenant_id(user))
-    except Exception:
-        _scripts_section = ""
-    try:
-        _cheat_section = await _cheatsheet_section_for_prompt(user["user_id"])
-    except Exception:
-        _cheat_section = ""
-    # V50.z8 — Elenca cartelle Drive collegate + connessioni cloud attive.
-    # Axon deve sapere di essere COLLEGATO al Drive del Master.
-    _cloud_section = ""
-    try:
-        # V50.z155 — Collaboratori: le connessioni cloud sono del Master (tenant)
-        _cloud_q = {"user_id": {"$in": list({user["user_id"], tenant_id(user)})}}
-        _drive_folders = await db.google_drive_folders.find(
-            _cloud_q, {"_id": 0, "folder_name": 1, "folder_id": 1}
-        ).to_list(30)
-        _dropbox_ok = await db.dropbox_credentials.find_one(_cloud_q) is not None
-        _drive_ok = await db.google_drive_connections.find_one(_cloud_q) is not None
-        # V50.z54 — Sessione scaduta detection: attiva SOLO se ci sono cartelle
-        # in `google_drive_folders`. Rimosso il proxy su `ai_teach_urls` che
-        # causava falsi positivi "sessione scaduta" quando l'utente aveva mai
-        # aggiunto un link drive.google.com a "Insegna ad Axon".
-        _drive_had_before = (not _drive_ok) and (len(_drive_folders) > 0)
-        lines = ["\n\nCLOUD & DRIVE COLLEGATI AL MASTER (usa queste info se l'utente chiede 'a cosa hai accesso'):"]
-        if _drive_ok:
-            if _drive_folders:
-                _idx_cnt = await db.drive_snapshots.count_documents(_cloud_q)
-                lines.append(f"- ✅ Google Drive COLLEGATO. Cartelle Axon monitorate ({len(_drive_folders)}), file indicizzati: {_idx_cnt}:")
-                for f in _drive_folders[:20]:
-                    lines.append(f"    • {f.get('folder_name') or f.get('name') or '?'}")
-                lines.append("  → HAI ACCESSO a queste cartelle: l'indice automatico (sezione 'GOOGLE DRIVE — INDICE AUTOMATICO') contiene elenco e testo dei file. In più l'utente può allegare singoli file con l'icona G blu.")
-            else:
-                lines.append("- ⚠️ Google Drive collegato ma NESSUNA cartella Axon configurata. Dì all'utente di andare in Impostazioni → Google Drive → Scegli cartella.")
-        elif _drive_had_before:
-            lines.append(
-                "- 🔴 Google Drive SESSIONE SCADUTA (era collegato prima). L'utente deve RICONNETTERSI: "
-                "dì ESATTAMENTE 'Il tuo collegamento Google Drive è scaduto. Vai in **Impostazioni → Google Drive → Ricollega** "
-                "(basta un tap). Le tue cartelle monitorate vengono ripristinate automaticamente dopo il nuovo login.' "
-                "**NON dire 'non ho accesso'** – dì che è scaduto e va rinnovato."
-            )
-        else:
-            lines.append(
-                "- ❌ Google Drive NON ANCORA COLLEGATO. Se l'utente chiede file, dì: "
-                "'Vai in **Impostazioni → Google Drive → Collega** per darmi accesso alle tue cartelle.'"
-            )
-        lines.append(f"- {'✅' if _dropbox_ok else '❌'} Dropbox {'collegato' if _dropbox_ok else 'non collegato'}.")
-        lines.append(
-            "REGOLA: non dire mai 'non ho accesso a Drive' senza qualifica. Se scaduto dì 'sessione scaduta, "
-            "vai in Impostazioni per riconnettermi'. Se mai collegato spiega come collegarlo. **Non suggerire mai** "
-            "di 'contattare Neo/Admin' per Drive – è auto-servito dall'utente in 2 tap."
-        )
-        _cloud_section = "\n".join(lines) + "\n"
-    except Exception:
-        _cloud_section = ""
-    system_message = system_message + _brain_section + _scripts_section + _cheat_section + _cloud_section
-    # V50.z284 — profilo interessi (form spuntabile + risposte libere del tour) → personalizzazione e suggerimenti proattivi
-    try:
-        system_message += await _axon_interest_section(user["user_id"])  # noqa: F821 — definita in axon_tour.py (stesso namespace)
-    except Exception:
-        pass
-    # V50.z518 — _axon_product_section ora è dentro il blocco statico cacheable (vedi sopra)
-    try:
-        system_message += await _axon_personalize_section(user)  # noqa: F821 — V50.z456 axon_personalize.py: personalità + stile scelti dall'utente
-    except Exception:  # noqa: BLE001
-        pass
-
-    # V50.z360 — «Stato sistema» + CHANGELOG dinamico anche nel percorso NON-stream (ViolaWake): stessa sezione dello stream.
-    try:
-        await _axs_flush()  # noqa: F821 — definita in axon_system_awareness.py (stesso namespace)
-        _axs_sec_ns = await _axs_context_section(user, msg)  # noqa: F821
-        if _axs_sec_ns:
-            system_message = f"{system_message}\n\n{_axs_sec_ns}"
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("[axs] context (non-stream) failed: %s", exc)
-
-    # V50.z487 — GPS reale del telefono (client_context.position) + permessi dispositivo anche nell'endpoint non-stream (voce / Viola)
-    try:
-        _ng_gps_fn = globals().get("_nav_gps_section")
-        _ng_perm_fn = globals().get("_nav_permissions_section")
-        _ng_sec = ((await _ng_gps_fn(user, body.client_context, msg)) if _ng_gps_fn else "") + (_ng_perm_fn(body.client_context) if _ng_perm_fn else "")
-        if _ng_sec:
-            system_message = f"{system_message}{_ng_sec}"
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("[nav-guard] gps/permissions (non-stream) failed: %s", exc)
-
-    # V50.z144 — PINNED rules in cima anche nell'endpoint non-streaming (stesso blocco dello stream).
-    try:
-        _pinned_section_ns = await _build_pinned_rules_section(tenant_id(user), msg)
-    except Exception:
-        _pinned_section_ns = ""
-    if _pinned_section_ns:
-        system_message = _pinned_section_ns + system_message
-
-    # V50.z555 — MAPPA DELL'APP (manuale) anche nell'endpoint non-stream (voce/Viola): stesso blocco dello stream (axon_manual.py)
-    _mn_fn = globals().get("_mn_manual_section")
-    if _mn_fn:
-        try:
-            system_message += _mn_fn(user, msg)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("[manual] non-stream failed: %s", exc)
+    # V50.z556 — UNICO costruttore del prompt: la versione non-stream riusa `_prepare_assistant_prompt` (quella dello stream,
+    # con TUTTI i wrapper axon_*.py: navigatore, GPS/permessi, system awareness, manuale, tono, proattivo…). Prima qui c'era una
+    # copia sequenziale e NON gated: anche «che ore sono» a voce caricava snapshot CRM, omniscienza, teach, KB, RAG, brain,
+    # Drive (6-10 s). Ora: classificazione «simple» → prompt minimo in <0,1 s; «crm/full» → caricamento parallelo.
+    prep = await _prepare_assistant_prompt(user, body)  # noqa: F821 — versione avvolta dai moduli successivi
+    system_message = prep["system_message"]
+    user_prompt = prep["user_prompt"]
+    used_web_search = bool(prep.get("used_web_search"))
+    web_sources_out = prep.get("web_sources") or []
+    web_search_ctx = {"results": web_sources_out} if web_sources_out else None
 
     from emergentintegrations.llm.chat import UserMessage
     chat = _axon_llm_chat(system_message, session_id, model="claude-haiku-4-5")  # V50.z511 — stessa chiave risolta sopra (`key`)
     _rx_data = globals().get("_RX_DATA_REQUEST")  # V50.z452 — dato secco / voce → risposta minimalista (tetto token)
-    if (_rx_data and _rx_data.search(msg or "")) or (isinstance(body.client_context, dict) and body.client_context.get("voice")):
-        chat = chat.with_params(max_tokens=150)
+    if prep.get("max_tokens") or (_rx_data and _rx_data.search(msg or "")) or (isinstance(body.client_context, dict) and body.client_context.get("voice")):
+        chat = chat.with_params(max_tokens=int(prep.get("max_tokens") or 150))
 
-    # Replay history so multi-turn works (LlmChat keeps internal state but we start fresh each request)
-    # We prepend history summary to the current user message for continuity
-    if history:
-        convo_text = ""
-        for h in history[-AXON_HISTORY_WINDOW:]:  # V50.z517 — finestra scorrevole 10 messaggi, max 600 caratteri ciascuno
-            role = "Utente" if h["role"] == "user" else assistant_name
-            _c = h.get("content") or ""
-            _lim = 2400 if h.get("summary") else 600  # V50.z518 — il riassunto auto (≤500 token) non va troncato a 600 car.
-            convo_text += f"{role}: {_c[:_lim] + ('…' if len(_c) > _lim else '')}\n"
-        user_prompt = (
-            f"Conversazione precedente:\n{convo_text}\n"
-            f"---\nNuovo messaggio dell'utente: {msg}"
-        )
-    else:
-        user_prompt = msg
-
+    # V50.z556 — la storia (finestra 10 messaggi) è già dentro prep["user_prompt"] (costruita da _prepare_assistant_prompt)
     try:
         reply = await chat.send_message(UserMessage(text=user_prompt))
     except Exception as e:

@@ -14,6 +14,17 @@ Quando l'utente scrive «Neo, leggi i prompt in coda» (o simili), esegui SUBITO
 `python3 /app/scripts/neo_queue.py list` → `show #N` → esegui il task → `done #N "nota"` (o `reject #N "motivo"`, `read #N`).
 I prompt sono salvati da Axon in `master_files` con `category: "neo_prompts"`, `neo_status: pending|read|done|rejected`, `neo_seq`, `neo_note`. Axon mostra lo stato all'utente con «stato prompt Neo».
 
+## V50.z556 (Giu 2026) — Latenza Axon: risposta immediata alle domande semplici · streaming parola per parola
+- **Causa #1 (grave)**: `_fetch_gme_pun_canonical` e `_fetch_teach_url_pdfs_for_query` (20) usavano `"pun" in msg` → «appuntamenti» conteneva «pun» → download PDF GME (5-6 s) a OGNI domanda sull'agenda. Ora regex a confine di parola (`_GME_KEYS_RX`, `_PUN_LIKE_RX`).
+- **Causa #2**: Tavily (4-5 s) partiva anche per matematica/traduzioni/conversioni/definizioni («Quanto fa 12 per 8?», «Traduci…»): `_LLM_SELF_RX` in `axon_persona._axon_wants_general_web` le esclude (salvo riferimenti ad attualità/prezzi).
+- **Classe «simple» ampliata** (`_QC_SIMPLE_RX` in 21): matematica, traduzioni, conversioni, calendario («quanti giorni mancano», «che giorno è»), definizioni, saluti → prompt minimo (identità, regole assolute, data/ora, meteo se richiesto), niente snapshot CRM/omniscienza/KB/teach/RAG/brain/Drive. Il blocco brain/script/cheat/cloud (3 loader + 4 query Drive) ora NON gira per «simple» (prima calcolato e scartato).
+- **Non-stream `/assistant/chat` (voce/Viola) riusa `_prepare_assistant_prompt`**: eliminata la copia sequenziale e non-gated del costruttore del prompt (ora stessi wrapper dello stream: navigatore, GPS, system awareness, manuale, tono…). Rispetta `prep["max_tokens"]`.
+- **Profilo latenza**: log `[prep-timing] «msg» class=… base=Xs → fase=Ys` (fasi ≥0,3 s) in 21 e `[prep-total] totale/base/wrapper` in 22; `[axon-teach] fetcher lenti` in 20.
+- **Frontend (`AssistantChat.tsx`)**: coda di resa «parola per parola» (`pumpReveal` ogni 16 ms, passo ≥ 1/6 dell'arretrato, marker `[[NAV]]` mai spezzati, `flushReveal` su done/errore/finally). La voce riceve i delta grezzi subito.
+- Misure (preview): «Quanti appuntamenti ho domani?» 6,1 s → 0,08 s al meta / 0,64 s al primo token; «Quanto fa 12 per 8?» 3,9 s → 0,5 s; voce «Che ore sono?» non-stream 0,9 s.
+- Test: `backend/tests/test_v50z555_latency.py` (22/22), report iteration_440.
+
+
 ## V50.z555 (Giu 2026) — Manuale + Axon guida: test completo (iter. 438/439) e 6 correzioni
 - **Chiave Anthropic malformata ignorata** (`19_axon_assistant_core._axon_anthropic_direct_key`): se `ANTHROPIC_API_KEY` non inizia con `sk-ant-` (placeholder/refuso) viene ignorata con warning → Claude via `EMERGENT_LLM_KEY`. Prima: ogni chiamata falliva «invalid x-api-key» e Axon rispondeva «Sono temporaneamente offline».
 - **Cache semantica**: `_semantic_cache_save` rifiuta le risposte di errore/offline (`_SEMCACHE_ERR_RX`); entrate stantie purgate.

@@ -1,0 +1,36 @@
+{
+  "summary": "V50.z555 — Axon latency optimization + client-side streaming reveal RETEST. ALL review-request items GREEN on preview backend (http://localhost:8001). Backend pytest: 22/22 passed in test_v50z555_latency.py. Measured latencies (uncached, random-suffix anti-cache): 'Che ore sono?' meta=0.016s / first_delta=0.499s / total=0.55s; 'Quanto fa 15 per 7?' meta=0.014s / first_delta=0.530s / total=0.56s (reply='105.'); 'Traduci in inglese: buona giornata' meta=0.015s / first_delta=0.515s / total=0.59s (reply='Good day.'); 'Quanti appuntamenti ho domani?' meta=0.081s / first_delta=0.637s / total=1.02s (14 deltas, reply='Nessuno: il tuo calendario per domani 16/10/2026 è libero.'); 'Quanti clienti ho in totale?' meta=0.079s / first_delta=0.692s / total=0.70s (reply='7 clienti.'). ALL meta<0.5s and ALL first_delta<2.0s with wide margin. Backend log scoped to this run's '(hex)' suffixes shows ZERO prep-timing with teach>=3s or tavily>=3s; 'Quanti appuntamenti ho domani? (hex)' did NOT emit '[axon-teach] fetcher lenti' (GME PDF fetch is gone — the 'pun' substring bug is fixed). Non-stream /api/assistant/chat: time voice query 200 in <3s, math=105 correct, CRM 'Quanti clienti' returns a number, how-to returns 200 without 'temporaneamente offline' — _prepare_assistant_prompt refactor didn't break anything. Stream integrity: 'Dimmi 5 curiosità sull'Italia' produced >5 deltas and concat matches persisted assistant message in /api/assistant/history (ratio 1.0). How-to streaming also returned [[NAV:...]] chip. FRONTEND (preview https://business-card-pro-16.preview.emergentagent.com talks to VPS backend): logged in as test@dalpastro.it, opened assistant FAB, started new chat, sent 'Dimmi 5 curiosità sull'Italia': sampling document.body.innerText every 150ms for 18s observed 19 growth_steps across 21 distinct lengths (2221→3035 chars) — progressive reveal CONFIRMED, final text complete with 'curiosit' present, streaming badge gone at end, action buttons (Salva come regola, Copia, Condividi, PDF, Utile?) visible. How-to 'Come faccio a creare un nuovo contatto?' rendered 3 nav-chips with ZERO raw '[[NAV:' leaking into the bubble text. Only 1 benign console error (401 — unrelated resource prefetch).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v50z555_latency.py",
+    "/app/test_reports/pytest/v50z555_latency.xml"
+  ],
+  "action_items": [
+    "Deploy V50.z555 (routes/19_axon_assistant_core.py pun-regex fix, _LLM_SELF_RX in axon_persona.py skipping Tavily, broadened 'simple' query class, non-stream _prepare_assistant_prompt refactor, [prep-timing]/[prep-total] logs) to the VPS (core.axonos.cloud) so real users on the deployed Expo web preview actually get sub-second meta and sub-2s first_delta. Preview backend is already green."
+  ],
+  "critical_code_review_comments": [
+    "routes/21_axon_streaming.py + 19_axon_assistant_core.py: the 'simple' class short-circuit cleanly skips CRM snapshot/omniscience/KB/teach/RAG/brain/drive for math/translate/convert/calendar/definitions — proven by meta<80ms and first_delta<700ms across 5 simple queries, including the CRM-adjacent 'Quanti appuntamenti ho domani?' and 'Quanti clienti ho in totale?' which still receive CRM context but no slow fetchers.",
+    "'pun' substring regression bug in _fetch_gme_pun_canonical is fixed: word-boundary regex now correctly rejects 'appuntamenti' and 'opportunità' — verified by 0 'fetcher lenti' hits on current-run suffix in backend.err.log.",
+    "Non-stream /api/assistant/chat refactor to reuse _prepare_assistant_prompt: no 500s, no 'temporaneamente offline', math/CRM/how-to all return correct replies in <3s (voice time query).",
+    "Stream integrity preserved: for 'Dimmi 5 curiosità' we got >5 deltas and GET /api/assistant/history returned the exact concatenated text as the persisted assistant message.",
+    "AssistantChat.tsx pumpReveal/flushReveal queue (L837-922) correctly produces progressive word-by-word reveal: observed 19 incremental growth steps on an 814-char answer. flushReveal() at stream end empties the queue before finalization so no tail is lost."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v50z555_latency.py (new regression test suite — 22 tests)"
+  ],
+  "success_rate": {"backend": "100% (22/22)", "frontend": "100% (progressive reveal + how-to NAV chip both verified live on preview)"},
+  "seed_data_creation": "None.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Preview backend http://localhost:8001 is the one hit by the new regression suite /app/backend/tests/test_v50z555_latency.py. Run: python -m pytest backend/tests/test_v50z555_latency.py -v. Suite uses random '(hex)' suffixes to defeat semantic cache and scopes log checks to the current run's suffixes, so it is safe to re-run alongside the pre-existing PUN tests (iteration_438) which legitimately keep producing slow prep-timing entries — those are OUT OF SCOPE for this review per agent-to-agent note. Frontend preview URL https://business-card-pro-16.preview.emergentagent.com talks to the VPS (core.axonos.cloud) via src/api.ts BACKEND_URL — the client-side reveal queue was verified working against the VPS backend, so even once V50.z555 is deployed the UX will remain correct. Login testID: landing-login-link → auth-submit-button. Email placeholder: 'tu@email.it'. Password placeholder: 'Almeno 6 caratteri'. Assistant: assistant-fab → assistant-input → assistant-send. For progressive reveal sampling, use document.body.innerText (NOT #root.innerText — the modal content lives in a sibling React subtree on native-web).",
+  "rca_of_issue": "N/A — this iteration verifies optimizations. Residual pre-existing non-blocker: PUN queries still trigger GME PDF fetch (expected per agent-to-agent note; test_v40 semantic-cache PUN tests are explicitly out of scope for this review)."
+}

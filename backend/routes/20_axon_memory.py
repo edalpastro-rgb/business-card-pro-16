@@ -274,6 +274,12 @@ async def _build_pinned_rules_ack_text(tenant: str, user_msg: str) -> str:
 
 
 
+import time as _time_mod  # V50.z556
+import re as _gme_re
+_GME_KEYS_RX = _gme_re.compile(r"\b(pun|fascia|fasce|f1|f2|f3|prezzo ?medio|gme|mercatoelettrico|monorario)\b|€/[mk]wh", _gme_re.I)
+_PUN_LIKE_RX = _gme_re.compile(r"\b(pun|fascia|fasce|f1|f2|f3|prezzo ?medio|gme|mercato ?elettrico|arera|[mk]wh|bollett[ae]|tariff[ae]|listino energia)\b|€/[mk]wh", _gme_re.I)
+
+
 async def _build_axon_teach_section(tenant: str, user_msg: str) -> str:
     """Prepara il contesto "Insegna ad Axon" da iniettare nella chat.
     Include: titolo/testo delle regole + testo estratto dai file allegati (PDF/xlsx/csv/txt/immagini).
@@ -313,9 +319,13 @@ async def _build_axon_teach_section(tenant: str, user_msg: str) -> str:
         return await _bounded(_fetch_teach_urls_html_generic(tenant, user_msg), "url-html")
     async def _s_canonical():
         return await _bounded(_fetch_gme_pun_canonical(tenant, user_msg), "gme")
+    _tt0 = _time_mod.monotonic()
     dyn_pdf_text, dyn_drive_pdf_text, dyn_html_text, canonical_gme_text = await asyncio.gather(
         _s_pdf(), _s_drive(), _s_html(), _s_canonical(),
     )
+    if _time_mod.monotonic() - _tt0 >= 1.0:  # V50.z556 — profilo: quale fetcher ha rallentato il prompt
+        logger.info("[axon-teach] fetcher lenti (%.2fs) per «%s»: pdf=%d drive=%d html=%d gme=%d car.", _time_mod.monotonic() - _tt0, (user_msg or "")[:50],
+                    len(dyn_pdf_text or ""), len(dyn_drive_pdf_text or ""), len(dyn_html_text or ""), len(canonical_gme_text or ""))
 
     if not rules and not dyn_pdf_text and not dyn_drive_pdf_text and not dyn_html_text and not canonical_gme_text:
         return ""
@@ -435,9 +445,8 @@ async def _fetch_gme_pun_canonical(tenant: str, user_msg: str, max_pdfs: int = 1
     msg_lc = (user_msg or "").lower()
     if not msg_lc:
         return ""
-    keys = ("pun", "fascia", "fasce", "f1", "f2", "f3", "prezzo medio", "prezzomedio",
-            "gme", "mercatoelettrico", "€/mwh", "€/kwh", "monorario")
-    if not any(k in msg_lc for k in keys):
+    # V50.z556 — confine di parola: «appuntamenti» conteneva «pun» e faceva scaricare i PDF GME (5-6 s) a ogni domanda sull'agenda
+    if not _GME_KEYS_RX.search(msg_lc):
         return ""
 
     # 1) Parse mesi/anni menzionati nel messaggio utente
@@ -1354,11 +1363,7 @@ async def _fetch_teach_url_pdfs_for_query(tenant: str, user_msg: str, max_pdfs: 
     msg_lc = (user_msg or "").lower()
     if not msg_lc:
         return ""
-    is_pun_like = any(k in msg_lc for k in [
-        "pun", "fascia", "fasce", "f1", "f2", "f3", "prezzo medio", "prezzomedio",
-        "gme", "mercato elettrico", "mercatoelettrico", "arera", "kwh", "mwh",
-        "€/kwh", "€/mwh", "bolletta", "tariffa", "listino energia",
-    ])
+    is_pun_like = bool(_PUN_LIKE_RX.search(msg_lc))  # V50.z556 — confine di parola (vedi _GME_KEYS_RX)
     if not is_pun_like:
         return ""
     # Estrai mesi e anni menzionati
