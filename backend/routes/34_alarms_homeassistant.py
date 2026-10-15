@@ -762,6 +762,19 @@ async def _reindex_drive_files_for_user(user_id: str, max_files: int = 300) -> D
             except Exception as e:
                 stats["failed"] += 1
                 logger.debug(f"[drive-reindex] {fid} failed: {e}")
+                # V50.z558 — il file resta comunque nell'indice (testo vuoto + errore): il contatore «file letti» mostra i file
+                # realmente trovati nella cartella e l'errore è visibile in Impostazioni, invece di un fuorviante «0 file letti».
+                try:
+                    await db.drive_snapshots.update_one(
+                        {"user_id": user_id, "file_id": fid},
+                        {"$set": {"user_id": user_id, "file_id": fid, "name": f.get("name") or fid, "mime": f.get("mimeType") or "",
+                                  "size": int(f.get("size") or 0), "modified_time": None, "parents": f.get("parents") or [],
+                                  "folder_path": f.get("_folder_path") or "", "root_id": f.get("_root_id"), "text": "",
+                                  "error": str(e)[:300], "indexed_at": utcnow()}},
+                        upsert=True,
+                    )
+                except Exception:  # noqa: BLE001
+                    pass
         # Rimuovi dall'indice i file non più presenti nelle cartelle (solo se la scansione ha prodotto qualcosa)
         if folders_scanned > 0 or single_files:
             r = await db.drive_snapshots.delete_many({"user_id": user_id, "file_id": {"$nin": list(current_ids)}})
@@ -787,8 +800,27 @@ async def _reindex_drive_files_for_user(user_id: str, max_files: int = 300) -> D
     return stats
 
 
+_DRIVE_FREQ_SECONDS = {"hourly": 3600, "daily": 86400, "weekly": 7 * 86400, "monthly": 30 * 86400, "manual": None}  # V50.z558
+_DRIVE_FREQ_DEFAULT = "hourly"  # il job gira ogni 30 min: «ogni ora» è l'opzione più vicina al comportamento storico
+
+
+async def _drive_refresh_due(user_id: str) -> bool:
+    """V50.z558 — Frequenza aggiornamento scelta in Impostazioni → Google Drive: True se il job periodico deve reindicizzare ora."""
+    meta = await db.drive_index_meta.find_one({"user_id": user_id}, {"_id": 0, "refresh_frequency": 1, "last_run_at": 1}) or {}
+    freq = meta.get("refresh_frequency") or _DRIVE_FREQ_DEFAULT
+    every = _DRIVE_FREQ_SECONDS.get(freq, _DRIVE_FREQ_SECONDS[_DRIVE_FREQ_DEFAULT])
+    if every is None:
+        return False  # manuale: solo «Aggiorna ora»
+    last = meta.get("last_run_at")
+    if not isinstance(last, datetime):
+        return True
+    if last.tzinfo is None:
+        last = last.replace(tzinfo=timezone.utc)
+    return (utcnow() - last).total_seconds() >= every - 60
+
+
 async def _run_drive_reindex_job() -> None:
-    """Job periodico: reindicizza i file Drive per tutti gli utenti connessi."""
+    """Job periodico: reindicizza i file Drive per tutti gli utenti connessi (rispettando la frequenza scelta da ciascuno)."""
     try:
         cur = db.google_drive_connections.find({}, {"user_id": 1, "_id": 0})
         n_users = 0
@@ -796,6 +828,8 @@ async def _run_drive_reindex_job() -> None:
         async for row in cur:
             uid = row.get("user_id")
             if not uid:
+                continue
+            if not await _drive_refresh_due(uid):  # V50.z558
                 continue
             n_users += 1
             s = await _reindex_drive_files_for_user(uid, max_files=300)
@@ -818,26 +852,55 @@ async def google_drive_manual_reindex(user=Depends(get_current_user)):
 
 @api_router.get("/google-drive/reindex/status")
 async def google_drive_reindex_status(user=Depends(get_current_user)):
-    """Restituisce quanti file sono indicizzati e quando è avvenuto l'ultimo update."""
-    cnt = await db.drive_snapshots.count_documents({"user_id": user["user_id"]})
+    """Restituisce quanti file sono indicizzati e quando è avvenuto l'ultimo update.
+    V50.z558 — conteggio su utente + Master del tenant (le connessioni cloud sono del Master, come nel prompt di Axon),
+    più `failed_files`, `stats` dell'ultima scansione e `refresh_frequency`."""
+    _owner_ids = list({user["user_id"], tenant_id(user)})
+    _q = {"user_id": {"$in": _owner_ids}}
+    cnt = await db.drive_snapshots.count_documents(_q)
+    failed_cnt = await db.drive_snapshots.count_documents({**_q, "error": {"$exists": True, "$nin": [None, ""]}})
     latest = await db.drive_snapshots.find_one(
-        {"user_id": user["user_id"]},
+        _q,
         {"_id": 0, "name": 1, "indexed_at": 1, "modified_time": 1},
         sort=[("indexed_at", -1)],
     )
-    meta = await db.drive_index_meta.find_one({"user_id": user["user_id"]}, {"_id": 0}) or {}
+    meta = await db.drive_index_meta.find_one({"user_id": user["user_id"]}, {"_id": 0}) or \
+        (await db.drive_index_meta.find_one({"user_id": {"$in": _owner_ids}}, {"_id": 0}) or {})
     for k in ("last_run_at", "started_at"):
         if isinstance(meta.get(k), datetime):
             meta[k] = meta[k].isoformat()
-    folders_cnt = await db.google_drive_folders.count_documents({"user_id": user["user_id"]})
+    folders_cnt = await db.google_drive_folders.count_documents(_q)
     return {
         "indexed_files": cnt,
+        "failed_files": failed_cnt,
         "folders": folders_cnt,
-        "running": user["user_id"] in _DRIVE_REINDEX_RUNNING,
+        "running": any(u in _DRIVE_REINDEX_RUNNING for u in _owner_ids),
         "meta": meta,
+        "stats": meta.get("stats") or {},
+        "refresh_frequency": meta.get("refresh_frequency") or _DRIVE_FREQ_DEFAULT,
         "latest_file": (latest or {}).get("name"),
         "latest_indexed_at": (latest or {}).get("indexed_at").isoformat() if latest and isinstance(latest.get("indexed_at"), datetime) else (latest or {}).get("indexed_at"),
     }
+
+
+class DriveRefreshFrequencyIn(BaseModel):
+    frequency: str  # hourly | daily | weekly | monthly | manual
+
+
+@api_router.get("/google-drive/refresh-frequency")
+async def google_drive_refresh_frequency_get(user=Depends(get_current_user)):
+    """V50.z558 — Frequenza con cui il job rilegge le cartelle Drive collegate."""
+    meta = await db.drive_index_meta.find_one({"user_id": user["user_id"]}, {"_id": 0, "refresh_frequency": 1}) or {}
+    return {"frequency": meta.get("refresh_frequency") or _DRIVE_FREQ_DEFAULT, "options": list(_DRIVE_FREQ_SECONDS.keys())}
+
+
+@api_router.put("/google-drive/refresh-frequency")
+async def google_drive_refresh_frequency_set(body: DriveRefreshFrequencyIn, user=Depends(get_current_user)):
+    freq = (body.frequency or "").strip().lower()
+    if freq not in _DRIVE_FREQ_SECONDS:
+        raise HTTPException(status_code=400, detail="Frequenza non valida (hourly, daily, weekly, monthly, manual)")
+    await db.drive_index_meta.update_one({"user_id": user["user_id"]}, {"$set": {"refresh_frequency": freq}}, upsert=True)
+    return {"ok": True, "frequency": freq}
 
 
 # V50.z89 — Tavily Extract API (raccoglie il testo pulito di una URL specifica)

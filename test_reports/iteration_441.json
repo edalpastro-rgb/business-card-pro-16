@@ -1,0 +1,29 @@
+{
+  "summary": "V50.z558 Google Drive refresh frequency + reindex status + manual reindex: 18/18 backend pytest PASSED against preview backend; _drive_refresh_due logic replica validated against pymongo-seeded docs (manual→False, daily-2h→False, hourly-2h→True, no-last-run→True, weekly-6d→False, weekly-8d→True) with proper cleanup. Frontend callback page shows 'Collegamento fallito' + 'Parametri mancanti (code o state)' + 'Torna alle impostazioni' button on missing params and the button navigates to /google-drive. /google-drive and /google-drive?oauth=google&status=ok render WITHOUT any window.alert/window.confirm popups (hook-captured) and without a 'Not authenticated' banner. NOTE: Expo frontend targets prod backend core.axonos.cloud (EXPO_PUBLIC_API_BASE_URL) which is NOT yet deployed with the new endpoints — /api/google-drive/refresh-frequency returns 404 and /api/google-drive/reindex/status returns the pre-V50.z558 shape (missing failed_files, refresh_frequency keys). This is deployment-pending, not a code bug. gd-freq-card + gd-refresh-now-btn UI code is present in /app/frontend/app/google-drive.tsx and renders only when Drive is 'Collegato' (which it is NOT on prod for this account, so the pills can't be exercised live until prod is updated).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Google Drive refresh-frequency pills + Aggiorna ora", "issue": "Prod backend core.axonos.cloud does not yet have /api/google-drive/refresh-frequency (404) and /api/google-drive/reindex/status missing new keys (failed_files, refresh_frequency, stats). Deployment pending — once deployed, gd-freq-card and gd-refresh-now-btn can be exercised with a 'Collegato' Drive account.", "affected_testIDs": ["gd-freq-card", "gd-freq-hourly", "gd-freq-daily", "gd-freq-weekly", "gd-freq-monthly", "gd-freq-manual", "gd-refresh-now-btn"]}
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_v50z558_drive_refresh.py", "/app/test_reports/pytest/v50z558_drive_refresh.xml"],
+  "action_items": [
+    "Deploy new backend endpoints (/api/google-drive/refresh-frequency GET+PUT, updated /api/google-drive/reindex/status with failed_files/refresh_frequency/stats, POST /api/google-drive/reindex) to core.axonos.cloud so the Expo preview can exercise the new UI card.",
+    "After deployment, re-test gd-freq pills + gd-refresh-now-btn on a 'Collegato' Drive account to validate the full user flow (counter 'Indice Axon', failed files badge, 'Aggiorna ora' triggers reindex)."
+  ],
+  "critical_code_review_comments": [
+    "/app/backend/routes/34_alarms_homeassistant.py: _drive_refresh_due subtracts 60s from 'every' threshold — correct scheduling tolerance since the periodic job runs ~every 30 min. Logic verified across 6 scenarios.",
+    "/app/frontend/app/auth/google/callback.tsx: redirect target uses /google-drive?oauth=google&status=ok and router.replace (not window.location) so SPA session is preserved — correctly prevents the 'Not authenticated' popup on return.",
+    "/app/frontend/app/google-drive.tsx L50-52: when GET /google-drive/status fails during OAuth return, uses notify() (non-blocking toast) instead of window.alert — matches the 'no popup' requirement."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (18/18)", "frontend": "100% of testable surface (callback page + no-popup checks); remaining depends on prod deployment"},
+  "seed_data_creation": "Inserted 6 TEST_V50z558_* docs in drive_index_meta via pymongo for refresh-due logic verification; all cleaned up by fixture teardown (delete_many on ^TEST_V50z558_ prefix).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Preview backend (business-card-pro-16.preview.emergentagent.com) is fully V50.z558-ready. Expo app connects to prod core.axonos.cloud which still returns 404 on refresh-frequency and missing-key reindex/status — frontend code gracefully handles this (notify() fallback, no window.alert). Owner test@dalpastro.it has Drive 'Non collegato' on prod. After prod deployment, re-run the 'gd-freq-*' pill tests on a connected Drive account.",
+  "rca_of_issue": "N/A — this is a feature verification, not a bug fix. All original requirements (reindex/status new keys, 5-option refresh frequency, manual reindex no-500, callback redirect without 'Not authenticated' popup) are confirmed implemented and working against the local/preview backend."
+}

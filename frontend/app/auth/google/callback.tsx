@@ -4,7 +4,7 @@
  * per scambiare il code con un refresh_token, poi torniamo alla pagina Drive.
  */
 import React, { useEffect, useState } from "react";
-import { View, Text, ActivityIndicator, StyleSheet, Platform, Pressable } from "react-native";
+import { View, Text, ActivityIndicator, StyleSheet, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -35,7 +35,7 @@ export default function GoogleCallbackScreen() {
       try {
         // V50.z197 — Blocco 8: se lo state appartiene alle Integrazioni AxonOS (Calendar/Contacts per sfera) lo gestisce
         // il modulo isolato; altrimenti {handled:false} e si prosegue con lo scambio Drive come prima.
-        let dest = "/google-drive";
+        let dest = "/google-drive?oauth=google&status=ok"; // V50.z558 — la pagina Drive ricarica lo stato da sola, senza popup di errore
         const axi = await api<{ handled: boolean; redirect?: string }>("/axon/integrations/oauth/exchange", { method: "POST", body: { code, state: stt } }).catch(() => ({ handled: false } as { handled: boolean; redirect?: string }));
         if (axi?.handled) {
           dest = axi.redirect || "/axon-integrations";
@@ -43,14 +43,9 @@ export default function GoogleCallbackScreen() {
           await api("/google-drive/oauth/exchange", { method: "POST", body: { code, state: stt } });
         }
         setState("success");
-        // Naviga alla pagina di destinazione dopo 1.5s
-        setTimeout(() => {
-          if (Platform.OS === "web") {
-            (globalThis as any).window.location.replace(dest);
-          } else {
-            router.replace(dest as any);
-          }
-        }, 1500);
+        // V50.z558 — Redirect immediato con router (niente ricaricamento completo: la sessione resta in memoria e la pagina
+        // Google Drive non mostra più «Not authenticated» durante il ripristino del token).
+        setTimeout(() => { router.replace(dest as any); }, 600);
       } catch (e: any) {
         setState("error");
         setErrorMsg(e?.message || "Scambio del codice fallito");

@@ -956,6 +956,7 @@ I numeri nel nome indicano SOLO l'ordine di caricamento. Backup del monolite ori
 ## Indice cronologico (più recente in alto)
 | Versione | Data | Contenuto |
 |---|---|---|
+| V50.z558 | Giu 2026 | **Google Drive**: contatore «Indice Axon» reale (tenant, file non leggibili, statistiche scansione) · sezione «Frequenza aggiornamento» (ora/giorno/settimana/mese/manuale) + «Aggiorna ora» · dopo il callback OAuth ritorno alla pagina Drive con stato aggiornato, senza popup «Not authenticated». V50.z557: rimosso `include_granted_scopes` dal flow OAuth. |
 | V50.z556 | Giu 2026 | **Latenza Axon**: fix «appuntamenti»→«pun» (download GME 5-6 s a ogni domanda agenda) · niente Tavily per matematica/traduzioni · classe «simple» ampliata (risposta immediata senza contesto CRM) · voce/non-stream riusa il prompt parallelo e gated · profilo `[prep-timing]` · chat: testo rivelato parola per parola. |
 | V50.z555 | Giu 2026 | **Manuale + Axon guida (test completo)**: chiave Anthropic malformata ignorata → Emergent (fine «temporaneamente offline») · risposte di errore mai in cache · mappa dell'app anche nel non-stream (voce) · chip [[NAV]] di sicurezza · intento navigate per how-to in forma libera · «Dove trovo X» con 📍 Percorso · `/manuale?q=` precompila la ricerca. |
 

@@ -46,6 +46,9 @@ export default function GoogleDriveScreen() {
       const r = await api<any>("/google-drive/status");
       setStatus(r || { connected: false, configured: false });
     } catch (e: any) {
+      // V50.z558 — Rientro dal callback OAuth (pagina ricaricata): la sessione può non essere ancora pronta → NESSUN popup
+      // «Not authenticated»; la pagina riprova da sola (vedi effetto oauth=google) e la guardia di autenticazione fa il resto.
+      if (/not authenticated|401/i.test(String(e?.message || ""))) return;
       notify("Errore", e?.message || "Impossibile leggere lo stato Google Drive");
     } finally { setLoading(false); }
   }, []);
@@ -66,13 +69,27 @@ export default function GoogleDriveScreen() {
   }, [status.connected, loadFolders]);
 
   // V50.z155 — Stato indice Axon (file delle cartelle monitorate letti da Axon)
-  type IdxStatus = { indexed_files: number; folders?: number; running?: boolean; meta?: { status?: string; error?: string | null; last_run_at?: string; files_count?: number } };
+  type IdxStatus = { indexed_files: number; failed_files?: number; folders?: number; running?: boolean; refresh_frequency?: string; stats?: { scanned?: number; updated?: number; skipped?: number; failed?: number }; meta?: { status?: string; error?: string | null; last_run_at?: string; files_count?: number } };
   const [idx, setIdx] = useState<IdxStatus | null>(null);
   const [reindexing, setReindexing] = useState(false);
+  // V50.z558 — Frequenza aggiornamento (Impostazioni → Google Drive)
+  const FREQ_OPTIONS: Array<{ id: string; label: string }> = [
+    { id: "hourly", label: "Ogni ora" }, { id: "daily", label: "Ogni giorno" }, { id: "weekly", label: "Ogni settimana" }, { id: "monthly", label: "Ogni mese" }, { id: "manual", label: "Manuale" },
+  ];
+  const [freq, setFreq] = useState<string>("hourly");
+  const [freqSaving, setFreqSaving] = useState(false);
+  const setFrequency = useCallback(async (f: string) => {
+    const prev = freq;
+    setFreq(f); setFreqSaving(true);
+    try { await api("/google-drive/refresh-frequency", { method: "PUT", body: { frequency: f } }); }
+    catch (e: any) { setFreq(prev); notify("Errore", e?.message || "Impossibile salvare la frequenza"); }
+    finally { setFreqSaving(false); }
+  }, [freq]);
   const loadIdx = useCallback(async () => {
     try {
       const r = await api<IdxStatus>("/google-drive/reindex/status");
       setIdx(r);
+      if (r?.refresh_frequency) setFreq(r.refresh_frequency);
       return r;
     } catch { return null; }
   }, []);
@@ -202,16 +219,26 @@ export default function GoogleDriveScreen() {
   };
 
   // V50.z110 — Rientro dal deep-link: ricarica lo stato e avvisa l'utente.
+  // V50.z558 — Dopo il callback Google la pagina viene ricaricata: riprova lo stato per qualche secondo (sessione in
+  // ripristino) e NON mostrare mai popup di errore; mostra solo l'esito positivo quando lo stato è aggiornato.
   useFocusEffect(useCallback(() => {
     if (oauthParam !== "google") return;
+    let cancelled = false;
     (async () => {
-      await load();
-      try {
-        const s = await api<any>("/google-drive/status");
-        if (s?.connected) notify("Collegato", "Google Drive è ora collegato a Axon");
-        else if (oauthStatus === "err") notify("Collegamento non riuscito", "Riprova con \"Collega Google Drive\".");
-      } catch { /* ignore */ }
+      for (let i = 0; i < 8 && !cancelled; i++) {
+        try {
+          const s = await api<any>("/google-drive/status");
+          if (cancelled) return;
+          setStatus(s || { connected: false, configured: false });
+          setLoading(false);
+          if (s?.connected) { notify("Collegato", "Google Drive è ora collegato a Axon"); return; }
+          if (oauthStatus === "err") { notify("Collegamento non riuscito", "Riprova con \"Collega Google Drive\"."); return; }
+          if (i >= 2) return; // stato letto ma non connesso: niente popup, la pagina mostra «Collega»
+        } catch { /* sessione non ancora pronta: riprova */ }
+        await new Promise((r) => setTimeout(r, 800));
+      }
     })();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [oauthParam, oauthStatus]));
 
@@ -387,11 +414,15 @@ export default function GoogleDriveScreen() {
                     <Text style={styles.idxTitle}>Indice Axon</Text>
                     {(idx?.running || reindexing) && <ActivityIndicator size="small" color="#7C3AED" />}
                   </View>
-                  <Text style={styles.idxMeta}>
+                  <Text style={styles.idxMeta} testID="gd-index-count">
                     {idx ? `${idx.indexed_files} file letti da Axon` : "…"}
+                    {idx && (idx.failed_files || 0) > 0 ? ` (${idx.failed_files} non leggibili)` : ""}
                     {idx?.meta?.last_run_at ? ` · aggiornato ${fmtIdxTime(idx.meta.last_run_at)}` : ""}
                     {idx?.running || reindexing ? " · indicizzazione in corso…" : ""}
                   </Text>
+                  {idx?.stats && (idx.stats.scanned || 0) > 0 && (
+                    <Text style={styles.idxHint} testID="gd-index-stats">Ultima scansione: {idx.stats.scanned} trovati · {idx.stats.updated || 0} aggiornati · {idx.stats.skipped || 0} invariati{(idx.stats.failed || 0) > 0 ? ` · ${idx.stats.failed} errori` : ""}</Text>
+                  )}
                   {idx?.meta?.status === "error" && !!idx?.meta?.error && (
                     <Text style={styles.idxErr}>Ultimo errore: {idx.meta.error}</Text>
                   )}
@@ -409,6 +440,32 @@ export default function GoogleDriveScreen() {
                   </Pressable>
                 </View>
               )}
+
+              {/* V50.z558 — Frequenza aggiornamento + Aggiorna ora */}
+              <View style={styles.idxCard} testID="gd-freq-card">
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Ionicons name="time-outline" size={16} color="#7C3AED" />
+                  <Text style={styles.idxTitle}>Frequenza aggiornamento</Text>
+                  {freqSaving && <ActivityIndicator size="small" color="#7C3AED" />}
+                </View>
+                <Text style={styles.idxHint}>Ogni quanto Axon rilegge le cartelle collegate. «Manuale» = solo con «Aggiorna ora».</Text>
+                <View style={styles.freqRow}>
+                  {FREQ_OPTIONS.map((o) => (
+                    <Pressable key={o.id} onPress={() => setFrequency(o.id)} disabled={freqSaving} style={[styles.freqPill, freq === o.id && styles.freqPillOn]} testID={`gd-freq-${o.id}`}>
+                      <Text style={[styles.freqPillTxt, freq === o.id && styles.freqPillTxtOn]}>{o.label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Pressable
+                  testID="gd-refresh-now-btn"
+                  onPress={reindexNow}
+                  disabled={reindexing || !!idx?.running}
+                  style={[styles.idxBtn, (reindexing || idx?.running) && { opacity: 0.5 }]}
+                >
+                  {(reindexing || idx?.running) ? <ActivityIndicator size="small" color="#7C3AED" /> : <Ionicons name="flash" size={16} color="#7C3AED" />}
+                  <Text style={styles.idxBtnTxt}>{(reindexing || idx?.running) ? "Rilettura in corso…" : "Aggiorna ora"}</Text>
+                </Pressable>
+              </View>
             </View>
           )}
 
@@ -503,4 +560,9 @@ const styles = StyleSheet.create({
   idxHint: { fontSize: 11.5, color: HT.muted, lineHeight: 16 },
   idxBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, alignSelf: "flex-start", minHeight: 40, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: '#7C3AED', backgroundColor: HT.card },
   idxBtnTxt: { color: "#7C3AED", fontWeight: "800", fontSize: 13 },
+  freqRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 2 },
+  freqPill: { minHeight: 40, paddingHorizontal: 12, borderRadius: 20, borderWidth: 1, borderColor: HT.violet + '66', backgroundColor: HT.card, alignItems: "center", justifyContent: "center" },
+  freqPillOn: { backgroundColor: HT.violet, borderColor: HT.violet },
+  freqPillTxt: { color: HT.text, fontWeight: "700", fontSize: 13 },
+  freqPillTxtOn: { color: "#FFF" },
 });

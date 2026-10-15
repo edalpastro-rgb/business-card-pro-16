@@ -14,6 +14,13 @@ Quando l'utente scrive «Neo, leggi i prompt in coda» (o simili), esegui SUBITO
 `python3 /app/scripts/neo_queue.py list` → `show #N` → esegui il task → `done #N "nota"` (o `reject #N "motivo"`, `read #N`).
 I prompt sono salvati da Axon in `master_files` con `category: "neo_prompts"`, `neo_status: pending|read|done|rejected`, `neo_seq`, `neo_note`. Axon mostra lo stato all'utente con «stato prompt Neo».
 
+## V50.z558 (Giu 2026) — Google Drive: contatore «Indice Axon» reale · Frequenza aggiornamento + «Aggiorna ora» · callback OAuth senza «Not authenticated»
+- **Contatore** (`34_alarms_homeassistant.py`): `GET /google-drive/reindex/status` conta `drive_snapshots` su utente + Master del tenant (come il prompt di Axon in 21); i file il cui download/estrazione fallisce vengono comunque salvati nell'indice (`text:""`, `error`) → `indexed_files` reale + `failed_files` + `stats` dell'ultima scansione (trovati/aggiornati/invariati/errori) mostrati in UI (testID `gd-index-count`, `gd-index-stats`).
+- **Frequenza**: `GET/PUT /google-drive/refresh-frequency` (`hourly|daily|weekly|monthly|manual`, default hourly) salvata in `drive_index_meta.refresh_frequency`; `_run_drive_reindex_job` (ogni 30 min) rilegge solo se `_drive_refresh_due` (manuale = mai). UI: card «Frequenza aggiornamento» (`gd-freq-card`, pill `gd-freq-*`) + bottone «Aggiorna ora» (`gd-refresh-now-btn`, POST /google-drive/reindex, ignora il timer).
+- **Callback OAuth** (`auth/google/callback.tsx`): redirect con `router.replace("/google-drive?oauth=google&status=ok")` (niente `window.location.replace` → niente ricaricamento completo); `google-drive.tsx` non mostra più popup su «Not authenticated»/401 e, al rientro con `oauth=google`, riprova lo stato fino a 8 volte (800 ms) in silenzio.
+- Test: `backend/tests/test_v50z558_drive_refresh.py` (18/18), iteration_441.
+
+
 ## V50.z557 (Giu 2026) — Google Drive OAuth: rimosso `include_granted_scopes="true"` (28_google_drive.py, richiesta utente)
 - Solo quella riga nel `flow.authorization_url(...)`; restano `access_type="offline"` e `prompt="consent"`. Pacchetto core rigenerato (verificato: 0 occorrenze nel .tgz).
 
