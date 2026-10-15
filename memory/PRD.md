@@ -14,6 +14,18 @@ Quando l'utente scrive «Neo, leggi i prompt in coda» (o simili), esegui SUBITO
 `python3 /app/scripts/neo_queue.py list` → `show #N` → esegui il task → `done #N "nota"` (o `reject #N "motivo"`, `read #N`).
 I prompt sono salvati da Axon in `master_files` con `category: "neo_prompts"`, `neo_status: pending|read|done|rejected`, `neo_seq`, `neo_note`. Axon mostra lo stato all'utente con «stato prompt Neo».
 
+## V50.z555 (Giu 2026) — Manuale + Axon guida: test completo (iter. 438/439) e 6 correzioni
+- **Chiave Anthropic malformata ignorata** (`19_axon_assistant_core._axon_anthropic_direct_key`): se `ANTHROPIC_API_KEY` non inizia con `sk-ant-` (placeholder/refuso) viene ignorata con warning → Claude via `EMERGENT_LLM_KEY`. Prima: ogni chiamata falliva «invalid x-api-key» e Axon rispondeva «Sono temporaneamente offline».
+- **Cache semantica**: `_semantic_cache_save` rifiuta le risposte di errore/offline (`_SEMCACHE_ERR_RX`); entrate stantie purgate.
+- **Mappa dell'app anche nel non-stream** `/assistant/chat` (voce/Viola): helper condiviso `_mn_manual_section(user,msg)` in `axon_manual.py`, usato da `_prepare_assistant_prompt` (stream) e da 21 (non-stream).
+- **Chip [[NAV]] di sicurezza** `_mn_nav_fallback`: se domanda how-to + articolo con route (score ≥ 3) e il modello ha omesso il chip → accodato (stream: delta extra; non-stream: prima del salvataggio).
+- **Intento `navigate` per how-to in forma libera** («Spiegami dove registro…»): `_nav_intent` esteso in `axon_manual.py` (`_mn_is_howto`) → il Navigatore non rimuove più i chip del manuale. Fix `_RX_NAV_MARK` (consuma `]]`, prima restava un «]» orfano).
+- **Template «Dove trovo X»** del Navigatore ora antepone `📍 Percorso: <path dal manuale>`.
+- Frontend: `/manuale?q=…` precompila la ricerca (`ManualBrowser.initialQuery`); back fallback → `/help-center`.
+- ⚠️ Il preview web punta a `core.axonos.cloud` (`EXPO_PUBLIC_API_BASE_URL`): finché il VPS non viene aggiornato con `axon-core-pkg.tgz`, `/manuale` appare vuoto (404 su `/api/public/manual`).
+- Test: `backend/tests/test_v50z554_manual_assistant.py`, `test_v50z554_retest_review.py` (23/24; l'unico fail è un artefatto del test: route superadmin non visibile nel manuale pubblico anonimo).
+
+
 ## V50.z493 (Giu 2026) — /landing sempre pubblica · due box prodotto paritetici · suono «trova il telefono» personalizzabile · foto di chi ferma lo squillo
 - **/landing da loggati**: nessun redirect nel codice; il problema era l'interfaccia dell'app (sidebar desktop, FAB Axon, calcolatrice, tab bar, pannello destro) sovrapposta alla landing. `app/_layout.tsx`: `inPublicPage` (/landing, /lite) → trattata come pagina pubblica (niente chrome); `DesktopSidebar.desktopSidebarHidden` nasconde la sidebar su /landing e /lite. Nessun middleware/redirect post-login tocca /landing (`index.tsx` reindirizza solo da `/`).
 - **Landing, sezione prodotti**: i due box (Axon Lite / AdvisorOS) sono generati dalla stessa struttura (`productCard`, `minHeight 360`, titolo `minHeight 64`, sottotitolo `minHeight 60`, chip, CTA pieno a fondo card) e differiscono solo per accento (ciano Axon / arancio brand). Testi come richiesti: «Axon Lite. L'assistente per tutti.» + sottotitolo + chip Studenti·Casalinghe·Professionisti·Sportivi·Insegnanti + CTA «Scopri e prova AxonOS Lite»; «AdvisorOS. Il CRM che pensa con te.» + sottotitolo + chip Consulenti·Professionisti·Team·Contratti·Agenda + CTA «Entra in AdvisorOS».
@@ -7858,3 +7870,8 @@ Flusso richiesto dall'utente (zero riferimenti ad Axon Lab/addestramento nella s
 ## V50.z553 — Home italianbrain.it: bottone AxonOS Lite ambra · header «🔐 ENTRA (Se sei già registrato)» · session check
 - `index.html`: CTA AxonOS Lite → `btn-primary` (stesso stile ambra di AdvisorOS); header `.top-enter` (ambra, su tutte e 3 le pagine); script inline nel `<head>`: se cookie `ib_session=1` → `location.replace("https://core.italianbrain.it/")` senza mostrare la landing (`?stay=1` la forza).
 - App web (`src/api.ts`): `_setSessionCookie` scrive/rimuove `ib_session` su `Domain=.italianbrain.it` (solo se servita da un dominio Core) al setToken/clearToken, alla prima risposta OK con token (utenti già loggati) e su 401. Nessun token nel cookie: solo flag; la web app verifica comunque il token.
+
+## V50.z554 — Manuale completo dell'app + Axon come guida
+- `backend/routes/axon_manual_data.py`: MANUAL = 158 articoli (route, title, path di navigazione, body «cosa fa/come si usa», kw, roles) — ogni schermata di navRoutes + funzioni trasversali (Report Comportamentale, Offline, deep link push, Statistiche landing, pagine /axonos /advisoros, KB/OCR). Con le FAQ del CMS → 186 articoli per il Supermaster.
+- `backend/routes/axon_manual.py` (dopo landing_cms): `GET /public/manual` (ruolo-aware, categorie), `GET /public/manual/search?q=` full-text (titolo/percorso/corpo/kw/risposte FAQ, stopword, radici, +0.5 manuale vs FAQ). Wrapper `_prepare_assistant_prompt`: su domande how-to/where inietta i 5 articoli pertinenti + REGOLA «percorso + passi + chip [[NAV:route|label]]» (verificato su /assistant/chat/stream: log «[manual] prompt: N articoli»). NB: il non-stream /assistant/chat costruisce il prompt inline (non passa dalla catena).
+- App: `src/ManualBrowser.tsx` (ricerca debounce, categorie, articolo con percorso + «Apri route» via resolveNavRoute), schermata `app/manuale.tsx` (/manuale, aggiunta a KNOWN_ROUTES e nav_guard; rimosso alias /manuale→/libretto), card «Manuale completo» in help-center + browser inline nel tab Aiuto. Aggiunta anche `/admin/landing-cms` alle route note.

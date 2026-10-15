@@ -162,6 +162,7 @@ MODULES = [
     "axon_referral_credits.py",  # V50.z523 — «Porta un amico» con crediti AI: codice NOME+3 cifre, 30+30 crediti, crediti base mensili/bonus, toggle per workspace, nome app dinamico (ULTIMO: avvolge _prepare_assistant_prompt, _pw_grant_days, _ref_redeem, _email_on_register)
     "axon_knowledge_base.py",  # V50.z529 — Knowledge Base personale RAG: ChromaDB per utente + embedding locale MiniLM ONNX; GET/POST/DELETE /kb/documents, /kb/search, /kb/status; _build_personal_kb_section usata da 21 (kb_section)
     "landing_cms.py",  # V50.z530 — landing pubblica Axon Core: GET /public/landing (contenuti CMS + posti Founder in tempo reale) + CMS Super Admin con password dedicata (LANDING_CMS_PASSWORD)  # V50.z536 — GET /public/faq/suggest (FAQ semantiche MiniLM)
+    "axon_manual.py",  # V50.z554 — Manuale completo (GET /public/manual, /public/manual/search full-text) + Axon come guida (percorso + [[NAV]] in ogni risposta); DOPO landing_cms (_faq_items_for) e deeplink_map
     "og_preview.py",  # V50.z536 — anteprima OG dinamica italianbrain.it: GET /public/og-preview.png (logo + posti Founder rimasti), job notturno 03:05, POST /landing/cms/og/refresh
     "37_app_startup_scheduler.py",
 ]

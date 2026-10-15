@@ -6,6 +6,10 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-15 | D2026.10.15-1149 | V50.z555c — Navigatore: risposte istantanee «Dove trovo X» con 📍 Percorso dal manuale |
+| 2026-10-15 | D2026.10.15-1146 | V50.z555b — Manuale: chip [[NAV]] di sicurezza (stream + non-stream), intento navigate per how-to in forma libera, fix «]» orfano nei marker rimossi |
+| 2026-10-15 | D2026.10.15-1139 | V50.z555 — Manuale: mappa dell'app anche in /assistant/chat non-stream (voce); chiave Anthropic malformata ignorata → Emergent; risposte offline mai in cache; /manuale?q= precompila ricerca |
+| 2026-10-15 | D2026.10.15 | V50.z554 manuale completo + Axon guida |
 | 2026-10-14 | D2026.10.14-2058 | V50.z552 pilastro report comportamentale + migrazione liste CMS |
 | 2026-10-14 | D2026.10.14-1912 | V50.z551 statistiche landing + home bivio |
 | 2026-10-14 | D2026.10.14-1859 | V50.z550 confronto CRM gratis+AI, offline, armatura |

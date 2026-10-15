@@ -34,7 +34,15 @@ _WEATHER_KEYWORDS = ["meteo", "previsioni", "previsione", "tempo", "clima", "pio
 #                passato EMERGENT_LLM_KEY → nessun modulo può più finire sulla Universal Key per Claude.
 # ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 def _axon_anthropic_direct_key() -> str:
-    return (os.environ.get("ANTHROPIC_API_KEY") or "").strip().strip('"').strip("'").strip()
+    # V50.z555 — una chiave Anthropic valida inizia SEMPRE con «sk-ant-»: un valore malformato (placeholder, id admin «apikey_…»,
+    # refuso) viene IGNORATO così Claude ricade su EMERGENT_LLM_KEY invece di fallire con «invalid x-api-key» su ogni chiamata.
+    k = (os.environ.get("ANTHROPIC_API_KEY") or "").strip().strip('"').strip("'").strip()
+    if k and not k.startswith("sk-ant-"):
+        if not _AXON_LLM_ROUTE_LOGGED.get("bad_direct_key"):
+            _AXON_LLM_ROUTE_LOGGED["bad_direct_key"] = True
+            _axon_llm_log.warning("[axon-llm] ANTHROPIC_API_KEY malformata (prefisso %s…, atteso sk-ant-): IGNORATA → Claude via EMERGENT_LLM_KEY", k[:7])
+        return ""
+    return k
 
 
 # V50.z529 — ENDPOINT AI CONFIGURABILE (core chat Axon). Se AI_ENDPOINT è impostato nel .env, il core parla con QUEL servizio

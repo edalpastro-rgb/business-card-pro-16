@@ -937,6 +937,15 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
             yield sse("delta", {"text": _clean})
 
         reply_text = ("".join(collected)).strip() or "Non ho ricevuto una risposta. Riprova."
+        _mn_fb = globals().get("_mn_nav_fallback")  # V50.z555 — chip [[NAV]] di sicurezza se il modello l'ha omesso
+        if _mn_fb:
+            try:
+                _mn_suffix = _mn_fb(user, msg, reply_text)
+            except Exception:  # noqa: BLE001
+                _mn_suffix = ""
+            if _mn_suffix:
+                reply_text += _mn_suffix
+                yield sse("delta", {"text": _mn_suffix})
 
         # Update the assistant placeholder with the full reply.
         # (User message was already persisted at meta time.)

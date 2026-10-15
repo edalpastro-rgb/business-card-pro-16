@@ -18,6 +18,7 @@ import { SupportForm } from "@/src/SupportFab";
 import { PreReportNotice, SuggestionForm, SupportContacts, BetaNpsCard } from "@/src/HelpExtras"; // V50.z464 — avviso + consigli + contatti · V50.z474 NPS
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 import { FaqSearch } from "@/src/FaqSearch"; // V50.z533 — ricerca FAQ in tempo reale (FAQ dal CMS)
+import { ManualBrowser } from "@/src/ManualBrowser"; // V50.z554
 import { FAQ_ITEMS } from "@/app/faq";
 
 export default function HelpTabScreen() {
@@ -59,6 +60,7 @@ export default function HelpTabScreen() {
       <Text style={styles.sectionLabel}>DOMANDE FREQUENTI</Text>
       <View style={{ marginBottom: 16 }} testID="help-faq-section">
         <FaqSearch fallback={FAQ_ITEMS.map((f, i) => ({ id: `local_${i}`, icon: f.icon as string, q: f.q, a: f.a }))} testID="help-faq" />
+        <View style={{ marginTop: 16 }}><ManualBrowser /></View>{/* V50.z554 — Manuale completo con ricerca full-text */}
       </View>
 
       {/* V50.z464 — 1) Segnala un bug / richiesta assistenza: avviso pre-segnalazione + modulo (SupportForm: problemi ricorrenti con checkbox, testo libero, allegati, Chiedi ad Axon) */}

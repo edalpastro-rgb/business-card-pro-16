@@ -851,7 +851,7 @@ def _nav_flow_howto(user: dict, x: str) -> "dict | None":
 # ---------------------------------------------------------------------------
 # INTERCETTORE (prima dell'LLM): guardie di sicurezza + flussi SOLO con intento esplicito
 # ---------------------------------------------------------------------------
-_RX_NAV_MARK = _nav_re.compile(r"[ \t]*\[\[(NAV|ACTION):[^\]]*\][ \t]*\n?")
+_RX_NAV_MARK = _nav_re.compile(r"[ \t]*\[\[(NAV|ACTION):[^\]]*\]\]?[ \t]*\n?")  # V50.z555 — consuma anche il «]]» di chiusura (prima restava un «]» orfano)
 _RX_CREATIVE = _nav_re.compile(
     r"(\b(scriv\w*|redig\w*|compon\w*|traduc\w*|riformul\w*|riscriv\w*|correggi (il|la|questo|questa)|sintetizz\w*|invent\w*|prepara(mi)? (un|una|il|la) (discorso|mail|email|testo|messaggio|post|script))\b"
     r"|\b\d+\s*(parole|righe|versi|frasi|punti|paragrafi)\b|\bdiscorso\b|\bpoesia\b|\bslogan\b)", _nav_re.I)

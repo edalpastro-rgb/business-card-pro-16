@@ -129,6 +129,16 @@ export default function HelpCenterScreen() {
           <Ionicons name="chevron-forward" size={18} color={HT.muted} />
         </Pressable>
 
+        {/* V50.z554 — Manuale completo: mappa di ogni funzione con ricerca full-text */}
+        <Pressable testID="help-manual" onPress={() => router.push("/manuale" as any)} style={styles.faqBtn}>
+          <View style={styles.faqIcon}><Ionicons name="map" size={22} color={HT.brand} /></View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.faqTitle}>Manuale completo dell&apos;app</Text>
+            <Text style={styles.faqHint}>Tutte le funzioni: dove si trovano, cosa fanno, come si usano. Cerca «scanner», «Axon Lab», «landing page»…</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={HT.muted} />
+        </Pressable>
+
         {/* V50.z329 — FAQ (accordion) + link alla landing */}
         <Pressable testID="help-faq" onPress={() => router.push("/faq" as any)} style={styles.faqBtn}>
           <View style={styles.faqIcon}><Ionicons name="help-circle" size={22} color={HT.brand} /></View>

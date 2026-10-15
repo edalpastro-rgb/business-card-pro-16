@@ -156,6 +156,9 @@ async def _semantic_cache_lookup(msg: str, tenant: Optional[str] = None, product
     return best
 
 
+_SEMCACHE_ERR_RX = re.compile(r"^(sono temporaneamente offline|⏱️|non riesco a rispondere|servizio momentaneamente non disponibile|riprova tra qualche minuto)", re.IGNORECASE)
+
+
 async def _semantic_cache_save(
     msg: str,
     reply: str,
@@ -170,6 +173,10 @@ async def _semantic_cache_save(
     collaboratori dello stesso Master (risposta istantanea alla seconda
     chiamata di qualunque membro del team)."""
     if not reply:
+        return
+    # V50.z555 — MAI mettere in cache le risposte di cortesia per errore LLM («Sono temporaneamente offline…», «⏱️…»):
+    # altrimenti la domanda resta «offline» per SEM_CACHE_TTL_DAYS anche a servizio ripristinato.
+    if _SEMCACHE_ERR_RX.match(reply.strip()):
         return
     _, tokens = _normalize_and_tokenize(msg)
     if not tokens:
@@ -1083,6 +1090,14 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     if _pinned_section_ns:
         system_message = _pinned_section_ns + system_message
 
+    # V50.z555 — MAPPA DELL'APP (manuale) anche nell'endpoint non-stream (voce/Viola): stesso blocco dello stream (axon_manual.py)
+    _mn_fn = globals().get("_mn_manual_section")
+    if _mn_fn:
+        try:
+            system_message += _mn_fn(user, msg)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[manual] non-stream failed: %s", exc)
+
     from emergentintegrations.llm.chat import UserMessage
     chat = _axon_llm_chat(system_message, session_id, model="claude-haiku-4-5")  # V50.z511 — stessa chiave risolta sopra (`key`)
     _rx_data = globals().get("_RX_DATA_REQUEST")  # V50.z452 — dato secco / voce → risposta minimalista (tetto token)
@@ -1111,6 +1126,12 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
         reply = _axon_llm_failure("chat", e)  # noqa: F821 — V50.z467: risposta normale, letta anche dal TTS
 
     reply_text = (reply or "").strip() or "Non ho ricevuto una risposta. Riprova."
+    _mn_fb = globals().get("_mn_nav_fallback")  # V50.z555 — chip [[NAV]] di sicurezza se il modello l'ha omesso
+    if _mn_fb:
+        try:
+            reply_text += _mn_fb(user, msg, reply_text)
+        except Exception:  # noqa: BLE001
+            pass
 
     now = utcnow()
     # V41 — Assign an ID to the assistant message so the client can attach feedback later.
