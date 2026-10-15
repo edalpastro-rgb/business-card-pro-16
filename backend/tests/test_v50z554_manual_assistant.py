@@ -98,8 +98,9 @@ NAV_RE = re.compile(r"\[\[NAV:([^|\]]+)\|([^\]]+)\]\]")
 
 
 @pytest.fixture(scope="module")
-def manual_routes():
-    r = requests.get(f"{BASE_URL}/api/public/manual", timeout=20)
+def manual_routes(session):
+    # V50.z561 — manuale visto dal ruolo loggato (include le voci admin) + pagine del Libretto (deep link legittimi)
+    r = session.get(f"{BASE_URL}/api/public/manual", timeout=20)
     return {a["route"] for a in r.json()["items"] if a.get("route")}
 
 
@@ -112,6 +113,8 @@ def test_assistant_howto_contains_nav(session, msg, manual_routes):
     chips = NAV_RE.findall(reply)
     assert chips, f"NO NAV chip for '{msg}'. Reply head: {reply[:300]}"
     for route, label in chips:
+        if route.startswith("/libretto?section=") or route.startswith("/faq?id="):
+            continue
         assert route in manual_routes, f"INVENTED route '{route}' not in manual for msg '{msg}'. Reply: {reply[:400]}"
     # path mention: "Menu →" or "→" or path hint
     assert ("→" in reply) or ("Menu" in reply) or ("Barra" in reply) or ("menu" in reply.lower()), f"No path mention for '{msg}'"

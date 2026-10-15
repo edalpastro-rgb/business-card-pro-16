@@ -46,6 +46,29 @@ export const LIBRETTO_FAQS: Record<string, LibrettoFaq[]> = {
 /** Nuove sezioni (V50.z456–z466). Inserite dopo «axon-chat» (o prima di «consigli» se manca). */
 export const LIBRETTO_EXTRA_SECTIONS: (LibrettoSection & { faqs?: LibrettoFaq[] })[] = [
   {
+    // V50.z561 — REGOLA PERMANENTE: ogni funzione nuova o modificata viene registrata nel Manuale d'uso (backend
+    // axon_manual_data.py) che alimenta questa voce, la pagina /manuale, la Mappa completa (admin) e il contesto di Axon.
+    id: "manuale-duso", icon: "book", emoji: "📘", color: "#7C3AED", title: "Manuale d'uso: tutte le funzioni",
+    subtitle: "Ogni voce di menu, pagina e azione: cosa fa, come si usa, link diretto",
+    paragraphs: [
+      "Il Manuale d'uso elenca TUTTE le funzioni dell'app, raggruppate per categoria (Schermate principali, CRM Core, AI & Axon, Comunicazioni, Anagrafica & DB Master, Team & Insights, Amministrazione, Pannello Master, Pagine pubbliche). Per ogni funzione trovi: nome, descrizione breve, «Come si usa» passo-passo e il pulsante «Apri» che porta alla pagina giusta.",
+      "È sempre aggiornato: ogni volta che una funzione viene aggiunta o modificata, la sua voce viene creata o aggiornata nello stesso momento, e Axon la impara subito. Per questo puoi chiedere in chat «come faccio a…» o «dove trovo…»: Axon risponde con il percorso di menu e un pulsante che apre la schermata.",
+      "Il Master e il Super Master hanno anche la «Mappa completa dell'app» nel Pannello Master: l'intero elenco in un'unica pagina, con ricerca e copia in testo.",
+    ],
+    tips: [
+      { emoji: "🔎", text: "Aiuto → «Manuale completo dell'app»: digita «scanner», «nota vocale», «frequenza Drive»… e la voce giusta compare subito." },
+      { emoji: "💬", text: "In chat: «dove trovo le scadenze?», «come collego Google Drive?» → percorso + pulsante di apertura." },
+    ],
+    links: [
+      { label: "Apri il Manuale d'uso", href: "/manuale", icon: "book-outline" },
+      { label: "Mappa completa dell'app (admin)", href: "/admin/app-map", icon: "map-outline" },
+    ],
+    faqs: [
+      { q: "Il Manuale è diverso dal Libretto?", a: "Il Libretto racconta l'app per scenari e sezioni illustrate; il Manuale d'uso è l'elenco completo e sistematico di ogni funzione con il link diretto. Si completano: Axon usa entrambi." },
+      { q: "Chi aggiorna il Manuale?", a: "Il team di sviluppo, obbligatoriamente a ogni nuova funzione o modifica (anche fix tecnici): la voce nasce insieme alla funzione." },
+    ],
+  },
+  {
     id: "storico-pun", icon: "flash", emoji: "⚡", color: "#D97706", title: "Storico PUN",
     subtitle: "Dal widget Home alla tabella 18 mesi, con PDF",
     paragraphs: [

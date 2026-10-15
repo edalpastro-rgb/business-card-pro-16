@@ -7,7 +7,22 @@
 > **Rafforzata dall'utente (2026-10-03)**: DOPO OGNI SINGOLO FIX (non solo a fine sessione) ricostruire SEMPRE entrambi i pacchetti e VERIFICARE che contengano
 > le modifiche (md5 sorgente vs `tar -O` per il backend; `grep` di stringhe nuove nel bundle `entry-*.js` per la web) PRIMA di considerare il lavoro finito.
 
+> 📘 **REGOLA PERMANENTE (richiesta utente, V50.z561, 2026-06) — MANUALE D'USO + CONTESTO AXON, SENZA ECCEZIONI (nemmeno per fix tecnici)**:
+> ogni volta che si implementa una nuova funzione o si modifica una esistente, nello STESSO intervento: (1) aggiungere/aggiornare la voce in
+> `backend/routes/axon_manual_data.py` con `_a(route, title, path, body, kw, roles, how=…)` — nome, descrizione breve (body), **come si usa (how)**,
+> link diretto (route) — questa è la fonte unica di Help → Libretto («Manuale d'uso: tutte le funzioni»), `/manuale`, `/admin/app-map` (Mappa completa)
+> e del contesto di Axon (`axon_manual._mn_manual_section`, chip [[NAV]]); (2) se la schermata è nuova registrarla anche in `frontend/src/navRoutes.ts`
+> (KNOWN_ROUTES) e, se è admin, in `menuCategories.ts` + `master.tsx`; (3) verificare con `GET /api/public/manual/search?q=<nome funzione>` che la voce
+> sia trovata e con una domanda ad Axon («come faccio a…») che risponda con percorso + chip. Il contesto Axon si aggiorna automaticamente dalla stessa fonte.
+
+
 > 📌 **Consultare SEMPRE `/app/CHANGELOG.md` prima di qualsiasi modifica** (elenco funzionalità approvate e funzionanti, per area). Aggiornarlo dopo ogni modifica insieme a questo PRD.
+
+## V50.z561 (Giu 2026) — Manuale d'uso completo (nome · descrizione · come si usa · link) + Mappa completa dell'app (admin) + regola permanente
+- `axon_manual_data.py`: 181 voci (+21: /manuale, /admin/app-map, /knowledge-base, /leads, pagine pubbliche lead/recensioni, dettagli dinamici appuntamento/evento/gruppo/corso/CRT/modulo/invito/chat/Axon Lab/Corporate Gym, login; Google Drive riscritto + voce «Frequenza aggiornamento e Aggiorna ora»). Nuovo campo `how`.
+- `axon_manual.py`: `_mn_split_how` separa descrizione e «come si usa» (frasi imperative) quando `how` manca → ogni voce espone `desc` + `how`; il prompt di Axon include «Cosa fa / Come si usa».
+- Frontend: `ManualBrowser` mostra «COME SI USA»; nuova pagina `app/admin/app-map.tsx` (Mappa completa: filtro, categorie con conteggi, Apri, «Copia elenco» via expo-clipboard) collegata da Pannello Master («Mappa completa dell'app», testID hub-admin-app-map), `navRoutes`, `menuCategories`.
+- Libretto: nuova sezione «Manuale d'uso: tutte le funzioni» (`libretto-extra.ts`, id `manuale-duso`) con pulsanti link (`LibrettoSection.links`, resi in `libretto.tsx`); `axon_help_links._HL_EXTRA` la conosce per `[[NAV:/libretto?section=manuale-duso]]`.
 
 ## ⚠️ ISTRUZIONE PERMANENTE PER NEO (agente di sviluppo) — V50.z239 «Prompt per Neo»
 Quando l'utente scrive «Neo, leggi i prompt in coda» (o simili), esegui SUBITO:

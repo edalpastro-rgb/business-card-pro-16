@@ -25,6 +25,8 @@ export type LibrettoSection = {
   /** Data URL (es. `data:image/jpeg;base64,...`) caricato dal Master. */
   image_data_url?: string | null;
   warning?: string | null;
+  /** V50.z561 — pulsanti di apertura diretta (es. Manuale d'uso, Mappa dell'app). */
+  links?: { label: string; href: string; icon?: string }[];
   /** V50.z178 — icone opzionali mostrate sotto l'immagine (es. sezioni Corporate Gym). */
   icons?: { image_key: string; label: string }[];
   /** V50.z178 — immagine orizzontale (banner) invece dello screenshot verticale. */

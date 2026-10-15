@@ -33,11 +33,40 @@ def _mn_cat(path: str) -> str:
     return "Altro"
 
 
+_MN_HOW_RX = _mn_re.compile(
+    r"^(tocca|scorri|trascina|di'|dì|filtra|conferma|usa|premi|apri|seleziona|compila|digita|tieni|scegli|attiva|imposta|carica|fotografa|"
+    r"inserisci|chiedi|scrivi|programma|registra|modifica|segna|mappa|controlla|scarica|collega|clicca|vai|da |con voce|più veloce|pulsanti|"
+    r"passi|per |se |quando |basta|puoi|tocc|prem|tap|parla|detta|invia|incolla|trova|cerca|avvia|crea|aggiungi|elimina|esporta|importa|"
+    r"condividi|stampa|abilita|disabilita|accendi|spegni|collegati|accedi|entra)",
+    _mn_re.I,
+)
+
+
+def _mn_split_how(body: str, how: str, path: str, title: str) -> Tuple[str, str]:
+    """V50.z561 — Ogni voce del manuale espone «descrizione breve» e «come si usa» separati. Se l'articolo non ha un campo
+    `how` esplicito, le frasi operative (imperativi: Tocca…, Scorri…, Di'…) vengono separate dalla descrizione."""
+    if how:
+        return body.strip(), how.strip()
+    sents = [s.strip() for s in _mn_re.split(r"(?<=[.!?])\s+(?=[A-ZÀ-Ü«“'])", body or "") if s.strip()]
+    desc, steps = [], []
+    for i, s in enumerate(sents):
+        if i > 0 and _MN_HOW_RX.match(s):
+            steps.append(s)
+        elif steps:
+            steps.append(s)
+        else:
+            desc.append(s)
+    if not steps:
+        steps = [f"Apri «{path}» e usa i comandi in schermata; oppure chiedi ad Axon «apri {title}»."]
+    return " ".join(desc) or body.strip(), " ".join(steps)
+
+
 def _mn_articles() -> List[Dict[str, Any]]:
     out = []
     for i, a in enumerate(MANUAL):
+        desc, how = _mn_split_how(a["body"], a.get("how", ""), a["path"], a["title"])
         out.append({"id": f"man_{i:03d}", "kind": "manual", "title": a["title"], "path": a["path"], "route": a["route"] or None,
-                    "category": _mn_cat(a["path"]), "body": a["body"], "kw": a.get("kw", ""), "roles": a.get("roles") or []})
+                    "category": _mn_cat(a["path"]), "body": a["body"], "desc": desc, "how": how, "kw": a.get("kw", ""), "roles": a.get("roles") or []})
     return out
 
 
@@ -128,7 +157,7 @@ def _mn_manual_section(user: dict, msg: str) -> str:
     lines = []
     for _, a in best:
         link = f" · deep link: [[NAV:{a['route']}|{a['title']}]]" if a.get("route") and not a["route"].endswith("/") else ""
-        lines.append(f"- {a['title']} — PERCORSO: {a['path']}{link}\n  {a['body']}")
+        lines.append(f"- {a['title']} — PERCORSO: {a['path']}{link}\n  Cosa fa: {a.get('desc') or a['body']}\n  Come si usa: {a.get('how') or ''}")
     return (
         "\n\n🗺️ MAPPA DELL'APP (Manuale ufficiale — articoli pertinenti alla domanda):\n" + "\n".join(lines) +
         "\nREGOLA OBBLIGATORIA: quando rispondi su una funzione dell'app indica SEMPRE (1) il PERCORSO di navigazione esatto "
@@ -145,17 +174,24 @@ def _mn_nav_fallback(user: dict, msg: str, reply: str) -> str:
     """V50.z555 — Rete di sicurezza deterministica: se la domanda è un «come/dove» sull'app e il modello ha omesso il chip
     [[NAV:…]], restituisce il chip dell'articolo più pertinente (score ≥ 3 e route apribile) da accodare alla risposta.
     Stringa vuota se non pertinente, se il chip c'è già o se la risposta è un messaggio di errore/offline."""
-    if not msg or not reply or "[[NAV:" in reply or _MN_ERR_REPLY_RE.match(reply.strip()) or not _MN_HOWTO_RE.search(msg):
+    if not msg or not reply or _MN_ERR_REPLY_RE.match(reply.strip()) or not _MN_HOWTO_RE.search(msg):
+        return ""
+    has_chip = "[[NAV:" in reply
+    has_path = ("→" in reply) or ("Percorso" in reply)
+    if has_chip and has_path:
         return ""
     role = _faq_role_of(user)  # noqa: F821
     best = manual_search(msg, [a for a in _ARTICLES if _mn_visible(a, role)], 1)
     if not best or best[0][0] < 3.0:
         return ""
     a = best[0][1]
-    if not a.get("route") or a["route"].endswith("/"):
-        return ""
-    logger.info("[manual] chip fallback → %s (%s)", a["title"][:30], a["route"])
-    return f"\n\n[[NAV:{a['route']}|Apri: {a['title']}]]"
+    out = ""
+    if not has_path and a.get("path"):
+        out += f"\n\n📍 Percorso: {a['path']}"  # V50.z561 — il percorso di menu c'è SEMPRE, anche nelle risposte rapide/cache
+    if not has_chip and a.get("route") and not a["route"].endswith("/"):
+        logger.info("[manual] chip fallback → %s (%s)", a["title"][:30], a["route"])
+        out += f"\n\n[[NAV:{a['route']}|Apri: {a['title']}]]"
+    return out
 
 
 # V50.z555 — Intento «navigate» anche per le domande how-to in forma libera («Spiegami dove registro una nota vocale…»): la regex

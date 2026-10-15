@@ -793,6 +793,12 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
             yield sse("progress", {"stage": "cache", "text": "Controllo se ho già risposto a qualcosa di simile…"})
             cached = await _semantic_cache_lookup(msg, tenant=_tenant_val, product=_axon_cache_product(user))  # noqa: F821 — V50.z327
             if cached:
+                _mn_fb = globals().get("_mn_nav_fallback")  # V50.z561 — percorso + chip anche sulle risposte in cache
+                if _mn_fb:
+                    try:
+                        cached["reply"] = (cached.get("reply") or "") + _mn_fb(user, msg, cached.get("reply") or "")
+                    except Exception:  # noqa: BLE001
+                        pass
                 # Persist both messages
                 now = utcnow()
                 cached_message_id = uuid.uuid4().hex[:16]

@@ -77,6 +77,7 @@ export const ROUTE_CATEGORY: Record<string, MenuCategoryKey> = {
   "/(tabs)/impostazioni": "admin",
   "/bug-report":          "admin",
   "/help-center-admin":   "admin",
+  "/admin/app-map":       "admin", // V50.z561 — Mappa completa dell'app
   "/scanner":             "admin",
 };
 

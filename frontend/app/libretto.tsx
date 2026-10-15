@@ -491,6 +491,7 @@ export default function LibrettoScreen() {
 }
 
 function SectionCard({ section, highlightId }: { section: LibrettoSection; highlightId?: string }) {
+  const router = useRouter(); // V50.z561 — link diretti
   const imgSrc = resolveSectionImage(section);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   return (
@@ -577,6 +578,17 @@ function SectionCard({ section, highlightId }: { section: LibrettoSection; highl
                   <Text style={styles.faqQ}>{f.q}</Text>
                 </View>
                 {openFaq === i ? <Text style={styles.faqA}>{f.a}</Text> : null}
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+        {/* V50.z561 — Link diretti della sezione (Manuale d'uso, Mappa dell'app) */}
+        {section.links?.length ? (
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+            {section.links.map((l, i) => (
+              <Pressable key={i} onPress={() => router.push(l.href as any)} style={[styles.linkBtn, { borderColor: section.color }]} testID={`libretto-link-${section.id}-${i}`}>
+                <Ionicons name={(l.icon as any) || "open-outline"} size={15} color={section.color} />
+                <Text style={[styles.linkBtnTxt, { color: section.color }]}>{l.label}</Text>
               </Pressable>
             ))}
           </View>
@@ -768,6 +780,8 @@ const styles = StyleSheet.create({
   indexTxt: { color: HT.text, fontSize: 12, fontWeight: "700", maxWidth: 190, flexShrink: 1 },
   faqWrap: { marginTop: 12, backgroundColor: "rgba(15,36,56,0.05)", borderRadius: 12, padding: 10, gap: 4 },
   faqTitle: { fontSize: 13, fontWeight: "800", color: HT.text, marginBottom: 4 },
+  linkBtn: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1.5, backgroundColor: HT.card },
+  linkBtnTxt: { fontSize: 13, fontWeight: "800" },
   faqItem: { paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: HT.border, minHeight: 40, justifyContent: "center" },
   faqQ: { flex: 1, fontSize: 13.5, fontWeight: "700", color: HT.text },
   faqA: { fontSize: 13, lineHeight: 19, color: HT.text2, marginTop: 6, marginLeft: 24 },

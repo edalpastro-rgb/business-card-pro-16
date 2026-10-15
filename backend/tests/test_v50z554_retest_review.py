@@ -52,6 +52,8 @@ def test_review_howto_chip_and_not_offline(session, msg, manual_routes):
     chips = NAV_RE.findall(reply)
     assert chips, f"No NAV chip for '{msg}'. Reply: {reply[:300]}"
     for route, _label in chips:
+        if route.startswith("/libretto?section=") or route.startswith("/faq?id="):
+            continue  # V50.z561 — deep link legittimi del Libretto/FAQ
         assert route in manual_routes, f"Invented route {route} for '{msg}'"
 
 

@@ -9,7 +9,7 @@ import { api } from "@/src/api";
 import { HT } from "@/src/homeTheme";
 import { resolveNavRoute } from "@/src/navRoutes";
 
-export type ManualArticle = { id: string; kind: "manual" | "faq"; title: string; path: string; route: string | null; category: string; body: string; score?: number };
+export type ManualArticle = { id: string; kind: "manual" | "faq"; title: string; path: string; route: string | null; category: string; body: string; desc?: string; how?: string; score?: number };
 
 export function ManualBrowser({ autoFocus, initialQuery }: { autoFocus?: boolean; initialQuery?: string }) {
   const router = useRouter();
@@ -54,7 +54,15 @@ export function ManualBrowser({ autoFocus, initialQuery }: { autoFocus?: boolean
         <Text style={s.path} numberOfLines={2}>📍 {a.path}</Text>
         {expanded ? (
           <>
-            <Text style={s.body}>{a.body}</Text>
+            {a.kind === "manual" && a.how ? (
+              <>
+                <Text style={s.body}>{a.desc || a.body}</Text>
+                <Text style={s.howLabel}>Come si usa</Text>
+                <Text style={s.body} testID={`manual-how-${a.id}`}>{a.how}</Text>
+              </>
+            ) : (
+              <Text style={s.body}>{a.body}</Text>
+            )}
             {canOpen ? (
               <Pressable onPress={() => open(a)} style={s.openBtn} testID={`manual-open-${a.id}`}>
                 <Ionicons name="open-outline" size={15} color={HT.bg} /><Text style={s.openTxt}>Apri {a.route}</Text>
@@ -108,6 +116,7 @@ const s = StyleSheet.create({
   title: { flex: 1, color: HT.text, fontWeight: "900", fontSize: 15 },
   path: { color: HT.brand, fontSize: 12.5, fontWeight: "700" },
   body: { color: HT.text2, fontSize: 14, lineHeight: 20, marginTop: 2 },
+  howLabel: { color: HT.brand, fontSize: 12, fontWeight: "800", marginTop: 8, textTransform: "uppercase", letterSpacing: 0.4 },
   openBtn: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: HT.brand, borderRadius: 999, paddingHorizontal: 14, minHeight: 40, marginTop: 4 },
   openTxt: { color: HT.bg, fontWeight: "900", fontSize: 13 },
 });

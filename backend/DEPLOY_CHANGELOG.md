@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-15 | D2026.10.15-1904 | V50.z561 — Manuale d'uso completo (nome · descrizione · come si usa · link, 181 voci), Mappa completa dell'app (admin /admin/app-map), sezione Libretto «Manuale d'uso», Axon con «Cosa fa / Come si usa» + percorso sempre presente; include z558-z560 |
 | 2026-10-15 | D2026.10.15-1432 | V50.z560 — Deploy verificabile: /api/health espone version/boot_id/started_at, log [boot] Google Drive route registrate/MANCANTI, upgrade_vps.sh confronta tag pacchetto vs versione in esecuzione e forza --force-recreate; include z558/z559 (frequenza Drive, Indice Axon reale, OCR worker blindato) |
 | 2026-10-15 | D2026.10.15-1423 | V50.z559 — OCR Drive: worker PDF blindato (stdout spurio → stderr, JSON sul fd originale) + bridge che recupera il JSON e riporta stdout/stderr nell'errore; include z558 (endpoint /google-drive/refresh-frequency GET/PUT, contatore Indice Axon, Aggiorna ora) |
 | 2026-10-15 | D2026.10.15-1408 | V50.z558 (ri-pacchettizzato) — Google Drive: endpoint GET/PUT /google-drive/refresh-frequency (frequenza ora/giorno/settimana/mese/manuale) + contatore Indice Axon reale + Aggiorna ora. Il VPS era rimasto a D2026.10.15-1320 (z557): questo pacchetto contiene gli endpoint che la web app z558 già chiama. |
