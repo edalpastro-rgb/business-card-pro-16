@@ -83,6 +83,19 @@ fi
 # 2) Rebuild + restart del solo container backend (MongoDB e nginx restano su)
 rebuild_and_wait
 
+# V50.z560 — VERIFICA: la versione che il backend DICHIARA di eseguire (GET /api/health → version) deve coincidere con il tag del pacchetto
+PKG_TAG="$(sed -n 's/.*tag=\([^ ]*\).*/\1/p' backend/PKG_VERSION 2>/dev/null | head -1)"
+RUN_TAG="$(curl -sk https://localhost/api/health 2>/dev/null | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p')"
+echo "→ versione pacchetto: ${PKG_TAG:-?} · versione in esecuzione: ${RUN_TAG:-?}"
+if [[ -n "$PKG_TAG" && "$RUN_TAG" != "$PKG_TAG" ]]; then
+  echo "✘ ATTENZIONE: il container esegue ancora codice vecchio. Forzo la ricreazione del container…"
+  docker compose up -d --build --force-recreate axon-core
+  sleep 8
+  RUN_TAG="$(curl -sk https://localhost/api/health 2>/dev/null | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p')"
+  echo "→ versione in esecuzione dopo la ricreazione: ${RUN_TAG:-?}"
+fi
+docker compose logs --since 3m axon-core 2>/dev/null | grep -E "\[boot\] Google Drive" | tail -n 2 | cut -c1-220 | sed 's/^/    /' || true
+
 # 3) Web (SPA Expo) — install_web_on_vps.sh mantiene il dominio già configurato e ricrea solo nginx
 bash "$TMP/axon-web-pkg/install_web_on_vps.sh"
 

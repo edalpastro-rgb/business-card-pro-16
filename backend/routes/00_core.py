@@ -79,7 +79,20 @@ async def _root_health():
 
 @api_router.get("/health")
 async def _api_health():
-    return {"status": "ok"}
+    # V50.z560 — oltre a «ok» espone versione del backend in esecuzione (tag deploy sul VPS), boot_id e numero di route:
+    # verifica immediata dopo un deploy, senza login: curl -s https://core.axonos.cloud/api/health
+    out = {"status": "ok", "routes": len(app.routes)}
+    try:
+        _cl = globals().get("_axs_changelog")
+        if _cl:
+            out["version"] = (_cl() or {}).get("version")
+        out["boot_id"] = globals().get("_AXS_BOOT_ID")
+        _st = globals().get("_AXS_STARTED_AT")
+        if _st:
+            out["started_at"] = _st.isoformat()
+    except Exception:  # noqa: BLE001
+        pass
+    return out
 
 
 # V29.b — Defensive safety net: se per qualche misconfig di ingress il redirect

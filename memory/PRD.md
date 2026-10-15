@@ -14,6 +14,14 @@ Quando l'utente scrive «Neo, leggi i prompt in coda» (o simili), esegui SUBITO
 `python3 /app/scripts/neo_queue.py list` → `show #N` → esegui il task → `done #N "nota"` (o `reject #N "motivo"`, `read #N`).
 I prompt sono salvati da Axon in `master_files` con `category: "neo_prompts"`, `neo_status: pending|read|done|rejected`, `neo_seq`, `neo_note`. Axon mostra lo stato all'utente con «stato prompt Neo».
 
+## V50.z560 (Giu 2026) — Deploy verificabile (il 404 della frequenza Drive era un deploy NON applicato)
+- Diagnosi: prod `/axon/system/status` → version D2026.10.15-1320, started 11:24 UTC, mai riavviato: i comandi manuali `tar xzf … && docker compose up -d --build` estraggono in `axon-core-pkg/` (NON in `backend/`, il build context) → immagine identica → container non ricreato. Il percorso corretto è `upgrade_vps.sh` (rsync in `backend/` + rebuild).
+- `GET /api/health` (00_core) ora espone `version`, `boot_id`, `started_at`, `routes` → verifica senza login.
+- 34: `@app.on_event("startup")` logga `[boot] Google Drive: route registrate ✔ …` oppure ERROR `route MANCANTI` (codice vecchio).
+- `upgrade_vps.sh`: dopo il rebuild confronta `tag` di `backend/PKG_VERSION` con `version` di /api/health; se diversi → `docker compose up -d --build --force-recreate axon-core`; stampa le righe `[boot] Google Drive`.
+- Pacchetto D2026.10.15-1432.
+
+
 ## V50.z559 (Giu 2026) — OCR Drive nel container VPS: worker PDF blindato
 - Prod (D2026.10.15-1320) loggava «[drive-reindex] OCR … failed: worker pdf_render_pages output non valido: Expecting value: line 1 column 1» → qualcosa scriveva su stdout PRIMA del JSON del worker (banner/warning di librerie native nel container) → ogni PDF scansionato falliva → «0 file letti».
 - `workers/heavy_worker.py`: `os.dup2(2,1)` + `sys.stdout=sys.stderr` per tutta l'elaborazione; il JSON finale va sul fd stdout originale (`os.dup(1)`).

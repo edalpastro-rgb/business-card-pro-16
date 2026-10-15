@@ -903,6 +903,18 @@ async def google_drive_refresh_frequency_set(body: DriveRefreshFrequencyIn, user
     return {"ok": True, "frequency": freq}
 
 
+@app.on_event("startup")
+async def _gd_freq_route_boot_check() -> None:
+    """V50.z560 — Log di conferma all'avvio: la route della frequenza Drive è registrata nell'app FastAPI?
+    Se manca, è ERROR (ben visibile in `docker compose logs axon-core`): significa che il container esegue codice vecchio."""
+    paths = {getattr(r, "path", "") for r in app.routes}
+    missing = [p for p in ("/api/google-drive/refresh-frequency", "/api/google-drive/reindex/status", "/api/google-drive/reindex") if p not in paths]
+    if missing:
+        logger.error("[boot] Google Drive: route MANCANTI %s (route totali: %d) → il backend esegue codice vecchio, rifare il deploy", missing, len(paths))
+    else:
+        logger.info("[boot] Google Drive: route registrate ✔ GET/PUT /api/google-drive/refresh-frequency · /reindex · /reindex/status (route totali: %d)", len(paths))
+
+
 # V50.z89 — Tavily Extract API (raccoglie il testo pulito di una URL specifica)
 class TavilyExtractIn(BaseModel):
     url: str = Field(min_length=8, max_length=2048)
