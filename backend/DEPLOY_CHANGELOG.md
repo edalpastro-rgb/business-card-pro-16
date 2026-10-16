@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-16 | D2026.10.16-1533 | V50.z571 — Fix deploy blue-green: nginx senza depends_on sul servizio legacy axon-core (errore «depends on undefined service»); pre-check docker compose config in upgrade_vps.sh con ripristino automatico del compose precedente; ROLLBACK=switch anche dal container legacy; test bloccante test_deploy_compose.py |
 | 2026-10-16 | D2026.10.16-1455 | V50.z570 — Deploy Blue-Green zero downtime: container axon-core-a/b, smoke gate dentro il container inattivo, switch atomico nginx (00-upstream.conf + reload), rollback = distruzione del nuovo container; ROLLBACK=switch |
 | 2026-10-16 | D2026.10.16-1318 | V50.z569 — Certificazione locale Super Impresa Suite 1026.pdf: riga spread 150-300k estratta; retrieval consegna i chunk completi pertinenti al prompt (core/drive_retrieval.search chunks + PASSAGGI PERTINENTI in 20) |
 | 2026-10-16 | D2026.10.16-1200 | V50.z568 — Post-incidente 11:22: rimosso il reindex Drive all'avvio; reindex completo solo nel job notturno 03:30 a bassa priorità (un file alla volta con pausa, embedding 1 thread, nice 10, OCR Vision opzionale); regola zero riassunti automatici (idle-summary spento di default); smoke gate con guardia anti-perdita route |

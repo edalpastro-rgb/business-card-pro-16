@@ -1,6 +1,8 @@
 # docker-compose.yml — Axon Core su VPS (80.211.27.80)
-# Servizi: axon-core (FastAPI :8001, solo rete interna) · mongodb (volume persistente) · nginx (reverse proxy HTTPS :443, HTTP :80 → redirect + ACME)
-# Avvio: `docker compose up -d --build`   ·   Log: `docker compose logs -f axon-core`
+# Servizi: axon-core-a / axon-core-b (FastAPI :8001, blue-green, solo rete interna) · mongodb (volume persistente) · clamav ·
+#          nginx (reverse proxy HTTPS :443, HTTP :80 → redirect + ACME; upstream attivo in nginx/conf.d/00-upstream.conf)
+# Avvio: `docker compose up -d --build mongodb clamav axon-core-a nginx`   ·   Deploy/aggiornamento: `bash upgrade_vps.sh` (mai `up -d` di entrambi i colori)
+# Log: `docker compose logs -f axon-core-a` (o -b: vedi 00-upstream.conf per il colore attivo)
 
 name: axon-core
 
@@ -116,8 +118,9 @@ services:
       - ./nginx/www:/var/www/certbot                # ACME http-01 challenge
       - ./web:/usr/share/nginx/html:ro               # AdvisorOS web (export Expo) — link pubblici /wake-training, /public-review, desktop
       - /var/www/italianbrain:/var/www/italianbrain:ro   # V50.z538 — landing italianbrain.it (HTTPS, stesso certificato SAN)
-    depends_on:
-      - axon-core
+    # V50.z571 — NESSUN depends_on sul backend: in blue-green il container attivo cambia (axon-core-a|b) e nginx deve partire
+    # indipendentemente dal colore (un depends_on su entrambi li avvierebbe tutti e due = 4 GB). L'upstream attivo è deciso da
+    # nginx/conf.d/00-upstream.conf (upgrade_vps.sh); al reboot `restart: unless-stopped` riprova finché il backend è risolvibile.
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/nginx-health"]
       interval: 30s

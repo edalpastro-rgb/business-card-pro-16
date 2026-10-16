@@ -121,11 +121,19 @@ if [[ -n "${DIAG:-}" ]]; then diag; exit 0; fi
 
 # ── E) V50.z570 — ROLLBACK=switch: torna istantaneamente al container precedente (fermato dopo l'ultimo switch) ──────────
 if [[ "${ROLLBACK:-}" == "switch" ]]; then
-  CUR="$(active_color)"; PREV="axon-core-$(inactive_color "$CUR")"
+  CUR="$(active_color)"
+  if [[ "$CUR" == "legacy" ]]; then   # V50.z571 — dal container pre-blue-green si torna al colore che esiste (fermato), non a un `a` inventato
+    PREV="$(docker ps -a --format '{{.Names}}' | grep -xE 'axon-core-[ab]' | head -1)"
+    [[ -n "$PREV" ]] || { echo "ERRORE: nessun container axon-core-a/b disponibile per lo switch (attivo: axon-core legacy)"; exit 1; }
+  else
+    PREV="axon-core-$(inactive_color "$CUR")"
+  fi
   docker start "$PREV" >/dev/null 2>&1 || { echo "ERRORE: container $PREV non disponibile"; exit 1; }
   for i in $(seq 1 30); do svc_health "$PREV" | grep -q '"status": *"ok"' && break; sleep 2; done
   write_upstream "$PREV" && echo "✔ nginx riportato su $PREV (versione: $(svc_health "$PREV" | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p'))"
-  sleep 20; docker stop "axon-core-$CUR" >/dev/null 2>&1 || true; exit 0
+  sleep 20
+  case "$CUR" in a|b) docker stop "axon-core-$CUR" >/dev/null 2>&1 || true;; legacy) docker stop axon-core >/dev/null 2>&1 || true;; esac
+  exit 0
 fi
 
 # ── C) ROLLBACK ────────────────────────────────────────────────────────────────
@@ -166,8 +174,16 @@ echo "→ backend aggiornato"
 if [[ -f "$TMP/axon-core-pkg/docker-compose.yml" ]] && ! cmp -s "$TMP/axon-core-pkg/docker-compose.yml" docker-compose.yml; then
   cp docker-compose.yml "docker-compose.backup-$STAMP.yml" && cp "$TMP/axon-core-pkg/docker-compose.yml" docker-compose.yml
   echo "→ docker-compose.yml aggiornato (backup: docker-compose.backup-$STAMP.yml)"
+  # V50.z571 — PRE-CHECK: se il nuovo compose non è valido (es. depends_on su un servizio inesistente) lo si scopre QUI, con il
+  # vecchio file ripristinato e la produzione intatta, invece di un errore criptico dentro deploy_blue_green.
+  if ! COMPOSE_ERR="$(docker compose config -q 2>&1)"; then
+    echo "✘ docker-compose.yml del pacchetto NON valido: $COMPOSE_ERR"
+    cp "docker-compose.backup-$STAMP.yml" docker-compose.yml
+    echo "   → ripristinato il compose precedente; nessun container toccato. Correggi il pacchetto e rilancia."; exit 1
+  fi
   docker compose up -d clamav 2>/dev/null && echo "→ antivirus ClamAV avviato (prime firme: 2-5 min; stato: GET /api/admin/upload-guard/status)" || true
 fi
+docker compose config -q >/dev/null 2>&1 || { echo "✘ docker-compose.yml non valido: $(docker compose config -q 2>&1 | head -2)"; exit 1; }
 
 # 2) BLUE-GREEN: nuovo pacchetto nel container inattivo → smoke gate interno → switch nginx atomico (zero downtime)
 if [[ "${SKIP_SMOKE_GATE:-}" == "1" ]]; then echo "⚠ SKIP_SMOKE_GATE non è più supportato: il gate blue-green è sempre attivo (regola V50.z564)."; fi
