@@ -56,6 +56,9 @@ def check_health():
     if h.get("core_integrity") is False:
         FAILS.append("core_integrity=false: namespace protetto RIDEFINITO")
     print(f"  health: version={h.get('version')} core_integrity={h.get('core_integrity')} routes={h.get('routes')}")
+    prev_routes = int(os.environ.get("PREV_ROUTES") or 0)  # V50.z568 — regressione route: il nuovo pacchetto non può esporre MENO endpoint del precedente
+    if prev_routes and int(h.get("routes") or 0) < prev_routes:
+        FAILS.append(f"route API {h.get('routes')} < {prev_routes} della versione precedente: endpoint persi nel pacchetto")
 
 
 def stream_probe(token, msg):

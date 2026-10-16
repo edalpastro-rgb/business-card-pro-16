@@ -52,6 +52,22 @@ def test_drive_download_uses_structured_parser_and_ocr_guard():
     assert "max_pages: int = _ADR_OCR_PAGES" in s
 
 
+def test_no_heavy_drive_work_at_boot_and_low_priority_reindex():
+    """V50.z568 — incidente 11:22: il reindex completo NON parte mai all'avvio; gira solo nel job notturno, un file alla volta con pausa,
+    embedding a 1 thread, sottoprocessi nice(10), OCR Vision opzionale; riassunti automatici SPENTI di default."""
+    adr = _src("routes/axon_drive_root.py")
+    assert "_adr_reindex_on_parser_upgrade" not in adr and "@app.on_event(\"startup\")" not in adr
+    assert "async def _run_drive_parser_upgrade_nightly" in adr and "_ADR_OCR_TABLES and" in adr
+    sched = _src("routes/37_app_startup_scheduler.py")
+    assert '_run_drive_parser_upgrade_nightly, "cron", hour=3' in sched
+    assert 'await asyncio.sleep(float(os.environ.get("DRIVE_REINDEX_PAUSE_S") or 2.0))' in _src("routes/34_alarms_homeassistant.py")
+    assert 'int(os.environ.get("AXON_EMBED_THREADS") or 1)' in _src("core/embedding.py")
+    assert _src("routes/01b_heavy_bridge.py").count("preexec_fn=_hv_low_priority") == 2
+    assert '@api_router.get("/google-drive/root-files")' in adr, "endpoint perso durante il refactor (già successo in z568)"
+    idle = _src("routes/axon_idle_summary.py")
+    assert 'AXON_IDLE_SUMMARY_ENABLED") or "0"' in idle
+
+
 def test_timestamp_has_exact_weekday_in_rome():
     """venerdì 16/10/2026 09:55 — mai «giovedì»: giorno della settimana calcolato dal datetime in Europe/Rome."""
     ns = {}

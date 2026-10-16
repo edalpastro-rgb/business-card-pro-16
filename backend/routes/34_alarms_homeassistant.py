@@ -765,6 +765,9 @@ async def _reindex_drive_files_for_user(user_id: str, max_files: int = 300) -> D
                     stats["semantic_chunks"] = stats.get("semantic_chunks", 0) + int(_n_chunks or 0)
                 except Exception as _ce:  # noqa: BLE001
                     logger.warning(f"[drive-reindex] indice semantico {fid}: {_ce}")
+                # V50.z568 — BASSA PRIORITÀ: un file alla volta con pausa (DRIVE_REINDEX_PAUSE_S, default 2 s) così CPU ed executor
+                # restano liberi per chat/STT (incidente 11:22: reindex di 129 file al boot → loop stall → 502)
+                await asyncio.sleep(float(os.environ.get("DRIVE_REINDEX_PAUSE_S") or 2.0))
             except Exception as e:
                 stats["failed"] += 1
                 logger.debug(f"[drive-reindex] {fid} failed: {e}")

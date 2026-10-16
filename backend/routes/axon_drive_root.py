@@ -21,6 +21,7 @@ _ADR_MIME_SHORTCUT = "application/vnd.google-apps.shortcut"
 _ADR_WANT_MIMES = ("application/pdf", "application/json", "application/vnd.google-apps.document", "application/vnd.google-apps.spreadsheet")
 _ADR_OCR_MODEL = ("gemini", "gemini-3-flash-preview")
 _ADR_OCR_PAGES = 3
+_ADR_OCR_TABLES = (os.environ.get("DRIVE_OCR_TABLES") or "0").strip() in ("1", "true", "yes")  # V50.z568 — default OFF (costo CPU/LLM)
 
 
 def _adr_wanted(mt: str) -> bool:
@@ -175,7 +176,7 @@ def _drive_download_text(creds, f: Dict[str, Any]) -> str:  # noqa: F811
                 text = ""
         _low = (text or "").lower(); _nm = (f.get("name") or "").lower()
         _looks_pricelist = any(k in _low or k in _nm for k in ("kwh", "smc", "€/", "listino", "prezzo", "spread", "tariff", "offerta"))
-        _numbers_missing = pages > 0 and _digits / max(1, min(pages, 12)) < 15 and _looks_pricelist
+        _numbers_missing = _ADR_OCR_TABLES and pages > 0 and _digits / max(1, min(pages, 12)) < 15 and _looks_pricelist  # V50.z568 — OCR Vision sui listini OPZIONALE (DRIVE_OCR_TABLES=1)
         if len(text.strip()) < 40 or _numbers_missing:
             # OCR Vision (tabelle come righe markdown): PDF scansionato, oppure listino con etichette testuali ma numeri rasterizzati
             _ocr_txt = _adr_ocr_pdf_sync(data, f.get("name") or fid, max_pages=_ADR_OCR_PAGES if len(text.strip()) < 40 else 12)
@@ -199,13 +200,6 @@ DRIVE_PARSER_VERSION = "z567-tables"  # V50.z567 — bump = ri-parsing COMPLETO 
 
 
 async def _reindex_drive_files_for_user(user_id: str, max_files: int = 300) -> Dict[str, int]:  # noqa: F811
-    try:  # V50.z567 — parser aggiornato → invalida i modified_time così il reindex incrementale ri-parsa TUTTI i file (anche i 129 CORPORATE CLUB)
-        meta = await db.drive_index_meta.find_one({"user_id": user_id}, {"_id": 0, "parser_version": 1}) or {}
-        if meta.get("parser_version") != DRIVE_PARSER_VERSION:
-            r = await db.drive_snapshots.update_many({"user_id": user_id}, {"$set": {"modified_time": None}})
-            logger.info("[drive-reindex] parser %s → %s: %d snapshot invalidati per il ri-parsing completo (tenant %s)", meta.get("parser_version"), DRIVE_PARSER_VERSION, r.modified_count, user_id)
-    except Exception as e:  # noqa: BLE001
-        logger.warning("[drive-reindex] parser-version check failed: %s", e)
     stats = await _adr_prev_reindex(user_id, max_files)
     try:
         roots, _sf = await _drive_index_roots(user_id)
@@ -222,33 +216,30 @@ async def _reindex_drive_files_for_user(user_id: str, max_files: int = 300) -> D
     return stats
 
 
-@app.on_event("startup")  # noqa: F821
-async def _adr_reindex_on_parser_upgrade() -> None:
-    """V50.z567 — All'avvio: ogni tenant con Drive collegato il cui indice è stato costruito con un parser precedente viene
-    ri-indicizzato per intero in background (scaglionato di 20 s), così dopo il deploy i 129 file hanno tabelle e numeri."""
-    async def _go():
-        await _adr_asyncio.sleep(25)
+async def _run_drive_parser_upgrade_nightly() -> None:
+    """V50.z568 — JOB NOTTURNO A BASSA PRIORITÀ (03:30 Europe/Rome, registrato in 37): per ogni tenant con Drive collegato il cui
+    indice è stato costruito con un parser precedente, invalida i modified_time e ri-indicizza TUTTI i file UN TENANT ALLA VOLTA,
+    un file alla volta con pausa (DRIVE_REINDEX_PAUSE_S), embedding a 1 thread, sottoprocessi nice(10), OCR Vision solo se
+    DRIVE_OCR_TABLES=1. All'avvio del container NON parte più nessun processo pesante sui file Drive (incidente 11:22 → 502)."""
+    try:
+        tenants = [c["user_id"] async for c in db.google_drive_connections.find({}, {"_id": 0, "user_id": 1})]
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[drive-reindex] nightly: %s", e); return
+    n = 0
+    for uid in tenants:
+        meta = await db.drive_index_meta.find_one({"user_id": uid}, {"_id": 0, "parser_version": 1}) or {}
+        if meta.get("parser_version") == DRIVE_PARSER_VERSION or uid in _DRIVE_REINDEX_RUNNING:  # noqa: F821
+            continue
+        r = await db.drive_snapshots.update_many({"user_id": uid}, {"$set": {"modified_time": None}})
+        logger.info("[drive-reindex] nightly parser %s → %s: %d snapshot invalidati, reindex completo tenant %s", meta.get("parser_version"), DRIVE_PARSER_VERSION, r.modified_count, uid)
         try:
-            tenants = [c["user_id"] async for c in db.google_drive_connections.find({}, {"_id": 0, "user_id": 1})]
-            n = 0
-            for uid in tenants:
-                meta = await db.drive_index_meta.find_one({"user_id": uid}, {"_id": 0, "parser_version": 1}) or {}
-                if meta.get("parser_version") == DRIVE_PARSER_VERSION:
-                    continue
-                if n:
-                    await _adr_asyncio.sleep(20)
-                logger.info("[drive-reindex] parser upgrade → reindex completo tenant %s", uid)
-                _schedule_drive_reindex(uid, reason=f"parser-upgrade-{DRIVE_PARSER_VERSION}")  # noqa: F821
-                n += 1
-            if n:
-                axs_event("scheduler", "info", f"Drive: ri-indicizzazione completa avviata per {n} tenant (parser tabelle {DRIVE_PARSER_VERSION})")  # noqa: F821
+            stats = await _reindex_drive_files_for_user(uid)  # gestisce da sé _DRIVE_REINDEX_RUNNING; sequenziale, con pausa tra i file
+            logger.info("[drive-reindex] nightly tenant %s completato: %s", uid, stats)
         except Exception as e:  # noqa: BLE001
-            logger.warning("[drive-reindex] parser-upgrade boot failed: %s", e)
-    _adr_asyncio.create_task(_go())
-
-
-# V50.z565 — la sezione [ROOT FILES] del prompt è ora dentro `_fetch_teach_drive_pdfs_for_query` (20_axon_memory.py, snapshot leggeri):
-# il wrapper duplicato che rileggeva TUTTI i testi root da Mongo a ogni domanda è stato rimosso.
+            logger.warning("[drive-reindex] nightly tenant %s: %s", uid, e)
+        n += 1
+    if n:
+        axs_event("scheduler", "info", f"Drive: ri-indicizzazione notturna completata per {n} tenant (parser tabelle {DRIVE_PARSER_VERSION})")  # noqa: F821
 
 
 @api_router.get("/google-drive/root-files")

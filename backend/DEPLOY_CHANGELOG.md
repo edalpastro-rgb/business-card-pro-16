@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-16 | D2026.10.16-1200 | V50.z568 — Post-incidente 11:22: rimosso il reindex Drive all'avvio; reindex completo solo nel job notturno 03:30 a bassa priorità (un file alla volta con pausa, embedding 1 thread, nice 10, OCR Vision opzionale); regola zero riassunti automatici (idle-summary spento di default); smoke gate con guardia anti-perdita route |
 | 2026-10-16 | D2026.10.16-1004 | V50.z567 — Flush streaming token-per-token (rimosso buffering dati secchi, padding SSE); parser tabelle Drive strutturato (find_tables + righe, nessun taglio 8000, OCR numeri) con reindex completo automatico al boot (DRIVE_PARSER_VERSION); timestamp ancorato Europe/Rome con giorno della settimana esatto |
 | 2026-10-16 | D2026.10.16-0941 | V50.z566 — Smoke gate senza login (app solo Google OAuth → 422): header X-Smoke-Test-Secret da localhost → JWT interno iniettato dal server per SMOKE_EMAIL (core/smoke_auth.py); 4 classi simple/crm/drive/energy con rollback; prime cache GME all'avvio del container |
 | 2026-10-16 | D2026.10.16-0920 | V50.z565 — Preflight senza rete: PDF GME, link insegnati e Tavily scaricati SOLO da job in background (core/context_cache, Mongo), chat legge la cache <50 ms; Drive snapshot leggeri (metadati → ChromaDB → testo dei soli file scelti, wrapper root rimosso); smoke gate 4 domande una per classe (simple/crm/drive/energy) con rollback; Fair Usage Policy 5/min·120/h·7500/mese → 429 (core/fup_middleware) |

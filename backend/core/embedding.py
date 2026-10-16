@@ -39,7 +39,7 @@ class LocalEmbedder:
             tok.enable_truncation(EMBED_MAX_TOKENS)
             tok.enable_padding()
             opts = ort.SessionOptions()
-            opts.intra_op_num_threads = max(1, min(4, os.cpu_count() or 1))
+            opts.intra_op_num_threads = max(1, int(os.environ.get("AXON_EMBED_THREADS") or 1))  # V50.z568 — 1 thread: l'embedding non deve mai saturare la CPU (reindex Drive)
             self._session = ort.InferenceSession(os.path.join(self.model_dir, "model.onnx"), sess_options=opts, providers=["CPUExecutionProvider"])
             self._tok = tok
             _log.info("[core-embed] MiniLM-L6-v2 ONNX caricato da %s", self.model_dir)

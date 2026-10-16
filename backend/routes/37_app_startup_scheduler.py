@@ -298,6 +298,11 @@ async def _start_scheduler():
             _run_gme_nightly_job, "cron", hour=5, minute=30,
             id="gme-canonical-nightly", replace_existing=True,
         )
+        # V50.z568 — Reindex Drive completo (parser aggiornato) SOLO di notte, bassa priorità, un tenant/un file alla volta
+        _birthday_scheduler.add_job(
+            _run_drive_parser_upgrade_nightly, "cron", hour=3, minute=30,
+            id="drive-parser-upgrade-nightly", replace_existing=True, max_instances=1, coalesce=True,
+        )
         # V50.z24 — Auto-CRM scan tick (ogni minuto: valuta chi è in scadenza)
         _birthday_scheduler.add_job(
             _run_auto_crm_tick, "interval", minutes=1,

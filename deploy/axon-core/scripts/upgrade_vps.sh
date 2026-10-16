@@ -87,6 +87,8 @@ rebuild_and_wait
 
 # V50.z560 — VERIFICA: la versione che il backend DICHIARA di eseguire (GET /api/health → version) deve coincidere con il tag del pacchetto
 PKG_TAG="$(sed -n 's/.*tag=\([^ ]*\).*/\1/p' backend/PKG_VERSION 2>/dev/null | head -1)"
+# V50.z568 — numero di route API della versione in esecuzione PRIMA dell'upgrade: lo smoke gate fallisce se il nuovo ne espone di meno
+PREV_ROUTES="$(curl -sk -m 10 https://localhost/api/health 2>/dev/null | sed -n 's/.*"routes":[ ]*\([0-9]*\).*/\1/p' | head -1)"
 RUN_TAG="$(curl -sk https://localhost/api/health 2>/dev/null | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p')"
 echo "→ versione pacchetto: ${PKG_TAG:-?} · versione in esecuzione: ${RUN_TAG:-?}"
 if [[ -n "$PKG_TAG" && "$RUN_TAG" != "$PKG_TAG" ]]; then
@@ -111,7 +113,7 @@ if [[ -f "$SMOKE_SCRIPT" && "${SKIP_SMOKE_GATE:-0}" != "1" ]]; then
   cp -f "$SMOKE_SCRIPT" "$DEST/smoke_gate.py" 2>/dev/null || true
   _senv() { grep -m1 "^$1=" "$DEST/.env" 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'"; }
   sleep 5  # warm-up del modello/embedder
-  if BASE_URL="https://localhost" PKG_TAG="$PKG_TAG" SMOKE_EMAIL="$(_senv SMOKE_EMAIL)" SMOKE_TEST_SECRET="$(_senv SMOKE_TEST_SECRET)" \
+  if BASE_URL="https://localhost" PKG_TAG="$PKG_TAG" PREV_ROUTES="${PREV_ROUTES:-0}" SMOKE_EMAIL="$(_senv SMOKE_EMAIL)" SMOKE_TEST_SECRET="$(_senv SMOKE_TEST_SECRET)" \
      SMOKE_DRIVE_QUERY="$(_senv SMOKE_DRIVE_QUERY)" SMOKE_TTFT_MAX_S="${SMOKE_TTFT_MAX_S:-$(_senv SMOKE_TTFT_MAX_S)}" \
      python3 "$SMOKE_SCRIPT"; then
     docker image rm axon-core:prev >/dev/null 2>&1 || true

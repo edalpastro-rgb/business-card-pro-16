@@ -6,6 +6,7 @@
 #   Idempotente: una sessione già ridotta al solo riassunto (1 messaggio) non viene rielaborata finché l'utente non scrive altro.
 #   Il riassunto è visibile anche in GET /assistant/history (bolla «📝 Riassunto …») così l'utente capisce perché la chat è corta.
 #   Dipendenze (namespace condiviso): db, logger, _axn_scheduler (37), _axon_llm_chat (19), _get_assistant_name (19).
+import os as _sl_env
 from datetime import datetime as _is_dt, timezone as _is_tz, timedelta as _is_td
 
 AXON_IDLE_MINUTES = 30
@@ -123,6 +124,11 @@ async def assistant_history_compact(user=Depends(get_current_user)):  # noqa: F8
 
 @app.on_event("startup")  # noqa: F821
 async def _is_start():
+    # V50.z568 — REGOLA «ZERO RIASSUNTI AUTOMATICI»: il job è SPENTO salvo AXON_IDLE_SUMMARY_ENABLED=1 nel .env. Prima era sempre
+    # attivo nel codice e ogni deploy riaccendeva il riassunto dopo 30 min di pausa (la regola non sopravviveva ai rilasci).
+    if (_sl_env.environ.get("AXON_IDLE_SUMMARY_ENABLED") or "0").strip() not in ("1", "true", "yes"):
+        logger.info("[idle-summary] DISATTIVATO (regola zero riassunti automatici; AXON_IDLE_SUMMARY_ENABLED=1 per riattivarlo)")  # noqa: F821
+        return
     try:
         _axn_scheduler.add_job(_is_tick, "interval", minutes=5, id="idle-summary-tick", replace_existing=True, max_instances=1, coalesce=True)  # noqa: F821
         logger.info("[idle-summary] auto-summary dopo %d min di inattività attivo (tick 5 min, max %d token)", AXON_IDLE_MINUTES, AXON_IDLE_SUMMARY_MAX_TOKENS)  # noqa: F821
