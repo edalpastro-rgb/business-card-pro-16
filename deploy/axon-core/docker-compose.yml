@@ -4,6 +4,49 @@
 
 name: axon-core
 
+# ── V50.z570 — BLUE-GREEN: due container identici (axon-core-a / axon-core-b). Nginx punta SEMPRE a quello attivo tramite
+# nginx/conf.d/00-upstream.conf (generato da upgrade_vps.sh). Il deploy installa il nuovo pacchetto nel container INATTIVO,
+# lo smoke gate lo testa dall'interno (4 classi, TTFT < 2 s), poi nginx viene ricaricato (reload graceful, zero downtime)
+# sul nuovo container; se il gate fallisce il nuovo container viene distrutto e gli utenti restano su quello attivo.
+# Memoria: i due container coesistono solo per i minuti del deploy (il vecchio viene fermato dopo lo switch).
+x-axon-core: &axon-core
+  build:
+    context: ./backend            # la cartella backend/ di Core copiata sul VPS (con Dockerfile e .dockerignore dentro)
+    dockerfile: Dockerfile
+  restart: unless-stopped
+  env_file: .env
+  environment:
+    # MONGO_URL costruito dalle credenziali root del servizio mongodb (sovrascrive quello del .env se presente)
+    MONGO_URL: mongodb://${MONGO_ROOT_USER:-axon}:${MONGO_ROOT_PASSWORD}@mongodb:27017/${DB_NAME:-axon_core}?authSource=admin
+    DB_NAME: ${DB_NAME:-axon_core}
+    PORT: "8001"
+    # V50.z469 — Feature 15: antivirus ClamAV (servizio `clamav` qui sotto). CLAMAV_REQUIRED=1 → upload rifiutati se l'AV non risponde.
+    CLAMAV_HOST: clamav
+    CLAMAV_PORT: "3310"
+    CLAMAV_REQUIRED: ${CLAMAV_REQUIRED:-0}
+  volumes:
+    - core_uploads:/app/backend/uploads        # file locali (fallback quando Object Storage non è configurato)
+    - core_tmp:/tmp                            # temp ffmpeg / Whisper / ZIP export
+    - core_kb:/app/backend/data                # V50.z529 — ChromaDB: Knowledge Base personale (vettori per utente)
+  depends_on:
+    mongodb:
+      condition: service_healthy
+    clamav:
+      condition: service_started               # le firme si scaricano al primo avvio (~2-5 min): nel frattempo fail-open (log) salvo CLAMAV_REQUIRED=1
+  expose:
+    - "8001"
+  # Sblocca SOLO per debug locale (raggiungibile su http://IP:8001 senza HTTPS):
+  # ports:
+  #   - "8001:8001"
+  deploy:
+    resources:
+      limits:
+        memory: 2048m            # VPS 4 GB: ~2 GB a Core, ~0.9 GB a Mongo, ~1 GB a ClamAV (V50.z469), resto a nginx/OS
+  logging:
+    driver: json-file
+    options: { max-size: "20m", max-file: "5" }
+  networks: [axon]
+
 services:
   mongodb:
     image: mongo:7
@@ -25,45 +68,14 @@ services:
     networks: [axon]
     # Nessuna porta esposta all'esterno: MongoDB è raggiungibile solo da axon-core.
 
-  axon-core:
-    build:
-      context: ./backend            # la cartella backend/ di Core copiata sul VPS (con Dockerfile e .dockerignore dentro)
-      dockerfile: Dockerfile
-    image: axon-core:latest
-    container_name: axon-core
-    restart: unless-stopped
-    env_file: .env
-    environment:
-      # MONGO_URL costruito dalle credenziali root del servizio mongodb (sovrascrive quello del .env se presente)
-      MONGO_URL: mongodb://${MONGO_ROOT_USER:-axon}:${MONGO_ROOT_PASSWORD}@mongodb:27017/${DB_NAME:-axon_core}?authSource=admin
-      DB_NAME: ${DB_NAME:-axon_core}
-      PORT: "8001"
-      # V50.z469 — Feature 15: antivirus ClamAV (servizio `clamav` qui sotto). CLAMAV_REQUIRED=1 → upload rifiutati se l'AV non risponde.
-      CLAMAV_HOST: clamav
-      CLAMAV_PORT: "3310"
-      CLAMAV_REQUIRED: ${CLAMAV_REQUIRED:-0}
-    volumes:
-      - core_uploads:/app/backend/uploads        # file locali (fallback quando Object Storage non è configurato)
-      - core_tmp:/tmp                            # temp ffmpeg / Whisper / ZIP export
-      - core_kb:/app/backend/data                # V50.z529 — ChromaDB: Knowledge Base personale (vettori per utente)
-    depends_on:
-      mongodb:
-        condition: service_healthy
-      clamav:
-        condition: service_started               # le firme si scaricano al primo avvio (~2-5 min): nel frattempo fail-open (log) salvo CLAMAV_REQUIRED=1
-    expose:
-      - "8001"
-    # Sblocca SOLO per debug locale (raggiungibile su http://IP:8001 senza HTTPS):
-    # ports:
-    #   - "8001:8001"
-    deploy:
-      resources:
-        limits:
-          memory: 2048m            # VPS 4 GB: ~2 GB a Core, ~0.9 GB a Mongo, ~1 GB a ClamAV (V50.z469), resto a nginx/OS
-    logging:
-      driver: json-file
-      options: { max-size: "20m", max-file: "5" }
-    networks: [axon]
+  axon-core-a:
+    <<: *axon-core
+    image: axon-core:a
+    container_name: axon-core-a
+  axon-core-b:
+    <<: *axon-core
+    image: axon-core:b
+    container_name: axon-core-b
 
   # V50.z469 — Feature 15: antivirus ClamAV (clamd su TCP 3310, solo rete interna; firme aggiornate da freshclam ogni ora)
   clamav:

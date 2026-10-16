@@ -33,9 +33,18 @@ rm -rf "$DEST/web.old"; [[ -d "$DEST/web" ]] && mv "$DEST/web" "$DEST/web.old"
 mv "$DEST/web.new" "$DEST/web"
 echo "→ web copiato in $DEST/web ($(du -sh "$DEST/web" | cut -f1))"
 
-# 3) Riavvio nginx (solo nginx)
+# 3) nginx: V50.z570 — reload graceful (zero downtime) se il container è già su; recreate solo al primo avvio.
 cd "$DEST"
-docker compose up -d --force-recreate nginx
+if [[ ! -f "$DEST/nginx/conf.d/00-upstream.conf" ]]; then
+  # bootstrap blue-green: upstream verso il container attivo (legacy `axon-core` se ancora in esecuzione, altrimenti axon-core-a)
+  UP="axon-core-a"; docker ps --format '{{.Names}}' 2>/dev/null | grep -qx 'axon-core' && UP="axon-core"
+  printf '# generato da upgrade_vps.sh (blue-green) — container attivo\nupstream axon_core {\n    server %s:8001;\n    keepalive 32;\n}\n' "$UP" > "$DEST/nginx/conf.d/00-upstream.conf"
+fi
+if docker ps --format '{{.Names}}' 2>/dev/null | grep -qx 'axon-nginx' && docker compose exec -T nginx nginx -t >/dev/null 2>&1; then
+  docker compose exec -T nginx nginx -s reload && echo "→ nginx ricaricato (reload graceful, nessuna interruzione)"
+else
+  docker compose up -d --force-recreate nginx
+fi
 sleep 3
 echo "→ verifica:"
 curl -sk -o /dev/null -w "  https://$DOMAIN/            → %{http_code} (atteso 200)\n" "https://$DOMAIN/"

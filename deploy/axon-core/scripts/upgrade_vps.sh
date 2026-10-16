@@ -6,6 +6,9 @@
 #   C) ROLLBACK al backend di un backup precedente:      ROLLBACK=/opt/axon-core/backend-backup-YYYYMMDD-HHMMSS.tgz bash upgrade_vps.sh
 #      (ROLLBACK=list → elenca i backup disponibili; ROLLBACK=last → il backup più recente)
 #   D) solo diagnostica (nessuna modifica):              DIAG=1 bash upgrade_vps.sh
+#   E) V50.z570 — ritorno istantaneo al container precedente (blue-green): ROLLBACK=switch bash upgrade_vps.sh
+# V50.z570 — BLUE-GREEN ZERO DOWNTIME: il nuovo pacchetto parte nel container inattivo (axon-core-a|b), lo smoke gate lo testa
+# dall'interno, nginx fa lo switch atomico (reload graceful) solo se passa; altrimenti il nuovo container viene distrutto.
 # Cosa fa: sostituisce SOLO il codice in /opt/axon-core/backend (il file .env, nginx/conf.d con il dominio, certificati, volumi
 # MongoDB/uploads NON vengono toccati), ricostruisce il container axon-core, installa il web (install_web_on_vps.sh) e verifica.
 # Prima di ogni sostituzione salva backend-backup-<data>.tgz (ne conserva 5): è lo stato ESATTO del codice precedente.
@@ -15,30 +18,115 @@ cd "$DEST"
 test -f docker-compose.yml || { echo "ERRORE: $DEST/docker-compose.yml non trovato"; exit 1; }
 KEEP_BACKUPS="${KEEP_BACKUPS:-5}"
 
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# V50.z570 — BLUE-GREEN (zero downtime): due container identici axon-core-a / axon-core-b (docker-compose.yml, anchor x-axon-core).
+# nginx punta SEMPRE al container attivo tramite nginx/conf.d/00-upstream.conf. Il nuovo pacchetto viene costruito e avviato nel
+# container INATTIVO mentre gli utenti restano su quello attivo; lo smoke gate gira DENTRO il nuovo container (4 classi, TTFT < 2 s,
+# integrità core, route ≥ precedenti); se passa → switch atomico dell'upstream con `nginx -s reload` (graceful) e stop del vecchio;
+# se fallisce → il nuovo container viene distrutto, nessuno se ne accorge. Nessun flag di skip. Boot leggero e reindex notturno invariati.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+UPSTREAM_FILE="$DEST/nginx/conf.d/00-upstream.conf"
+
+active_color() {   # a | b | legacy (container `axon-core` pre-blue-green) | none
+  local up; up="$(sed -n 's/.*server \(axon-core[-a-z]*\):8001.*/\1/p' "$UPSTREAM_FILE" 2>/dev/null | head -1)"
+  case "$up" in axon-core-a) echo a;; axon-core-b) echo b;; axon-core) echo legacy;;
+    *) if docker ps --format '{{.Names}}' | grep -qx 'axon-core-a'; then echo a; elif docker ps --format '{{.Names}}' | grep -qx 'axon-core-b'; then echo b;
+       elif docker ps --format '{{.Names}}' | grep -qx 'axon-core'; then echo legacy; else echo none; fi;; esac
+}
+inactive_color() { case "$1" in a) echo b;; b) echo a;; *) echo a;; esac; }
+svc_health() {    # health JSON letto DENTRO il container (il container inattivo non è raggiungibile da nginx)
+  docker compose exec -T "$1" python3 -c 'import urllib.request,sys; print(urllib.request.urlopen("http://127.0.0.1:8001/api/health",timeout=8).read().decode())' 2>/dev/null
+}
+write_upstream() {  # switch ATOMICO: file temporaneo + mv, poi nginx -t e reload graceful (le connessioni in corso finiscono sul vecchio worker)
+  printf '# generato da upgrade_vps.sh (blue-green) — container attivo: %s\nupstream axon_core {\n    server %s:8001;\n    keepalive 32;\n}\n' "$1" "$1" > "$UPSTREAM_FILE.tmp"
+  mv -f "$UPSTREAM_FILE.tmp" "$UPSTREAM_FILE"
+  if docker ps --format '{{.Names}}' | grep -qx 'axon-nginx'; then
+    docker compose exec -T nginx nginx -t >/dev/null 2>&1 || { echo "✘ nginx -t fallito dopo lo switch: ripristino"; return 1; }
+    docker compose exec -T nginx nginx -s reload
+  else
+    docker compose up -d nginx
+  fi
+}
+
+deploy_blue_green() {   # usa $DEST/backend (già aggiornato) → container inattivo → smoke gate → switch → stop del vecchio
+  local ACTIVE NEW NEW_SVC OLD_NAME
+  ACTIVE="$(active_color)"; NEW="$(inactive_color "$ACTIVE")"; NEW_SVC="axon-core-$NEW"
+  case "$ACTIVE" in a|b) OLD_NAME="axon-core-$ACTIVE";; legacy) OLD_NAME="axon-core";; *) OLD_NAME="";; esac
+  # migrazione dal conf legacy: l'upstream inline in axon-core.conf va rimosso (altrimenti nginx -t: upstream duplicato)
+  if grep -q '^upstream axon_core {' "$DEST/nginx/conf.d/axon-core.conf" 2>/dev/null; then
+    sed -i '/^upstream axon_core {/,/^}/d' "$DEST/nginx/conf.d/axon-core.conf" && echo "→ nginx: upstream spostato in 00-upstream.conf (blue-green)"
+  fi
+  [[ -f "$UPSTREAM_FILE" ]] || write_upstream "${OLD_NAME:-$NEW_SVC}" || true
+  echo "→ BLUE-GREEN: attivo=${OLD_NAME:-nessuno} · nuovo=$NEW_SVC"
+  PREV_ROUTES="$(curl -sk -m 10 https://localhost/api/health 2>/dev/null | sed -n 's/.*"routes":[ ]*\([0-9]*\).*/\1/p' | head -1)"
+  PKG_TAG="$(sed -n 's/.*tag=\([^ ]*\).*/\1/p' backend/PKG_VERSION 2>/dev/null | head -1)"
+
+  docker compose rm -sf "$NEW_SVC" >/dev/null 2>&1 || true
+  echo "→ build + avvio di $NEW_SVC in background (gli utenti restano su ${OLD_NAME:-—})…"
+  docker compose up -d --build --no-deps "$NEW_SVC"
+  for i in $(seq 1 60); do
+    if svc_health "$NEW_SVC" | grep -q '"status": *"ok"'; then echo "→ $NEW_SVC OK (health 200)"; break; fi
+    sleep 3
+    [[ $i -eq 60 ]] && { echo "✘ $NEW_SVC non risponde: lo distruggo, utenti non toccati."; docker compose logs --tail=60 "$NEW_SVC"; docker compose rm -sf "$NEW_SVC" >/dev/null 2>&1; exit 1; }
+  done
+  RUN_TAG="$(svc_health "$NEW_SVC" | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p')"
+  echo "→ versione pacchetto: ${PKG_TAG:-?} · versione nel nuovo container: ${RUN_TAG:-?}"
+  if [[ -n "$PKG_TAG" && "$RUN_TAG" != "$PKG_TAG" ]]; then echo "✘ il nuovo container non esegue il pacchetto atteso: distrutto."; docker compose rm -sf "$NEW_SVC" >/dev/null 2>&1; exit 1; fi
+  docker compose logs --since 3m "$NEW_SVC" 2>/dev/null | grep -E "\[boot\] Google Drive|\[boot\] core|core-integrity" | tail -n 4 | cut -c1-220 | sed 's/^/    /' || true
+
+  # SMOKE GATE DENTRO IL NUOVO CONTAINER (localhost → core/smoke_auth.py inietta il JWT interno per SMOKE_EMAIL; nessun login/OAuth)
+  SMOKE_SCRIPT="$TMP/axon-core-pkg/smoke_gate.py"; [[ -f "$SMOKE_SCRIPT" ]] || SMOKE_SCRIPT="$DEST/smoke_gate.py"
+  cp -f "$SMOKE_SCRIPT" "$DEST/smoke_gate.py" 2>/dev/null || true
+  _senv() { grep -m1 "^$1=" "$DEST/.env" 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'"; }
+  docker cp "$SMOKE_SCRIPT" "$NEW_SVC:/tmp/smoke_gate.py"
+  sleep 5  # warm-up embedder/modello
+  if docker compose exec -T -e BASE_URL="http://127.0.0.1:8001" -e PKG_TAG="$PKG_TAG" -e PREV_ROUTES="${PREV_ROUTES:-0}" \
+       -e SMOKE_EMAIL="$(_senv SMOKE_EMAIL)" -e SMOKE_TEST_SECRET="$(_senv SMOKE_TEST_SECRET)" -e SMOKE_DRIVE_QUERY="$(_senv SMOKE_DRIVE_QUERY)" \
+       -e SMOKE_TTFT_MAX_S="${SMOKE_TTFT_MAX_S:-$(_senv SMOKE_TTFT_MAX_S)}" "$NEW_SVC" python3 /tmp/smoke_gate.py; then
+    echo "✔ SMOKE GATE OK su $NEW_SVC → switch atomico di nginx"
+    write_upstream "$NEW_SVC" || { write_upstream "${OLD_NAME:-$NEW_SVC}"; docker compose rm -sf "$NEW_SVC" >/dev/null 2>&1; exit 4; }
+    sleep 2
+    LIVE="$(curl -sk -m 10 https://localhost/api/health 2>/dev/null | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p')"
+    if [[ -n "$PKG_TAG" && "$LIVE" != "$PKG_TAG" ]]; then
+      echo "✘ dopo lo switch nginx serve ancora $LIVE: torno su ${OLD_NAME:-—} e distruggo $NEW_SVC"; write_upstream "${OLD_NAME:-$NEW_SVC}" || true; docker compose rm -sf "$NEW_SVC" >/dev/null 2>&1; exit 4
+    fi
+    echo "→ in linea: $LIVE via $NEW_SVC (zero downtime)"
+    if [[ -n "$OLD_NAME" && "$OLD_NAME" != "$NEW_SVC" ]]; then
+      echo "→ attendo 20 s che gli stream in corso su $OLD_NAME terminino, poi lo fermo (resta disponibile per il rollback: ROLLBACK=switch)"
+      sleep 20; docker stop "$OLD_NAME" >/dev/null 2>&1 || true
+      [[ "$OLD_NAME" == "axon-core" ]] && { docker rm axon-core >/dev/null 2>&1 || true; docker image rm axon-core:prev >/dev/null 2>&1 || true; }
+    fi
+  else
+    echo "✘✘ SMOKE GATE FALLITO su $NEW_SVC → container nuovo DISTRUTTO, utenti ancora su ${OLD_NAME:-—} senza interruzioni"
+    echo "   (il codice nuovo resta in $DEST/backend: correggi e rilancia. La scomposizione TTFT qui sopra dice QUALE fase ha sforato.)"
+    docker compose logs --tail=40 "$NEW_SVC" 2>/dev/null | cut -c1-200 | sed 's/^/    /' || true
+    docker compose rm -sf "$NEW_SVC" >/dev/null 2>&1 || true
+    exit 4
+  fi
+}
+
+
 diag() {
   echo "── DIAGNOSTICA ──────────────────────────────────────────────"
   echo "• versione backend installata: $(cat backend/PKG_VERSION 2>/dev/null || cat backend/DEPLOY_CHANGELOG.md 2>/dev/null | grep -m1 '^| 20' | cut -d'|' -f2-3 || echo '?')"
   echo "• backup disponibili (il più vecchio = codice prima degli aggiornamenti):"; ls -1t backend-backup-*.tgz 2>/dev/null | sed 's/^/    /' || echo "    (nessuno)"
   echo "• container:"; (docker compose ps 2>/dev/null | sed 's/^/    /') || true
   echo "• ultimi errori/avvisi backend (2h):"
-  docker compose logs --since 2h axon-core 2>/dev/null | grep -iE "error|traceback|timeout|warn|rules-engine|fallback" | tail -n 25 | cut -c1-220 | sed 's/^/    /' || true
+  docker compose logs --since 2h "axon-core-$(active_color 2>/dev/null || echo a)" 2>/dev/null | grep -iE "error|traceback|timeout|warn|rules-engine|fallback" | tail -n 25 | cut -c1-220 | sed 's/^/    /' || true
   echo "• tempo di risposta /api/health: $(curl -sk -o /dev/null -w '%{time_total}s (HTTP %{http_code})' https://localhost/api/health 2>/dev/null || echo 'n/d')"
   echo "─────────────────────────────────────────────────────────────"
 }
 
-rebuild_and_wait() {
-  # V50.z562 — snapshot dell'immagine attuale per il ROLLBACK automatico dello smoke gate
-  if docker image inspect axon-core:latest >/dev/null 2>&1; then docker tag axon-core:latest axon-core:prev && echo "→ immagine precedente salvata come axon-core:prev"; fi
-  docker compose up -d --build axon-core
-  echo "→ attendo l'avvio del backend…"
-  for i in $(seq 1 60); do
-    if curl -sk -o /dev/null -w '%{http_code}' https://localhost/api/health 2>/dev/null | grep -q '^200$'; then echo "→ backend OK (health 200)"; break; fi
-    sleep 3
-    [[ $i -eq 60 ]] && { echo "✘ backend non risponde: docker compose logs --tail=100 axon-core"; docker compose logs --tail=60 axon-core; exit 1; }
-  done
-}
-
 if [[ -n "${DIAG:-}" ]]; then diag; exit 0; fi
+
+# ── E) V50.z570 — ROLLBACK=switch: torna istantaneamente al container precedente (fermato dopo l'ultimo switch) ──────────
+if [[ "${ROLLBACK:-}" == "switch" ]]; then
+  CUR="$(active_color)"; PREV="axon-core-$(inactive_color "$CUR")"
+  docker start "$PREV" >/dev/null 2>&1 || { echo "ERRORE: container $PREV non disponibile"; exit 1; }
+  for i in $(seq 1 30); do svc_health "$PREV" | grep -q '"status": *"ok"' && break; sleep 2; done
+  write_upstream "$PREV" && echo "✔ nginx riportato su $PREV (versione: $(svc_health "$PREV" | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p'))"
+  sleep 20; docker stop "axon-core-$CUR" >/dev/null 2>&1 || true; exit 0
+fi
 
 # ── C) ROLLBACK ────────────────────────────────────────────────────────────────
 if [[ -n "${ROLLBACK:-}" ]]; then
@@ -50,8 +138,7 @@ if [[ -n "${ROLLBACK:-}" ]]; then
   STAMP="$(date +%Y%m%d-%H%M%S)"; tar czf "backend-backup-$STAMP.tgz" backend && echo "→ backup dello stato attuale: backend-backup-$STAMP.tgz"
   rsync -a --delete --exclude '.env' --exclude 'assets/kokoro' "$TMP/backend/" "$DEST/backend/"
   echo "→ backend ripristinato da $ROLLBACK"
-  rebuild_and_wait
-  rm -rf "$TMP"
+  TMP_RB="$TMP"; TMP="$(mktemp -d)"; deploy_blue_green; rm -rf "$TMP" "$TMP_RB"
   echo "✔ Rollback completato (il web e MongoDB non sono stati toccati)."; diag; exit 0
 fi
 
@@ -82,55 +169,9 @@ if [[ -f "$TMP/axon-core-pkg/docker-compose.yml" ]] && ! cmp -s "$TMP/axon-core-
   docker compose up -d clamav 2>/dev/null && echo "→ antivirus ClamAV avviato (prime firme: 2-5 min; stato: GET /api/admin/upload-guard/status)" || true
 fi
 
-# 2) Rebuild + restart del solo container backend (MongoDB e nginx restano su)
-rebuild_and_wait
-
-# V50.z560 — VERIFICA: la versione che il backend DICHIARA di eseguire (GET /api/health → version) deve coincidere con il tag del pacchetto
-PKG_TAG="$(sed -n 's/.*tag=\([^ ]*\).*/\1/p' backend/PKG_VERSION 2>/dev/null | head -1)"
-# V50.z568 — numero di route API della versione in esecuzione PRIMA dell'upgrade: lo smoke gate fallisce se il nuovo ne espone di meno
-PREV_ROUTES="$(curl -sk -m 10 https://localhost/api/health 2>/dev/null | sed -n 's/.*"routes":[ ]*\([0-9]*\).*/\1/p' | head -1)"
-RUN_TAG="$(curl -sk https://localhost/api/health 2>/dev/null | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p')"
-echo "→ versione pacchetto: ${PKG_TAG:-?} · versione in esecuzione: ${RUN_TAG:-?}"
-if [[ -n "$PKG_TAG" && "$RUN_TAG" != "$PKG_TAG" ]]; then
-  echo "✘ ATTENZIONE: il container esegue ancora codice vecchio. Forzo la ricreazione del container…"
-  docker compose up -d --build --force-recreate axon-core
-  sleep 8
-  RUN_TAG="$(curl -sk https://localhost/api/health 2>/dev/null | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p')"
-  echo "→ versione in esecuzione dopo la ricreazione: ${RUN_TAG:-?}"
-fi
-docker compose logs --since 3m axon-core 2>/dev/null | grep -E "\[boot\] Google Drive|\[boot\] core|core-integrity" | tail -n 4 | cut -c1-220 | sed 's/^/    /' || true
-
-# V50.z562 — SMOKE GATE + ROLLBACK AUTOMATICO (Accordo di produzione V1423+)
-# V50.z565 — 4 domande post-rebuild, UNA PER CLASSE (simple · crm · drive · energy/listini): se UNA classe supera i 2 s di TTFT → rollback.
-# V50.z566 — NESSUN login: le 4 query portano l'header X-Smoke-Test-Secret (SMOKE_TEST_SECRET del .env, letto anche dal container via
-# env_file) e il backend inietta un JWT interno per SMOKE_EMAIL solo per richieste da localhost (core/smoke_auth.py). Niente OAuth/password.
-# Legge SMOKE_EMAIL / SMOKE_TEST_SECRET / SMOKE_DRIVE_QUERY / SMOKE_TTFT_MAX_S dal .env di compose ($DEST/.env).
-SMOKE_SCRIPT="$TMP/axon-core-pkg/smoke_gate.py"; [[ -f "$SMOKE_SCRIPT" ]] || SMOKE_SCRIPT="$DEST/smoke_gate.py"
-if [[ "${SKIP_SMOKE_GATE:-0}" == "1" ]]; then
-  echo "⚠⚠ SKIP_SMOKE_GATE=1: smoke gate e rollback automatico DISATTIVATI per questo deploy (regola V50.z564: NON usarlo in produzione)."
-fi
-if [[ -f "$SMOKE_SCRIPT" && "${SKIP_SMOKE_GATE:-0}" != "1" ]]; then
-  cp -f "$SMOKE_SCRIPT" "$DEST/smoke_gate.py" 2>/dev/null || true
-  _senv() { grep -m1 "^$1=" "$DEST/.env" 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'"; }
-  sleep 5  # warm-up del modello/embedder
-  if BASE_URL="https://localhost" PKG_TAG="$PKG_TAG" PREV_ROUTES="${PREV_ROUTES:-0}" SMOKE_EMAIL="$(_senv SMOKE_EMAIL)" SMOKE_TEST_SECRET="$(_senv SMOKE_TEST_SECRET)" \
-     SMOKE_DRIVE_QUERY="$(_senv SMOKE_DRIVE_QUERY)" SMOKE_TTFT_MAX_S="${SMOKE_TTFT_MAX_S:-$(_senv SMOKE_TTFT_MAX_S)}" \
-     python3 "$SMOKE_SCRIPT"; then
-    docker image rm axon-core:prev >/dev/null 2>&1 || true
-  else
-    echo "✘✘ SMOKE GATE FALLITO → ROLLBACK IMMEDIATO all'immagine precedente"
-    if docker image inspect axon-core:prev >/dev/null 2>&1; then
-      docker tag axon-core:prev axon-core:latest
-      docker compose up -d --no-build --force-recreate axon-core
-      sleep 8
-      echo "→ versione dopo il rollback: $(curl -sk https://localhost/api/health 2>/dev/null | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p')"
-      echo "   (il codice nuovo resta in $DEST/backend: correggi e rilancia. La scomposizione TTFT qui sopra dice QUALE fase ha sforato.)"
-    else
-      echo "   nessuna immagine precedente disponibile: container lasciato com'è, CONTROLLA i log."
-    fi
-    exit 4
-  fi
-fi
+# 2) BLUE-GREEN: nuovo pacchetto nel container inattivo → smoke gate interno → switch nginx atomico (zero downtime)
+if [[ "${SKIP_SMOKE_GATE:-}" == "1" ]]; then echo "⚠ SKIP_SMOKE_GATE non è più supportato: il gate blue-green è sempre attivo (regola V50.z564)."; fi
+deploy_blue_green
 
 # 3) Web (SPA Expo) — install_web_on_vps.sh mantiene il dominio già configurato e ricrea solo nginx
 bash "$TMP/axon-web-pkg/install_web_on_vps.sh"
