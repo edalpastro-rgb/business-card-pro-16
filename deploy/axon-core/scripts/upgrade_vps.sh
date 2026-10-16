@@ -101,6 +101,9 @@ docker compose logs --since 3m axon-core 2>/dev/null | grep -E "\[boot\] Google 
 # V50.z562 — SMOKE GATE + ROLLBACK AUTOMATICO (Accordo di produzione V1423+)
 # Legge SMOKE_EMAIL / SMOKE_PASSWORD / SMOKE_DRIVE_QUERY / SMOKE_TTFT_MAX_S dal .env di compose ($DEST/.env).
 SMOKE_SCRIPT="$TMP/axon-core-pkg/smoke_gate.py"; [[ -f "$SMOKE_SCRIPT" ]] || SMOKE_SCRIPT="$DEST/smoke_gate.py"
+if [[ "${SKIP_SMOKE_GATE:-0}" == "1" ]]; then
+  echo "⚠⚠ SKIP_SMOKE_GATE=1: smoke gate e rollback automatico DISATTIVATI per questo deploy (regola V50.z564: NON usarlo in produzione)."
+fi
 if [[ -f "$SMOKE_SCRIPT" && "${SKIP_SMOKE_GATE:-0}" != "1" ]]; then
   cp -f "$SMOKE_SCRIPT" "$DEST/smoke_gate.py" 2>/dev/null || true
   _senv() { grep -m1 "^$1=" "$DEST/.env" 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'"; }
@@ -116,7 +119,7 @@ if [[ -f "$SMOKE_SCRIPT" && "${SKIP_SMOKE_GATE:-0}" != "1" ]]; then
       docker compose up -d --no-build --force-recreate axon-core
       sleep 8
       echo "→ versione dopo il rollback: $(curl -sk https://localhost/api/health 2>/dev/null | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p')"
-      echo "   (il codice nuovo resta in $DEST/backend: correggi e rilancia; per forzare senza gate: SKIP_SMOKE_GATE=1)"
+      echo "   (il codice nuovo resta in $DEST/backend: correggi e rilancia. La scomposizione TTFT qui sopra dice QUALE fase ha sforato.)"
     else
       echo "   nessuna immagine precedente disponibile: container lasciato com'è, CONTROLLA i log."
     fi

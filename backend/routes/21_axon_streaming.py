@@ -417,14 +417,14 @@ async def _prepare_assistant_prompt(
             return ""
 
     _t_prep0 = _time.monotonic()  # V50.z556 — profilo latenza prompt (log [prep-timing])
-    _t_phase: Dict[str, float] = {}
+    _t_phase: Dict[str, float] = _core_stream_begin_phases()  # noqa: F821 — V50.z564 — stesso dict anche per i fetcher annidati (teach.*)
 
     async def _timed(name: str, coro):
         _t0 = _time.monotonic()
         try:
             return await coro
         finally:
-            _t_phase[name] = _time.monotonic() - _t0
+            _core_stream_mark_phase(name, _time.monotonic() - _t0)  # noqa: F821
 
     context, weather_ctx, _prefetch_rag_chunks, memories, attachments_section, axon_teach_section, web_search_ctx, kb_section, omni_section = await asyncio.gather(
         _timed("context", _safe_context()),
@@ -674,7 +674,7 @@ async def _prepare_assistant_prompt(
             _cloud_section = "\n".join(lines) + "\n"
         except Exception:
             _cloud_section = ""
-    _t_phase["tail"] = _time.monotonic() - _t_tail0
+    _core_stream_mark_phase("tail", _time.monotonic() - _t_tail0)  # noqa: F821
     system_message = system_message + _brain_section + _scripts_section + _cheat_section + _cloud_section
     # V50.z284 — profilo interessi (form spuntabile + risposte libere del tour) → personalizzazione e suggerimenti proattivi
     try:
@@ -728,6 +728,7 @@ async def _prepare_assistant_prompt(
         "msg": msg,
         "query_class": query_class,  # V50.z413
         "prep_seconds": round(_t_prep_total, 3),  # V50.z556 — tempo del prompt base (i wrapper si aggiungono: vedi [prep-total] in 22)
+        "prep_phases": _t_phase,  # V50.z564 — fasi del preflight (context, teach, teach.drive, tavily, …) → core.streaming.record
         "session_id": session_id,
         "assistant_name": assistant_name,
         "system_message": system_message,

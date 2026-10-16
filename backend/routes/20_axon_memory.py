@@ -302,6 +302,7 @@ async def _build_axon_teach_section(tenant: str, user_msg: str) -> str:
     # V50.z155 — Timeout duro per fetcher (12s): un URL lento non deve bloccare
     # la risposta di Axon per minuti ("Sto cercando nei documenti…").
     async def _bounded(coro, label: str):
+        _b0 = _time_mod.monotonic()
         try:
             return await asyncio.wait_for(coro, timeout=12)
         except asyncio.TimeoutError:
@@ -309,6 +310,8 @@ async def _build_axon_teach_section(tenant: str, user_msg: str) -> str:
             return ""
         except Exception:
             return ""
+        finally:
+            _core_stream_mark_phase(f"teach.{label}", _time_mod.monotonic() - _b0)  # noqa: F821 — V50.z564 — scomposizione TTFT per fetcher
     async def _s_pdf():
         return await _bounded(_fetch_teach_url_pdfs_for_query(tenant, user_msg), "url-pdf")
     async def _s_drive():
@@ -1629,10 +1632,12 @@ async def _fetch_teach_drive_pdfs_for_query(
     connected = await db.google_drive_connections.find_one({"user_id": tenant}, {"_id": 0, "user_id": 1}) is not None
 
     try:
+        _m0 = _time_mod.monotonic()
         snaps = await db.drive_snapshots.find(
             {"user_id": tenant},
             {"_id": 0, "file_id": 1, "name": 1, "folder_path": 1, "modified_time": 1, "text": 1, "mime": 1},
         ).sort("modified_time", -1).to_list(2000)
+        _core_stream_mark_phase("teach.drive.mongo", _time_mod.monotonic() - _m0)  # noqa: F821 — V50.z564 — lettura snapshot (testo completo) da Mongo
     except Exception:
         snaps = []
 
@@ -1700,7 +1705,9 @@ async def _fetch_teach_drive_pdfs_for_query(
     top: List[Dict[str, Any]] = []
     try:
         _by_id = {s.get("file_id"): s for s in snaps}
+        _s0 = _time_mod.monotonic()
         _sem = await asyncio.to_thread(_core_drive_search, tenant, user_msg or "", max_pdfs)  # noqa: F821
+        _core_stream_mark_phase("teach.drive.chroma", _time_mod.monotonic() - _s0)  # noqa: F821 — V50.z564 — embedding query + ChromaDB
         if not _sem and snaps and any((s.get("text") or "").strip() for s in snaps):
             _schedule_drive_semantic_backfill(tenant)  # indice semantico vuoto ma snapshot presenti → costruiscilo in background
         top = [_by_id[r["file_id"]] for r in _sem if r.get("score", 0) >= 0.25 and r["file_id"] in _by_id]

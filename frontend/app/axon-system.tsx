@@ -11,7 +11,11 @@ import { sendSystemHeartbeat } from "@/src/systemHeartbeat";
 import { HT } from "@/src/homeTheme"; // V50.z335 — Contatti dark/premium
 
 type Ev = { event_id: string; ts: string; level: string; source: string; title: string; detail?: string | null; user_id?: string | null; ms?: number };
+type Pct = { p50: number; p95: number };
+type Breakdown = { prep: Pct; llm_first: Pct; other: Pct; phases: Record<string, { n: number; avg: number; max: number }>; bottleneck: string };
+type Ttft = { window_min: number; n: number; p50: number; p95: number; max: number; slow: number; threshold_s: number; anomalies: string[]; ok: boolean; breakdown?: Breakdown; by_class?: Record<string, Breakdown & { n: number; ttft: Pct }> };
 type Status = {
+  ttft?: Ttft; core_integrity?: { ok: boolean | null; violations: string[] };
   backend: { version: string | null; boot_id: string; started_at: string; uptime_label: string; python: string; llm_key: boolean; push_configured: boolean; modules: number };
   changelog: { version: string; date: string; desc: string }[];
   devices: { device_key: string; platform: string; app_version?: string | null; build_number?: string | null; js_version?: string | null; device_name?: string | null; app_env?: string | null; last_seen: string; previous_version?: string }[];
@@ -68,6 +72,31 @@ export default function AxonSystemScreen() {
             <View style={styles.kpi}><Text style={[styles.kpiV, { color: HT.warning }]}>{st.counters.warnings_24h}</Text><Text style={styles.kpiL}>warning 24h</Text></View>
             <View style={styles.kpi}><Text style={styles.kpiV}>{st.counters.api_actions_24h}</Text><Text style={styles.kpiL}>azioni API 24h</Text></View>
           </View>
+
+          {!!st.ttft && (
+            <View style={[styles.card, { borderColor: st.ttft.n === 0 ? "#EEF0F6" : st.ttft.ok ? "#059669" : "#DC2626" }]} testID="axs-ttft">
+              <Text style={styles.secTitle}>⏱️ Velocità di Axon — ultimi {st.ttft.window_min} min</Text>
+              {st.ttft.n === 0 ? <Text style={styles.empty}>Nessuna risposta misurata nella finestra.</Text> : (
+                <>
+                  <Text style={styles.big}>{st.ttft.p95.toFixed(1)}s <Text style={{ fontSize: 13, color: HT.muted, fontWeight: "700" }}>p95 primo token · p50 {st.ttft.p50.toFixed(1)}s · {st.ttft.slow}/{st.ttft.n} lente (soglia {st.ttft.threshold_s}s)</Text></Text>
+                  {!!st.ttft.breakdown && (
+                    <View style={styles.chips}>
+                      <Text style={[styles.chip, { borderColor: st.ttft.breakdown.prep.p95 > st.ttft.threshold_s ? "#DC2626" : HT.border }]}>🧠 Prep (contesto) p95 {st.ttft.breakdown.prep.p95.toFixed(2)}s</Text>
+                      <Text style={[styles.chip, { borderColor: st.ttft.breakdown.llm_first.p95 > st.ttft.threshold_s ? "#DC2626" : HT.border }]}>☁️ Gateway LLM p95 {st.ttft.breakdown.llm_first.p95.toFixed(2)}s</Text>
+                      <Text style={styles.chip}>⚙️ Altro p95 {st.ttft.breakdown.other.p95.toFixed(2)}s</Text>
+                    </View>
+                  )}
+                  {!!st.ttft.breakdown?.bottleneck && <Text style={[styles.line, { color: "#DC2626", fontWeight: "800" }]}>Collo di bottiglia: {st.ttft.breakdown.bottleneck}</Text>}
+                  {!!st.ttft.breakdown && Object.keys(st.ttft.breakdown.phases).length > 0 && (
+                    <Text style={styles.meta}>Fasi più lente (media): {Object.entries(st.ttft.breakdown.phases).map(([k, v]) => `${k} ${v.avg.toFixed(2)}s (max ${v.max.toFixed(1)}s, n=${v.n})`).join(" · ")}</Text>
+                  )}
+                  {!!st.ttft.by_class && Object.entries(st.ttft.by_class).map(([c, b]) => (
+                    <Text key={c} style={styles.meta} testID={`axs-ttft-class-${c}`}>• classe <Text style={{ fontWeight: "800", color: HT.text }}>{c}</Text>: {b.n} risposte · TTFT p95 {b.ttft.p95.toFixed(1)}s = prep {b.prep.p95.toFixed(1)}s + LLM {b.llm_first.p95.toFixed(1)}s{b.bottleneck ? ` → ${b.bottleneck}` : ""}</Text>
+                  ))}
+                </>
+              )}
+            </View>
+          )}
 
           <View style={styles.card} testID="axs-devices">
             <Text style={styles.secTitle}>App installata sui tuoi dispositivi</Text>

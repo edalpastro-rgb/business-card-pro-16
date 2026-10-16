@@ -59,6 +59,39 @@ def test_ttft_stats_percentiles_and_anomaly():
     assert streaming.stats(60)["ok"] is True
 
 
+def test_ttft_breakdown_identifies_bottleneck():
+    """V50.z564 — la scomposizione deve dire SE il tempo va nel preflight (e in quale fase) o nel gateway LLM, per classe."""
+    streaming._samples.clear()
+    for v in [7.0, 8.0, 9.0]:  # crm: prep lento per il fetcher teach.gme
+        streaming.record(v, v - 0.6, 20, v + 2, "crm", llm_first_s=0.6, phases={"teach": v - 0.8, "teach.gme": v - 1.0, "context": 0.2})
+    for v in [4.0, 5.0]:  # simple: prep istantaneo, gateway LLM lento
+        streaming.record(v, 0.1, 20, v + 2, "simple", llm_first_s=v - 0.15, phases={"llm_first_token": v - 0.15})
+    st = streaming.stats(60)
+    assert st["breakdown"]["prep"]["p95"] >= 8.0 and st["breakdown"]["llm_first"]["p95"] >= 4.0
+    assert st["by_class"]["crm"]["bottleneck"].startswith("prep") and "teach" in st["by_class"]["crm"]["bottleneck"]
+    assert st["by_class"]["simple"]["bottleneck"].startswith("gateway LLM")
+    assert any(a.startswith("Collo di bottiglia") for a in st["anomalies"])
+    streaming._samples.clear()
+
+
+def test_phase_sink_is_shared_with_child_tasks():
+    """V50.z564 — i fetcher annidati (asyncio.gather) scrivono nello stesso raccoglitore aperto dal preflight."""
+    import asyncio
+
+    async def child():
+        streaming.mark_phase("teach.drive.chroma", 0.123)
+
+    async def main():
+        d = streaming.begin_phases()
+        await asyncio.gather(asyncio.create_task(child()))
+        streaming.mark_phase("teach", 0.5)
+        return d
+
+    d = asyncio.run(main())
+    assert d == {"teach.drive.chroma": 0.123, "teach": 0.5}
+    streaming.mark_phase("fuori-richiesta", 1.0)  # no-op senza raccoglitore aperto (il ContextVar di asyncio.run è già chiuso)
+
+
 def test_sse_contract():
     assert streaming.sse("delta", '{"text":"ciao"}') == 'event: delta\ndata: {"text":"ciao"}\n\n'
 

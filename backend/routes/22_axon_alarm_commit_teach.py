@@ -752,12 +752,18 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
         _prep_task = asyncio.create_task(_prepare_assistant_prompt(user, body))
         _prep_started = asyncio.get_event_loop().time()
         _tm_first = None; _tm_deltas = 0  # V50.z562 — telemetria TTFT (core.streaming)
+        _tm_prep_total = 0.0; _tm_llm_start = None  # V50.z564 — scomposizione: preflight completo / istante di invio al gateway LLM
         _hb_msgs = ["Sto verificando…", "Sto raccogliendo dati aggiornati…", "Ancora un momento, sto preparando la risposta…"]
         _hb_i = 0
         while True:
             try:
                 prep = await asyncio.wait_for(asyncio.shield(_prep_task), timeout=6.0)
                 _prep_total = asyncio.get_event_loop().time() - _prep_started
+                _tm_prep_total = _prep_total
+                try:  # V50.z564 — tempo dei wrapper axon_*.py (differenza tra preflight completo e prompt base) → fase "wrapper"
+                    prep.setdefault("prep_phases", {})["wrapper"] = round(max(0.0, _prep_total - float(prep.get("prep_seconds") or 0)), 3)
+                except Exception:  # noqa: BLE001
+                    pass
                 if _prep_total >= 0.8:  # V50.z556 — profilo: tempo totale (base 21 + tutti i wrapper axon_*.py)
                     logger.info("[prep-total] «%s» class=%s totale=%.2fs base=%.2fs wrapper=%.2fs", (body.message or "")[:50], prep.get("query_class"), _prep_total, prep.get("prep_seconds") or 0, _prep_total - (prep.get("prep_seconds") or 0))
                 break
@@ -792,7 +798,12 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
         cache_eligible = _is_query_cacheable(msg, has_attachments, has_history) and not getattr(body, "no_cache", False)  # V50.z260
         if cache_eligible:
             yield sse("progress", {"stage": "cache", "text": "Controllo se ho già risposto a qualcosa di simile…"})
+            _tm_c0 = asyncio.get_event_loop().time()
             cached = await _semantic_cache_lookup(msg, tenant=_tenant_val, product=_axon_cache_product(user))  # noqa: F821 — V50.z327
+            try:  # V50.z564 — fase "cache" (embedding della domanda + ricerca) nella scomposizione TTFT
+                prep.setdefault("prep_phases", {})["cache"] = round(asyncio.get_event_loop().time() - _tm_c0, 3)
+            except Exception:  # noqa: BLE001
+                pass
             if cached:
                 _mn_fb = globals().get("_mn_nav_fallback")  # V50.z561 — percorso + chip anche sulle risposte in cache
                 if _mn_fb:
@@ -906,8 +917,10 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
         _bare = bool(prep.get("data_request")) or _axon_is_phone_request(msg)  # noqa: F821 — V50.z453 — dato secco: bufferizza e mostra SOLO il dato (niente fonte/link/chip); V50.z455 anche per richieste di numero di telefono
         _navf = NavStreamFilter(user)  # noqa: F821 — V50.z487 axon_nav_guard.py: marker [[NAV]] verso schermate inesistenti → corretti o resi a parole, anche in streaming
         try:
+            _tm_llm_start = asyncio.get_event_loop().time() - _prep_started  # V50.z564 — da qui in poi il tempo è del gateway LLM
             async for _wd_kind, ev in _wd_llm_stream(_make_chat, prep["user_prompt"], user_id=user.get("user_id")):  # noqa: F821 — axon_watchdog.py
                 if _wd_kind == "recovering":  # primo token non arrivato entro 10 s → nuova sessione, l'utente vede il messaggio di ripristino
+                    prep.setdefault("prep_phases", {})["llm_watchdog_retry"] = 1.0  # V50.z564 — segna che il primo tentativo LLM è andato in timeout
                     yield sse("progress", {"stage": "recovering", "text": _WD_USER_MSG})  # noqa: F821
                     continue
                 if isinstance(ev, TextDelta):
@@ -950,9 +963,18 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
             yield sse("delta", {"text": _clean})
 
         reply_text = ("".join(collected)).strip() or "Non ho ricevuto una risposta. Riprova."
-        try:  # V50.z562 — telemetria: TTFT misurato dal server (prep + primo token), p50/p95 in /axon/system/status e /api/health
+        try:  # V50.z562/z563 — telemetria: TTFT misurato dal server, scomposto in preflight completo / gateway LLM / fasi (core.streaming)
             _tm_total = asyncio.get_event_loop().time() - _prep_started
-            _core_stream_record(_tm_first if _tm_first is not None else _tm_total, float(prep.get("prep_seconds") or 0), _tm_deltas, _tm_total, str(prep.get("query_class") or ""))  # noqa: F821
+            _tm_ttft = _tm_first if _tm_first is not None else _tm_total
+            _tm_llm = (_tm_ttft - _tm_llm_start) if _tm_llm_start is not None else None
+            _tm_phases = dict(prep.get("prep_phases") or {})
+            if _tm_llm is not None:
+                _tm_phases["llm_first_token"] = round(max(0.0, _tm_llm), 3)
+            _core_stream_record(_tm_ttft, _tm_prep_total, _tm_deltas, _tm_total, str(prep.get("query_class") or ""), llm_first_s=_tm_llm, phases=_tm_phases)  # noqa: F821
+            if _tm_ttft >= 2.0:
+                _slow_ph = sorted(((k, v) for k, v in _tm_phases.items() if v >= 0.3), key=lambda kv: -kv[1])[:6]
+                logger.info("[ttft-breakdown] «%s» class=%s ttft=%.2fs prep=%.2fs llm_first=%s → %s", msg[:50], prep.get("query_class"), _tm_ttft, _tm_prep_total,
+                            f"{_tm_llm:.2f}s" if _tm_llm is not None else "n/d", ", ".join(f"{k}={v:.2f}s" for k, v in _slow_ph) or "nessuna fase ≥0.3s")
         except Exception:  # noqa: BLE001
             pass
         _mn_fb = globals().get("_mn_nav_fallback")  # V50.z555 — chip [[NAV]] di sicurezza se il modello l'ha omesso

@@ -20,6 +20,8 @@ PROTECTED: Dict[str, Any] = {
     "_core_llm_self": response_rules.llm_can_answer_without_web,
     "_core_stream_record": streaming.record,
     "_core_stream_stats": streaming.stats,
+    "_core_stream_begin_phases": streaming.begin_phases,
+    "_core_stream_mark_phase": streaming.mark_phase,
     "_core_embedder": embedding.embedder,
 }
 _LAST: Dict[str, Any] = {"ok": None, "violations": []}

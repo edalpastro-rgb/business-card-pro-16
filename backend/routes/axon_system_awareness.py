@@ -429,6 +429,16 @@ async def _axs_context_section(user: dict, msg: str = "") -> str:
     integ = st["integrations"]
     if integ:
         lines.append("Integrazioni: " + ", ".join(f"{k}={'✓' if v else '✗'}" for k, v in integ.items()))
+    tt = st.get("ttft") or {}
+    if tt.get("n"):  # V50.z564 — scomposizione TTFT: Axon sa dire PERCHÉ è lento (fase del preflight vs gateway LLM), per classe di query
+        bd = tt.get("breakdown") or {}
+        _ph = ", ".join(f"{k} {v['avg']}s" for k, v in list((bd.get("phases") or {}).items())[:4])
+        _cls = "; ".join(f"{c}: n={bc['n']} p95 {bc['ttft']['p95']}s (prep {bc['prep']['p95']}s + LLM {bc['llm_first']['p95']}s)" for c, bc in (tt.get("by_class") or {}).items())
+        lines.append(f"⏱️ VELOCITÀ RISPOSTE (ultimi {tt.get('window_min')} min, {tt['n']} risposte): TTFT p50 {tt['p50']}s · p95 {tt['p95']}s · lente {tt['slow']} (soglia {tt['threshold_s']}s). "
+                     f"Scomposizione p95: PREP (recupero contesto) {bd.get('prep', {}).get('p95')}s · GATEWAY LLM (primo token) {bd.get('llm_first', {}).get('p95')}s · altro {bd.get('other', {}).get('p95')}s. "
+                     + (f"Fasi più lente (media): {_ph}. " if _ph else "") + (f"Per classe: {_cls}. " if _cls else "")
+                     + (f"COLLO DI BOTTIGLIA: {bd['bottleneck']}. " if bd.get("bottleneck") else "Nessun collo di bottiglia: risposte entro soglia. ")
+                     + "Se l'utente chiede «perché sei lento?» rispondi con QUESTI numeri (fase e secondi), mai in modo generico; ChromaDB e l'embedding locale costano millisecondi, i secondi stanno nei fetcher live (GME/URL/Tavily), nella lettura dei testi Drive o nel gateway LLM.")
     if st["events"]:
         # V50.z421 — eventi consecutivi identici (es. riavvii ripetuti) collassati in uno con «×N»
         ev_lines: List[str] = []; prev_title = None; run = 0

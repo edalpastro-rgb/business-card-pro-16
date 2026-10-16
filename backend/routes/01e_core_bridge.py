@@ -21,6 +21,8 @@ _core_wants_gme = _core_rules.wants_gme_download
 _core_llm_self = _core_rules.llm_can_answer_without_web
 _core_stream_record = _core_streaming.record
 _core_stream_stats = _core_streaming.stats
+_core_stream_begin_phases = _core_streaming.begin_phases  # V50.z564 — scomposizione TTFT per fase
+_core_stream_mark_phase = _core_streaming.mark_phase
 _core_embedder = _core_embedding.embedder
 
 _core_drive.configure(_core_embedder.embed)

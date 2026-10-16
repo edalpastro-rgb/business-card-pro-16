@@ -101,6 +101,25 @@ def check_drive(token):
         FAILS.append(f"retrieval Drive: errore {exc}")
 
 
+def print_breakdown():
+    """V50.z564 — dopo le sonde stampa la SCOMPOSIZIONE del TTFT misurata dal server (prep per fase vs gateway LLM):
+    se il gate fallisce si vede subito QUALE fase ha mangiato i secondi, senza aprire i log Docker."""
+    try:
+        t = json.loads(_req("/api/health", timeout=15).read()).get("ttft") or {}
+        b = t.get("breakdown") or {}
+        if not b:
+            return
+        print(f"  scomposizione TTFT (server, {t.get('n')} risposte/{t.get('window_min')} min): prep p95={b['prep']['p95']}s · gateway LLM p95={b['llm_first']['p95']}s · altro p95={b['other']['p95']}s")
+        if b.get("phases"):
+            print("  fasi più lente: " + " · ".join(f"{k} {v['avg']}s (max {v['max']}s)" for k, v in b["phases"].items()))
+        if b.get("bottleneck"):
+            print("  ⚠ collo di bottiglia: " + b["bottleneck"])
+        for c, bc in (t.get("by_class") or {}).items():
+            print(f"    classe {c}: n={bc['n']} TTFT p95={bc['ttft']['p95']}s = prep {bc['prep']['p95']}s + LLM {bc['llm_first']['p95']}s" + (f" → {bc['bottleneck']}" if bc.get("bottleneck") else ""))
+    except Exception as exc:  # noqa: BLE001
+        print(f"  (scomposizione TTFT non disponibile: {exc})")
+
+
 def main() -> int:
     print(f"▶ SMOKE GATE su {BASE} (tag atteso: {PKG_TAG or '—'})")
     check_health()
@@ -112,6 +131,7 @@ def main() -> int:
         if token:
             check_stream(token)
             check_drive(token)
+            print_breakdown()
     else:
         WARNS.append("SMOKE_EMAIL/SMOKE_PASSWORD assenti nel .env: streaming e Drive NON verificati (solo health/integrità)")
     for w in WARNS:
