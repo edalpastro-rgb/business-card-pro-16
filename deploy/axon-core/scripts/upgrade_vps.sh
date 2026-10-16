@@ -13,6 +13,7 @@
 # MongoDB/uploads NON vengono toccati), ricostruisce il container axon-core, installa il web (install_web_on_vps.sh) e verifica.
 # Prima di ogni sostituzione salva backend-backup-<data>.tgz (ne conserva 5): è lo stato ESATTO del codice precedente.
 set -euo pipefail
+SELF_PATH="$(readlink -f "${BASH_SOURCE[0]:-}" 2>/dev/null || true)"   # V50.z572 — percorso dello script in esecuzione (vuoto se `curl | bash`)
 DEST="${DEST:-/opt/axon-core}"
 cd "$DEST"
 test -f docker-compose.yml || { echo "ERRORE: $DEST/docker-compose.yml non trovato"; exit 1; }
@@ -112,7 +113,12 @@ diag() {
   echo "• backup disponibili (il più vecchio = codice prima degli aggiornamenti):"; ls -1t backend-backup-*.tgz 2>/dev/null | sed 's/^/    /' || echo "    (nessuno)"
   echo "• container:"; (docker compose ps 2>/dev/null | sed 's/^/    /') || true
   echo "• ultimi errori/avvisi backend (2h):"
-  docker compose logs --since 2h "axon-core-$(active_color 2>/dev/null || echo a)" 2>/dev/null | grep -iE "error|traceback|timeout|warn|rules-engine|fallback" | tail -n 25 | cut -c1-220 | sed 's/^/    /' || true
+  _AC="$(active_color 2>/dev/null || echo none)"
+  case "$_AC" in
+    a|b) docker compose logs --since 2h "axon-core-$_AC" 2>/dev/null;;
+    legacy) docker logs --since 2h axon-core 2>&1;;      # V50.z572 — container pre-blue-green: MAI via compose (il servizio non esiste più)
+    *) true;;
+  esac | grep -iE "error|traceback|timeout|warn|rules-engine|fallback" | tail -n 25 | cut -c1-220 | sed 's/^/    /' || true
   echo "• tempo di risposta /api/health: $(curl -sk -o /dev/null -w '%{time_total}s (HTTP %{http_code})' https://localhost/api/health 2>/dev/null || echo 'n/d')"
   echo "─────────────────────────────────────────────────────────────"
 }
@@ -162,6 +168,24 @@ TMP="$(mktemp -d)"
 tar xzf axon-core-pkg.tgz -C "$TMP"
 tar xzf axon-web-pkg.tgz  -C "$TMP"
 echo "→ versione pacchetto: $(cat "$TMP/axon-core-pkg/PKG_VERSION" 2>/dev/null || echo '?')"
+
+# V50.z572 — AUTO-AGGIORNAMENTO DELLO SCRIPT: il docker-compose.yml e upgrade_vps.sh viaggiano INSIEME nel pacchetto e devono essere
+# coerenti (incidente: script vecchio «docker compose stop axon-core» eseguito con il compose blue-green nuovo → «no such service:
+# axon-core»). Se lo script in esecuzione è diverso da quello del pacchetto, lo installa in $DEST e si rilancia PRIMA di toccare
+# qualsiasi cosa (i .tgz restano in $DEST, nessun nuovo download). Protezione anti-loop: AXON_UPGRADE_REEXEC.
+PKG_SELF="$TMP/axon-core-pkg/upgrade_vps.sh"
+if [[ -f "$PKG_SELF" ]]; then
+  if ! cmp -s "$PKG_SELF" "$DEST/upgrade_vps.sh"; then
+    # tmp + mv (rename atomico): bash legge lo script in esecuzione man mano → MAI sovrascriverlo in place
+    cp -f "$PKG_SELF" "$DEST/upgrade_vps.sh.new" && chmod +x "$DEST/upgrade_vps.sh.new" && mv -f "$DEST/upgrade_vps.sh.new" "$DEST/upgrade_vps.sh" \
+      && echo "→ $DEST/upgrade_vps.sh aggiornato dal pacchetto"
+  fi
+  if [[ -z "${AXON_UPGRADE_REEXEC:-}" ]] && ! cmp -s "$PKG_SELF" "${SELF_PATH:-/nonexistent}"; then
+    echo "→ lo script in esecuzione non è quello del pacchetto: rilancio $DEST/upgrade_vps.sh (coerente con il compose nuovo)…"
+    rm -rf "$TMP"
+    AXON_UPGRADE_REEXEC=1 SRC_URL= KEY= exec bash "$DEST/upgrade_vps.sh"
+  fi
+fi
 
 # 1) Backend: backup + sostituzione codice (il .env di compose sta in $DEST/.env, non in backend/)
 #    --exclude assets/kokoro: i modelli TTS locali (se presenti sul VPS) non vengono cancellati dal --delete

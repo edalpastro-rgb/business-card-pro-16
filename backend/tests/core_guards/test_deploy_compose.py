@@ -66,3 +66,24 @@ def test_upgrade_script_has_compose_precheck():
         txt = f.read()
     assert "docker compose config -q" in txt, "upgrade_vps.sh deve validare il compose prima del deploy blue-green"
     assert "SKIP_SMOKE_GATE" in txt and "non è più supportato" in txt
+
+
+def test_upgrade_script_never_addresses_legacy_service_via_compose():
+    """V50.z572 — il servizio legacy «axon-core» non esiste più nel compose: va gestito SOLO con `docker` puro (stop/rm/logs)."""
+    import re
+    with open(os.path.join(SCRIPTS, "upgrade_vps.sh"), encoding="utf-8") as f:
+        code = [ln for ln in f.read().splitlines() if not ln.lstrip().startswith("#")]
+    for ln in code:
+        for m in re.finditer(r"docker compose\s+(\w+)[^\n]*", ln):
+            seg = m.group(0)
+            assert not re.search(r"\saxon-core(\s|$|\")", seg), f"compose rivolto al servizio legacy: {ln.strip()}"
+            assert "axon-core-legacy" not in seg and 'axon-core-$(active_color' not in seg, f"colore non valido verso compose: {ln.strip()}"
+
+
+def test_upgrade_script_self_updates_from_package():
+    """V50.z572 — lo script si rilancia con la versione del pacchetto (coerente col compose) prima di toccare i container."""
+    with open(os.path.join(SCRIPTS, "upgrade_vps.sh"), encoding="utf-8") as f:
+        txt = f.read()
+    assert "AXON_UPGRADE_REEXEC" in txt and 'exec bash "$DEST/upgrade_vps.sh"' in txt
+    assert txt.index("AXON_UPGRADE_REEXEC=1") < txt.index("rsync -a --delete --exclude '.env' --exclude 'assets/kokoro' \"$TMP/axon-core-pkg/backend/\""), \
+        "l'auto-aggiornamento deve avvenire PRIMA della sostituzione del backend"
