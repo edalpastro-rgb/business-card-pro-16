@@ -278,6 +278,34 @@ def _pick_axon_model(msg: str, has_attachments: bool, has_rag_context: bool, has
 AXON_HISTORY_WINDOW = 10  # V50.z517 — finestra scorrevole: ultimi N messaggi inviati al modello
 
 
+async def _tavily_refresh(args: Dict[str, Any]) -> str:
+    """V50.z565 — JOB IN BACKGROUND (refresher «tavily» di core.context_cache): esegue la ricerca web e salva il risultato
+    (JSON) nella cache locale; il preflight della chat legge SOLO la cache."""
+    res = await _tavily_search_smart(str(args.get("query") or ""), bool(args.get("energy")))
+    if not res or not (res.get("answer") or res.get("results")):
+        logger.warning("[tavily] nessun risultato per «%s» (chiave mancante o errore: vedi log [tavily])", str(args.get("query") or "")[:80])
+        return ""
+    return _json_stdlib.dumps(res, ensure_ascii=False, default=str)
+
+
+_core_ctx_register("tavily", _tavily_refresh)  # noqa: F821
+
+
+async def _run_context_cache_refresh_job() -> None:
+    """V50.z565 — Job periodico (ogni 15 min): rinfresca in background le voci della cache del contesto (GME, link insegnati,
+    Tavily) usate negli ultimi 7 giorni che scadono entro 30 min, così la chat trova sempre il dato pronto."""
+    try:
+        from core import context_cache as _cc
+        await _cc.refresh_due(horizon_s=1800, used_within_days=7, limit=20)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[context-cache] job: %s", exc)
+
+
+async def _run_gme_nightly_job() -> None:
+    """V50.z565 — Ogni notte: scarica in background i PDF GME dei mesi recenti non ancora in `gme_pun_cache`."""
+    _core_ctx_schedule("gme", {"months": ["recent"]}, ttl_s=6 * 3600)  # noqa: F821
+
+
 async def _prepare_assistant_prompt(
     user: dict, body: "AssistantChatIn"
 ) -> dict:
@@ -374,16 +402,23 @@ async def _prepare_assistant_prompt(
     _needs_tavily = _needs_energy or _axon_wants_general_web(user, msg)  # noqa: F821 — V50.z440 axon_persona.py
     logger.info("[web-search] «%s» → energy=%s info=%s persona=%s tavily=%s", (msg or "")[:70], _needs_energy,  # V50.z445 — decisione sempre tracciata
                 bool(globals().get("_nav_is_info_query") and _nav_is_info_query(msg)), _axon_persona(user), "SI" if _needs_tavily else "NO")  # noqa: F821
+    _web_pending = {"v": False}  # V50.z565 — True se la ricerca web è stata programmata in background (cache vuota)
+
     async def _safe_tavily():
         if not _needs_tavily:
             return None
+        # V50.z565 — SOLO cache locale (core.context_cache, kind «tavily»): nessuna chiamata Tavily nel preflight della chat.
+        # Miss/stale → ricerca programmata in background, disponibile alla domanda successiva; TTL 6 h (energia) / 24 h.
         try:
-            res = await _tavily_search_smart(msg, _needs_energy)
-            if not res:
-                logger.warning("[tavily] nessun risultato/ricerca non eseguita per «%s» (chiave mancante o errore: vedi log [tavily])", (msg or "")[:80])
-            return res
+            _args = {"query": (msg or "").strip().lower()[:300], "energy": bool(_needs_energy)}
+            _cres = await _core_ctx_get("tavily", _args, ttl_s=6 * 3600 if _needs_energy else 24 * 3600)  # noqa: F821
+            if _cres.get("text"):
+                return _json_stdlib.loads(_cres["text"])
+            if _cres.get("status") == "missing":
+                _web_pending["v"] = True
+            return None
         except Exception as exc:  # noqa: BLE001
-            logger.error("[tavily] eccezione per «%s»: %s", (msg or "")[:80], exc)
+            logger.error("[tavily] cache per «%s»: %s", (msg or "")[:80], exc)
             return None
 
     # V50.kb — Ricerca automatica nella Knowledge Base personale (pagine web salvate dall'utente).
@@ -517,8 +552,11 @@ async def _prepare_assistant_prompt(
 
     web_section = ""
     if _needs_tavily and not used_web_search and not _rag_covers_query:  # V50.z444 — ricerca necessaria ma fallita/assente: Axon NON deve attingere alla memoria
-        web_section = ("\n\nRICERCA WEB AGGIORNATA: NON DISPONIBILE per questa domanda (servizio di ricerca non configurato o nessun risultato). "
-                       "Per fatti attuali (borsa, prezzi, notizie, sport, eventi) rispondi ESATTAMENTE «Non ho dati aggiornati su questo.» e fermati.\n")
+        if _web_pending["v"]:  # V50.z565 — ricerca avviata ora in background: lo dice e invita a richiedere tra poco
+            web_section = "\n\n" + _core_ctx_pending_note("RICERCA WEB AGGIORNATA") + " Per fatti attuali NON rispondere a memoria.\n"  # noqa: F821
+        else:
+            web_section = ("\n\nRICERCA WEB AGGIORNATA: NON DISPONIBILE per questa domanda (servizio di ricerca non configurato o nessun risultato). "
+                           "Per fatti attuali (borsa, prezzi, notizie, sport, eventi) rispondi ESATTAMENTE «Non ho dati aggiornati su questo.» e fermati.\n")
     if web_search_ctx and used_web_search:
         web_section = (
             "\n\nRICERCA WEB AGGIORNATA (dati reali dal mercato energetico italiano):\n"

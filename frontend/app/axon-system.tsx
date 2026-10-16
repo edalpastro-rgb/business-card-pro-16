@@ -16,6 +16,8 @@ type Breakdown = { prep: Pct; llm_first: Pct; other: Pct; phases: Record<string,
 type Ttft = { window_min: number; n: number; p50: number; p95: number; max: number; slow: number; threshold_s: number; anomalies: string[]; ok: boolean; breakdown?: Breakdown; by_class?: Record<string, Breakdown & { n: number; ttft: Pct }> };
 type Status = {
   ttft?: Ttft; core_integrity?: { ok: boolean | null; violations: string[] };
+  fup?: { limits?: Record<string, number>; blocked_since_boot?: number; exempt?: number };
+  context_cache?: { hits?: number; stale_hits?: number; misses?: number; refreshed?: number; errors?: number; inflight?: number; kinds?: string[] };
   backend: { version: string | null; boot_id: string; started_at: string; uptime_label: string; python: string; llm_key: boolean; push_configured: boolean; modules: number };
   changelog: { version: string; date: string; desc: string }[];
   devices: { device_key: string; platform: string; app_version?: string | null; build_number?: string | null; js_version?: string | null; device_name?: string | null; app_env?: string | null; last_seen: string; previous_version?: string }[];
@@ -94,6 +96,12 @@ export default function AxonSystemScreen() {
                     <Text key={c} style={styles.meta} testID={`axs-ttft-class-${c}`}>• classe <Text style={{ fontWeight: "800", color: HT.text }}>{c}</Text>: {b.n} risposte · TTFT p95 {b.ttft.p95.toFixed(1)}s = prep {b.prep.p95.toFixed(1)}s + LLM {b.llm_first.p95.toFixed(1)}s{b.bottleneck ? ` → ${b.bottleneck}` : ""}</Text>
                   ))}
                 </>
+              )}
+              {(!!st.context_cache || !!st.fup) && (
+                <View style={[styles.chips, { marginTop: 4 }]} testID="axs-fup-cache">
+                  {!!st.context_cache && <Text style={styles.chip}>🗂️ Cache contesto: {st.context_cache.hits ?? 0} hit · {st.context_cache.misses ?? 0} miss · {st.context_cache.refreshed ?? 0} aggiornate in background{st.context_cache.inflight ? ` · ${st.context_cache.inflight} in corso` : ""}</Text>}
+                  {!!st.fup?.limits && <Text style={[styles.chip, { borderColor: st.fup.blocked_since_boot ? HT.warning : HT.border }]}>🛡️ FUP {st.fup.limits.minute}/min · {st.fup.limits.hour}/ora · {st.fup.limits.month}/mese · bloccate {st.fup.blocked_since_boot ?? 0}</Text>}
+                </View>
               )}
             </View>
           )}

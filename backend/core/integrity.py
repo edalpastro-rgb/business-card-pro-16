@@ -7,7 +7,7 @@ package core (identità), e `/api/health` espone `core_integrity`. Un deploy che
 import logging
 from typing import Any, Dict, List
 
-from core import drive_retrieval, embedding, response_rules, streaming
+from core import context_cache, drive_retrieval, embedding, response_rules, streaming
 
 _log = logging.getLogger("axon.core.integrity")
 
@@ -22,6 +22,10 @@ PROTECTED: Dict[str, Any] = {
     "_core_stream_stats": streaming.stats,
     "_core_stream_begin_phases": streaming.begin_phases,
     "_core_stream_mark_phase": streaming.mark_phase,
+    "_core_ctx_get": context_cache.get,
+    "_core_ctx_register": context_cache.register,
+    "_core_ctx_schedule": context_cache.schedule,
+    "_core_ctx_pending_note": context_cache.pending_note,
     "_core_embedder": embedding.embedder,
 }
 _LAST: Dict[str, Any] = {"ok": None, "violations": []}

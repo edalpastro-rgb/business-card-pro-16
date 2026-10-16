@@ -99,6 +99,7 @@ fi
 docker compose logs --since 3m axon-core 2>/dev/null | grep -E "\[boot\] Google Drive|\[boot\] core|core-integrity" | tail -n 4 | cut -c1-220 | sed 's/^/    /' || true
 
 # V50.z562 — SMOKE GATE + ROLLBACK AUTOMATICO (Accordo di produzione V1423+)
+# V50.z565 — 4 domande post-rebuild, UNA PER CLASSE (simple · crm · drive · energy/listini): se UNA classe supera i 2 s di TTFT → rollback.
 # Legge SMOKE_EMAIL / SMOKE_PASSWORD / SMOKE_DRIVE_QUERY / SMOKE_TTFT_MAX_S dal .env di compose ($DEST/.env).
 SMOKE_SCRIPT="$TMP/axon-core-pkg/smoke_gate.py"; [[ -f "$SMOKE_SCRIPT" ]] || SMOKE_SCRIPT="$DEST/smoke_gate.py"
 if [[ "${SKIP_SMOKE_GATE:-0}" == "1" ]]; then

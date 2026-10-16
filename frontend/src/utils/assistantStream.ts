@@ -171,7 +171,7 @@ export async function streamAssistantChat(
       let msg = `HTTP ${res.status}`;
       try {
         const j = await res.json();
-        msg = j.detail || j.message || msg;
+        msg = j.msg || j.detail || j.message || msg; // V50.z565 — Fair Usage Policy (429): {status:"blocked", msg}
       } catch {}
       throw new Error(msg);
     }
@@ -252,7 +252,7 @@ export async function streamAssistantChat(
           let msg = `HTTP ${xhr.status}`;
           try {
             const j = JSON.parse(xhr.responseText || "{}");
-            msg = j.detail || j.message || msg;
+            msg = j.msg || j.detail || j.message || msg; // V50.z565 — Fair Usage Policy (429): {status:"blocked", msg}
           } catch {}
           reject(new Error(msg));
         }

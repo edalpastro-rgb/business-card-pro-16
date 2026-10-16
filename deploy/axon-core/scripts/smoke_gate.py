@@ -4,7 +4,7 @@
 Eseguito da upgrade_vps.sh dopo il rebuild. Exit code 0 = deploy OK; ≠0 = BLOCCA e lo script fa ROLLBACK all'immagine precedente.
 Controlli:
   1. /api/health → 200, version == tag del pacchetto (se PKG_TAG), core_integrity == true
-  2. login (SMOKE_EMAIL/SMOKE_PASSWORD) → /api/assistant/chat/stream su 3 domande campione:
+  2. login (SMOKE_EMAIL/SMOKE_PASSWORD) → /api/assistant/chat/stream su 4 domande campione, UNA PER CLASSE (simple, crm, drive, energy):
        TTFT (primo delta) ≤ SMOKE_TTFT_MAX_S (default 2.0, misurato sul server stesso quindi senza rete pubblica)
        streaming fluido: ≥ 3 delta e timestamp crescenti (non tutto in un blocco)
   3. retrieval Drive: /api/google-drive/retrieval-check?q=SMOKE_DRIVE_QUERY (default 01_POWER) → found == true
@@ -24,7 +24,11 @@ EMAIL = os.environ.get("SMOKE_EMAIL") or ""
 PASSWORD = os.environ.get("SMOKE_PASSWORD") or ""
 DRIVE_Q = os.environ.get("SMOKE_DRIVE_QUERY") or "01_POWER"
 TTFT_MAX = float(os.environ.get("SMOKE_TTFT_MAX_S") or "2.0")
-QUESTIONS = ["Che ore sono?", "Quanti appuntamenti ho domani?", "Dove trovo lo scanner biglietti da visita?"]
+# V50.z565 — UNA domanda per CLASSE: semplice · CRM/agenda · Drive (contenuto file) · listini energetici (GME/PUN).
+# Il rollback scatta se UNA QUALSIASI classe supera SMOKE_TTFT_MAX_S (2 s): il preflight legge solo cache Mongo/ChromaDB.
+QUESTIONS = [("simple", "Che ore sono?"), ("crm", "Quanti appuntamenti ho domani?"),
+             ("drive", f"Cosa c'è scritto nei miei file su Drive riguardo {DRIVE_Q}? Cita il nome del file."),
+             ("energy", "Mostrami i listini energia: PUN F1, F2, F3 e monorario dell'ultimo mese disponibile")]
 CTX = ssl.create_default_context(); CTX.check_hostname = False; CTX.verify_mode = ssl.CERT_NONE
 FAILS, WARNS = [], []
 
@@ -69,21 +73,21 @@ def stream_probe(token, msg):
 
 
 def check_stream(token):
-    for q in QUESTIONS:
+    for cls, q in QUESTIONS:
         try:
             first, stamps, total = stream_probe(token, q)
         except Exception as exc:  # noqa: BLE001
-            FAILS.append(f"stream «{q}»: errore {exc}"); continue
+            FAILS.append(f"stream [{cls}] «{q}»: errore {exc}"); continue
         ok_ttft = first is not None and first <= TTFT_MAX
         # «in blocco» = lunga attesa poi tutto insieme; le risposte deterministiche istantanee (1 delta in <1 s) sono legittime
         fluid = (len(stamps) >= 3 and len(set(round(s, 2) for s in stamps)) >= 2) or total < 1.0
-        print(f"  stream «{q}»: TTFT={first and round(first,2)}s deltas={len(stamps)} total={round(total,2)}s → {'OK' if ok_ttft and fluid else 'KO'}")
+        print(f"  stream [{cls}] «{q}»: TTFT={first and round(first,2)}s deltas={len(stamps)} total={round(total,2)}s → {'OK' if ok_ttft and fluid else 'KO'}")
         if first is None:
-            FAILS.append(f"stream «{q}»: nessun delta")
+            FAILS.append(f"stream [{cls}] «{q}»: nessun delta")
         elif not ok_ttft:
-            FAILS.append(f"stream «{q}»: TTFT {first:.2f}s > {TTFT_MAX}s")
+            FAILS.append(f"stream [{cls}] «{q}»: TTFT {first:.2f}s > {TTFT_MAX}s → classe {cls} fuori soglia")
         if first is not None and not fluid:
-            FAILS.append(f"stream «{q}»: non fluido ({len(stamps)} delta, tutti allo stesso istante)")
+            FAILS.append(f"stream [{cls}] «{q}»: non fluido ({len(stamps)} delta, tutti allo stesso istante)")
 
 
 def check_drive(token):

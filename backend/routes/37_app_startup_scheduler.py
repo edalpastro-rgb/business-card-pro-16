@@ -288,6 +288,16 @@ async def _start_scheduler():
             _run_teach_urls_prefetch_job, "interval", minutes=30,
             id="teach-urls-prefetch", replace_existing=True,
         )
+        # V50.z565 — Cache del contesto compilata in background (GME, PDF dei link insegnati, Tavily): refresh anticipato
+        # delle voci usate di recente (ogni 15 min) + GME «recent» ogni notte alle 05:30 → la chat legge solo Mongo.
+        _birthday_scheduler.add_job(
+            _run_context_cache_refresh_job, "interval", minutes=15,
+            id="context-cache-refresh", replace_existing=True,
+        )
+        _birthday_scheduler.add_job(
+            _run_gme_nightly_job, "cron", hour=5, minute=30,
+            id="gme-canonical-nightly", replace_existing=True,
+        )
         # V50.z24 — Auto-CRM scan tick (ogni minuto: valuta chi è in scadenza)
         _birthday_scheduler.add_job(
             _run_auto_crm_tick, "interval", minutes=1,

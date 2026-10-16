@@ -1,7 +1,8 @@
 # axon_drive_root.py — V50.z201 — Google Drive: file nella ROOT delle cartelle monitorate sempre visibili ad Axon + shortcut + OCR (modulo ISOLATO)
 #
 # Caricato DOPO axon_system_awareness.py e PRIMA di 37. Ridefinisce nel namespace condiviso tre funzioni usate dal reindex Drive
-# (`_drive_walk_and_collect`, `_drive_download_text`, `_fetch_teach_drive_pdfs_for_query`) e avvolge `_reindex_drive_files_for_user`.
+# (`_drive_walk_and_collect`, `_drive_download_text`) e avvolge `_reindex_drive_files_for_user`. V50.z565: non avvolge più
+# `_fetch_teach_drive_pdfs_for_query` ([ROOT FILES] integrato in 20_axon_memory.py con lettura dei soli file selezionati).
 # STATO PRIMA: la BFS indicizzava anche i file nella root (depth 0), MA: (a) gli shortcut Drive («Link … .pdf», mimeType
 # application/vnd.google-apps.shortcut) erano esclusi dal filtro → mai indicizzati; (b) i PDF scansionati (senza layer testo) finivano
 # nell'indice con testo vuoto → Axon vedeva il nome ma non il contenuto; (c) nel prompt l'elenco era «i 40 più recenti» senza distinzione
@@ -194,55 +195,8 @@ async def _reindex_drive_files_for_user(user_id: str, max_files: int = 300) -> D
     return stats
 
 
-# ---------------------------------------------------------------------------- prompt: sezione [ROOT FILES] sempre completa
-_adr_prev_fetch = _fetch_teach_drive_pdfs_for_query
-
-
-async def _fetch_teach_drive_pdfs_for_query(tenant: str, user_msg: str, max_pdfs: int = 4) -> str:  # noqa: F811
-    out = await _adr_prev_fetch(tenant, user_msg, max_pdfs)
-    if not out:
-        return out
-    try:
-        roots, _sf = await _drive_index_roots(tenant)
-        if not roots:
-            return out
-        root_names = [r.get("name") or "" for r in roots]
-        rows = await db.drive_snapshots.find({"user_id": tenant, "folder_path": {"$in": root_names}}, {"_id": 0, "name": 1, "folder_path": 1, "modified_time": 1, "text": 1, "pages": 1, "mime": 1}).sort("name", 1).to_list(200)
-        if not rows:
-            return out
-        by_root: Dict[str, List[dict]] = {}
-        for r in rows:
-            by_root.setdefault(r.get("folder_path") or "", []).append(r)
-        sec = ["📁 [ROOT FILES] — file direttamente nella radice delle cartelle monitorate (elenco COMPLETO, indicizzati come tutti gli altri):"]
-        for rn in root_names:
-            items = by_root.get(rn) or []
-            if not items:
-                continue
-            sec.append(f"  📂 {rn} ({len(items)} file root):")
-            for r in items:
-                has_txt = bool((r.get("text") or "").strip())
-                sec.append(f"     • [ROOT] {r.get('name')} (mod. {(r.get('modified_time') or '?')[:10]}{'' if has_txt else ' · ⚠️ nessun testo estraibile'})")
-        # inserisci subito dopo la riga FILE INDICIZZATI
-        marker = "FILE INDICIZZATI:"
-        idx = out.find(marker)
-        if idx >= 0:
-            nl = out.find("\n", idx)
-            nl = nl if nl >= 0 else len(out)
-            out = out[:nl] + "\n" + "\n".join(sec) + out[nl:]
-        else:
-            out = "\n".join(sec) + "\n" + out
-        # se il messaggio cita un file root, includi il suo testo (bonus pertinenza)
-        msg_lc = (user_msg or "").lower()
-        kws = [w for w in re.findall(r"[a-zA-Zàèéìòù0-9]{4,}", msg_lc) if w not in _DRIVE_TEACH_STOPWORDS]
-        hits = [r for r in rows if (r.get("text") or "").strip() and sum(1 for k in kws if k in (r.get("name") or "").lower()) >= 1]
-        already = "CONTENUTO DEI FILE PIÙ PERTINENTI" in out
-        extra = [r for r in hits[:2] if f"File Drive: {r.get('folder_path')}/{r.get('name')}" not in out]
-        if extra:
-            blocks = "\n\n".join(f"--- File Drive [ROOT]: {r.get('folder_path')}/{r.get('name')} (modificato: {r.get('modified_time') or '?'}) ---\n{(r.get('text') or '')[:8000]}" for r in extra)
-            out += ("\n\n" if already else "\n\nCONTENUTO DEI FILE PIÙ PERTINENTI:\n\n") + blocks
-    except Exception as e:  # noqa: BLE001
-        logger.warning("[drive-root] section failed: %s", e)
-    return out
+# V50.z565 — la sezione [ROOT FILES] del prompt è ora dentro `_fetch_teach_drive_pdfs_for_query` (20_axon_memory.py, snapshot leggeri):
+# il wrapper duplicato che rileggeva TUTTI i testi root da Mongo a ogni domanda è stato rimosso.
 
 
 @api_router.get("/google-drive/root-files")

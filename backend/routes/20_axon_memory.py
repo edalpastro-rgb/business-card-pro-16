@@ -432,17 +432,10 @@ async def _build_axon_teach_section(tenant: str, user_msg: str) -> str:
 
 
 async def _fetch_gme_pun_canonical(tenant: str, user_msg: str, max_pdfs: int = 18) -> str:
-    """V50.z53 — Rewrite completo (velocità + affidabilità dati):
-    - Legge mesi/anni menzionati nel messaggio utente e SCARICA SOLO i PDF di
-      quei mesi (invece dei primi 18 link della pagina)
-    - Esclude sempre i PDF con "FAQ" nel nome
-    - Sostituisce la cache in-memory con collection MongoDB `gme_pun_cache`
-      (una riga per mese, senza scadenza: i prezzi GME chiusi non cambiano)
-    - Estrae F1/F2/F3 e il numero di ore associato dal PDF (pattern "(253 ore)")
-    - Calcola il Monorario PUN in codice come media ponderata per ore
-    - Restituisce SOLO valori precalcolati; il modello non stima nulla
-    - Per mesi senza PDF, restituisce "dati non disponibili" esplicito
-    """
+    """V50.z565 — SOLO LETTURA dalla cache MongoDB `gme_pun_cache` (< 50 ms). Nessun download nel preflight della chat:
+    i mesi mancanti vengono scaricati dal job in background `_gme_refresh_months` (programmato qui via core.context_cache
+    e ogni notte dallo scheduler) e sono disponibili alla domanda successiva.
+    V50.z53 — una riga per mese senza scadenza (i prezzi GME chiusi non cambiano); F1/F2/F3 + ore dal PDF, Monorario in codice."""
     msg_lc = (user_msg or "").lower()
     if not msg_lc:
         return ""
@@ -450,29 +443,47 @@ async def _fetch_gme_pun_canonical(tenant: str, user_msg: str, max_pdfs: int = 1
     if not _GME_KEYS_RX.search(msg_lc):
         return ""
 
-    # 1) Parse mesi/anni menzionati nel messaggio utente
     requested_months = _parse_gme_months_from_msg(user_msg or "")
-    # Se l'utente non ha specificato niente, prendiamo comunque gli ultimi 18 mesi
-    # ma DOPO aver filtrato FAQ e dopo aver escluso mesi già in cache.
-
-    # 2) Carica cache MongoDB per i mesi richiesti (se qualcuno esiste già, evita download)
     from_cache: Dict[str, dict] = {}
-    if requested_months:
+    try:
+        q = {"month_key": {"$in": [m["key"] for m in requested_months]}} if requested_months else {}
+        docs = await db.gme_pun_cache.find(q, {"_id": 0}).sort("month_key", -1).to_list(50 if requested_months else max_pdfs)
+        for d in docs:
+            from_cache[d["month_key"]] = d
+    except Exception as exc:
+        logger.debug("[gme-cache] read failed: %s", exc)
+
+    missing = [m["key"] for m in requested_months if m["key"] not in from_cache] if requested_months else ([] if len(from_cache) >= min(max_pdfs, 12) else ["recent"])
+    out = _format_gme_blocks(requested_months, from_cache, {})
+    if missing:
+        # download in background (deduplicato): la chat non aspetta la rete
+        _core_ctx_schedule("gme", {"months": sorted(missing)}, ttl_s=6 * 3600)  # noqa: F821
+        out = (out + "\n\n" if out else "") + _core_ctx_pending_note(f"PDF GME per {', '.join(missing)}")  # noqa: F821
+    return out
+
+
+async def _gme_refresh_months(args: Dict[str, Any]) -> str:
+    """JOB IN BACKGROUND (core.context_cache refresher «gme»): scarica la pagina GME PrezzoMedioFasce e i PDF dei mesi richiesti
+    (`args["months"]` = ["2026-07", …] oppure ["recent"] = ultimi 18 mesi non ancora in cache) → upsert in `gme_pun_cache`.
+    Ritorna un riepilogo testuale (solo diagnostica: la chat legge `gme_pun_cache`, non questo testo)."""
+    wanted = [k for k in (args.get("months") or []) if k != "recent"]
+    max_pdfs = 18
+    from_cache: Dict[str, dict] = {}
+    try:
+        docs = await db.gme_pun_cache.find({}, {"_id": 0, "month_key": 1}).to_list(500)
+        from_cache = {d["month_key"]: d for d in docs}
+    except Exception as exc:
+        logger.debug("[gme-cache] read failed: %s", exc)
+    requested_months = []
+    for k in wanted:
         try:
-            docs = await db.gme_pun_cache.find(
-                {"month_key": {"$in": [m["key"] for m in requested_months]}},
-                {"_id": 0},
-            ).to_list(50)
-            for d in docs:
-                from_cache[d["month_key"]] = d
-        except Exception as exc:
-            logger.debug("[gme-cache] read failed: %s", exc)
+            y, mo = k.split("-")
+            requested_months.append({"key": k, "year": int(y), "month": int(mo), "month_name": _GME_MONTH_NAMES_REV.get(int(mo), "")})
+        except Exception:  # noqa: BLE001
+            continue
+    if requested_months and all(m["key"] in from_cache for m in requested_months):
+        return f"gme: {len(requested_months)} mesi già in cache"
 
-    # 3) Se tutti i mesi richiesti sono in cache, salta il download della pagina
-    if requested_months and len(from_cache) == len(requested_months):
-        return _format_gme_blocks(requested_months, from_cache, {})
-
-    # 4) Scarica la pagina GME e trova i link PDF (escludendo FAQ)
     GME_PAGE = "https://gme.mercatoelettrico.org/it-it/Home/Pubblicazioni/PrezzoMedioFasce"
     _headers = {
         "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
@@ -483,7 +494,7 @@ async def _fetch_gme_pun_canonical(tenant: str, user_msg: str, max_pdfs: int = 1
 
     async def _dl_pdf(client: httpx.AsyncClient, pu: str) -> Optional[Dict[str, Any]]:
         try:
-            r = await client.get(pu, timeout=10)
+            r = await client.get(pu, timeout=20)
             if r.status_code != 200 or not r.content:
                 return None
             txt = _extract_pdf_text_bytes(r.content) or ""
@@ -495,90 +506,74 @@ async def _fetch_gme_pun_canonical(tenant: str, user_msg: str, max_pdfs: int = 1
             return None
 
     downloaded: Dict[str, dict] = {}
-    try:
-        async with httpx.AsyncClient(follow_redirects=True, headers=_headers) as client:
-            page = await client.get(GME_PAGE, timeout=10)
-            if page.status_code != 200:
-                # Fallback: usa solo quello che c'è in cache
-                return _format_gme_blocks(requested_months, from_cache, {})
-            hrefs = re.findall(r'href=["\']([^"\']+\.pdf[^"\']*)["\']', page.text or "", flags=re.I)
-            seen = set()
-            candidates: List[Tuple[str, str, Optional[dict]]] = []  # (url, name, month_dict)
-            for h in hrefs:
-                full = urljoin(GME_PAGE, h)
-                _norm = full.split("?")[0].lower()
-                if _norm in seen:
-                    continue
-                seen.add(_norm)
-                nm = urlparse(full).path.rsplit("/", 1)[-1] or full
-                # Esclusione FAQ
-                if "faq" in nm.lower():
-                    continue
-                # Prova a inferire il mese dal nome file
-                mnth = _infer_month_from_filename(nm)
-                candidates.append((full, nm, mnth))
+    async with httpx.AsyncClient(follow_redirects=True, headers=_headers) as client:
+        page = await client.get(GME_PAGE, timeout=20)
+        if page.status_code != 200:
+            return f"gme: pagina HTTP {page.status_code}"
+        hrefs = re.findall(r'href=["\']([^"\']+\.pdf[^"\']*)["\']', page.text or "", flags=re.I)
+        seen = set()
+        candidates: List[Tuple[str, str, Optional[dict]]] = []  # (url, name, month_dict)
+        for h in hrefs:
+            full = urljoin(GME_PAGE, h)
+            _norm = full.split("?")[0].lower()
+            if _norm in seen:
+                continue
+            seen.add(_norm)
+            nm = urlparse(full).path.rsplit("/", 1)[-1] or full
+            if "faq" in nm.lower():
+                continue
+            candidates.append((full, nm, _infer_month_from_filename(nm)))
 
-            # Se l'utente ha chiesto mesi specifici, filtra i candidati
-            wanted_keys = {m["key"] for m in requested_months} if requested_months else None
-            to_download: List[Tuple[str, str, Optional[dict]]] = []
-            if wanted_keys:
-                for (u, n, m) in candidates:
-                    if m and m["key"] in wanted_keys and m["key"] not in from_cache:
-                        to_download.append((u, n, m))
-            else:
-                # Nessuna richiesta specifica: prendi i primi N unici per mese, escludi già in cache
-                seen_months: set = set()
-                for (u, n, m) in candidates:
-                    if not m:
-                        continue
-                    if m["key"] in seen_months or m["key"] in from_cache:
-                        continue
-                    seen_months.add(m["key"])
+        wanted_keys = {m["key"] for m in requested_months} if requested_months else None
+        to_download: List[Tuple[str, str, Optional[dict]]] = []
+        if wanted_keys:
+            for (u, n, m) in candidates:
+                if m and m["key"] in wanted_keys and m["key"] not in from_cache:
                     to_download.append((u, n, m))
-                    if len(to_download) >= max_pdfs:
-                        break
-
-            if not to_download:
-                return _format_gme_blocks(requested_months or [], from_cache, {})
-
-            results = await asyncio.gather(*[_dl_pdf(client, u) for (u, _, _) in to_download], return_exceptions=False)
-            for (u, n, m), res in zip(to_download, results):
-                if not res or not m:
+        else:
+            seen_months: set = set()
+            for (u, n, m) in candidates:
+                if not m or m["key"] in seen_months or m["key"] in from_cache:
                     continue
-                # Parse strutturato del PDF: F1/F2/F3 + ore
-                parsed = _parse_gme_pdf_prices(res["text"], m)
-                if not parsed:
-                    continue
-                doc = {
-                    "month_key": m["key"],
-                    "year": m["year"],
-                    "month": m["month"],
-                    "month_name": m["month_name"],
-                    "source_url": u,
-                    "source_name": n,
-                    "F1": parsed["F1"], "F1_hours": parsed["F1_hours"],
-                    "F2": parsed["F2"], "F2_hours": parsed["F2_hours"],
-                    "F3": parsed["F3"], "F3_hours": parsed["F3_hours"],
-                    "monorario": parsed["monorario"],
-                    "total_hours": parsed["total_hours"],
-                    "unit": parsed.get("unit") or "€/MWh",
-                    "extracted_at": utcnow(),
-                }
-                downloaded[m["key"]] = doc
-                # Upsert cache persistente (senza scadenza)
-                try:
-                    await db.gme_pun_cache.update_one(
-                        {"month_key": m["key"]},
-                        {"$set": doc},
-                        upsert=True,
-                    )
-                except Exception as exc:
-                    logger.debug("[gme-cache] upsert failed for %s: %s", m["key"], exc)
-    except Exception as exc:
-        logger.debug("[gme-canonical] fetch failed: %s", exc)
-        return _format_gme_blocks(requested_months or [], from_cache, {})
+                seen_months.add(m["key"])
+                to_download.append((u, n, m))
+                if len(to_download) >= max_pdfs:
+                    break
+        if not to_download:
+            return "gme: nessun PDF nuovo da scaricare"
 
-    return _format_gme_blocks(requested_months or [], from_cache, downloaded)
+        results = await asyncio.gather(*[_dl_pdf(client, u) for (u, _, _) in to_download], return_exceptions=False)
+        for (u, n, m), res in zip(to_download, results):
+            if not res or not m:
+                continue
+            parsed = _parse_gme_pdf_prices(res["text"], m)
+            if not parsed:
+                continue
+            doc = {
+                "month_key": m["key"],
+                "year": m["year"],
+                "month": m["month"],
+                "month_name": m["month_name"],
+                "source_url": u,
+                "source_name": n,
+                "F1": parsed["F1"], "F1_hours": parsed["F1_hours"],
+                "F2": parsed["F2"], "F2_hours": parsed["F2_hours"],
+                "F3": parsed["F3"], "F3_hours": parsed["F3_hours"],
+                "monorario": parsed["monorario"],
+                "total_hours": parsed["total_hours"],
+                "unit": parsed.get("unit") or "€/MWh",
+                "extracted_at": utcnow(),
+            }
+            downloaded[m["key"]] = doc
+            try:
+                await db.gme_pun_cache.update_one({"month_key": m["key"]}, {"$set": doc}, upsert=True)
+            except Exception as exc:
+                logger.debug("[gme-cache] upsert failed for %s: %s", m["key"], exc)
+    logger.info("[gme-refresh] scaricati %d mesi: %s", len(downloaded), ", ".join(sorted(downloaded)) or "—")
+    return f"gme: scaricati {len(downloaded)} mesi ({', '.join(sorted(downloaded))})"
+
+
+_core_ctx_register("gme", _gme_refresh_months)  # noqa: F821 — V50.z565 — refresher in background (core.context_cache)
 
 
 # --- V50.z53 helpers: month parsing + PDF price extraction ---
@@ -864,22 +859,15 @@ async def _fetch_teach_urls_html_generic(
         if not html_text and not pdfs:
             stale_needing_live.append(u)
 
-    # Se qualche URL non ha ancora uno snapshot (URL nuovo), fai UN fetch al volo
-    # solo del primo (per non rallentare). Il resto verrà scaricato in background.
+    # V50.z565 — URL nuovo senza snapshot: il download NON avviene più nel preflight della chat; viene programmato in
+    # background (_axon_refresh_teach_snapshot) e il contenuto sarà nel prompt dalla domanda successiva.
     if stale_needing_live and not parts and not pdf_blocks:
         u = stale_needing_live[0]
         try:
-            snap = await _axon_refresh_teach_snapshot(u)
-            if snap:
-                html_text = (snap.get("html_text") or "").strip()
-                if html_text:
-                    title = u.get("title") or u.get("name") or u.get("url")
-                    parts.append(f"--- FONTE: {title} ({u.get('url')}) [snapshot appena creato] ---\n{html_text[:per_url_chars]}")
-                for p in (snap.get("pdf_texts") or [])[:3]:
-                    if p.get("text"):
-                        pdf_blocks.append(f"--- PDF LIVE: {p.get('name')} ---\n{p['text'][:3500]}")
+            asyncio.get_running_loop().create_task(_axon_refresh_teach_snapshot(u))
         except Exception:
             pass
+        return _core_ctx_pending_note(f"Contenuto del link insegnato «{u.get('title') or u.get('name') or u.get('url')}»")  # noqa: F821
 
     if not parts and not pdf_blocks:
         return ""
@@ -1349,33 +1337,37 @@ async def _fetch_teach_urls_html_generic_legacy(
 
 
 async def _fetch_teach_url_pdfs_for_query(tenant: str, user_msg: str, max_pdfs: int = 3) -> str:
-    """Se il messaggio menziona mesi/anni + tema PUN, prova a scaricare i PDF
-    linkati dalle pagine ai_teach_urls e ritorna il loro testo estratto.
-    Best-effort: se qualcosa fallisce ritorna stringa vuota.
-
-    V50.b — PERFORMANCE + MATCHING FIX:
-    - HTTP timeout ridotto da 25s → 8s per pagina, 15s per PDF.
-    - Fetch pagine PARALLELIZZATO con asyncio.gather (era sequenziale).
-    - Download PDF PARALLELIZZATO con asyncio.gather.
-    - Cap totale su URL processati (10 pagine) per evitare stalli su tenant con 50+ URL.
-    - Regex mese/anno estesa a formati comuni GME: "202607", "07-2026", "07_2026",
-      "2026-07", "2026_07", "07.2026", "202607PMF", "PrezzoMedioFasce_202607.pdf".
-    """
+    """V50.z565 — SOLO LETTURA dalla cache del contesto (core.context_cache, kind «url-pdf», TTL 24 h): la chat non scarica
+    più pagine/PDF dei link insegnati. Su miss programma `_teach_url_pdfs_download` in background e ritorna "" (o il testo
+    stale se c'è); il job periodico `context-cache-refresh` tiene calde le voci usate di recente."""
     msg_lc = (user_msg or "").lower()
-    if not msg_lc:
+    if not msg_lc or not _PUN_LIKE_RX.search(msg_lc):  # V50.z556 — confine di parola (vedi _GME_KEYS_RX)
         return ""
-    is_pun_like = bool(_PUN_LIKE_RX.search(msg_lc))  # V50.z556 — confine di parola (vedi _GME_KEYS_RX)
-    if not is_pun_like:
-        return ""
-    # Estrai mesi e anni menzionati
     months = [m for m in _MONTH_MAP_IT if m in msg_lc]
-    # Estrai anche mesi numerici (07/2026, 07-2026, 07.2026, 07 2026)
     for _mnum in re.findall(r"\b(0[1-9]|1[0-2])[/\-\.\s](20\d{2})\b", msg_lc):
         _mnum_int = int(_mnum[0])
         for _mname, _mval in _MONTH_MAP_IT.items():
             if _mval == _mnum_int and _mname not in months:
                 months.append(_mname)
-    years = re.findall(r"20\d{2}", msg_lc)
+    years = sorted(set(re.findall(r"20\d{2}", msg_lc)))
+    args = {"tenant": tenant, "months": sorted(months), "years": years, "max_pdfs": max_pdfs}
+    res = await _core_ctx_get("url-pdf", args, ttl_s=24 * 3600)  # noqa: F821
+    return res.get("text") or ""
+
+
+async def _teach_url_pdfs_download(args: Dict[str, Any]) -> str:
+    """JOB IN BACKGROUND (refresher «url-pdf»): scarica le pagine insegnate (`ai_teach_urls`) e i PDF che corrispondono a
+    mesi/anni richiesti (o i più recenti se non specificati) e ritorna il testo estratto da iniettare nel prompt.
+
+    V50.b — PERFORMANCE + MATCHING FIX:
+    - Fetch pagine e download PDF PARALLELIZZATI con asyncio.gather; cap 10 pagine per tenant.
+    - Regex mese/anno estesa a formati comuni GME: "202607", "07-2026", "07_2026",
+      "2026-07", "2026_07", "07.2026", "202607PMF", "PrezzoMedioFasce_202607.pdf".
+    """
+    tenant = args.get("tenant") or ""
+    months: List[str] = list(args.get("months") or [])
+    years: List[str] = list(args.get("years") or [])
+    max_pdfs = int(args.get("max_pdfs") or 3)
     # V50.z26 — Se manca mese/anno ma il tema è chiaramente PUN/energia, NON
     # tornare vuoto: prendi i PDF più recenti trovati sulla pagina (fallback).
     no_filter = (not months) and (not years)
@@ -1517,6 +1509,8 @@ async def _fetch_teach_url_pdfs_for_query(tenant: str, user_msg: str, max_pdfs: 
     return "\n\n".join(out_blocks)
 
 
+_core_ctx_register("url-pdf", _teach_url_pdfs_download)  # noqa: F821 — V50.z565 — refresher in background (core.context_cache)
+
 
 
 # ─── V50.z7 — Fetch PDF da Drive folders/files in ai_teach_urls ──────────
@@ -1613,16 +1607,12 @@ def _schedule_drive_semantic_backfill(tenant: str) -> None:
 async def _fetch_teach_drive_pdfs_for_query(
     tenant: str, user_msg: str, max_pdfs: int = 4
 ) -> str:
-    """V50.z155 — Contesto Drive per la chat letto dall'INDICE (`drive_snapshots`),
-    non più con chiamate live all'API Drive (BFS su decine di cartelle ad ogni
-    domanda → 30-120s di attesa e falsi "non ho accesso").
-
-    • Elenca sempre cartelle monitorate + n. file indicizzati (così Axon sa
-      rispondere "che cartella vedi?").
-    • Sceglie i file più pertinenti (keyword nel nome/percorso → mese/anno →
-      più recenti) e ne include il testo.
-    • Se l'indice è vuoto ma esistono radici, avvia il reindex in background e
-      lo dichiara nel prompt.
+    """V50.z565 — DRIVE SNAPSHOT LEGGERI. È VIETATO caricare in memoria tutti i testi di `drive_snapshots` del tenant:
+    1) metadati soltanto (nome, cartella, data, has_text — mai `text`) per elenco, [ROOT FILES] e fallback lessicale sul nome;
+    2) SELEZIONE dei file via ChromaDB (core.drive_retrieval.search, contenuto) + punteggio lessicale sul nome;
+    3) UNA sola query Mongo `file_id ∈ selezionati` per estrarre il testo dei soli file scelti (≤ max_pdfs + 2 root).
+    V50.z155 — l'indice (`drive_snapshots`) sostituisce le chiamate live all'API Drive; se l'indice è vuoto ma esistono radici,
+    avvia il reindex in background e lo dichiara nel prompt. Include la sezione «📁 [ROOT FILES]» (prima in axon_drive_root.py).
     Ritorna "" solo se il tenant non ha Drive collegato né cartelle.
     """
     msg_lc = (user_msg or "").lower()
@@ -1631,15 +1621,20 @@ async def _fetch_teach_drive_pdfs_for_query(
         return ""
     connected = await db.google_drive_connections.find_one({"user_id": tenant}, {"_id": 0, "user_id": 1}) is not None
 
+    # 1) METADATI (senza testo): has_text calcolato lato Mongo
+    _m0 = _time_mod.monotonic()
     try:
-        _m0 = _time_mod.monotonic()
-        snaps = await db.drive_snapshots.find(
-            {"user_id": tenant},
-            {"_id": 0, "file_id": 1, "name": 1, "folder_path": 1, "modified_time": 1, "text": 1, "mime": 1},
-        ).sort("modified_time", -1).to_list(2000)
-        _core_stream_mark_phase("teach.drive.mongo", _time_mod.monotonic() - _m0)  # noqa: F821 — V50.z564 — lettura snapshot (testo completo) da Mongo
-    except Exception:
+        snaps = await db.drive_snapshots.aggregate([
+            {"$match": {"user_id": tenant}},
+            {"$sort": {"modified_time": -1}},
+            {"$limit": 2000},
+            {"$project": {"_id": 0, "file_id": 1, "name": 1, "folder_path": 1, "modified_time": 1, "mime": 1,
+                          "has_text": {"$gt": [{"$strLenCP": {"$ifNull": ["$text", ""]}}, 0]}}},
+        ]).to_list(2000)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[drive-teach] metadata query failed: %s", exc)
         snaps = []
+    _core_stream_mark_phase("teach.drive.mongo", _time_mod.monotonic() - _m0)  # noqa: F821 — solo metadati (niente testo)
 
     folder_names = ", ".join(f["name"] for f in folders[:20]) or "—"
     header_lines = [
@@ -1662,7 +1657,24 @@ async def _fetch_teach_drive_pdfs_for_query(
             )
         return "\n".join(header_lines)
 
-    # --- Scoring per pertinenza -------------------------------------------
+    # [ROOT FILES] — tutti i file direttamente nella radice delle cartelle monitorate (elenco completo, solo metadati)
+    root_names = [f.get("name") or "" for f in folders]
+    by_root: Dict[str, List[dict]] = {}
+    for s in snaps:
+        if (s.get("folder_path") or "") in root_names:
+            by_root.setdefault(s.get("folder_path") or "", []).append(s)
+    if by_root:
+        sec = ["📁 [ROOT FILES] — file direttamente nella radice delle cartelle monitorate (elenco COMPLETO, indicizzati come tutti gli altri):"]
+        for rn in root_names:
+            items = sorted(by_root.get(rn) or [], key=lambda r: r.get("name") or "")
+            if not items:
+                continue
+            sec.append(f"  📂 {rn} ({len(items)} file root):")
+            for r in items:
+                sec.append(f"     • [ROOT] {r.get('name')} (mod. {(r.get('modified_time') or '?')[:10]}{'' if r.get('has_text') else ' · ⚠️ nessun testo estraibile'})")
+        header_lines.extend(sec)
+
+    # --- Scoring lessicale sul NOME (metadati) ---------------------------------
     months = [m for m in _MONTH_MAP_IT if m in msg_lc]
     for _mnum in re.findall(r"\b(0[1-9]|1[0-2])[/\-\.\s](20\d{2})\b", msg_lc):
         _mnum_int = int(_mnum[0])
@@ -1697,55 +1709,66 @@ async def _fetch_teach_drive_pdfs_for_query(
                 sc += 1
         if _my_match(name):
             sc += 2
+        if (s.get("folder_path") or "") in root_names and sc > 0:
+            sc += 1  # bonus pertinenza file root
         return sc
 
     scored = sorted(snaps, key=lambda s: (_score(s), s.get("modified_time") or ""), reverse=True)
-    # V50.z562 — RETRIEVAL SEMANTICO sul CONTENUTO (backend/core/drive_retrieval, ChromaDB + MiniLM): «potenza impegnata kW»
-    # trova 01_POWER.pdf anche se nessuna parola compare nel nome. Il lessicale sul nome resta come fallback/complemento.
-    top: List[Dict[str, Any]] = []
+
+    # 2) SELEZIONE: ChromaDB sul CONTENUTO (core.drive_retrieval) + lessicale sul nome come complemento
+    _by_id = {s.get("file_id"): s for s in snaps}
+    selected: List[str] = []
     try:
-        _by_id = {s.get("file_id"): s for s in snaps}
         _s0 = _time_mod.monotonic()
         _sem = await asyncio.to_thread(_core_drive_search, tenant, user_msg or "", max_pdfs)  # noqa: F821
-        _core_stream_mark_phase("teach.drive.chroma", _time_mod.monotonic() - _s0)  # noqa: F821 — V50.z564 — embedding query + ChromaDB
-        if not _sem and snaps and any((s.get("text") or "").strip() for s in snaps):
-            _schedule_drive_semantic_backfill(tenant)  # indice semantico vuoto ma snapshot presenti → costruiscilo in background
-        top = [_by_id[r["file_id"]] for r in _sem if r.get("score", 0) >= 0.25 and r["file_id"] in _by_id]
+        _core_stream_mark_phase("teach.drive.chroma", _time_mod.monotonic() - _s0)  # noqa: F821 — embedding query + ChromaDB
+        if not _sem and any(s.get("has_text") for s in snaps):
+            _schedule_drive_semantic_backfill(tenant)  # indice semantico vuoto ma snapshot con testo → costruiscilo in background
+        selected = [r["file_id"] for r in _sem if r.get("score", 0) >= 0.25 and r["file_id"] in _by_id]
         if _sem:
             header_lines.append("RICERCA SEMANTICA: " + "; ".join(f"{r['name']} ({r['score']:.2f})" for r in _sem[:max_pdfs]))
     except Exception as _se:  # noqa: BLE001
         logger.warning("[drive-teach] semantic search failed: %s", _se)
-    for s in [s for s in scored if _score(s) > 0]:
-        if len(top) >= max_pdfs:
+    for s in scored:
+        if len(selected) >= max_pdfs + 2:
             break
-        if s not in top:
-            top.append(s)
-    if not top:
-        # Nessuna keyword pertinente: includi i più recenti (utile per "cosa c'è di nuovo")
-        top = scored[:2]
+        if _score(s) > 0 and s.get("has_text") and s.get("file_id") not in selected:
+            selected.append(s["file_id"])
+    if not selected:
+        selected = [s["file_id"] for s in scored[:2] if s.get("has_text")]  # nessuna keyword pertinente: i più recenti con testo
 
     # Elenco sintetico (nomi) per permettere a Axon di citare cosa esiste
     listing = []
     for s in snaps[:40]:
         p = s.get("folder_path") or ""
-        listing.append(f"  • {(p + '/') if p else ''}{s.get('name') or '?'}")
+        listing.append(f"  • {'[ROOT] ' if p in root_names else ''}{(p + '/') if p else ''}{s.get('name') or '?'}")
     header_lines.append("ELENCO FILE (max 40, più recenti prima):\n" + "\n".join(listing))
 
+    # 3) TESTO dei SOLI file selezionati (una query, max_pdfs + 2 documenti)
     blocks: List[str] = []
-    for s in top:
-        txt = (s.get("text") or "").strip()
-        if not txt:
-            continue
-        p = s.get("folder_path") or ""
-        display = f"{p}/{s.get('name')}" if p else (s.get("name") or "documento")
-        blocks.append(f"--- File Drive: {display} (modificato: {s.get('modified_time') or '?'}) ---\n{txt[:8000]}")
+    if selected:
+        _t0 = _time_mod.monotonic()
+        try:
+            rows = await db.drive_snapshots.find({"user_id": tenant, "file_id": {"$in": selected[: max_pdfs + 2]}}, {"_id": 0, "file_id": 1, "text": 1}).to_list(max_pdfs + 2)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[drive-teach] text query failed: %s", exc)
+            rows = []
+        _core_stream_mark_phase("teach.drive.text", _time_mod.monotonic() - _t0)  # noqa: F821 — testo dei soli file scelti
+        text_by_id = {r["file_id"]: (r.get("text") or "").strip() for r in rows}
+        for fid in selected[: max_pdfs + 2]:
+            s = _by_id.get(fid) or {}
+            txt = text_by_id.get(fid) or ""
+            if not txt:
+                continue
+            p = s.get("folder_path") or ""
+            display = f"{p}/{s.get('name')}" if p else (s.get("name") or "documento")
+            tag = " [ROOT]" if p in root_names else ""
+            blocks.append(f"--- File Drive{tag}: {display} (modificato: {s.get('modified_time') or '?'}) ---\n{txt[:8000]}")
 
     out = "\n".join(header_lines)
     if blocks:
         out += "\n\nCONTENUTO DEI FILE PIÙ PERTINENTI:\n\n" + "\n\n".join(blocks)
     return out
-
-
 
 
 
