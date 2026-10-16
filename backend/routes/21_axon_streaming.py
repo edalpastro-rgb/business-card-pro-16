@@ -647,7 +647,7 @@ async def _prepare_assistant_prompt(
         # V50.z518 — blocco STATICO cacheable (identità + personalità + regole complete + sezione prodotto) tra sentinelle: la patch
         # LlmChat lo invia per primo con cache_control=ephemeral. Prima: identità + regole dipendenti dal messaggio (prefisso instabile).
         _axon_static_block(user, assistant_name, assistant_language) +
-        f"ORA ATTUALE: {context.get('ora_attuale', '')}\n\n"
+        f"ORA ATTUALE (Europe/Rome, giorno della settimana ESATTO — usa QUESTO per «oggi», «domani», «che giorno è», mai ricalcolarlo): {context.get('ora_attuale', '')}\n\n"
         "SNAPSHOT_CRM (JSON):\n"
         f"{ctx_json}\n"
         f"{omni_section}"

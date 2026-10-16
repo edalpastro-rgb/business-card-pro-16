@@ -805,6 +805,62 @@ def pdf_page_count(data: bytes) -> Dict[str, Any]:
         return {"page_count": pdf.page_count}
 
 
+def pdf_structured_text(data: bytes, max_pages: int = 0, max_chars: int = 0) -> Dict[str, Any]:
+    """V50.z567 — TESTO STRUTTURATO CON TABELLE (indice Drive / listini). Per ogni pagina:
+    (1) `page.find_tables()` → ogni tabella come righe markdown «| cella | cella |» con TUTTI i numeri delle celle;
+    (2) il resto della pagina ricostruito RIGA PER RIGA dalle parole (raggruppate per coordinata y, ordinate per x, colonne
+        separate da « | » quando lo spazio orizzontale è ampio): etichette e numeri della stessa riga restano insieme
+        (es. «150.000-300.000 kWh | 0,118 | 0,121»), cosa che `get_text("text")` spezzava su righe diverse.
+    Ritorna anche `digits` (cifre totali) e `tables` (n. tabelle trovate) per il controllo qualità del chiamante."""
+    import pymupdf as fitz
+    parts: List[str] = []; n_tables = 0; digits = 0; n = 0
+    with fitz.open(stream=data, filetype="pdf") as pdf:
+        n = pdf.page_count
+        stop = min(n, max_pages) if max_pages else n
+        for pi, page in enumerate(pdf.pages(stop=stop), start=1):
+            table_bboxes = []
+            try:
+                tabs = page.find_tables()
+                for t in tabs.tables:
+                    rows = t.extract() or []
+                    rows = [[(c or "").replace("\n", " ").strip() for c in r] for r in rows if any((c or "").strip() for c in r)]
+                    if not rows:
+                        continue
+                    n_tables += 1
+                    table_bboxes.append(fitz.Rect(t.bbox))
+                    parts.append(f"[TABELLA pag.{pi} — {len(rows)} righe × {max(len(r) for r in rows)} colonne]\n" + "\n".join("| " + " | ".join(r) + " |" for r in rows))
+            except Exception:  # noqa: BLE001 — versione PyMuPDF senza find_tables o pagina anomala
+                pass
+            words = page.get_text("words")  # (x0, y0, x1, y1, word, block, line, wordno)
+            words = [w for w in words if not any(fitz.Rect(w[:4]).intersects(b) for b in table_bboxes)]
+            if words:
+                heights = sorted((w[3] - w[1]) for w in words)
+                h = heights[len(heights) // 2] or 8.0
+                widths = [((w[2] - w[0]) / max(1, len(w[4]))) for w in words]
+                cw = (sorted(widths)[len(widths) // 2]) or 4.0
+                words.sort(key=lambda w: (round(w[1] / (h * 0.6)), w[0]))
+                lines: List[List[tuple]] = []
+                for w in words:
+                    if lines and abs(w[1] - lines[-1][-1][1]) <= h * 0.6:
+                        lines[-1].append(w)
+                    else:
+                        lines.append([w])
+                out_lines = []
+                for ln in lines:
+                    ln.sort(key=lambda w: w[0])
+                    s = ln[0][4]
+                    for prev, cur in zip(ln, ln[1:]):
+                        gap = cur[0] - prev[2]
+                        s += (" | " if gap > cw * 2.5 else " ") + cur[4]
+                    out_lines.append(s)
+                parts.append(f"[pag.{pi}]\n" + "\n".join(out_lines))
+            if max_chars and sum(len(x) for x in parts) > max_chars:
+                break
+    txt = "\n\n".join(parts)
+    digits = sum(ch.isdigit() for ch in txt)
+    return {"text": txt[:max_chars] if max_chars else txt, "page_count": n, "tables": n_tables, "digits": digits}
+
+
 def pdf_render_pages(data: bytes, max_pages: int = 3, scale: float = 2.0, dpi: Optional[int] = None, fmt: str = "jpeg", quality: int = 80) -> Dict[str, Any]:
     """Rasterizza le prime max_pages pagine → lista di immagini (bytes) per OCR Vision."""
     import pymupdf as fitz
@@ -961,5 +1017,5 @@ OPS = {
     "process_page": process_page,
     "pdf_ocr": pdf_ocr, "pdf_render": pdf_render,
     "ocr_images": lambda images, **kw: ocr_images([Image.open(io.BytesIO(b)).convert("RGB") for b in images], **kw),
-    "pdf_text": pdf_text, "pdf_page_count": pdf_page_count, "pdf_render_pages": pdf_render_pages, "pdf_tables_text": pdf_tables_text, "pdf_cover": pdf_cover,
+    "pdf_text": pdf_text, "pdf_structured_text": pdf_structured_text, "pdf_page_count": pdf_page_count, "pdf_render_pages": pdf_render_pages, "pdf_tables_text": pdf_tables_text, "pdf_cover": pdf_cover,
 }

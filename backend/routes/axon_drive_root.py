@@ -97,21 +97,22 @@ def _drive_walk_and_collect(creds, root_folders: List[Dict[str, str]], single_fi
     return files, scanned
 
 
-def _adr_ocr_pdf_sync(data: bytes, name: str) -> str:
-    """OCR di fallback per PDF senza layer testo: PyMuPDF → PNG (max 3 pagine) → Gemini vision. Eseguito nel thread del download."""
+def _adr_ocr_pdf_sync(data: bytes, name: str, max_pages: int = _ADR_OCR_PAGES) -> str:
+    """OCR di fallback per PDF senza layer testo (o con numeri rasterizzati): PyMuPDF → PNG (max_pages, 150 dpi) → Gemini vision
+    con tabelle rese come righe markdown. Eseguito nel thread del download."""
     key = os.environ.get("EMERGENT_LLM_KEY")
     if not key:
         return ""
     try:
         # V50.z210 — rasterizzazione nel sottoprocesso worker (PyMuPDF mai nel processo API)
-        images: List[str] = [base64.b64encode(b).decode() for b in (heavy_call_sync("pdf_render_pages", data=data, max_pages=_ADR_OCR_PAGES, dpi=110, fmt="png").get("images") or [])]
+        images: List[str] = [base64.b64encode(b).decode() for b in (heavy_call_sync("pdf_render_pages", data=data, max_pages=max_pages, dpi=150, fmt="png").get("images") or [])]
         if not images:
             return ""
         from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent  # type: ignore
 
         async def _run() -> str:
             chat = LlmChat(api_key=key, session_id=f"adr-{uuid.uuid4().hex[:8]}",
-                           system_message="Sei un OCR. Trascrivi fedelmente TUTTO il testo leggibile nelle pagine (italiano), mantenendo l'ordine e le tabelle come righe. Nessun commento.").with_model(*_ADR_OCR_MODEL)
+                           system_message="Sei un OCR per documenti commerciali italiani (listini energia, contratti). Trascrivi fedelmente TUTTO il testo leggibile. REGOLA TABELLE: ogni tabella va resa riga per riga in formato markdown «| cella | cella |» con l'intestazione delle colonne, riportando OGNI numero esattamente com'è scritto (virgole decimali, separatori delle migliaia, unità: €/kWh, €/Smc, kWh, spread). Nessun numero va omesso o arrotondato. Nessun commento.").with_model(*_ADR_OCR_MODEL)
             resp = await chat.send_message(UserMessage(text=f"Trascrivi il testo di queste {len(images)} pagine del documento «{name}».", file_contents=[ImageContent(image_base64=b) for b in images]))
             return (resp or "").strip()
         return _adr_asyncio.run(_run())
@@ -157,12 +158,30 @@ def _drive_download_text(creds, f: Dict[str, Any]) -> str:  # noqa: F811
             pages = int(heavy_call_sync("pdf_page_count", data=data).get("page_count") or 0)   # V50.z210 — worker
         except Exception:  # noqa: BLE001
             pages = 0
+        # V50.z567 — PARSER TABELLE: testo strutturato (find_tables + ricostruzione righe) SENZA il tetto di 8000 caratteri
+        # (prima `_extract_pdf_text_bytes` troncava i listini e `get_text` separava i numeri dalle etichette).
+        _digits = 0
         try:
-            text = _extract_pdf_text_bytes(data) or ""
-        except Exception:  # noqa: BLE001
-            text = ""
-        if len(text.strip()) < 40:
-            text = _adr_ocr_pdf_sync(data, f.get("name") or fid) or text; ocr = bool(text.strip())
+            _st = heavy_call_sync("pdf_structured_text", data=data, max_pages=0, max_chars=200000)
+            text = (_st.get("text") or "")
+            _digits = int(_st.get("digits") or 0)
+            if _st.get("tables"):
+                logger.info("[drive-reindex] %s: %d tabelle strutturate, %d cifre", f.get("name"), _st.get("tables"), _digits)
+        except Exception as _se:  # noqa: BLE001
+            logger.warning("[drive-reindex] structured text failed for %s: %s", f.get("name"), _se)
+            try:
+                text = _extract_pdf_text_bytes(data) or ""
+            except Exception:  # noqa: BLE001
+                text = ""
+        _low = (text or "").lower(); _nm = (f.get("name") or "").lower()
+        _looks_pricelist = any(k in _low or k in _nm for k in ("kwh", "smc", "€/", "listino", "prezzo", "spread", "tariff", "offerta"))
+        _numbers_missing = pages > 0 and _digits / max(1, min(pages, 12)) < 15 and _looks_pricelist
+        if len(text.strip()) < 40 or _numbers_missing:
+            # OCR Vision (tabelle come righe markdown): PDF scansionato, oppure listino con etichette testuali ma numeri rasterizzati
+            _ocr_txt = _adr_ocr_pdf_sync(data, f.get("name") or fid, max_pages=_ADR_OCR_PAGES if len(text.strip()) < 40 else 12)
+            if _ocr_txt.strip():
+                text = (_ocr_txt if len(text.strip()) < 40 else text + "\n\n[OCR TABELLE — numeri letti dalle immagini delle pagine]\n" + _ocr_txt); ocr = True
+                logger.info("[drive-reindex] %s: OCR tabelle eseguito (%s)", f.get("name"), "scansione" if _digits == 0 else f"solo {_digits} cifre nel layer testo")
     else:
         try:
             text = data.decode("utf-8", errors="ignore")
@@ -176,9 +195,17 @@ def _drive_download_text(creds, f: Dict[str, Any]) -> str:  # noqa: F811
 
 # ---------------------------------------------------------------------------- post-reindex: flag is_root / pages / ocr sui snapshot
 _adr_prev_reindex = _reindex_drive_files_for_user
+DRIVE_PARSER_VERSION = "z567-tables"  # V50.z567 — bump = ri-parsing COMPLETO di tutti i file (parser tabelle strutturate + OCR numeri)
 
 
 async def _reindex_drive_files_for_user(user_id: str, max_files: int = 300) -> Dict[str, int]:  # noqa: F811
+    try:  # V50.z567 — parser aggiornato → invalida i modified_time così il reindex incrementale ri-parsa TUTTI i file (anche i 129 CORPORATE CLUB)
+        meta = await db.drive_index_meta.find_one({"user_id": user_id}, {"_id": 0, "parser_version": 1}) or {}
+        if meta.get("parser_version") != DRIVE_PARSER_VERSION:
+            r = await db.drive_snapshots.update_many({"user_id": user_id}, {"$set": {"modified_time": None}})
+            logger.info("[drive-reindex] parser %s → %s: %d snapshot invalidati per il ri-parsing completo (tenant %s)", meta.get("parser_version"), DRIVE_PARSER_VERSION, r.modified_count, user_id)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[drive-reindex] parser-version check failed: %s", e)
     stats = await _adr_prev_reindex(user_id, max_files)
     try:
         roots, _sf = await _drive_index_roots(user_id)
@@ -187,12 +214,37 @@ async def _reindex_drive_files_for_user(user_id: str, max_files: int = 300) -> D
         await db.drive_snapshots.update_many({"user_id": user_id, "folder_path": {"$nin": list(root_names)}}, {"$set": {"is_root": False}})
         n_root = await db.drive_snapshots.count_documents({"user_id": user_id, "is_root": True})
         n_empty = await db.drive_snapshots.count_documents({"user_id": user_id, "$or": [{"text": ""}, {"text": None}]})
-        await db.drive_index_meta.update_one({"user_id": user_id}, {"$set": {"root_files": n_root, "empty_text_files": n_empty}})
+        await db.drive_index_meta.update_one({"user_id": user_id}, {"$set": {"root_files": n_root, "empty_text_files": n_empty, "parser_version": DRIVE_PARSER_VERSION}}, upsert=True)
         if stats.get("updated"):
             axs_event("scheduler", "info", f"Drive reindex: {stats.get('updated')} file aggiornati, {n_root} nella root, {n_empty} senza testo", None, user_id)
     except Exception as e:  # noqa: BLE001
         logger.warning("[drive-reindex] root flag failed: %s", e)
     return stats
+
+
+@app.on_event("startup")  # noqa: F821
+async def _adr_reindex_on_parser_upgrade() -> None:
+    """V50.z567 — All'avvio: ogni tenant con Drive collegato il cui indice è stato costruito con un parser precedente viene
+    ri-indicizzato per intero in background (scaglionato di 20 s), così dopo il deploy i 129 file hanno tabelle e numeri."""
+    async def _go():
+        await _adr_asyncio.sleep(25)
+        try:
+            tenants = [c["user_id"] async for c in db.google_drive_connections.find({}, {"_id": 0, "user_id": 1})]
+            n = 0
+            for uid in tenants:
+                meta = await db.drive_index_meta.find_one({"user_id": uid}, {"_id": 0, "parser_version": 1}) or {}
+                if meta.get("parser_version") == DRIVE_PARSER_VERSION:
+                    continue
+                if n:
+                    await _adr_asyncio.sleep(20)
+                logger.info("[drive-reindex] parser upgrade → reindex completo tenant %s", uid)
+                _schedule_drive_reindex(uid, reason=f"parser-upgrade-{DRIVE_PARSER_VERSION}")  # noqa: F821
+                n += 1
+            if n:
+                axs_event("scheduler", "info", f"Drive: ri-indicizzazione completa avviata per {n} tenant (parser tabelle {DRIVE_PARSER_VERSION})")  # noqa: F821
+        except Exception as e:  # noqa: BLE001
+            logger.warning("[drive-reindex] parser-upgrade boot failed: %s", e)
+    _adr_asyncio.create_task(_go())
 
 
 # V50.z565 — la sezione [ROOT FILES] del prompt è ora dentro `_fetch_teach_drive_pdfs_for_query` (20_axon_memory.py, snapshot leggeri):

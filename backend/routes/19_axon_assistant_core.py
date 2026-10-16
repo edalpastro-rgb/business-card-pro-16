@@ -378,12 +378,22 @@ def _to_num(v):
 
 
 def _fmt_dt_it(dt: Optional[datetime]) -> str:
+    """V50.z567 — TIMESTAMP ANCORATO: giorno della settimana ESATTO + data/ora in Europe/Rome (prima: UTC senza giorno → il
+    modello indovinava il giorno e sbagliava, es. «giovedì» il venerdì 16/10/2026)."""
     if not dt:
         return ""
     try:
-        return dt.strftime("%d/%m/%Y %H:%M")
+        from zoneinfo import ZoneInfo
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        loc = dt.astimezone(ZoneInfo("Europe/Rome"))
+        wd = ["lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato", "domenica"][loc.weekday()]
+        return f"{wd} {loc.strftime('%d/%m/%Y %H:%M')}"
     except Exception:
-        return str(dt)
+        try:
+            return dt.strftime("%d/%m/%Y %H:%M")
+        except Exception:
+            return str(dt)
 
 
 async def _build_assistant_context(user: dict) -> dict:

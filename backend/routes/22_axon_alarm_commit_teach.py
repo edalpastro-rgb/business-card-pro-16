@@ -738,6 +738,7 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
 
         # V50.k — Progress event: preflight iniziato (l'utente vede subito
         # "Sto raccogliendo il contesto…" invece di attendere silenziosamente).
+        yield ":" + " " * 2048 + "\n\n"  # V50.z567 — padding SSE iniziale: forza il flush degli header attraverso qualsiasi proxy/buffer intermedio
         yield sse("progress", {"stage": "preflight", "text": "Sto raccogliendo il contesto…"})
 
         # V50.z53 — ROLLBACK EMERGENCY: streaming ACK con citazione regole
@@ -931,16 +932,14 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
                             if _tm_first is None:
                                 _tm_first = asyncio.get_event_loop().time() - _prep_started
                             _tm_deltas += 1
-                            if not _bare:
-                                yield sse("delta", {"text": _piece})
+                            yield sse("delta", {"text": _piece})  # V50.z567 — FLUSH IMMEDIATO: ogni token esce subito, anche per i «dati secchi» (prima bufferizzati fino alla fine → 6-8 s di vuoto in voce)
                 elif isinstance(ev, StreamDone):
                     # end handled below
                     break
             _tail = _navf.flush()
             if _tail:
                 collected.append(_tail)
-                if not _bare:
-                    yield sse("delta", {"text": _tail})
+                yield sse("delta", {"text": _tail})
         except Exception as e:
             # V50.z467 — risposta amichevole come messaggio normale (testo + TTS), mai errore tecnico
             _off = _axon_llm_failure("stream", e)  # noqa: F821
@@ -948,19 +947,12 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
                 yield sse("delta", {"text": _off})
             yield sse("done", {"session_id": session_id, "message_id": assistant_message_id, "used_web_search": False, "web_sources": [], "offline": True})
             return
-        if _bare:
+        if _bare:  # V50.z567 — niente più ri-emissione in blocco: il testo è già arrivato token per token; qui solo la pulizia per la persistenza
             _full = "".join(collected)
             _phone = _axon_phone_only_reply(msg, _full)  # noqa: F821 — V50.z455: numero di telefono → SOLO il numero
-            if _phone:
-                _clean = _phone
-            elif prep.get("data_request"):
-                _clean = _nav_bare_datum(_full)  # noqa: F821 — axon_navigator.py
-            else:
-                _clean = _full
-            collected = [_clean]
+            collected = [_phone] if _phone else ([_nav_bare_datum(_full)] if prep.get("data_request") else [_full])  # noqa: F821 — axon_navigator.py
             used_web_search = False
             web_sources = []
-            yield sse("delta", {"text": _clean})
 
         reply_text = ("".join(collected)).strip() or "Non ho ricevuto una risposta. Riprova."
         try:  # V50.z562/z563 — telemetria: TTFT misurato dal server, scomposto in preflight completo / gateway LLM / fasi (core.streaming)
