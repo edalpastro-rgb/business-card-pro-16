@@ -49,6 +49,40 @@ write_upstream() {  # switch ATOMICO: file temporaneo + mv, poi nginx -t e reloa
   fi
 }
 
+fix_legacy_upstream_refs() {  # V50.z576 — A OGNI DEPLOY, PRIMA di avviare/ricaricare nginx: nessun conf deve puntare al container legacy.
+  # italianbrain.conf (landing) aveva `proxy_pass http://axon-core:8001/...`: dopo la migrazione blue-green quell'host non esiste più e
+  # nginx -t fallisce («host not found in upstream axon-core») bloccando TUTTI i siti. Il riferimento corretto NON è «axon-core-a:»
+  # (quando è attivo il colore b punterebbe a un container fermo → stesso errore): è l'upstream condiviso `axon_core`
+  # (nginx/conf.d/00-upstream.conf), che upgrade_vps.sh sposta sul colore attivo a ogni switch. Backup .bak-<data> dei file toccati.
+  local f changed=0
+  for f in "$DEST"/nginx/conf.d/*.conf; do
+    [[ -f "$f" && "$(basename "$f")" != "00-upstream.conf" ]] || continue
+    if grep -qE 'axon-core(-a|-b)?:8001' "$f"; then
+      cp -f "$f" "$f.bak-$STAMP"
+      sed -i -E 's#https?://axon-core(-a|-b)?:8001#http://axon_core#g; s#axon-core(-a|-b)?:8001#axon_core#g' "$f"
+      echo "→ nginx: $(basename "$f"): riferimenti al container legacy sostituiti con l'upstream condiviso axon_core (backup: $(basename "$f").bak-$STAMP)"
+      changed=1
+    fi
+  done
+  if docker ps --format '{{.Names}}' | grep -qx 'axon-nginx'; then
+    local out
+    if ! out="$(docker compose exec -T nginx nginx -t 2>&1)"; then
+      echo "✘ nginx -t FALLITO dopo la correzione dei conf:"; echo "$out" | sed 's/^/    /'
+      if [[ $changed == 1 ]]; then
+        for f in "$DEST"/nginx/conf.d/*.conf.bak-"$STAMP"; do [[ -f "$f" ]] && mv -f "$f" "${f%.bak-$STAMP}"; done
+        echo "   → conf ripristinati dai backup; deploy interrotto."
+      fi
+      return 1
+    fi
+    echo "→ nginx -t OK (conf.d coerente con il blue-green)"
+    [[ $changed == 1 ]] && docker compose exec -T nginx nginx -s reload >/dev/null 2>&1 && echo "→ nginx ricaricato"
+  else
+    echo "→ nginx non in esecuzione: la verifica nginx -t avverrà all'avvio (docker compose up -d nginx)"
+  fi
+  return 0
+}
+
+
 deploy_blue_green() {   # usa $DEST/backend (già aggiornato) → container inattivo → smoke gate → switch → stop del vecchio
   local ACTIVE NEW NEW_SVC OLD_NAME
   ACTIVE="$(active_color)"; NEW="$(inactive_color "$ACTIVE")"; NEW_SVC="axon-core-$NEW"
@@ -57,6 +91,7 @@ deploy_blue_green() {   # usa $DEST/backend (già aggiornato) → container inat
   if grep -q '^upstream axon_core {' "$DEST/nginx/conf.d/axon-core.conf" 2>/dev/null; then
     sed -i '/^upstream axon_core {/,/^}/d' "$DEST/nginx/conf.d/axon-core.conf" && echo "→ nginx: upstream spostato in 00-upstream.conf (blue-green)"
   fi
+  fix_legacy_upstream_refs || exit 1   # V50.z576 — OBBLIGATORIO prima di avviare/ricaricare nginx
   [[ -f "$UPSTREAM_FILE" ]] || write_upstream "${OLD_NAME:-$NEW_SVC}" || true
   echo "→ BLUE-GREEN: attivo=${OLD_NAME:-nessuno} · nuovo=$NEW_SVC"
   PREV_ROUTES="$(curl -sk -m 10 https://localhost/api/health 2>/dev/null | sed -n 's/.*"routes":[ ]*\([0-9]*\).*/\1/p' | head -1)"

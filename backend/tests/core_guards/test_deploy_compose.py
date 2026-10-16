@@ -87,3 +87,19 @@ def test_upgrade_script_self_updates_from_package():
     assert "AXON_UPGRADE_REEXEC" in txt and 'exec bash "$DEST/upgrade_vps.sh"' in txt
     assert txt.index("AXON_UPGRADE_REEXEC=1") < txt.index("rsync -a --delete --exclude '.env' --exclude 'assets/kokoro' \"$TMP/axon-core-pkg/backend/\""), \
         "l'auto-aggiornamento deve avvenire PRIMA della sostituzione del backend"
+
+
+def test_no_nginx_conf_points_to_legacy_container_and_upgrade_fixes_it():
+    """V50.z576 — nessun conf nginx del repo deve usare l'host del container (axon-core:8001 / axon-core-a:8001): solo l'upstream
+    condiviso `axon_core` (00-upstream.conf) segue il colore attivo. upgrade_vps.sh corregge i conf sul VPS PRIMA di nginx (+ nginx -t)."""
+    import glob, re
+    confs = glob.glob(os.path.join(DEPLOY, "nginx", "conf.d", "*.conf")) + glob.glob(os.path.join(ROOT, "deploy", "italianbrain-landing", "*.conf"))
+    for c in confs:
+        if c.endswith("00-upstream.conf"):
+            continue
+        code = "\n".join(ln for ln in open(c, encoding="utf-8").read().splitlines() if not ln.lstrip().startswith("#"))
+        assert not re.search(r"axon-core(-a|-b)?:8001", code), f"{os.path.basename(c)} punta a un container invece che all'upstream axon_core"
+    sh = open(os.path.join(SCRIPTS, "upgrade_vps.sh"), encoding="utf-8").read()
+    assert "fix_legacy_upstream_refs() {" in sh and "fix_legacy_upstream_refs || exit 1" in sh
+    assert sh.index("fix_legacy_upstream_refs || exit 1") < sh.index('[[ -f "$UPSTREAM_FILE" ]] || write_upstream'), "la correzione deve precedere l'avvio/reload di nginx"
+    assert "nginx nginx -t" in sh[sh.index("fix_legacy_upstream_refs() {"):sh.index("deploy_blue_green() {")]

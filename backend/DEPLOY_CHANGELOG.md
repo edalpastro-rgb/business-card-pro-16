@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-16 | D2026.10.16-1927 | V50.z576 — upgrade_vps.sh: passaggio obbligatorio fix_legacy_upstream_refs prima di nginx (conf.d: axon-core:8001 → upstream condiviso axon_core, backup .bak, nginx -t con ripristino automatico); template nginx-italianbrain.conf allineato; test bloccante |
 | 2026-10-16 | D2026.10.16-1726 | V50.z575 — (pacchetto rigenerato) smoke gate: una ripetizione per classe prima di bocciare (falso negativo «3 delta allo stesso istante» a freddo) |
 | 2026-10-16 | D2026.10.16-1723 | V50.z575 — FASCIA RISOLTA dal retrieval (fatto già constatato in testa alla sezione Drive + log [drive-fasce]), riconoscimento «418k»/«418 mila»/numero nudo; cache semantica: mai per kWh/listini/Drive, mai risposte negative, purge al boot (causa dei deploy «inutili»); STT a segmenti durante la registrazione (POST /ai/transcribe/chunk, client expo-audio/MediaRecorder con rotazione ~5 s) |
 | 2026-10-16 | D2026.10.16-1651 | V50.z574 — REGOLA 1 (range matching fasce) e REGOLA 2 (proattività commerciale: niente elenchi A/B/C/D, azione diretta + CONFERMO/ANNULLA) nelle REGOLE ASSOLUTE del system prompt; righe-fascia con spread accodato anche sul testo del parser vecchio (produzione pre-reindex notturno); seconda ricerca ChromaDB mirata ai listini a fasce quando c'è un consumo nella domanda; STILE RISPOSTA allineato; E2E locale 418.000 kWh (testo nuovo e vecchio) + conflitto agenda; smoke gate OK |
