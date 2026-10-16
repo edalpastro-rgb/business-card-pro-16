@@ -118,7 +118,10 @@ def _name_bonus(query: str, name: str, folder: str) -> float:
 
 
 def search(tenant: str, query: str, k: int = 4, n_chunks: int = 16) -> List[Dict[str, Any]]:
-    """→ [{file_id, name, folder_path, modified_time, score, snippet}] ordinati per pertinenza (score 0..1+bonus)."""
+    """→ [{file_id, name, folder_path, modified_time, score, snippet, chunks}] ordinati per pertinenza (score 0..1+bonus).
+    V50.z569 — `chunks` = fino a 3 chunk COMPLETI del file più vicini alla domanda (non solo i primi 300 caratteri): il prompt
+    riceve ESATTAMENTE il passaggio che risponde (es. la riga di tabella «DA 150.000 A 300.000 kWh | PUN + 0,01 €/kWh»),
+    anche quando sta oltre i primi 8.000 caratteri del documento."""
     if not available() or not (query or "").strip():
         return []
     col = collection(tenant)
@@ -130,8 +133,13 @@ def search(tenant: str, query: str, k: int = 4, n_chunks: int = 16) -> List[Dict
         sim = 1.0 - float(dist)  # cosine distance → similarity
         fid = meta["file_id"]
         cur = best.get(fid)
-        if cur is None or sim > cur["score"]:
-            best[fid] = {"file_id": fid, "name": meta.get("name"), "folder_path": meta.get("folder_path"), "modified_time": meta.get("modified_time"), "score": sim, "snippet": doc[:300]}
+        if cur is None:
+            best[fid] = cur = {"file_id": fid, "name": meta.get("name"), "folder_path": meta.get("folder_path"), "modified_time": meta.get("modified_time"), "score": sim, "snippet": doc[:300], "chunks": []}
+        elif sim > cur["score"]:
+            cur["score"] = sim
+            cur["snippet"] = doc[:300]
+        if len(cur["chunks"]) < 3:
+            cur["chunks"].append(doc)  # i risultati arrivano già ordinati per distanza crescente
     out = list(best.values())
     for r in out:
         r["score"] = round(r["score"] + _name_bonus(query, r["name"] or "", r["folder_path"] or ""), 4)

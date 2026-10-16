@@ -6,4 +6,4 @@ dello streaming (TTFT p50/p95) e il guardiano d'integrità. È un package Python
 avviare il server). Le routes lo usano con `from core.<modulo> import …`; i wrapper possono solo *aggiungere* comportamento
 tramite `core.hooks`, mai sostituire queste funzioni (verificato a ogni avvio da `core.integrity.check()`).
 """
-CORE_VERSION = "V50.z568"
+CORE_VERSION = "V50.z569"

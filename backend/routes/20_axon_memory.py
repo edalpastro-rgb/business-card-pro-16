@@ -1718,6 +1718,7 @@ async def _fetch_teach_drive_pdfs_for_query(
     # 2) SELEZIONE: ChromaDB sul CONTENUTO (core.drive_retrieval) + lessicale sul nome come complemento
     _by_id = {s.get("file_id"): s for s in snaps}
     selected: List[str] = []
+    _sem_chunks: Dict[str, List[str]] = {}
     try:
         _s0 = _time_mod.monotonic()
         _sem = await asyncio.to_thread(_core_drive_search, tenant, user_msg or "", max_pdfs)  # noqa: F821
@@ -1725,6 +1726,7 @@ async def _fetch_teach_drive_pdfs_for_query(
         if not _sem and any(s.get("has_text") for s in snaps):
             _schedule_drive_semantic_backfill(tenant)  # indice semantico vuoto ma snapshot con testo → costruiscilo in background
         selected = [r["file_id"] for r in _sem if r.get("score", 0) >= 0.25 and r["file_id"] in _by_id]
+        _sem_chunks = {r["file_id"]: [c for c in (r.get("chunks") or []) if c] for r in _sem}  # V50.z569 — passaggi esatti (chunk completi)
         if _sem:
             header_lines.append("RICERCA SEMANTICA: " + "; ".join(f"{r['name']} ({r['score']:.2f})" for r in _sem[:max_pdfs]))
     except Exception as _se:  # noqa: BLE001
@@ -1763,7 +1765,10 @@ async def _fetch_teach_drive_pdfs_for_query(
             p = s.get("folder_path") or ""
             display = f"{p}/{s.get('name')}" if p else (s.get("name") or "documento")
             tag = " [ROOT]" if p in root_names else ""
-            blocks.append(f"--- File Drive{tag}: {display} (modificato: {s.get('modified_time') or '?'}) ---\n{txt[:8000]}")
+            # V50.z569 — prima i PASSAGGI PERTINENTI (chunk completi scelti da ChromaDB, anche oltre gli 8.000 caratteri), poi l'inizio del documento
+            _ex = [c for c in _sem_chunks.get(fid) or [] if c not in txt[:6000]]
+            _ex_block = ("PASSAGGI PERTINENTI ALLA DOMANDA (testo esatto dal documento, usa QUESTI valori):\n" + "\n…\n".join(_ex) + "\n\nINIZIO DOCUMENTO:\n") if _ex else ""
+            blocks.append(f"--- File Drive{tag}: {display} (modificato: {s.get('modified_time') or '?'}) ---\n{_ex_block}{txt[:6000 if _ex else 8000]}")
 
     out = "\n".join(header_lines)
     if blocks:
