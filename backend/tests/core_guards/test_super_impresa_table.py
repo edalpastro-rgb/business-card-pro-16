@@ -66,7 +66,28 @@ def test_range_rows_math_match_on_real_pdf():
     assert all(r.startswith("[pag.") for r in rows), "ogni riga deve portare la pagina di provenienza"
     assert any(ROW in r for r in drive_retrieval.range_rows_for_value(text, 150000))   # estremo incluso
     assert any("superiori a 600.000 kWh" in r for r in drive_retrieval.range_rows_for_value(text, 2_000_000))  # fascia aperta
-    assert drive_retrieval.range_rows_for_value(text, 10000) == []
+    # V50.z577 — fasce basse: il listino ha «FINO A 50.000 kWh SUPER IMPRESA SMART» (pag.6) e, a pag.31, «Fascia 0 -10k kWh» /
+    # «Fascia 10k -50k kWh» con le tabelle prezzi sopra le etichette. Prima: range_rows_for_value(text, 10000) == [] (bug certificato).
+    low = drive_retrieval.range_rows_for_value(text, 9000)
+    assert any("FINO A 50.000 kWh SUPER IMPRESA SMART" in r for r in low), low
+    assert any("Fascia 0 -10k kWh" in r and "PUN + 0,025 €/kWh" in r and "17.90 €/mese" in r for r in low), low
+    assert not any("PUN + 0,020" in r for r in low), "9.000 kWh non deve prendere il prezzo della fascia 10k-50k"
+    mid = drive_retrieval.range_rows_for_value(text, 30000)
+    assert any("Fascia 10k -50k kWh" in r and "PUN + 0,020 €/kWh" in r and "14.90 €/mese" in r for r in mid), mid
+    assert not any("Fascia 0 -10k" in r for r in mid)
+    # «Superiore di 1.000.000 kWh» (prima non riconosciuto: la regex accettava solo «superiore A»)
+    assert any("Superiore di 1.000.000 kWh" in r and "PUN + 0,003 €/kWh" in r for r in drive_retrieval.range_rows_for_value(text, 2_000_000))
+
+
+@pytest.mark.parametrize("line,inside,outside", [
+    ("| FINO A 50.000 kWh SUPER IMPRESA SMART |", 9000, 60000), ("Fascia 0 -10k kWh | INDEX", 9000, 12000),
+    ("Fascia 10k -50k kWh | INDEX", 30000, 9000), ("consumi inferiori a 100.000 kWh", 99000, 150000),
+    ("Superiore di 1.000.000 kWh | PUN + 0,003 €/kWh", 2_000_000, 900_000), ("da 0 - 10.000 kWh", 5000, 20000),
+])
+def test_band_formats_v50z577(line, inside, outside):
+    from core import drive_retrieval
+    assert drive_retrieval.range_rows_for_value(line, inside), (line, inside)
+    assert drive_retrieval.range_rows_for_value(line, outside) == [], (line, outside)
 
 
 def test_range_rows_on_old_parser_text_carry_the_spread():

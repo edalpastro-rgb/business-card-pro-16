@@ -11,7 +11,7 @@ import logging
 import os
 import re
 import threading
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 _log = logging.getLogger("axon.core.drive")
 
@@ -158,7 +158,12 @@ _KWH_SHORT_RX = re.compile(r"\b(\d+(?:[.,]\d+)?)\s*(k|mila|mln|m)\b(?:\s*kwh)?",
 _KWH_BARE_RX = re.compile(r"\b(\d{1,3}(?:[.\s]\d{3})+|\d{4,7})\b")
 _CONSUMPTION_CTX_RX = re.compile(r"consum|kwh|kw/h|spread|fasc|listin|offert|prezz|tariff|energ|luce|elettric|cliente da|utenza", re.I)
 _RANGE_ROW_RX = re.compile(r"\bDA\s+(\d{1,3}(?:[.\s]?\d{3})*|\d+)\s+A\s+(\d{1,3}(?:[.\s]?\d{3})*|\d+)\s*(k|m|g)?\s*wh\b", re.I)
-_OPEN_ROW_RX = re.compile(r"\b(?:SUPERIOR[IE]\s+A|OLTRE(?:\s+I)?|MAGGIOR[IE]\s+DI|>)\s*(\d{1,3}(?:[.\s]?\d{3})*|\d+)\s*(k|m|g)?\s*wh\b", re.I)
+_OPEN_ROW_RX = re.compile(r"\b(?:SUPERIOR[IE]\s+(?:A|AI|DI)|OLTRE(?:\s+I)?|MAGGIOR[IE]\s+DI|>)\s*(\d{1,3}(?:[.\s]?\d{3})*|\d+)\s*(k|m|g)?\s*wh\b", re.I)
+# V50.z577 — fasce basse e forme abbreviate dei listini: «FINO A 50.000 kWh», «inferiore a 10.000 kWh», «< 10.000 kWh» (0 ≤ v ≤ X)
+# e «Fascia 0 -10k kWh», «10k-50k kWh», «0 - 10.000 kWh» (X ≤ v ≤ Y, «k»/«mila» = ×1000). Prima: 9.000 kWh → nessuna fascia.
+_UPTO_ROW_RX = re.compile(r"\b(?:FINO\s+A(?:I)?|INFERIOR[IE]\s+(?:A|AI)|MENO\s+DI)\s*(\d{1,3}(?:[.\s]?\d{3})*|\d+)\s*(k|m|g)?\s*wh\b|(?:<=?|≤)\s*(\d{1,3}(?:[.\s]?\d{3})*|\d+)\s*(k|m|g)?\s*wh\b", re.I)
+_DASH_ROW_RX = re.compile(r"(?<![\d.,])(\d{1,3}(?:[.\s]\d{3})+|\d+)\s*(k(?!wh)|mila)?\s*[-–]\s*(\d{1,3}(?:[.\s]\d{3})+|\d+)\s*(k(?!wh)|mila)?\s*(k|m|g)?\s*wh\b", re.I)
+_PAGE_ANY_RX = re.compile(r"^\s*\[(?:TABELLA\s+)?pag\.\s*(\d+)", re.I)                          # «[pag.31]» e «[TABELLA pag.31 — …]»
 _UNIT_KWH = {None: 1.0, "": 1.0, "k": 1.0, "m": 1000.0, "g": 1_000_000.0}
 _VALUE_RX = re.compile(r"€|\bPUN\b|\bPSV\b|spread|/\s*kwh|/\s*smc", re.I)          # la riga porta già un valore/prezzo
 _HEADING_RX = re.compile(r"^(?=[^\d]*$)[A-ZÀ-Ü][A-ZÀ-Ü' ]{5,}$")                      # intestazione MAIUSCOLA senza cifre (es. «TRATTATIVA AD HOC»)
@@ -215,48 +220,89 @@ def consumption_kwh_in_query(msg: str) -> Optional[float]:
     return best
 
 
+def _band_bounds(line: str) -> List[Tuple[float, float]]:
+    """V50.z577 — tutti gli intervalli [lo, hi] in kWh descritti nella riga (DA X A Y · X-Y/«0 -10k» · FINO A X · oltre/superiore X)."""
+    out: List[Tuple[float, float]] = []
+    for m in _RANGE_ROW_RX.finditer(line):
+        try:
+            out.append((_to_kwh(m.group(1), m.group(3)), _to_kwh(m.group(2), m.group(3))))
+        except ValueError:
+            pass
+    for m in _DASH_ROW_RX.finditer(line):
+        try:
+            unit = _UNIT_KWH.get((m.group(5) or "").lower(), 1.0)
+            lo = _to_kwh(m.group(1), None) * (1000.0 if m.group(2) else 1.0) * unit
+            hi = _to_kwh(m.group(3), None) * (1000.0 if m.group(4) else 1.0) * unit
+        except ValueError:
+            continue
+        if lo < hi:
+            out.append((lo, hi))
+    for m in _UPTO_ROW_RX.finditer(line):
+        num, unit = (m.group(1), m.group(2)) if m.group(1) else (m.group(3), m.group(4))
+        try:
+            out.append((0.0, _to_kwh(num, unit)))
+        except ValueError:
+            pass
+    for m in _OPEN_ROW_RX.finditer(line):
+        try:
+            out.append((_to_kwh(m.group(1), m.group(2)) + 1e-9, float("inf")))   # «oltre X»: v > X
+        except ValueError:
+            pass
+    return out
+
+
+def _is_price_row(row: str) -> bool:
+    return bool(_VALUE_RX.search(row) and re.search(r"\d", row))
+
+
 def range_rows_for_value(text: str, value_kwh: float, max_rows: int = 6) -> List[str]:
-    """Righe (testo esatto, una per riga) del documento la cui fascia «DA X A Y kWh» contiene value_kwh (X ≤ v ≤ Y) oppure
-    «superiori a / oltre X kWh» con v > X. Ordine del documento, senza duplicati.
-    V50.z574 — testo del parser VECCHIO (una cella per riga: «DA 300.000 A 600.000 kWh» ↵ «PUN + 0,008 €/kWh» ↵ …): se la riga-fascia
-    non contiene un valore (€/PUN/spread), le celle delle righe successive vengono accodate con « | » fino alla fascia seguente
-    (max 8 righe), così la riga consegnata al prompt porta SEMPRE lo spread."""
+    """Righe (testo esatto, una per riga) del documento la cui fascia contiene value_kwh: «DA X A Y kWh» (X ≤ v ≤ Y),
+    «superiori a / superiore di / oltre X kWh» (v > X), V50.z577: «FINO A X kWh» (v ≤ X) e «Fascia 0 -10k kWh» / «10k-50k kWh».
+    Ordine del documento, senza duplicati.
+    V50.z574 — testo del parser VECCHIO (una cella per riga): se la riga-fascia non contiene un valore (€/PUN/spread), le celle delle
+    righe successive vengono accodate con « | » fino alla fascia seguente (max 8 righe).
+    V50.z577 — PDF a slide (es. pag.31 «Super Impresa Smart»): il parser mette le TABELLE prezzi della pagina prima delle etichette
+    «Fascia 0 -10k kWh», «Fascia 10k -50k kWh». Se sulla stessa pagina il numero di etichette-fascia senza prezzo è uguale al numero
+    di righe-prezzo delle tabelle, l'N-esima fascia riceve l'N-esima riga-prezzo (stesso ordine dall'alto in basso nella slide)."""
     out: List[str] = []
     seen = set()
-    page = ""
     lines = (text or "").splitlines()
+    # pagina di ogni riga + per pagina: etichette-fascia senza prezzo e righe-prezzo di tabella (non fasce), in ordine
+    page_of: List[str] = []
+    cur = ""
+    bare_bands: Dict[str, List[int]] = {}
+    price_rows: Dict[str, List[int]] = {}
     for idx, line in enumerate(lines):
-        pm = re.search(r"\[pag\.\s*(\d+)\]", line)
+        pm = _PAGE_ANY_RX.match(line)
         if pm:
-            page = f"[pag.{pm.group(1)}] "
-        hit = False
-        for m in _RANGE_ROW_RX.finditer(line):
-            try:
-                lo, hi = _to_kwh(m.group(1), m.group(3)), _to_kwh(m.group(2), m.group(3))
-            except ValueError:
-                continue
-            if lo <= value_kwh <= hi:
-                hit = True; break
-        if not hit:
-            for m in _OPEN_ROW_RX.finditer(line):
-                try:
-                    lo = _to_kwh(m.group(1), m.group(2))
-                except ValueError:
-                    continue
-                if value_kwh > lo:
-                    hit = True; break
-        if hit:
-            row = re.sub(r"\s+", " ", line).strip(" |")
-            if not _VALUE_RX.search(row):
+            cur = pm.group(1)
+        page_of.append(cur)
+        if _band_bounds(line):
+            if not _is_price_row(line):
+                bare_bands.setdefault(cur, []).append(idx)
+        elif line.lstrip().startswith("|") and _is_price_row(line):
+            price_rows.setdefault(cur, []).append(idx)
+    for idx, line in enumerate(lines):
+        if not any(lo <= value_kwh <= hi for lo, hi in _band_bounds(line)):
+            continue
+        row = re.sub(r"\s+", " ", line).strip(" |")
+        if not _VALUE_RX.search(row):
+            pg = page_of[idx]
+            bands, prices = bare_bands.get(pg) or [], price_rows.get(pg) or []
+            if pg and bands and len(bands) == len(prices) and idx in bands:
+                row += " | " + re.sub(r"\s+", " ", lines[prices[bands.index(idx)]]).strip(" |")
+            else:
                 for nxt in lines[idx + 1: idx + 9]:
                     cell = re.sub(r"\s+", " ", nxt).strip(" |")
-                    if not cell or _RANGE_ROW_RX.search(cell) or _OPEN_ROW_RX.search(cell) or _HEADING_RX.match(cell):
+                    if not cell or _band_bounds(cell) or _HEADING_RX.match(cell) or _PAGE_ANY_RX.match(nxt):
                         break
                     row += " | " + cell
-            if row and row not in seen:
-                seen.add(row); out.append(page + row if not row.startswith("[pag.") else row)
-                if len(out) >= max_rows:
-                    break
+        if row and row not in seen:
+            seen.add(row)
+            page = f"[pag.{page_of[idx]}] " if page_of[idx] else ""
+            out.append(page + row if not row.startswith("[pag.") else row)
+            if len(out) >= max_rows:
+                break
     return out
 
 
