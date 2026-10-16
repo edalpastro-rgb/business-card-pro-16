@@ -1757,6 +1757,8 @@ async def _fetch_teach_drive_pdfs_for_query(
 
     # 3) TESTO dei SOLI file selezionati (una query, max_pdfs + 2 documenti)
     blocks: List[str] = []
+    _fasce_risolte: List[Any] = []  # V50.z575 — [(display, rows)]
+    _kwh_q = _core_drive_kwh_in_query(user_msg or "")  # noqa: F821 — V50.z573 consumo numerico nella domanda (None se assente)
     if selected:
         _t0 = _time_mod.monotonic()
         try:
@@ -1766,7 +1768,6 @@ async def _fetch_teach_drive_pdfs_for_query(
             rows = []
         _core_stream_mark_phase("teach.drive.text", _time_mod.monotonic() - _t0)  # noqa: F821 — testo dei soli file scelti
         text_by_id = {r["file_id"]: (r.get("text") or "").strip() for r in rows}
-        _kwh_q = _core_drive_kwh_in_query(user_msg or "")  # noqa: F821 — V50.z573 consumo numerico nella domanda (None se assente)
         for fid in selected[: max_pdfs + 2]:
             s = _by_id.get(fid) or {}
             txt = text_by_id.get(fid) or ""
@@ -1777,20 +1778,31 @@ async def _fetch_teach_drive_pdfs_for_query(
             tag = " [ROOT]" if p in root_names else ""
             # V50.z569 — prima i PASSAGGI PERTINENTI (chunk completi scelti da ChromaDB, anche oltre gli 8.000 caratteri), poi l'inizio del documento
             _ex = [c for c in _sem_chunks.get(fid) or [] if c not in txt[:6000]]
-            # V50.z573 — FASCE ENERGETICHE: consumo numerico nella domanda («400.000 kWh») → righe del listino la cui fascia lo CONTIENE
-            # (confronto matematico sul testo completo, core.drive_retrieval.range_rows_for_value), iniettate per prime e in chiaro
+            # V50.z575 — FASCIA RISOLTA: il retrieval risolve MATEMATICAMENTE la fascia PRIMA del modello e la inietta come FATTO
+            # già constatato (non come istruzione): il modello legge e cita, nessun calcolo. Log «[drive-fasce] FASCIA RISOLTA» per audit.
             _fascia_block = ""
             if _kwh_q:
                 _rows = _core_drive_range_rows(txt, _kwh_q)  # noqa: F821
                 if _rows:
-                    _fascia_block = (f"FASCIA CORRISPONDENTE AL CONSUMO INDICATO ({_core_drive_format_kwh(_kwh_q)}) — righe del listino che lo contengono "  # noqa: F821
-                                     "(verifica matematica: il valore rientra nell'intervallo; cita l'intervallo e il relativo spread):\n" + "\n".join(f"  {r}" for r in _rows) + "\n\n")
+                    _fascia_block = "".join(f"FASCIA RISOLTA: {r}\n" for r in _rows) + "\n"
+                    _fasce_risolte.append((display, _rows))
             _ex_block = ("PASSAGGI PERTINENTI ALLA DOMANDA (testo esatto dal documento, usa QUESTI valori):\n" + "\n…\n".join(_ex) + "\n\nINIZIO DOCUMENTO:\n") if _ex else ""
             if _fascia_block and not _ex:
                 _ex_block = "INIZIO DOCUMENTO:\n"
             blocks.append(f"--- File Drive{tag}: {display} (modificato: {s.get('modified_time') or '?'}) ---\n{_fascia_block}{_ex_block}{txt[:6000 if (_ex or _fascia_block) else 8000]}")
 
     out = "\n".join(header_lines)
+    if _kwh_q and _fasce_risolte:
+        # In TESTA alla sezione Drive (prima dell'elenco file e dei testi, che possono essere lunghi): fatto già risolto dal sistema
+        _kwh_lbl = _core_drive_format_kwh(_kwh_q)  # noqa: F821
+        _top = [f"✅ FASCIA RISOLTA DAL SISTEMA per il consumo indicato ({_kwh_lbl}) — dato già verificato matematicamente ({_kwh_lbl} è compreso nell'intervallo): CITALA così com'è, nessun calcolo da fare, non dire «non trovo»."]
+        for _disp, _rows in _fasce_risolte:
+            for _r in _rows:
+                _top.append(f"FASCIA RISOLTA: {_r} — Fonte: {_disp}")
+        out = "\n".join(_top) + "\n\n" + out
+        logger.info("[drive-fasce] consumo=%s → %s", _kwh_lbl, " || ".join(f"FASCIA RISOLTA: {r[:120]} ({d})" for d, rs in _fasce_risolte for r in rs[:2]))
+    elif _kwh_q:
+        logger.info("[drive-fasce] consumo=%s → nessuna fascia DA X A Y nei %d file selezionati", _core_drive_format_kwh(_kwh_q), len(selected))  # noqa: F821
     if blocks:
         out += "\n\nCONTENUTO DEI FILE PIÙ PERTINENTI:\n\n" + "\n\n".join(blocks)
     return out

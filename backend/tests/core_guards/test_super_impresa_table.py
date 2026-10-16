@@ -48,6 +48,9 @@ ROW_400K = "DA 300.000 A 600.000 kWh | PUN + 0,008 €/kWh"
 @pytest.mark.parametrize("msg,expected", [
     ("spread per cliente 400.000 kWh", 400000), ("un cliente che consuma 400000 kwh", 400000), ("450 MWh annui", 450000),
     ("0,4 GWh l'anno", 400000), ("impianto da 50 kW", None), ("quanti appuntamenti ho domani?", None), ("spread fascia 150-300k kWh", None),
+    # V50.z575 — forme abbreviate / senza unità (produzione: «non trovo 418k»)
+    ("spread per 418k", 418000), ("spread 418 k", 418000), ("spread per 418k kWh", 418000), ("418 mila kWh", 418000), ("spread per 418.000", 418000),
+    ("consumo 418000", 418000), ("fattura n. 4521 del 2025", None), ("quanti clienti ho? 1500", None), ("spread per un cliente da 418.000 kwh/anno", 418000),
 ])
 def test_consumption_detection_in_query(msg, expected):
     from core import drive_retrieval
@@ -91,5 +94,10 @@ def test_two_mandatory_rules_in_absolute_rules():
     nav = open(os.path.join(HERE, "routes", "axon_navigator.py"), encoding="utf-8").read()
     assert "REGOLA 2 — PROATTIVITÀ" in nav and "opzioni una per riga come «A) …», «B) …» (max 5)" not in nav, "lo STILE RISPOSTA non deve più imporre elenchi A)/B)"
     w = open(os.path.join(HERE, "routes", "20_axon_memory.py"), encoding="utf-8").read()
-    assert "FASCIA CORRISPONDENTE AL CONSUMO INDICATO" in w and "_core_drive_range_rows(txt, _kwh_q)" in w
+    assert "FASCIA RISOLTA" in w and "_core_drive_range_rows(txt, _kwh_q)" in w and "[drive-fasce]" in w, "la fascia va risolta dal retrieval e loggata"
+    assert w.index("FASCIA RISOLTA DAL SISTEMA") < w.index('out += "\\n\\nCONTENUTO DEI FILE PIÙ PERTINENTI'), "la FASCIA RISOLTA deve stare in TESTA alla sezione Drive"
+    st = open(os.path.join(HERE, "routes", "21_axon_streaming.py"), encoding="utf-8").read()
+    assert '"kwh"' in st[st.index("_CACHE_SKIP_TOKENS = {"):st.index("}", st.index("_CACHE_SKIP_TOKENS = {"))], "domande su kWh/listini mai dalla cache semantica"
+    assert "_SEMCACHE_NEG_RX" in st and "_semcache_purge_stale_boot" in st, "risposte negative mai cachate + purge al boot"
+    assert "_core_drive_kwh_in_query(msg)" in st
     assert re.search(r"if market:.*FASCE ENERGETICHE", open(os.path.join(HERE, "routes", "axon_core.py"), encoding="utf-8").read(), re.S)

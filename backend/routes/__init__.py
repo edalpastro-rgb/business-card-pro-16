@@ -157,6 +157,7 @@ MODULES = [
     "axon_stress_autofix.py",  # V50.z508 — autocorrezione automatica dopo il test notturno (applica tutte le correzioni suggerite, riverifica, UNA notifica riepilogativa); sostituisce _st_nightly_after_finalize (dopo axon_critical_events)
     "axon_stress_schedule.py",  # V50.z509 — calendario stress test (once/weekly/monthly/custom) al posto del notturno fisso (disattivato di default); usa _st_start_nightly
     "axon_stt_local.py",  # V50.z519 — whisper.cpp locale (modello small): avvolge _upl_whisper_path (axon_uploads) e ri-registra POST /ai/transcribe (12); GET /ai/stt/status
+    "axon_stt_chunks.py",  # V50.z575 — STT a segmenti durante la registrazione: POST /ai/transcribe/chunk (background per segmento, final → testo completo), GET /ai/transcribe/chunk/status
     "axon_idle_summary.py",  # V50.z518 — auto-summary dopo 30 min di inattività: cronologia → 1 riassunto (≤500 token) via Haiku (tick 5 min; usa _axn_scheduler, _axon_llm_chat)
     "home_layout.py",  # V50.z505 — Home personalizzabile (Super Master): blocchi visibili, ordine, posizione sinistra/destra/intera (GET/PUT/DELETE /home/layout; usa is_super_admin di 36)
     "axon_critical_events.py",  # V50.z496 — allarme prioritario eventi critici: banner Home + push CRITICAL + avviso vocale alla prima interazione (ri-avvolge /assistant/chat e /stream: ULTIMO strato)

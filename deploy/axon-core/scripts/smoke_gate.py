@@ -80,20 +80,29 @@ def stream_probe(token, msg):
 
 def check_stream(token):
     for cls, q in QUESTIONS:
-        try:
-            first, stamps, total = stream_probe(token, q)
-        except Exception as exc:  # noqa: BLE001
-            FAILS.append(f"stream [{cls}] «{q}»: errore {exc}"); continue
-        ok_ttft = first is not None and first <= TTFT_MAX
-        # «in blocco» = lunga attesa poi tutto insieme; le risposte deterministiche istantanee (1 delta in <1 s) sono legittime
-        fluid = (len(stamps) >= 3 and len(set(round(s, 2) for s in stamps)) >= 2) or total < 1.0
-        print(f"  stream [{cls}] «{q}»: TTFT={first and round(first,2)}s deltas={len(stamps)} total={round(total,2)}s → {'OK' if ok_ttft and fluid else 'KO'}")
-        if first is None:
-            FAILS.append(f"stream [{cls}] «{q}»: nessun delta")
-        elif not ok_ttft:
-            FAILS.append(f"stream [{cls}] «{q}»: TTFT {first:.2f}s > {TTFT_MAX}s → classe {cls} fuori soglia")
-        if first is not None and not fluid:
-            FAILS.append(f"stream [{cls}] «{q}»: non fluido ({len(stamps)} delta, tutti allo stesso istante)")
+        # V50.z575 — una classe fallita viene riprovata UNA volta (il primo passaggio dopo il boot può arrivare in un blocco unico:
+        # 3 delta allo stesso istante su «Che ore sono?» → falso negativo che distruggeva un container valido)
+        for attempt in (1, 2):
+            try:
+                first, stamps, total = stream_probe(token, q)
+            except Exception as exc:  # noqa: BLE001
+                if attempt == 1:
+                    time.sleep(2); continue
+                FAILS.append(f"stream [{cls}] «{q}»: errore {exc}"); first = None; stamps = []; total = 0.0; break
+            ok_ttft = first is not None and first <= TTFT_MAX
+            # «in blocco» = lunga attesa poi tutto insieme; le risposte deterministiche istantanee (1 delta in <1 s) sono legittime
+            fluid = (len(stamps) >= 3 and len(set(round(s, 2) for s in stamps)) >= 2) or total < 1.0
+            print(f"  stream [{cls}] «{q}»: TTFT={first and round(first,2)}s deltas={len(stamps)} total={round(total,2)}s → {'OK' if ok_ttft and fluid else 'KO'}" + (" (riprovo)" if attempt == 1 and not (ok_ttft and fluid) else ""))
+            if ok_ttft and fluid:
+                break
+            if attempt == 1:
+                time.sleep(2); continue
+            if first is None:
+                FAILS.append(f"stream [{cls}] «{q}»: nessun delta")
+            elif not ok_ttft:
+                FAILS.append(f"stream [{cls}] «{q}»: TTFT {first:.2f}s > {TTFT_MAX}s → classe {cls} fuori soglia")
+            if first is not None and not fluid:
+                FAILS.append(f"stream [{cls}] «{q}»: non fluido ({len(stamps)} delta, tutti allo stesso istante)")
 
 
 def check_drive(token):

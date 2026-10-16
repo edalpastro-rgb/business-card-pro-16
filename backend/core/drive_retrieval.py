@@ -152,7 +152,11 @@ def search(tenant: str, query: str, k: int = 4, n_chunks: int = 16) -> List[Dict
 # nel testo, quindi né la ricerca testuale né (a volte) il modello la riconoscono. Qui si estrae il consumo dalla domanda e si
 # cercano nel TESTO COMPLETO del documento le righe-fascia che lo contengono; il wrapper (20) le inietta nel prompt come
 # «FASCIA CORRISPONDENTE». Deterministico, nessuna rete, nessun modello.
-_KWH_IN_QUERY_RX = re.compile(r"(\d{1,3}(?:[.\s]\d{3})+|\d+(?:[.,]\d+)?)\s*(k|m|g)?\s*(wh|w)\b", re.I)
+_KWH_IN_QUERY_RX = re.compile(r"(\d{1,3}(?:[.\s]\d{3})+|\d+(?:[.,]\d+)?)\s*(k|m|g)?\s*(wh|w|ilowattora|egawattora)\b", re.I)
+# V50.z575 — forme abbreviate senza unità esplicita: «418k», «418 k», «418 mila», «418k kWh» (il «k» non è l'unità ma il moltiplicatore)
+_KWH_SHORT_RX = re.compile(r"\b(\d+(?:[.,]\d+)?)\s*(k|mila|mln|m)\b(?:\s*kwh)?", re.I)
+_KWH_BARE_RX = re.compile(r"\b(\d{1,3}(?:[.\s]\d{3})+|\d{4,7})\b")
+_CONSUMPTION_CTX_RX = re.compile(r"consum|kwh|kw/h|spread|fasc|listin|offert|prezz|tariff|energ|luce|elettric|cliente da|utenza", re.I)
 _RANGE_ROW_RX = re.compile(r"\bDA\s+(\d{1,3}(?:[.\s]?\d{3})*|\d+)\s+A\s+(\d{1,3}(?:[.\s]?\d{3})*|\d+)\s*(k|m|g)?\s*wh\b", re.I)
 _OPEN_ROW_RX = re.compile(r"\b(?:SUPERIOR[IE]\s+A|OLTRE(?:\s+I)?|MAGGIOR[IE]\s+DI|>)\s*(\d{1,3}(?:[.\s]?\d{3})*|\d+)\s*(k|m|g)?\s*wh\b", re.I)
 _UNIT_KWH = {None: 1.0, "": 1.0, "k": 1.0, "m": 1000.0, "g": 1_000_000.0}
@@ -169,18 +173,45 @@ def _to_kwh(num: str, unit: Optional[str], base_wh: bool = False) -> float:
 
 
 def consumption_kwh_in_query(msg: str) -> Optional[float]:
-    """Consumo numerico indicato dall'utente, in kWh (es. «400.000 kWh» → 400000; «0,4 GWh» → 400000). None se assente."""
+    """Consumo numerico indicato dall'utente, in kWh. Forme riconosciute: «400.000 kWh», «418000 kwh», «450 MWh», «0,4 GWh»,
+    «418k», «418 mila», «418k kWh», e un numero ≥ 1.000 «nudo» se la frase parla di consumi/spread/fasce/listini.
+    Ignora le potenze (kW) e gli intervalli «150-300k». None se assente."""
+    m0 = msg or ""
     best = None
-    for m in _KWH_IN_QUERY_RX.finditer(msg or ""):
+    for m in _KWH_IN_QUERY_RX.finditer(m0):
         num, unit, tail = m.group(1), m.group(2), m.group(3).lower()
         if tail == "w":      # potenza (kW), non consumo
             continue
+        if tail == "egawattora":
+            unit = "m"
         try:
             v = _to_kwh(num, unit, base_wh=True)
         except ValueError:
             continue
         if v > 0 and (best is None or v > best):
             best = v
+    if best is None:
+        for m in _KWH_SHORT_RX.finditer(m0):
+            if re.search(r"\d\s*[-–]\s*$", m0[:m.start()]):   # «150-300k» → intervallo, non un consumo
+                continue
+            try:
+                n = float(m.group(1).replace(".", "").replace(",", "."))
+            except ValueError:
+                continue
+            mult = {"k": 1000.0, "mila": 1000.0, "mln": 1_000_000.0, "m": 1_000_000.0}[m.group(2).lower()]
+            v = n * mult
+            if v >= 1000 and (best is None or v > best):
+                best = v
+    if best is None and _CONSUMPTION_CTX_RX.search(m0) and not re.search(r"\b(19|20)\d\d\b", m0):
+        for m in _KWH_BARE_RX.finditer(m0):
+            if re.search(r"\d\s*[-–]\s*$", m0[:m.start()]):
+                continue
+            try:
+                v = float(m.group(1).replace(".", "").replace(" ", ""))
+            except ValueError:
+                continue
+            if v >= 1000 and (best is None or v > best):
+                best = v
     return best
 
 

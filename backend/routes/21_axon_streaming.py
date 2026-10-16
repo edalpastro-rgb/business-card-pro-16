@@ -58,6 +58,9 @@ _CACHE_SKIP_TOKENS = {
     # V50.z359 — Stato sistema / versioni / novità: dati DINAMICI (changelog, build, backend) → mai dalla cache
     "versione","versioni","novita","novità","changelog","aggiornamento","aggiornamenti","aggiornata","aggiornato","build","backend","release","rilascio","rilasciate","rilasciata",
     "stato","sistema","uptime","deploy","heartbeat","installata","installato","nuovo","nuove","nuova","nuovi","visto","letto","senti","pensi",
+    # V50.z575 — listini/Drive (i documenti cambiano, il retrieval evolve): MAI dalla cache → la stessa domanda riposta in una chat nuova
+    # restituiva la risposta sbagliata di 7 giorni prima («non trovo 418k») anche dopo 4 deploy corretti
+    "kwh","mwh","gwh","smc","spread","fascia","fasce","listino","listini","drive","pdf","file","documento","documenti","consumo","consumi",
 }
 
 def _normalize_and_tokenize(text: str) -> Tuple[str, List[str]]:
@@ -100,6 +103,8 @@ def _is_query_cacheable(msg: str, has_attachments: bool, has_history: bool) -> b
         return False
     # If any skip-token is present → bypass cache
     if any(t in _CACHE_SKIP_TOKENS for t in tokens):
+        return False
+    if _core_drive_kwh_in_query(msg):  # noqa: F821 — V50.z575 consumo numerico («418k», «418.000 kWh») → risposta dipende dai listini Drive
         return False
     _info = globals().get("_nav_is_info_query"); _topic = globals().get("_RX_INFO_TOPIC"); _time = globals().get("_RX_INFO_TIME")  # V50.z443/z445 — fatti attuali: MAI dalla cache
     if _info and _info(msg) and ((_time and _time.search(msg)) or (_topic and _topic.search(msg))):
@@ -157,6 +162,21 @@ async def _semantic_cache_lookup(msg: str, tenant: Optional[str] = None, product
 
 
 _SEMCACHE_ERR_RX = re.compile(r"^(sono temporaneamente offline|⏱️|non riesco a rispondere|servizio momentaneamente non disponibile|riprova tra qualche minuto)", re.IGNORECASE)
+# V50.z575 — MAI mettere in cache le risposte NEGATIVE («non trovo», «non ho trovato», «non ho questo dato»): dipendono dallo stato
+# dei dati/retrieval del momento e, cachate 7 giorni, sopravvivono ai deploy che le correggono.
+_SEMCACHE_NEG_RX = re.compile(r"non (ho )?(trov|risult)|non ho (questo |i |il )?dat|non (ho|sono riuscit)[^.]{0,40}(recuper|individu)|approssimazione", re.IGNORECASE)
+_SEMCACHE_PURGE_TOKENS = ["kwh", "mwh", "gwh", "smc", "spread", "fascia", "fasce", "listino", "listini", "drive", "pdf", "file", "documento", "documenti", "consumo", "consumi"]
+
+
+@app.on_event("startup")  # noqa: F821
+async def _semcache_purge_stale_boot() -> None:
+    """V50.z575 — a ogni deploy: via dalla cache semantica le risposte su listini/Drive/consumi e quelle negative («non trovo…»)."""
+    try:
+        r = await db.axon_semantic_cache.delete_many({"$or": [{"tokens": {"$in": _SEMCACHE_PURGE_TOKENS}},
+                                                              {"reply": {"$regex": r"non (ho )?trov|non ho (questo |i |il )?dat|approssimazione", "$options": "i"}}]})
+        logger.info("[axon-semcache] purge al boot: %d risposte rimosse (listini/Drive/consumi/negative)", r.deleted_count)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[axon-semcache] purge al boot fallita: %s", exc)
 
 
 async def _semantic_cache_save(
@@ -177,6 +197,8 @@ async def _semantic_cache_save(
     # V50.z555 — MAI mettere in cache le risposte di cortesia per errore LLM («Sono temporaneamente offline…», «⏱️…»):
     # altrimenti la domanda resta «offline» per SEM_CACHE_TTL_DAYS anche a servizio ripristinato.
     if _SEMCACHE_ERR_RX.match(reply.strip()):
+        return
+    if _SEMCACHE_NEG_RX.search(reply[:600]):
         return
     _, tokens = _normalize_and_tokenize(msg)
     if not tokens:

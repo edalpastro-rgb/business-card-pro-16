@@ -256,7 +256,6 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const convCycleStartRef = useRef<number>(0);
   const scrollRef = useRef<ScrollView | null>(null);
   const mrRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<any>(null);
   const durRef = useRef(0);
@@ -1673,7 +1672,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; sum += v * v; }
       const rms = Math.sqrt(sum / buf.length);
       const now = Date.now();
-      if (rms > RMS_THRESHOLD) { spoken = true; lastVoice = now; }
+      if (rms > RMS_THRESHOLD) { spoken = true; lastVoice = now; lastVoiceRef.current = now; hasSpokenRef.current = true; } // V50.z575 — anche per la rotazione dei segmenti
       else if (spoken && lastVoice && rms < RMS_HYST_LOW && now - lastVoice >= SILENCE_TIMEOUT_MS && now - started >= 1000) { stopRecRef.current(); return; }
       if (!spoken && now - started >= NO_SPEECH_STOP_MS) { stopRecRef.current(); return; }
       if (now - started >= MAX_REC_MS) { stopRecRef.current(); return; }
@@ -1724,6 +1723,11 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
 
   const startRec = async () => {
     if (!voiceSupported) return;
+    // V50.z575 — STT A SEGMENTI: ogni SEG_MS il registratore viene ruotato (stop → nuovo file) e il segmento chiuso parte SUBITO
+    // verso /ai/transcribe/chunk, mentre l'utente continua a parlare. Allo stop resta da trascrivere solo l'ultimo pezzo.
+    sttSidRef.current = `stt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    sttIdxRef.current = 0;
+    sttRotatingRef.current = false;
     // V29.au — Branch native: usa expo-audio. Il resto del branch è web con MediaRecorder.
     if (Platform.OS !== "web") {
       try {
@@ -1738,6 +1742,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
         durRef.current = 0;
         setRecDuration(0);
         startSilenceWatch(); // V50.z430 — rilevamento silenzio indipendente dai render
+        startSegmentRotation();
         timerRef.current = setInterval(() => {
           durRef.current += 1;
           setRecDuration(durRef.current);
@@ -1758,18 +1763,14 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
         else if (MR.isTypeSupported("audio/mp4")) mimeType = "audio/mp4";
         else mimeType = "";
       }
-      const rec = mimeType ? new MR(stream, { mimeType }) : new MR(stream);
-      mrRef.current = rec;
-      chunksRef.current = [];
-      rec.ondataavailable = (ev: BlobEvent) => {
-        if (ev.data && ev.data.size > 0) chunksRef.current.push(ev.data);
-      };
-      rec.onstop = () => { void handleStop(rec.mimeType); };
-      rec.start(); _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
+      webMimeRef.current = mimeType;
+      startWebSegment(stream); _micRelease?.(); _micRelease = acquireMicLease(); // V50.z483
       startWebVad(stream); // V50.z515 — auto-stop sul silenzio anche su Web
       setRecording(true);
+      recordingRef.current = true;
       durRef.current = 0;
       setRecDuration(0);
+      startSegmentRotation();
       timerRef.current = setInterval(() => {
         durRef.current += 1;
         setRecDuration(durRef.current);
@@ -1780,29 +1781,117 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     }
   };
 
+  // ── V50.z575 — segmenti STT ──────────────────────────────────────────────────────────────────────────────────────────
+  const SEG_MS = 5000;
+  const sttSidRef = useRef<string>("");
+  const sttIdxRef = useRef<number>(0);
+  const sttRotatingRef = useRef<boolean>(false);
+  const sttRotTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const webMimeRef = useRef<string>("");
+  const stopSegmentRotation = () => {
+    if (sttRotTimerRef.current) { clearInterval(sttRotTimerRef.current); sttRotTimerRef.current = null; }
+  };
+  const segStartRef = useRef<number>(0);
+  const startSegmentRotation = () => {
+    stopSegmentRotation();
+    segStartRef.current = Date.now();
+    // taglio preferibilmente in una pausa (≥ 350 ms senza voce) appena il segmento supera SEG_MS; comunque entro SEG_MS + 4 s
+    sttRotTimerRef.current = setInterval(() => {
+      const now = Date.now();
+      const age = now - segStartRef.current;
+      if (age < SEG_MS || sttRotatingRef.current || !recordingRef.current) return;
+      const silentFor = now - (lastVoiceRef.current || 0);
+      if (silentFor >= 350 || age >= SEG_MS + 4000) { segStartRef.current = now; void rotateSegment(); }
+    }, 250);
+  };
+  const uploadSegment = async (b64: string, mime: string, final: boolean): Promise<string> => {
+    const idx = sttIdxRef.current++;
+    const r = await api<{ transcript?: string; ok?: boolean }>("/ai/transcribe/chunk", {
+      method: "POST",
+      body: { session_id: sttSidRef.current, index: idx, audio_base64: b64, mime, final },
+    });
+    return (r?.transcript || "").trim();
+  };
+  // Web: un MediaRecorder per segmento (ogni file ha il proprio header → decodificabile da solo)
+  const startWebSegment = (stream: MediaStream) => {
+    const MR: any = (globalThis as any).MediaRecorder;
+    const mimeType = webMimeRef.current;
+    const rec = mimeType ? new MR(stream, { mimeType }) : new MR(stream);
+    const parts: Blob[] = [];
+    rec.ondataavailable = (ev: BlobEvent) => { if (ev.data && ev.data.size > 0) parts.push(ev.data); };
+    rec.onstop = () => {
+      const final = !!(rec as any).__final;
+      const blob = new Blob(parts, { type: rec.mimeType || parts[0]?.type || "audio/webm" });
+      void handleWebSegment(blob, final);
+    };
+    rec.start();
+    mrRef.current = rec;
+  };
+  const handleWebSegment = async (blob: Blob, final: boolean) => {
+    try {
+      if (blob.size < 512 && !final) return;
+      const b64 = blob.size >= 512 ? await blobToBase64(blob) : "";
+      const t = await uploadSegment(b64, blob.type || "audio/webm", final);
+      if (final) {
+        if (t) await send(t, { forceSpeak: true }); // V50.z430 — Bug 10: dettato → risposta parlata
+      }
+    } catch (e: any) {
+      if (final) notify("Errore trascrizione", e?.message || String(e));
+    } finally {
+      if (final) setTranscribing(false);
+    }
+  };
+  const rotateSegment = async () => {
+    if (!recordingRef.current || sttRotatingRef.current) return;
+    sttRotatingRef.current = true;
+    try {
+      if (Platform.OS !== "web") {
+        await nativeRecorder.stop();
+        const uri = nativeRecorder.uri;
+        await nativeRecorder.prepareToRecordAsync();
+        if (!recordingRef.current) return; // stop arrivato durante la rotazione
+        nativeRecorder.record();
+        if (uri) {
+          void (async () => {
+            try {
+              const b64 = await FileSystem.readAsStringAsync(uri, { encoding: "base64" });
+              if (b64 && b64.length >= 700) await uploadSegment(b64, /\.3gp$/i.test(uri) ? "audio/3gpp" : "audio/m4a", false);
+            } catch {}
+          })();
+        }
+      } else if (streamRef.current && mrRef.current) {
+        const old = mrRef.current;
+        startWebSegment(streamRef.current);
+        try { if (old.state !== "inactive") old.stop(); } catch {}
+      }
+    } catch {
+      // la rotazione fallita non interrompe la registrazione in corso
+    } finally {
+      sttRotatingRef.current = false;
+    }
+  };
+  useEffect(() => () => stopSegmentRotation(), []);
+
   const stopRec = () => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     stopSilenceWatch();
+    stopSegmentRotation(); // V50.z575
     stopWebVad(); // V50.z515
     if (!recordingRef.current && Platform.OS !== "web") return; // V50.z430 — stop già eseguito (intervallo + timer)
     recordingRef.current = false;
     setRecording(false);
-    // V29.au — Branch native: stop expo-audio + handle base64 upload
+    // V29.au — Branch native: stop expo-audio + ultimo segmento (final) → testo completo della sessione
     if (Platform.OS !== "web") {
       (async () => {
         try {
+          while (sttRotatingRef.current) await new Promise((r) => setTimeout(r, 50)); // attendi una rotazione in corso
           await nativeRecorder.stop(); _micRelease?.(); _micRelease = null; // V50.z483
           const uri = nativeRecorder.uri;
-          if (!uri) return;
           nativeUriRef.current = uri;
           setTranscribing(true);
-          const b64 = await FileSystem.readAsStringAsync(uri, { encoding: "base64" });
-          if (!b64 || b64.length < 500) { setTranscribing(false); return; }
-          const r = await api<{ transcript: string }>("/ai/transcribe", {
-            method: "POST",
-            body: { audio_base64: b64, mime: /\.3gp$/i.test(uri) ? "audio/3gpp" : "audio/m4a" }, // V50.z432 — mime reale (il server rileva comunque il formato)
-          });
-          const t = (r?.transcript || "").trim();
+          const b64 = uri ? await FileSystem.readAsStringAsync(uri, { encoding: "base64" }) : "";
+          if ((!b64 || b64.length < 500) && sttIdxRef.current === 0) { setTranscribing(false); return; }
+          const t = await uploadSegment(b64 || "", uri && /\.3gp$/i.test(uri) ? "audio/3gpp" : "audio/m4a", true);
           if (t) await send(t, { forceSpeak: true }); // V50.z430 — Bug 10: dettato → risposta parlata
         } catch (e: any) {
           notify("Errore trascrizione", e?.message || String(e));
@@ -1812,9 +1901,11 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       })();
       return;
     }
+    setTranscribing(true);
     try {
-      if (mrRef.current && mrRef.current.state !== "inactive") mrRef.current.stop();
-    } catch {}
+      if (mrRef.current && mrRef.current.state !== "inactive") { (mrRef.current as any).__final = true; mrRef.current.stop(); }
+      else setTranscribing(false);
+    } catch { setTranscribing(false); }
     // V50.z478 — Web: rilascia SUBITO il microfono (prima i track venivano fermati solo in onstop → pallino rosso
     // di Chrome acceso ~2 s dopo il tap). rec.stop() ha già richiesto l'ultimo chunk, quindi nulla va perso.
     if (streamRef.current) {
@@ -1823,35 +1914,6 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
     }
   };
   stopRecRef.current = stopRec;
-
-  const handleStop = async (recMime: string) => {
-    setTranscribing(true);
-    try {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((t) => t.stop());
-        streamRef.current = null;
-      }
-      const parts = chunksRef.current;
-      chunksRef.current = [];
-      if (!parts.length) return;
-      const blob = new Blob(parts, { type: recMime || parts[0].type || "audio/webm" });
-      if (blob.size < 512) return;
-      const b64 = await blobToBase64(blob);
-      const r = await api<{ transcript: string }>("/ai/transcribe", {
-        method: "POST",
-        body: { audio_base64: b64, mime: blob.type || "audio/webm" },
-      });
-      const t = (r?.transcript || "").trim();
-      if (t) {
-        // Send immediately
-        await send(t, { forceSpeak: true }); // V50.z430 — Bug 10: dettato → risposta parlata
-      }
-    } catch {
-      // ignore
-    } finally {
-      setTranscribing(false);
-    }
-  };
 
   // V28.o — Quick actions now come from user settings (customizable by Master).
   // - `quickActions === null`: caricamento ancora in corso o fetch fallito → mostra fallback statici.
