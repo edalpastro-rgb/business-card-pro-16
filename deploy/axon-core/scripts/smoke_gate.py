@@ -4,12 +4,15 @@
 Eseguito da upgrade_vps.sh dopo il rebuild. Exit code 0 = deploy OK; ≠0 = BLOCCA e lo script fa ROLLBACK all'immagine precedente.
 Controlli:
   1. /api/health → 200, version == tag del pacchetto (se PKG_TAG), core_integrity == true
-  2. login (SMOKE_EMAIL/SMOKE_PASSWORD) → /api/assistant/chat/stream su 4 domande campione, UNA PER CLASSE (simple, crm, drive, energy):
+  2. NESSUN login: ogni richiesta porta l'header X-Smoke-Test-Secret (= SMOKE_TEST_SECRET del .env); il backend (core/smoke_auth.py),
+     solo per richieste da localhost, inietta un JWT interno per l'account SMOKE_EMAIL (nessun OAuth, nessuna password).
+     → /api/assistant/chat/stream su 4 domande campione, UNA PER CLASSE (simple, crm, drive, energy):
        TTFT (primo delta) ≤ SMOKE_TTFT_MAX_S (default 2.0, misurato sul server stesso quindi senza rete pubblica)
        streaming fluido: ≥ 3 delta e timestamp crescenti (non tutto in un blocco)
   3. retrieval Drive: /api/google-drive/retrieval-check?q=SMOKE_DRIVE_QUERY (default 01_POWER) → found == true
      (saltato con WARN se l'account non ha Drive collegato: indexed_files == 0 e folders == 0)
-Variabili: BASE_URL (default https://localhost), PKG_TAG, SMOKE_EMAIL, SMOKE_PASSWORD, SMOKE_DRIVE_QUERY, SMOKE_TTFT_MAX_S, SMOKE_SKIP_DRIVE=1
+Variabili: BASE_URL (default https://localhost), PKG_TAG, SMOKE_EMAIL, SMOKE_TEST_SECRET, SMOKE_DRIVE_QUERY, SMOKE_TTFT_MAX_S, SMOKE_SKIP_DRIVE=1
+Senza SMOKE_EMAIL/SMOKE_TEST_SECRET: vengono verificati SOLO gli endpoint pubblici (health, integrità core, manuale pubblico, scomposizione TTFT).
 """
 import json
 import os
@@ -21,7 +24,7 @@ import urllib.request
 BASE = (os.environ.get("BASE_URL") or "https://localhost").rstrip("/")
 PKG_TAG = os.environ.get("PKG_TAG") or ""
 EMAIL = os.environ.get("SMOKE_EMAIL") or ""
-PASSWORD = os.environ.get("SMOKE_PASSWORD") or ""
+SECRET = (os.environ.get("SMOKE_TEST_SECRET") or "").strip()  # V50.z566 — header X-Smoke-Test-Secret (mai password, mai OAuth)
 DRIVE_Q = os.environ.get("SMOKE_DRIVE_QUERY") or "01_POWER"
 TTFT_MAX = float(os.environ.get("SMOKE_TTFT_MAX_S") or "2.0")
 # V50.z565 — UNA domanda per CLASSE: semplice · CRM/agenda · Drive (contenuto file) · listini energetici (GME/PUN).
@@ -36,8 +39,8 @@ FAILS, WARNS = [], []
 def _req(path, data=None, token=None, timeout=60):
     req = urllib.request.Request(BASE + path, data=json.dumps(data).encode() if data is not None else None, method="POST" if data is not None else "GET")
     req.add_header("Content-Type", "application/json")
-    if token:
-        req.add_header("Authorization", "Bearer " + token)
+    if token:  # token == "smoke" → header X-Smoke-Test-Secret: il backend inietta il Bearer interno per SMOKE_EMAIL
+        req.add_header("X-Smoke-Test-Secret", SECRET)
     return urllib.request.urlopen(req, timeout=timeout, context=CTX)
 
 
@@ -105,6 +108,16 @@ def check_drive(token):
         FAILS.append(f"retrieval Drive: errore {exc}")
 
 
+def check_public():
+    """Endpoint pubblici (senza autenticazione): manuale pubblico raggiungibile, telemetria presente in /api/health."""
+    try:
+        m = json.loads(_req("/api/public/manual/search?q=axon", timeout=15).read())
+        n = len(m.get("items") or []) if isinstance(m, dict) else len(m)
+        print(f"  pubblico: /api/public/manual/search → {n} voci")
+    except Exception as exc:  # noqa: BLE001
+        FAILS.append(f"endpoint pubblico manuale non raggiungibile: {exc}")
+
+
 def print_breakdown():
     """V50.z564 — dopo le sonde stampa la SCOMPOSIZIONE del TTFT misurata dal server (prep per fase vs gateway LLM):
     se il gate fallisce si vede subito QUALE fase ha mangiato i secondi, senza aprire i log Docker."""
@@ -127,17 +140,19 @@ def print_breakdown():
 def main() -> int:
     print(f"▶ SMOKE GATE su {BASE} (tag atteso: {PKG_TAG or '—'})")
     check_health()
-    if EMAIL and PASSWORD:
-        try:
-            token = json.loads(_req("/api/auth/login", {"email": EMAIL, "password": PASSWORD}, timeout=20).read()).get("token")
+    check_public()
+    if EMAIL and SECRET:
+        try:  # verifica che il corto circuito funzioni (403 = segreto diverso tra .env host e container; 404 = SMOKE_EMAIL inesistente)
+            me = json.loads(_req("/api/auth/me", token="smoke", timeout=20).read())
+            me = me.get("user") or me; print(f"  smoke auth: ok → {me.get('email') or me.get('user_id')} (JWT interno iniettato dal server)")
         except Exception as exc:  # noqa: BLE001
-            token = None; FAILS.append(f"login smoke fallito: {exc}")
-        if token:
-            check_stream(token)
-            check_drive(token)
-            print_breakdown()
+            FAILS.append(f"smoke auth (X-Smoke-Test-Secret) rifiutata: {exc}")
+        else:
+            check_stream("smoke")
+            check_drive("smoke")
     else:
-        WARNS.append("SMOKE_EMAIL/SMOKE_PASSWORD assenti nel .env: streaming e Drive NON verificati (solo health/integrità)")
+        WARNS.append("SMOKE_EMAIL/SMOKE_TEST_SECRET assenti nel .env: streaming (4 classi) e Drive NON verificati — solo endpoint pubblici")
+    print_breakdown()
     for w in WARNS:
         print("  ⚠ " + w)
     if FAILS:

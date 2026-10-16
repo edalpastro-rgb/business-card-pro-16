@@ -100,7 +100,9 @@ docker compose logs --since 3m axon-core 2>/dev/null | grep -E "\[boot\] Google 
 
 # V50.z562 — SMOKE GATE + ROLLBACK AUTOMATICO (Accordo di produzione V1423+)
 # V50.z565 — 4 domande post-rebuild, UNA PER CLASSE (simple · crm · drive · energy/listini): se UNA classe supera i 2 s di TTFT → rollback.
-# Legge SMOKE_EMAIL / SMOKE_PASSWORD / SMOKE_DRIVE_QUERY / SMOKE_TTFT_MAX_S dal .env di compose ($DEST/.env).
+# V50.z566 — NESSUN login: le 4 query portano l'header X-Smoke-Test-Secret (SMOKE_TEST_SECRET del .env, letto anche dal container via
+# env_file) e il backend inietta un JWT interno per SMOKE_EMAIL solo per richieste da localhost (core/smoke_auth.py). Niente OAuth/password.
+# Legge SMOKE_EMAIL / SMOKE_TEST_SECRET / SMOKE_DRIVE_QUERY / SMOKE_TTFT_MAX_S dal .env di compose ($DEST/.env).
 SMOKE_SCRIPT="$TMP/axon-core-pkg/smoke_gate.py"; [[ -f "$SMOKE_SCRIPT" ]] || SMOKE_SCRIPT="$DEST/smoke_gate.py"
 if [[ "${SKIP_SMOKE_GATE:-0}" == "1" ]]; then
   echo "⚠⚠ SKIP_SMOKE_GATE=1: smoke gate e rollback automatico DISATTIVATI per questo deploy (regola V50.z564: NON usarlo in produzione)."
@@ -109,7 +111,7 @@ if [[ -f "$SMOKE_SCRIPT" && "${SKIP_SMOKE_GATE:-0}" != "1" ]]; then
   cp -f "$SMOKE_SCRIPT" "$DEST/smoke_gate.py" 2>/dev/null || true
   _senv() { grep -m1 "^$1=" "$DEST/.env" 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'"; }
   sleep 5  # warm-up del modello/embedder
-  if BASE_URL="https://localhost" PKG_TAG="$PKG_TAG" SMOKE_EMAIL="$(_senv SMOKE_EMAIL)" SMOKE_PASSWORD="$(_senv SMOKE_PASSWORD)" \
+  if BASE_URL="https://localhost" PKG_TAG="$PKG_TAG" SMOKE_EMAIL="$(_senv SMOKE_EMAIL)" SMOKE_TEST_SECRET="$(_senv SMOKE_TEST_SECRET)" \
      SMOKE_DRIVE_QUERY="$(_senv SMOKE_DRIVE_QUERY)" SMOKE_TTFT_MAX_S="${SMOKE_TTFT_MAX_S:-$(_senv SMOKE_TTFT_MAX_S)}" \
      python3 "$SMOKE_SCRIPT"; then
     docker image rm axon-core:prev >/dev/null 2>&1 || true

@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-16 | D2026.10.16-0941 | V50.z566 — Smoke gate senza login (app solo Google OAuth → 422): header X-Smoke-Test-Secret da localhost → JWT interno iniettato dal server per SMOKE_EMAIL (core/smoke_auth.py); 4 classi simple/crm/drive/energy con rollback; prime cache GME all'avvio del container |
 | 2026-10-16 | D2026.10.16-0920 | V50.z565 — Preflight senza rete: PDF GME, link insegnati e Tavily scaricati SOLO da job in background (core/context_cache, Mongo), chat legge la cache <50 ms; Drive snapshot leggeri (metadati → ChromaDB → testo dei soli file scelti, wrapper root rimosso); smoke gate 4 domande una per classe (simple/crm/drive/energy) con rollback; Fair Usage Policy 5/min·120/h·7500/mese → 429 (core/fup_middleware) |
 | 2026-10-16 | D2026.10.16 | V50.z564 — Scomposizione analitica del TTFT (prep per fase: context/teach.gme/teach.drive.mongo/teach.drive.chroma/tavily/cache vs gateway LLM), complessiva e per classe di query, in /api/health, /axon/system/status, Stato sistema (card Velocità di Axon) e prompt Axon; smoke gate stampa il collo di bottiglia; manuale + regola «mai SKIP_SMOKE_GATE=1» |
 | 2026-10-15 | D2026.10.15-2122 | V50.z563 — Ecosistema AdvisorOS completo (solo Super Master): domini e sottopagine del VPS nel Manuale d'uso, nel Libretto e nel contesto Axon, con link esterni cliccabili |

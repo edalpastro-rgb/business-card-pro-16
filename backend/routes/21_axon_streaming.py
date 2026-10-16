@@ -306,6 +306,21 @@ async def _run_gme_nightly_job() -> None:
     _core_ctx_schedule("gme", {"months": ["recent"]}, ttl_s=6 * 3600)  # noqa: F821
 
 
+@app.on_event("startup")  # noqa: F821
+async def _prime_context_cache_on_boot() -> None:
+    """V50.z566 — PRIME CACHE all'avvio del container: i PDF GME (ultimi 18 mesi) vengono scaricati in background pochi
+    secondi dopo il boot, così la prima domanda sui listini (e lo smoke gate «energy») trova la cache già calda invece di un miss."""
+    async def _go():
+        await asyncio.sleep(8)
+        try:
+            n = await db.gme_pun_cache.count_documents({})
+        except Exception:  # noqa: BLE001
+            n = 0
+        logger.info("[prime-cache] gme_pun_cache=%d mesi → download GME «recent» in background", n)
+        _core_ctx_schedule("gme", {"months": ["recent"]}, ttl_s=6 * 3600)  # noqa: F821
+    asyncio.create_task(_go())
+
+
 async def _prepare_assistant_prompt(
     user: dict, body: "AssistantChatIn"
 ) -> dict:

@@ -12,6 +12,7 @@ from core import embedding as _core_embedding
 from core import fup_middleware as _core_fup
 from core import integrity as _core_integrity
 from core import response_rules as _core_rules
+from core import smoke_auth as _core_smoke
 from core import streaming as _core_streaming
 
 _cb_log = _cb_logging.getLogger("server")
@@ -115,3 +116,18 @@ async def google_drive_retrieval_check(q: str = "", user=Depends(get_current_use
     indexed = await db.drive_snapshots.count_documents({"user_id": tenant})  # noqa: F821
     found = any(s.get("score", 0) >= 0.25 for s in sem) or any(l["has_text"] for l in lex)
     return {"query": q, "found": found, "semantic": sem, "lexical": lex[:10], "indexed_files": indexed, "semantic_chunks": _core_drive.count(tenant)}
+
+
+# ── V50.z566 — SMOKE GATE: token a corto circuito (core/smoke_auth.py). Richiesta da localhost + header X-Smoke-Test-Secret
+# == SMOKE_TEST_SECRET (.env) → il server inietta un Bearer JWT interno (15 min) per SMOKE_EMAIL. Nessun login, nessun OAuth.
+async def _smoke_resolve_user_id(email: str):
+    u = await db.users.find_one({"email": email}, {"_id": 0, "user_id": 1})  # noqa: F821
+    return (u or {}).get("user_id")
+
+
+def _smoke_mint_token(user_id: str) -> str:
+    payload = {"sub": user_id, "iat": int(utcnow().timestamp()), "exp": int((utcnow() + timedelta(minutes=15)).timestamp()), "smoke": True}  # noqa: F821
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALG)  # noqa: F821
+
+
+app.add_middleware(_core_smoke.SmokeAuthMiddleware, resolve_user_id=_smoke_resolve_user_id, mint_token=_smoke_mint_token, on_user=lambda uid: _fup.exempt.add(uid))  # noqa: F821
