@@ -1757,6 +1757,7 @@ async def _fetch_teach_drive_pdfs_for_query(
             rows = []
         _core_stream_mark_phase("teach.drive.text", _time_mod.monotonic() - _t0)  # noqa: F821 — testo dei soli file scelti
         text_by_id = {r["file_id"]: (r.get("text") or "").strip() for r in rows}
+        _kwh_q = _core_drive_kwh_in_query(user_msg or "")  # noqa: F821 — V50.z573 consumo numerico nella domanda (None se assente)
         for fid in selected[: max_pdfs + 2]:
             s = _by_id.get(fid) or {}
             txt = text_by_id.get(fid) or ""
@@ -1767,8 +1768,18 @@ async def _fetch_teach_drive_pdfs_for_query(
             tag = " [ROOT]" if p in root_names else ""
             # V50.z569 — prima i PASSAGGI PERTINENTI (chunk completi scelti da ChromaDB, anche oltre gli 8.000 caratteri), poi l'inizio del documento
             _ex = [c for c in _sem_chunks.get(fid) or [] if c not in txt[:6000]]
+            # V50.z573 — FASCE ENERGETICHE: consumo numerico nella domanda («400.000 kWh») → righe del listino la cui fascia lo CONTIENE
+            # (confronto matematico sul testo completo, core.drive_retrieval.range_rows_for_value), iniettate per prime e in chiaro
+            _fascia_block = ""
+            if _kwh_q:
+                _rows = _core_drive_range_rows(txt, _kwh_q)  # noqa: F821
+                if _rows:
+                    _fascia_block = (f"FASCIA CORRISPONDENTE AL CONSUMO INDICATO ({_core_drive_format_kwh(_kwh_q)}) — righe del listino che lo contengono "  # noqa: F821
+                                     "(verifica matematica: il valore rientra nell'intervallo; cita l'intervallo e il relativo spread):\n" + "\n".join(f"  {r}" for r in _rows) + "\n\n")
             _ex_block = ("PASSAGGI PERTINENTI ALLA DOMANDA (testo esatto dal documento, usa QUESTI valori):\n" + "\n…\n".join(_ex) + "\n\nINIZIO DOCUMENTO:\n") if _ex else ""
-            blocks.append(f"--- File Drive{tag}: {display} (modificato: {s.get('modified_time') or '?'}) ---\n{_ex_block}{txt[:6000 if _ex else 8000]}")
+            if _fascia_block and not _ex:
+                _ex_block = "INIZIO DOCUMENTO:\n"
+            blocks.append(f"--- File Drive{tag}: {display} (modificato: {s.get('modified_time') or '?'}) ---\n{_fascia_block}{_ex_block}{txt[:6000 if (_ex or _fascia_block) else 8000]}")
 
     out = "\n".join(header_lines)
     if blocks:

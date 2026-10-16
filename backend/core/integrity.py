@@ -16,6 +16,8 @@ PROTECTED: Dict[str, Any] = {
     "_core_drive_search": drive_retrieval.search,
     "_core_drive_upsert": drive_retrieval.upsert_file,
     "_core_drive_delete": drive_retrieval.delete_file,
+    "_core_drive_kwh_in_query": drive_retrieval.consumption_kwh_in_query,
+    "_core_drive_range_rows": drive_retrieval.range_rows_for_value,
     "_core_wants_gme": response_rules.wants_gme_download,
     "_core_llm_self": response_rules.llm_can_answer_without_web,
     "_core_stream_record": streaming.record,

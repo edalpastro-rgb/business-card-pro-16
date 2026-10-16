@@ -145,3 +145,78 @@ def search(tenant: str, query: str, k: int = 4, n_chunks: int = 16) -> List[Dict
         r["score"] = round(r["score"] + _name_bonus(query, r["name"] or "", r["folder_path"] or ""), 4)
     out.sort(key=lambda r: -r["score"])
     return out[:k]
+
+
+# ───────────────────────────── V50.z573 — FASCE ENERGETICHE: corrispondenza MATEMATICA, non testuale ─────────────────────────────
+# «spread per cliente 400.000 kWh» → il listino ha la riga «DA 300.000 A 600.000 kWh | PUN + 0,008 €/kWh»: 400.000 non compare
+# nel testo, quindi né la ricerca testuale né (a volte) il modello la riconoscono. Qui si estrae il consumo dalla domanda e si
+# cercano nel TESTO COMPLETO del documento le righe-fascia che lo contengono; il wrapper (20) le inietta nel prompt come
+# «FASCIA CORRISPONDENTE». Deterministico, nessuna rete, nessun modello.
+_KWH_IN_QUERY_RX = re.compile(r"(\d{1,3}(?:[.\s]\d{3})+|\d+(?:[.,]\d+)?)\s*(k|m|g)?\s*(wh|w)\b", re.I)
+_RANGE_ROW_RX = re.compile(r"\bDA\s+(\d{1,3}(?:[.\s]?\d{3})*|\d+)\s+A\s+(\d{1,3}(?:[.\s]?\d{3})*|\d+)\s*(k|m|g)?\s*wh\b", re.I)
+_OPEN_ROW_RX = re.compile(r"\b(?:SUPERIOR[IE]\s+A|OLTRE(?:\s+I)?|MAGGIOR[IE]\s+DI|>)\s*(\d{1,3}(?:[.\s]?\d{3})*|\d+)\s*(k|m|g)?\s*wh\b", re.I)
+_UNIT_KWH = {None: 1.0, "": 1.0, "k": 1.0, "m": 1000.0, "g": 1_000_000.0}
+
+
+def _to_kwh(num: str, unit: Optional[str], base_wh: bool = False) -> float:
+    n = float(num.replace(" ", "").replace(".", "").replace(",", ".")) if re.search(r"\d[.\s]\d{3}\b", num) else float(num.replace(",", "."))
+    mult = _UNIT_KWH.get((unit or "").lower(), 1.0)
+    if base_wh and not unit:
+        return n / 1000.0   # «400000 Wh» (raro)
+    return n * mult
+
+
+def consumption_kwh_in_query(msg: str) -> Optional[float]:
+    """Consumo numerico indicato dall'utente, in kWh (es. «400.000 kWh» → 400000; «0,4 GWh» → 400000). None se assente."""
+    best = None
+    for m in _KWH_IN_QUERY_RX.finditer(msg or ""):
+        num, unit, tail = m.group(1), m.group(2), m.group(3).lower()
+        if tail == "w":      # potenza (kW), non consumo
+            continue
+        try:
+            v = _to_kwh(num, unit, base_wh=True)
+        except ValueError:
+            continue
+        if v > 0 and (best is None or v > best):
+            best = v
+    return best
+
+
+def range_rows_for_value(text: str, value_kwh: float, max_rows: int = 6) -> List[str]:
+    """Righe (testo esatto, una per riga) del documento la cui fascia «DA X A Y kWh» contiene value_kwh (X ≤ v ≤ Y) oppure
+    «superiori a / oltre X kWh» con v > X. Ordine del documento, senza duplicati."""
+    out: List[str] = []
+    seen = set()
+    page = ""
+    for line in (text or "").splitlines():
+        pm = re.search(r"\[pag\.\s*(\d+)\]", line)
+        if pm:
+            page = f"[pag.{pm.group(1)}] "
+        hit = False
+        for m in _RANGE_ROW_RX.finditer(line):
+            try:
+                lo, hi = _to_kwh(m.group(1), m.group(3)), _to_kwh(m.group(2), m.group(3))
+            except ValueError:
+                continue
+            if lo <= value_kwh <= hi:
+                hit = True; break
+        if not hit:
+            for m in _OPEN_ROW_RX.finditer(line):
+                try:
+                    lo = _to_kwh(m.group(1), m.group(2))
+                except ValueError:
+                    continue
+                if value_kwh > lo:
+                    hit = True; break
+        if hit:
+            row = re.sub(r"\s+", " ", line).strip(" |")
+            if row and row not in seen:
+                seen.add(row); out.append(page + row if not row.startswith("[pag.") else row)
+                if len(out) >= max_rows:
+                    break
+    return out
+
+
+def format_kwh(value_kwh: float) -> str:
+    v = int(round(value_kwh))
+    return f"{v:,}".replace(",", ".") + " kWh"
