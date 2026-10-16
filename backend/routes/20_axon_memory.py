@@ -1729,6 +1729,15 @@ async def _fetch_teach_drive_pdfs_for_query(
         _sem_chunks = {r["file_id"]: [c for c in (r.get("chunks") or []) if c] for r in _sem}  # V50.z569 — passaggi esatti (chunk completi)
         if _sem:
             header_lines.append("RICERCA SEMANTICA: " + "; ".join(f"{r['name']} ({r['score']:.2f})" for r in _sem[:max_pdfs]))
+        # V50.z574 — consumo numerico nella domanda («418.000 kWh»): seconda ricerca ChromaDB mirata ai LISTINI A FASCE (query fissa),
+        # così con molti file il listino giusto entra tra i selezionati anche se la domanda è di 3 parole (max 2 file in più, ~0,3 s)
+        if _core_drive_kwh_in_query(user_msg or ""):  # noqa: F821
+            _s1 = _time_mod.monotonic()
+            _sem2 = await asyncio.to_thread(_core_drive_search, tenant, "listino offerta fasce di consumo DA A kWh spread PUN €/kWh", 3)  # noqa: F821
+            _core_stream_mark_phase("teach.drive.fasce", _time_mod.monotonic() - _s1)  # noqa: F821
+            for r in _sem2:
+                if r.get("score", 0) >= 0.25 and r["file_id"] in _by_id and r["file_id"] not in selected and len(selected) < max_pdfs + 2:
+                    selected.append(r["file_id"]); _sem_chunks.setdefault(r["file_id"], [c for c in (r.get("chunks") or []) if c])
     except Exception as _se:  # noqa: BLE001
         logger.warning("[drive-teach] semantic search failed: %s", _se)
     for s in scored:

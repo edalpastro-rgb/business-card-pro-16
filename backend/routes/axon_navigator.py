@@ -290,18 +290,18 @@ def _nav_style_rules(msg: str) -> str:
         "",
         "⚡ STILE RISPOSTA (VINCOLANTE):",
         "1) Prima riga = risposta secca (verbo + oggetto, 1-2 frasi); contesto, dettagli, tabelle e proposte SOLO dopo, in un paragrafo separato.",
-        "2) SCELTE E AZIONI: opzioni una per riga come «A) …», «B) …» (max 5) oppure parole-azione in maiuscolo tra virgolette («ORA» / «DOPO» / «MODIFICA» / «CANCELLA» / «INVIA»): l'app le rende pulsanti cliccabili. Mai descrivere una scelta senza questo formato.",
+        "2) AZIONI (REGOLA 2 — PROATTIVITÀ): niente elenchi di opzioni A/B/C/D — proponi direttamente l'azione concreta migliore e chiudi con le parole-azione in maiuscolo tra virgolette («CONFERMO» / «ANNULLA», oppure «ORA» / «DOPO» / «MODIFICA» / «CANCELLA» / «INVIA»): l'app le rende pulsanti cliccabili. Le lettere «A) …», «B) …» SOLO se l'utente chiede esplicitamente più opzioni.",
         "3) FONTI: priorità 🌐 LIVE > 📥 PDF allegato > 📂 DRIVE > 📄 MASTER FILES > 🔍 WEB; cita la fonte usata in coda con la sua icona. Dato non di oggi → «Aggiornato al <data>. Lo aggiorno da GME/web?». Ricerca fallita → «Non ho trovato <cosa> in <fonte>. Vuoi che <alternativa>?». Mai dati vecchi spacciati per attuali.",
         "4) Niente disclaimer, riepiloghi di ciò che l'utente ha appena scritto o cortesie ripetute. Applica sempre ciò che il Master ti ha insegnato senza chiedere di ripeterlo.",
     ]
     if _RX_TABLE_ONLY.search(t) and "?" not in t.replace("??", "?").rstrip("?") and len(t.split()) <= 14:
         lines.append("🔒 RICHIESTA «SOLO TABELLA» RILEVATA: l'output è ESCLUSIVAMENTE la tabella Markdown (intestazione + righe). ZERO testo prima, ZERO testo dopo, ZERO note/fonti/disclaimer/legenda. Dati mancanti → `n/d` nella cella. Nessuna frase del tipo «Ecco la tabella».")
     elif _RX_DIRECT_Q.search(t) and len(t.split()) <= 12:
-        lines.append("🔒 DOMANDA DIRETTA RILEVATA: prima riga = SOLO «Sì, …» / «No, …» / il dato richiesto (max 12 parole). Poi, se serve davvero, UNA frase di contesto o UNA domanda con opzioni A)/B).")
+        lines.append("🔒 DOMANDA DIRETTA RILEVATA: prima riga = SOLO «Sì, …» / «No, …» / il dato richiesto (max 12 parole). Poi, se serve davvero, UNA frase di contesto o UNA proposta diretta con «CONFERMO» / «ANNULLA» (niente opzioni A/B).")
     if _RX_CHOICE_REQ.search(t):
         lines.append("🔒 SCELTE RICHIESTE: l'utente vuole opzioni cliccabili → una riga di contesto (max 1) e poi le opzioni come «A) …», «B) …» (eventualmente «C) …»), UNA PER RIGA, chiudendo con «Quale preferisci?». Mai rispondere senza le lettere A)/B).")
     if _RX_SEARCH_NEED.search(t):
-        lines.append("🔒 DATO AGGIORNATO RICHIESTO: verifica la data del dato che usi e dichiarala nella prima riga («Dati GME del <data>»). Se non è odierno, proponi «A) Aggiorno da GME ora  B) Uso l'ultimo disponibile».")
+        lines.append("🔒 DATO AGGIORNATO RICHIESTO: verifica la data del dato che usi e dichiarala nella prima riga («Dati GME del <data>»). Se non è odierno, proponi direttamente «Lo aggiorno da GME adesso, «CONFERMO»?» (niente opzioni A/B).")
     return "\n".join(lines)
 
 

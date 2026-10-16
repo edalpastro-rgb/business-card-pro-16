@@ -66,12 +66,30 @@ def test_range_rows_math_match_on_real_pdf():
     assert drive_retrieval.range_rows_for_value(text, 10000) == []
 
 
-def test_system_rule_fasce_energetiche_in_market_block():
-    """La regola tassativa richiesta dall'utente deve stare nel blocco DATI DI MERCATO (e quindi nel blocco statico cacheabile)."""
+def test_range_rows_on_old_parser_text_carry_the_spread():
+    """V50.z574 — produzione: snapshot ancora del parser vecchio (una cella per riga) finché il job notturno non ri-indicizza.
+    La riga-fascia consegnata al prompt deve portare comunque lo spread accodato («… | PUN + 0,008 €/kWh | …»)."""
+    import heavy_ops
+    from core import drive_retrieval
+    old = heavy_ops.pdf_text(open(FIX, "rb").read(), max_pages=40, max_chars=400000)["text"]
+    assert "DA 300.000 A 600.000 kWh | PUN" not in old, "(controllo: il testo vecchio ha le celle su righe separate)"
+    rows = drive_retrieval.range_rows_for_value(old, 418000)
+    assert rows and all(r.startswith("DA 300.000 A 600.000 kWh | PUN + 0,008 €/kWh") for r in rows), rows
+    assert all("TRATTATIVA" not in r for r in rows), "l'accodamento deve fermarsi all'intestazione successiva"
+
+
+def test_two_mandatory_rules_in_absolute_rules():
+    """REGOLA 1 (range matching) e REGOLA 2 (proattività) con il testo tassativo dell'utente, nelle REGOLE ASSOLUTE (prime nel prompt)."""
     import re
-    src = open(os.path.join(HERE, "routes", "axon_core.py"), encoding="utf-8").read()
-    assert "REGOLA FASCE ENERGETICHE" in src
-    assert "non cercare la corrispondenza testuale esatta" in src and "Verifica matematicamente in quale fascia" in src
-    assert re.search(r"if market:.*REGOLA FASCE ENERGETICHE", src, re.S), "deve stare nel blocco `market`"
+    src = open(os.path.join(HERE, "routes", "axon_honesty_rule.py"), encoding="utf-8").read()
+    block = src[src.index("<REGOLE_ASSOLUTE_AXON>"):src.index("</REGOLE_ASSOLUTE_AXON>")]
+    for frag in ("REGOLA 1 — FASCE ENERGETICHE (RANGE MATCHING)", "la corrispondenza testuale esatta",
+                 "418.000 kWh rientra nella fascia DA 300.000 A 600.000 kWh, spread PUN + 0,008 €/kWh — Fonte: Super Impresa Suite 1026.pdf",
+                 "REGOLA 2 — PROATTIVITÀ COMMERCIALE", "vietato rispondere con elenchi di opzioni A/B/C/D",
+                 "impossibile Milano-Venezia in 2 ore, sposto Bianchi alle 16:00, confermo?"):
+        assert frag in block, f"frammento mancante nelle REGOLE ASSOLUTE: {frag[:60]}"
+    nav = open(os.path.join(HERE, "routes", "axon_navigator.py"), encoding="utf-8").read()
+    assert "REGOLA 2 — PROATTIVITÀ" in nav and "opzioni una per riga come «A) …», «B) …» (max 5)" not in nav, "lo STILE RISPOSTA non deve più imporre elenchi A)/B)"
     w = open(os.path.join(HERE, "routes", "20_axon_memory.py"), encoding="utf-8").read()
     assert "FASCIA CORRISPONDENTE AL CONSUMO INDICATO" in w and "_core_drive_range_rows(txt, _kwh_q)" in w
+    assert re.search(r"if market:.*FASCE ENERGETICHE", open(os.path.join(HERE, "routes", "axon_core.py"), encoding="utf-8").read(), re.S)

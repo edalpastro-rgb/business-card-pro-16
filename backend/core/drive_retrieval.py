@@ -156,6 +156,8 @@ _KWH_IN_QUERY_RX = re.compile(r"(\d{1,3}(?:[.\s]\d{3})+|\d+(?:[.,]\d+)?)\s*(k|m|
 _RANGE_ROW_RX = re.compile(r"\bDA\s+(\d{1,3}(?:[.\s]?\d{3})*|\d+)\s+A\s+(\d{1,3}(?:[.\s]?\d{3})*|\d+)\s*(k|m|g)?\s*wh\b", re.I)
 _OPEN_ROW_RX = re.compile(r"\b(?:SUPERIOR[IE]\s+A|OLTRE(?:\s+I)?|MAGGIOR[IE]\s+DI|>)\s*(\d{1,3}(?:[.\s]?\d{3})*|\d+)\s*(k|m|g)?\s*wh\b", re.I)
 _UNIT_KWH = {None: 1.0, "": 1.0, "k": 1.0, "m": 1000.0, "g": 1_000_000.0}
+_VALUE_RX = re.compile(r"€|\bPUN\b|\bPSV\b|spread|/\s*kwh|/\s*smc", re.I)          # la riga porta già un valore/prezzo
+_HEADING_RX = re.compile(r"^(?=[^\d]*$)[A-ZÀ-Ü][A-ZÀ-Ü' ]{5,}$")                      # intestazione MAIUSCOLA senza cifre (es. «TRATTATIVA AD HOC»)
 
 
 def _to_kwh(num: str, unit: Optional[str], base_wh: bool = False) -> float:
@@ -184,11 +186,15 @@ def consumption_kwh_in_query(msg: str) -> Optional[float]:
 
 def range_rows_for_value(text: str, value_kwh: float, max_rows: int = 6) -> List[str]:
     """Righe (testo esatto, una per riga) del documento la cui fascia «DA X A Y kWh» contiene value_kwh (X ≤ v ≤ Y) oppure
-    «superiori a / oltre X kWh» con v > X. Ordine del documento, senza duplicati."""
+    «superiori a / oltre X kWh» con v > X. Ordine del documento, senza duplicati.
+    V50.z574 — testo del parser VECCHIO (una cella per riga: «DA 300.000 A 600.000 kWh» ↵ «PUN + 0,008 €/kWh» ↵ …): se la riga-fascia
+    non contiene un valore (€/PUN/spread), le celle delle righe successive vengono accodate con « | » fino alla fascia seguente
+    (max 8 righe), così la riga consegnata al prompt porta SEMPRE lo spread."""
     out: List[str] = []
     seen = set()
     page = ""
-    for line in (text or "").splitlines():
+    lines = (text or "").splitlines()
+    for idx, line in enumerate(lines):
         pm = re.search(r"\[pag\.\s*(\d+)\]", line)
         if pm:
             page = f"[pag.{pm.group(1)}] "
@@ -210,6 +216,12 @@ def range_rows_for_value(text: str, value_kwh: float, max_rows: int = 6) -> List
                     hit = True; break
         if hit:
             row = re.sub(r"\s+", " ", line).strip(" |")
+            if not _VALUE_RX.search(row):
+                for nxt in lines[idx + 1: idx + 9]:
+                    cell = re.sub(r"\s+", " ", nxt).strip(" |")
+                    if not cell or _RANGE_ROW_RX.search(cell) or _OPEN_ROW_RX.search(cell) or _HEADING_RX.match(cell):
+                        break
+                    row += " | " + cell
             if row and row not in seen:
                 seen.add(row); out.append(page + row if not row.startswith("[pag.") else row)
                 if len(out) >= max_rows:
