@@ -255,6 +255,20 @@ def _is_price_row(row: str) -> bool:
     return bool(_VALUE_RX.search(row) and re.search(r"\d", row))
 
 
+def _labelled_price_row(lines: List[str], pidx: int) -> str:
+    """V50.z578 — riga-prezzo di tabella con i nomi di colonna (riga d'intestazione senza cifre subito sopra, stesso n. di celle):
+    «Indice di riferimento + Spread: PUN + 0,025 €/kWh … | Fissi: 17.90 €/mese … | Variabili: 0.055 €/kWh». Senza intestazione: riga com'è."""
+    cells = [c.strip() for c in lines[pidx].strip().strip("|").split("|")]
+    for back in range(1, 4):
+        j = pidx - back
+        if j < 0 or not lines[j].lstrip().startswith("|"):
+            break
+        hdr = [c.strip() for c in lines[j].strip().strip("|").split("|")]
+        if len(hdr) == len(cells) and not re.search(r"\d", lines[j]) and all(hdr):
+            return " | ".join(f"{h}: {c}" for h, c in zip(hdr, cells))
+    return re.sub(r"\s+", " ", lines[pidx]).strip(" |")
+
+
 def range_rows_for_value(text: str, value_kwh: float, max_rows: int = 6) -> List[str]:
     """Righe (testo esatto, una per riga) del documento la cui fascia contiene value_kwh: «DA X A Y kWh» (X ≤ v ≤ Y),
     «superiori a / superiore di / oltre X kWh» (v > X), V50.z577: «FINO A X kWh» (v ≤ X) e «Fascia 0 -10k kWh» / «10k-50k kWh».
@@ -290,7 +304,7 @@ def range_rows_for_value(text: str, value_kwh: float, max_rows: int = 6) -> List
             pg = page_of[idx]
             bands, prices = bare_bands.get(pg) or [], price_rows.get(pg) or []
             if pg and bands and len(bands) == len(prices) and idx in bands:
-                row += " | " + re.sub(r"\s+", " ", lines[prices[bands.index(idx)]]).strip(" |")
+                row += " | " + _labelled_price_row(lines, prices[bands.index(idx)])
             else:
                 for nxt in lines[idx + 1: idx + 9]:
                     cell = re.sub(r"\s+", " ", nxt).strip(" |")

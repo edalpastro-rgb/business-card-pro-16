@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-17 | D2026.10.17-2220 | V50.z578 — Fasce: con un consumo in kWh nella domanda Axon scansiona TUTTI i listini indicizzati (non solo i 4-6 della ricerca semantica): Super Impresa Suite non viene più escluso dai listini CORPORATE CLUB. Righe prezzo con nomi colonna (Spread / Fissi / Variabili). |
 | 2026-10-17 | D2026.10.17 | V50.z577 — Fasce basse e formati abbreviati nei listini: FINO A X kWh, Fascia 0-10k kWh, 10k-50k kWh, Superiore di X kWh. 9.000 kWh ora risolve Super Impresa Smart fascia 0-10k (PUN + 0,025 €/kWh, 17,90 €/mese); prezzi delle slide abbinati per pagina. |
 | 2026-10-16 | D2026.10.16-1927 | V50.z576 — upgrade_vps.sh: passaggio obbligatorio fix_legacy_upstream_refs prima di nginx (conf.d: axon-core:8001 → upstream condiviso axon_core, backup .bak, nginx -t con ripristino automatico); template nginx-italianbrain.conf allineato; test bloccante |
 | 2026-10-16 | D2026.10.16-1726 | V50.z575 — (pacchetto rigenerato) smoke gate: una ripetizione per classe prima di bocciare (falso negativo «3 delta allo stesso istante» a freddo) |

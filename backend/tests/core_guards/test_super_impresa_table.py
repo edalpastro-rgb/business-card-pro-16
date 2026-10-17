@@ -122,3 +122,20 @@ def test_two_mandatory_rules_in_absolute_rules():
     assert "_SEMCACHE_NEG_RX" in st and "_semcache_purge_stale_boot" in st, "risposte negative mai cachate + purge al boot"
     assert "_core_drive_kwh_in_query(msg)" in st
     assert re.search(r"if market:.*FASCE ENERGETICHE", open(os.path.join(HERE, "routes", "axon_core.py"), encoding="utf-8").read(), re.S)
+
+
+def test_kwh_query_scans_all_drive_files_v50z578():
+    """V50.z578 — produzione 17/10: con ~129 listini la ricerca semantica escludeva Super Impresa Suite e 9.000 kWh restava senza fascia.
+    Con un consumo nella domanda il retrieval deve scansionare TUTTI gli snapshot e mettere in testa i file con una fascia corrispondente."""
+    src = open(os.path.join(HERE, "routes", "20_axon_memory.py"), encoding="utf-8").read()
+    assert "[drive-fasce] scansione listini" in src
+    blk = src[src.index("_kwh_sel = _core_drive_kwh_in_query"):src.index("[drive-fasce] scansione listini fallita")]
+    assert "db.drive_snapshots.find" in blk and "_core_drive_range_rows" in blk and "selected = _pin +" in blk
+
+
+def test_price_row_carries_column_names_v50z578():
+    import heavy_ops
+    from core import drive_retrieval
+    text = heavy_ops.pdf_structured_text(open(FIX, "rb").read())["text"]
+    low = drive_retrieval.range_rows_for_value(text, 9000)
+    assert any("Fissi: 17.90 €/mese" in r and "Variabili: 0.055 €/kWh" in r for r in low), low

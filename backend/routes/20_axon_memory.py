@@ -1745,6 +1745,30 @@ async def _fetch_teach_drive_pdfs_for_query(
             break
         if _score(s) > 0 and s.get("has_text") and s.get("file_id") not in selected:
             selected.append(s["file_id"])
+    # V50.z578 — consumo numerico nella domanda: scansione DETERMINISTICA di TUTTI i file indicizzati (non solo i 4-6 scelti da ChromaDB).
+    # Produzione 17/10: con ~129 listini CORPORATE CLUB la ricerca semantica non selezionava «Super Impresa Suite 1026.pdf» e la fascia
+    # 0-10k (9.000 kWh) non arrivava mai al modello. I file che contengono una fascia per il consumo vanno in TESTA ai selezionati
+    # (max 3, prima quelli con prezzo nella riga). Solo regex sul testo già in Mongo: nessuna rete, nessun modello.
+    _kwh_sel = _core_drive_kwh_in_query(user_msg or "")  # noqa: F821
+    if _kwh_sel:
+        try:
+            _s2 = _time_mod.monotonic()
+            _band_hits: List[Any] = []
+            async for _r in db.drive_snapshots.find({"user_id": tenant, "text": {"$regex": "kwh", "$options": "i"}}, {"_id": 0, "file_id": 1, "text": 1}):
+                _fid = _r.get("file_id")
+                if _fid not in _by_id:
+                    continue
+                _rr = _core_drive_range_rows(_r.get("text") or "", _kwh_sel)  # noqa: F821
+                if _rr:
+                    _band_hits.append((sum(1 for _x in _rr if re.search(r"€|\bPUN\b|\bPSV\b", _x)), len(_rr), _fid))
+            _band_hits.sort(key=lambda h: (h[0], h[1]), reverse=True)
+            _pin = [h[2] for h in _band_hits[:3]]
+            if _pin:
+                selected = _pin + [f for f in selected if f not in _pin]
+            _core_stream_mark_phase("teach.drive.fasce_scan", _time_mod.monotonic() - _s2)  # noqa: F821
+            logger.info("[drive-fasce] scansione listini: %d file con fasce per %s → in testa: %s", len(_band_hits), _core_drive_format_kwh(_kwh_sel), ", ".join((_by_id.get(f) or {}).get("name") or "?" for f in _pin) or "nessuno")  # noqa: F821
+        except Exception as _fe:  # noqa: BLE001
+            logger.warning("[drive-fasce] scansione listini fallita: %s", _fe)
     if not selected:
         selected = [s["file_id"] for s in scored[:2] if s.get("has_text")]  # nessuna keyword pertinente: i più recenti con testo
 
