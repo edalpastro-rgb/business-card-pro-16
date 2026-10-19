@@ -61,7 +61,8 @@ async def ai_transcribe_chunk(body: STTChunkIn, user=Depends(get_current_user)):
         sess["tasks"][body.index] = _sc_asyncio.create_task(_sc_transcribe_one(body, user))
         _SC_STATS["chunks"] += 1
     if not body.final:
-        return {"ok": True, "session_id": sid, "queued": len(sess["tasks"]), "done": sum(1 for t in sess["tasks"].values() if t.done())}
+        return {"ok": True, "session_id": sid, "queued": len(sess["tasks"]), "done": sum(1 for t in sess["tasks"].values() if t.done()),
+                "partial": _sc_partial_text(sess)}  # V50.z579 — testo parziale in diretta
     # FINAL: attende i segmenti in corso (in ordine), compone il testo, chiude la sessione
     t0 = _sc_time.time()
     texts = []
@@ -75,6 +76,27 @@ async def ai_transcribe_chunk(body: STTChunkIn, user=Depends(get_current_user)):
     _SC_STATS["final_wait_ms_last"] = int((_sc_time.time() - t0) * 1000)
     logger.info("[stt-chunk] sessione %s: %d segmenti, attesa finale %d ms, %d car.", sid[:8], len(texts), _SC_STATS["final_wait_ms_last"], len(transcript))  # noqa: F821
     return {"transcript": transcript, "chunks": len(texts), "final_wait_ms": _SC_STATS["final_wait_ms_last"], "language": "it"}
+
+
+def _sc_partial_text(sess: dict) -> str:
+    """Testo dei segmenti GIÀ trascritti, in ordine (quelli in corso sono omessi): mostrato in chat mentre l'utente parla ancora."""
+    parts = []
+    for idx in sorted(sess["tasks"]):
+        t = sess["tasks"][idx]
+        if t.done() and not t.cancelled() and t.exception() is None:
+            r = (t.result() or "").strip()
+            if r:
+                parts.append(r)
+    return " ".join(parts)
+
+
+@api_router.get("/ai/transcribe/chunk/partial")  # noqa: F821
+async def ai_transcribe_chunk_partial(session_id: str, user=Depends(get_current_user)):  # noqa: F821
+    """V50.z579 — polling leggero (ogni ~1,5 s) durante la registrazione: parole già trascritte della sessione."""
+    sess = _SC_SESSIONS.get((session_id or "").strip()[:64])
+    if not sess or sess["user_id"] != user["user_id"]:
+        return {"partial": "", "done": 0, "queued": 0}
+    return {"partial": _sc_partial_text(sess), "done": sum(1 for t in sess["tasks"].values() if t.done()), "queued": len(sess["tasks"])}
 
 
 @api_router.get("/ai/transcribe/chunk/status")  # noqa: F821

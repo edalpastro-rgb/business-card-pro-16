@@ -60,3 +60,20 @@ def test_nav_fallback_uses_chip_route_and_body_score_is_capped():
     blk = st[st.index("_CACHE_SKIP_TOKENS = {"):st.index("\n}", st.index("_CACHE_SKIP_TOKENS = {"))]
     for t in ('"obiezioni"', '"rispondo"', '"scanner"', '"dove"'):
         assert t in blk
+
+
+def test_v579_chat_announcements_and_stt_partial():
+    """V50.z579 — annunci in chat (deploy al boot, rilettura Drive) e testo parziale STT in diretta."""
+    a = _src("axon_chat_announce.py")
+    assert "_ca_prev_take_pending_voice = _ce_take_pending_voice" in a and "async def _ce_take_pending_voice(user: dict):" in a
+    assert "_ca_prev_reindex = _reindex_drive_files_for_user" in a and "last_announced_version" in a and "AXON_COLOR" in a
+    init = _src("__init__.py")
+    assert init.index('"axon_critical_events.py"') < init.index('"axon_chat_announce.py"'), "deve caricarsi DOPO axon_critical_events"
+    assert init.index('"axon_drive_root.py"') < init.index('"axon_chat_announce.py"')
+    st = _src("axon_stt_chunks.py")
+    assert '"/ai/transcribe/chunk/partial"' in st and '"partial": _sc_partial_text(sess)' in st
+    import yaml
+    comp = yaml.safe_load(open(os.path.join(os.path.dirname(HERE), "deploy", "axon-core", "docker-compose.yml"), encoding="utf-8"))
+    for c in ("a", "b"):
+        env = comp["services"][f"axon-core-{c}"]["environment"]
+        assert env.get("AXON_COLOR") == c and "MONGO_URL" in env and "PORT" in env, "environment per colore deve ereditare le variabili comuni"

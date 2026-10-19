@@ -11,21 +11,23 @@ name: axon-core
 # lo smoke gate lo testa dall'interno (4 classi, TTFT < 2 s), poi nginx viene ricaricato (reload graceful, zero downtime)
 # sul nuovo container; se il gate fallisce il nuovo container viene distrutto e gli utenti restano su quello attivo.
 # Memoria: i due container coesistono solo per i minuti del deploy (il vecchio viene fermato dopo lo switch).
+x-axon-env: &axon-env   # V50.z579 — variabili comuni ai due colori (AXON_COLOR aggiunto per servizio: annuncio deploy in chat)
+  # MONGO_URL costruito dalle credenziali root del servizio mongodb (sovrascrive quello del .env se presente)
+  MONGO_URL: mongodb://${MONGO_ROOT_USER:-axon}:${MONGO_ROOT_PASSWORD}@mongodb:27017/${DB_NAME:-axon_core}?authSource=admin
+  DB_NAME: ${DB_NAME:-axon_core}
+  PORT: "8001"
+  # V50.z469 — Feature 15: antivirus ClamAV (servizio `clamav` qui sotto). CLAMAV_REQUIRED=1 → upload rifiutati se l'AV non risponde.
+  CLAMAV_HOST: clamav
+  CLAMAV_PORT: "3310"
+  CLAMAV_REQUIRED: ${CLAMAV_REQUIRED:-0}
+
 x-axon-core: &axon-core
   build:
     context: ./backend            # la cartella backend/ di Core copiata sul VPS (con Dockerfile e .dockerignore dentro)
     dockerfile: Dockerfile
   restart: unless-stopped
   env_file: .env
-  environment:
-    # MONGO_URL costruito dalle credenziali root del servizio mongodb (sovrascrive quello del .env se presente)
-    MONGO_URL: mongodb://${MONGO_ROOT_USER:-axon}:${MONGO_ROOT_PASSWORD}@mongodb:27017/${DB_NAME:-axon_core}?authSource=admin
-    DB_NAME: ${DB_NAME:-axon_core}
-    PORT: "8001"
-    # V50.z469 — Feature 15: antivirus ClamAV (servizio `clamav` qui sotto). CLAMAV_REQUIRED=1 → upload rifiutati se l'AV non risponde.
-    CLAMAV_HOST: clamav
-    CLAMAV_PORT: "3310"
-    CLAMAV_REQUIRED: ${CLAMAV_REQUIRED:-0}
+  environment: *axon-env
   volumes:
     - core_uploads:/app/backend/uploads        # file locali (fallback quando Object Storage non è configurato)
     - core_tmp:/tmp                            # temp ffmpeg / Whisper / ZIP export
@@ -74,10 +76,16 @@ services:
     <<: *axon-core
     image: axon-core:a
     container_name: axon-core-a
+    environment:
+      <<: *axon-env
+      AXON_COLOR: a
   axon-core-b:
     <<: *axon-core
     image: axon-core:b
     container_name: axon-core-b
+    environment:
+      <<: *axon-env
+      AXON_COLOR: b
 
   # V50.z469 — Feature 15: antivirus ClamAV (clamd su TCP 3310, solo rete interna; firme aggiornate da freshclam ogni ora)
   clamav:

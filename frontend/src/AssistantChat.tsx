@@ -1783,6 +1783,21 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
 
   // ── V50.z575 — segmenti STT ──────────────────────────────────────────────────────────────────────────────────────────
   const SEG_MS = 5000;
+  // V50.z579 — TESTO PARZIALE IN DIRETTA: ogni 1,5 s, mentre si registra, GET /ai/transcribe/chunk/partial → parole dei segmenti già trascritti
+  const [livePartial, setLivePartial] = useState("");
+  const livePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stopLivePoll = () => { if (livePollRef.current) { clearInterval(livePollRef.current); livePollRef.current = null; } };
+  const startLivePoll = () => {
+    stopLivePoll();
+    setLivePartial("");
+    livePollRef.current = setInterval(async () => {
+      if (!recordingRef.current || !sttSidRef.current || sttIdxRef.current === 0) return;
+      try {
+        const r = await api<{ partial?: string }>(`/ai/transcribe/chunk/partial?session_id=${encodeURIComponent(sttSidRef.current)}`);
+        if (r?.partial && recordingRef.current) setLivePartial(r.partial);
+      } catch {}
+    }, 1500);
+  };
   const sttSidRef = useRef<string>("");
   const sttIdxRef = useRef<number>(0);
   const sttRotatingRef = useRef<boolean>(false);
@@ -1790,10 +1805,12 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   const webMimeRef = useRef<string>("");
   const stopSegmentRotation = () => {
     if (sttRotTimerRef.current) { clearInterval(sttRotTimerRef.current); sttRotTimerRef.current = null; }
+    stopLivePoll();
   };
   const segStartRef = useRef<number>(0);
   const startSegmentRotation = () => {
     stopSegmentRotation();
+    startLivePoll();
     segStartRef.current = Date.now();
     // taglio preferibilmente in una pausa (≥ 350 ms senza voce) appena il segmento supera SEG_MS; comunque entro SEG_MS + 4 s
     sttRotTimerRef.current = setInterval(() => {
@@ -1806,10 +1823,12 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   };
   const uploadSegment = async (b64: string, mime: string, final: boolean): Promise<string> => {
     const idx = sttIdxRef.current++;
-    const r = await api<{ transcript?: string; ok?: boolean }>("/ai/transcribe/chunk", {
+    const r = await api<{ transcript?: string; ok?: boolean; partial?: string }>("/ai/transcribe/chunk", {
       method: "POST",
       body: { session_id: sttSidRef.current, index: idx, audio_base64: b64, mime, final },
     });
+    if (!final && r?.partial && recordingRef.current) setLivePartial(r.partial);
+    if (final) setLivePartial("");
     return (r?.transcript || "").trim();
   };
   // Web: un MediaRecorder per segmento (ogni file ha il proprio header → decodificabile da solo)
@@ -1870,7 +1889,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
       sttRotatingRef.current = false;
     }
   };
-  useEffect(() => () => stopSegmentRotation(), []);
+  useEffect(() => () => { stopSegmentRotation(); stopLivePoll(); }, []);
 
   const stopRec = () => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
@@ -2255,7 +2274,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
                     phone 390px → testo appariva "in verticale". */}
                 <View style={styles.inputRow}>
                   <TextInput
-                    value={recording ? `Ascolto… ${recDuration}s` : input}
+                    value={recording ? (livePartial ? `${livePartial} …` : `Ascolto… ${recDuration}s`) : (transcribing && livePartial ? `${livePartial} …` : input)} // V50.z579 — parole già trascritte in diretta
                     onChangeText={setInput}
                     editable={!recording && !transcribing}
                     placeholder={pendingAttachments.length ? "Aggiungi un contesto (facoltativo)…" : `Scrivi a ${assistantName}…`}
