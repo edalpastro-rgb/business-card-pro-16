@@ -40,40 +40,9 @@ export function ManualBrowser({ autoFocus, initialQuery }: { autoFocus?: boolean
 
   const byCat = useMemo(() => { const m: Record<string, ManualArticle[]> = {}; all.forEach((a) => { (m[a.category] ||= []).push(a); }); return m; }, [all]);
 
-  const open = (a: ManualArticle) => { if (a.route && /^https?:\/\//.test(a.route)) { Linking.openURL(a.route).catch(() => {}); return; } const r = a.route ? resolveNavRoute(a.route) : null; if (r) router.push(r as any); }; // V50.z563 — link esterni (ecosistema domini)
-
-  const Article = ({ a }: { a: ManualArticle }) => {
-    const expanded = openId === a.id || !!results;
-    const isExternal = !!a.route && /^https?:\/\//.test(a.route); // V50.z563 — ecosistema domini (link esterni)
-    const canOpen = isExternal || !!(a.route && resolveNavRoute(a.route));
-    return (
-      <Pressable onPress={() => setOpenId(expanded && !results ? null : a.id)} style={s.article} testID={`manual-article-${a.id}`}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Ionicons name={a.kind === "faq" ? "help-circle-outline" : "document-text-outline"} size={18} color={HT.brand} />
-          <Text style={s.title} numberOfLines={2}>{a.title}</Text>
-        </View>
-        <Text style={s.path} numberOfLines={2}>📍 {a.path}</Text>
-        {expanded ? (
-          <>
-            {a.kind === "manual" && a.how ? (
-              <>
-                <Text style={s.body}>{a.desc || a.body}</Text>
-                <Text style={s.howLabel}>Come si usa</Text>
-                <Text style={s.body} testID={`manual-how-${a.id}`}>{a.how}</Text>
-              </>
-            ) : (
-              <Text style={s.body}>{a.body}</Text>
-            )}
-            {canOpen ? (
-              <Pressable onPress={() => open(a)} style={s.openBtn} testID={`manual-open-${a.id}`}>
-                <Ionicons name="open-outline" size={15} color={HT.bg} /><Text style={s.openTxt}>Apri {a.route}</Text>
-              </Pressable>
-            ) : null}
-          </>
-        ) : null}
-      </Pressable>
-    );
-  };
+  const open = useCallback((a: ManualArticle) => { if (a.route && /^https?:\/\//.test(a.route)) { Linking.openURL(a.route).catch(() => {}); return; } const r = a.route ? resolveNavRoute(a.route) : null; if (r) router.push(r as any); }, [router]); // V50.z563 — link esterni (ecosistema domini)
+  const inResults = !!results;
+  const toggleArticle = useCallback((id: string) => setOpenId((cur) => (cur === id ? null : id)), []);
 
   return (
     <View style={{ gap: 12 }} testID="manual-browser">
@@ -85,7 +54,7 @@ export function ManualBrowser({ autoFocus, initialQuery }: { autoFocus?: boolean
       {results ? (
         <View style={{ gap: 8 }} testID="manual-results">
           <Text style={s.hint}>{results.length ? `${results.length} articoli trovati` : "Nessun articolo: prova con un'altra parola (es. «bolletta», «invito»)"}</Text>
-          {results.map((a) => <Article key={a.id} a={a} />)}
+          {results.map((a) => <Article key={a.id} a={a} expanded inResults onToggle={toggleArticle} onOpen={open} />)}
         </View>
       ) : (
         <View style={{ gap: 8 }}>
@@ -97,7 +66,7 @@ export function ManualBrowser({ autoFocus, initialQuery }: { autoFocus?: boolean
                 <Text style={s.catN}>{(byCat[c] || []).length}</Text>
                 <Ionicons name={openCat === c ? "chevron-up" : "chevron-down"} size={16} color={HT.muted} />
               </Pressable>
-              {openCat === c ? <View style={{ gap: 8, marginTop: 8 }}>{(byCat[c] || []).map((a) => <Article key={a.id} a={a} />)}</View> : null}
+              {openCat === c ? <View style={{ gap: 8, marginTop: 8 }}>{(byCat[c] || []).map((a) => <Article key={a.id} a={a} expanded={openId === a.id} inResults={inResults} onToggle={toggleArticle} onOpen={open} />)}</View> : null}
             </View>
           ))}
         </View>
@@ -105,6 +74,40 @@ export function ManualBrowser({ autoFocus, initialQuery }: { autoFocus?: boolean
     </View>
   );
 }
+
+// tag 2026-10-19 (help) — componente a livello di modulo: definito dentro ManualBrowser veniva ricreato a ogni tasto digitato → React
+// smontava e rimontava tutti gli articoli (flash bianco, titoli/etichette che sparivano durante la digitazione).
+const Article = React.memo(function Article({ a, expanded, inResults, onToggle, onOpen }: { a: ManualArticle; expanded: boolean; inResults: boolean; onToggle: (id: string) => void; onOpen: (a: ManualArticle) => void }) {
+  const isExternal = !!a.route && /^https?:\/\//.test(a.route); // V50.z563 — ecosistema domini (link esterni)
+  const canOpen = isExternal || !!(a.route && resolveNavRoute(a.route));
+  return (
+    <Pressable onPress={() => { if (!inResults) onToggle(a.id); }} style={s.article} testID={`manual-article-${a.id}`}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <Ionicons name={a.kind === "faq" ? "help-circle-outline" : "document-text-outline"} size={18} color={HT.brand} />
+        <Text style={s.title} numberOfLines={2}>{a.title}</Text>
+      </View>
+      <Text style={s.path} numberOfLines={2}>📍 {a.path}</Text>
+      {expanded ? (
+        <>
+          {a.kind === "manual" && a.how ? (
+            <>
+              <Text style={s.body}>{a.desc || a.body}</Text>
+              <Text style={s.howLabel}>Come si usa</Text>
+              <Text style={s.body} testID={`manual-how-${a.id}`}>{a.how}</Text>
+            </>
+          ) : (
+            <Text style={s.body}>{a.body}</Text>
+          )}
+          {canOpen ? (
+            <Pressable onPress={() => onOpen(a)} style={s.openBtn} testID={`manual-open-${a.id}`}>
+              <Ionicons name="open-outline" size={15} color={HT.bg} /><Text style={s.openTxt}>Apri {a.route}</Text>
+            </Pressable>
+          ) : null}
+        </>
+      ) : null}
+    </Pressable>
+  );
+});
 
 const s = StyleSheet.create({
   searchBox: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, borderRadius: 14, paddingHorizontal: 12, minHeight: 48 },

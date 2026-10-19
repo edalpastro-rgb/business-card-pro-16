@@ -167,5 +167,6 @@ MODULES = [
     "landing_cms.py",  # V50.z530 — landing pubblica Axon Core: GET /public/landing (contenuti CMS + posti Founder in tempo reale) + CMS Super Admin con password dedicata (LANDING_CMS_PASSWORD)  # V50.z536 — GET /public/faq/suggest (FAQ semantiche MiniLM)
     "axon_manual.py",  # V50.z554 — Manuale completo (GET /public/manual, /public/manual/search full-text) + Axon come guida (percorso + [[NAV]] in ogni risposta); DOPO landing_cms (_faq_items_for) e deeplink_map
     "og_preview.py",  # V50.z536 — anteprima OG dinamica italianbrain.it: GET /public/og-preview.png (logo + posti Founder rimasti), job notturno 03:05, POST /landing/cms/og/refresh
+    "axon_blocks.py",  # tag 2026-10-19 — BLOCCHI: moduli per organizzazione (catalogo in codice + org_blocks), switch SuperMaster, menu dinamico, prompt Axon
     "37_app_startup_scheduler.py",
 ]

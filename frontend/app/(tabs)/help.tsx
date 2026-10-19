@@ -21,6 +21,21 @@ import { FaqSearch } from "@/src/FaqSearch"; // V50.z533 — ricerca FAQ in temp
 import { ManualBrowser } from "@/src/ManualBrowser"; // V50.z554
 import { FAQ_ITEMS } from "@/app/faq";
 
+// tag 2026-10-19 (help) — componente a livello di modulo (NON dentro il render): definirlo dentro HelpTabScreen creava un nuovo tipo
+// a ogni render → React smontava/rimontava tutte le card a ogni aggiornamento (flash bianco, etichette che sparivano mentre si digita).
+function Card({ icon, color, title, sub, onPress, testID }: { icon: keyof typeof Ionicons.glyphMap; color: string; title: string; sub: string; onPress: () => void; testID: string }) {
+  return (
+    <Pressable onPress={onPress} style={styles.card} testID={testID} android_ripple={{ color: "#E5E7EB" }}>
+      <View style={[styles.cardIcon, { backgroundColor: color }]}><Ionicons name={icon} size={22} color="#FFF" /></View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.cardTitle}>{title}</Text>
+        <Text style={styles.cardSub}>{sub}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={HT.muted} />
+    </Pressable>
+  );
+}
+
 export default function HelpTabScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -36,17 +51,6 @@ export default function HelpTabScreen() {
     } catch {}
     router.push("/tour" as any); // V50.z257
   };
-
-  const Card = ({ icon, color, title, sub, onPress, testID }: { icon: keyof typeof Ionicons.glyphMap; color: string; title: string; sub: string; onPress: () => void; testID: string }) => (
-    <Pressable onPress={onPress} style={styles.card} testID={testID} android_ripple={{ color: "#E5E7EB" }}>
-      <View style={[styles.cardIcon, { backgroundColor: color }]}><Ionicons name={icon} size={22} color="#FFF" /></View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.cardTitle}>{title}</Text>
-        <Text style={styles.cardSub}>{sub}</Text>
-      </View>
-      <Ionicons name="chevron-forward" size={18} color={HT.muted} />
-    </Pressable>
-  );
 
   return (
     <ScrollView style={styles.root} contentContainerStyle={{ paddingTop: insets.top + 16, paddingHorizontal: 16, paddingBottom: bottomPad + 24 }} keyboardShouldPersistTaps="handled">

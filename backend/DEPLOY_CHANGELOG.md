@@ -6,6 +6,7 @@ Formato: `| data (Europe/Rome) | tag | descrizione |` — righe più recenti IN 
 
 | Data | Tag | Descrizione |
 |---|---|---|
+| 2026-10-19 | D2026.10.19-2049 | BLOCCHI: moduli attivabili per licenza (catalogo Energia/ANT/Fotovoltaico, Efficientamento, Ristorante), switch SuperMaster senza deploy, menu dinamico, Axon informato; fix Help/Manuale (componenti stabili) |
 | 2026-10-19 | D2026.10.19-1744 | Navigazione verso un luogo: link diretti Google Maps / Waze (marker [[LINK]]), mai Giro Ottimale salvo richiesta esplicita; deterministico «portami da <cliente>» con indirizzo CRM |
 | 2026-10-19 | D2026.10.19-1323 | Lucchetto listino: lookup kWh → RAG bloccato completamente (niente Drive/ChromaDB/embedding), risposta finale non modificabile; fascia 300k-600k corretta → PUN + 0,008 €/kWh, oneri 0,0044 €/kWh, pag. 6 |
 | 2026-10-19 | D2026.10.19-1237 | Rifattorizzazione strutturale post-audit: rimossa _sem2 (embedding ridondante); embedding query 2 thread / reindex 1 thread; flag has_bands sugli snapshot; routing nativo how-to dal manuale (<200 ms, niente RAG/LLM); chunking per riga con pagina nei metadata e prefisso [pag.N]; boost lessicale sui numeri; regole listino a soglie fisse (db.axon_config listino_rules) con bypass semantico; Manuale Obiezioni integro e prioritario. Identificativo: SOLO tag data-ora |

@@ -15,6 +15,7 @@ import { useRouter } from "expo-router";
 import { useInsetsSafe } from "@/src/hooks/useSafeBottom";
 import { useSuperAdmin } from "@/src/useSuperAdmin"; // V50.z542
 import { MENU_CATEGORIES } from "@/src/menuCategories";
+import { useBlocks, blockMenuItems } from "@/src/useBlocks"; // tag 2026-10-19 — BLOCCHI dinamici (solo abilitati)
 import { CgymDrawerBadge } from "@/src/corporate-gym/CgymDrawerBadge"; // Corporate Gym (Blocco 3)
 
 import { AxnDrawerBadge } from "@/src/AxnDrawerBadge"; // V50.z181 — notifiche push AxonOS
@@ -97,6 +98,7 @@ const DRAWER_W = Math.min(SCREEN_W * 0.85, 340);
 export function DrawerMenu({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const router = useRouter();
   const isSuperAdmin = useSuperAdmin(); // V50.z542
+  const { enabled: enabledBlocks } = useBlocks(); // tag 2026-10-19 — BLOCCHI: voci dinamiche, spento = non compare
   const insets = useInsetsSafe(); // V50.z165 — fallback bottom dentro Modal
   const slideX = useRef(new Animated.Value(-DRAWER_W)).current;
   const opacity = useRef(new Animated.Value(0)).current;
@@ -124,7 +126,7 @@ export function DrawerMenu({ visible, onClose }: { visible: boolean; onClose: ()
   // Raggruppa per categoria in ordine palette
   const grouped = Object.values(MENU_CATEGORIES)
     .sort((a, b) => a.order - b.order)
-    .map((cat) => ({ cat, items: ITEMS.filter((i) => i.categoryKey === cat.key && (!i.superAdminOnly || isSuperAdmin)) }))
+    .map((cat) => ({ cat, items: cat.key === "blocks" ? (blockMenuItems(enabledBlocks) as DrawerItem[]) : ITEMS.filter((i) => i.categoryKey === cat.key && (!i.superAdminOnly || isSuperAdmin)) }))
     .filter((g) => g.items.length > 0);
 
   return (

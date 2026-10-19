@@ -14,6 +14,7 @@ import { SIDEBAR_W } from "@/src/hooks/useResponsive";
 import { ITEMS as DRAWER_ITEMS, type DrawerItem } from "@/src/DrawerMenu";
 import { useSuperAdmin } from "@/src/useSuperAdmin"; // V50.z542 // V50.z489 — stesse voci del menu hamburger
 import { MENU_CATEGORIES } from "@/src/menuCategories";
+import { useBlocks, blockMenuItems } from "@/src/useBlocks"; // tag 2026-10-19 — BLOCCHI
 import { MenuIcon } from "@/src/LockKeyIcon";
 
 // V50.z489 — voci del menu Home (Interfaccia Master) sempre visibili sotto «Profilo»
@@ -42,7 +43,10 @@ export function DesktopSidebar() {
   const router = useRouter();
   const { user, logout } = useAuth();
   const isSuperAdmin = useSuperAdmin(); // V50.z542
-  const GROUPED = GROUPED_ALL.map((g) => ({ cat: g.cat, items: g.items.filter((i) => !i.superAdminOnly || isSuperAdmin) })).filter((g) => g.items.length > 0);
+  const { enabled: enabledBlocks } = useBlocks(); // tag 2026-10-19 — BLOCCHI dinamici (solo abilitati)
+  const GROUPED = Object.values(MENU_CATEGORIES).sort((a, b) => a.order - b.order)
+    .map((cat) => ({ cat, items: cat.key === "blocks" ? (blockMenuItems(enabledBlocks) as typeof DRAWER_ITEMS) : (GROUPED_ALL.find((g) => g.cat.key === cat.key)?.items || []).filter((i) => !i.superAdminOnly || isSuperAdmin) }))
+    .filter((g) => g.items.length > 0);
   const current = TABS.find((t) =>
     t.activePrefixes ? t.activePrefixes.some((p) => pathname.startsWith(p)) : pathname.includes(`/${t.name}`),
   )?.name;

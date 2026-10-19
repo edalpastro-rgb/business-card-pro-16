@@ -21,7 +21,7 @@ from typing import Optional as _ng_Optional
 # ---------------------------------------------------------------------------
 _NAV_REAL_PATHS = {
     "/", "/home", "/calendario", "/chat", "/contatti", "/help", "/impostazioni", "/report", "/webviewer",
-    "/admin/beta", "/admin/customers", "/admin/onboarding", "/admin/org-plans", "/admin/promo-codes", "/admin/users", "/admin/register-guard", "/admin/upload-guard", "/admin/wake-samples", "/admin/welcome-email",
+    "/admin/blocks", "/admin/beta", "/admin/customers", "/admin/onboarding", "/admin/org-plans", "/admin/promo-codes", "/admin/users", "/admin/register-guard", "/admin/upload-guard", "/admin/wake-samples", "/admin/welcome-email",
     "/ai-teach", "/anagrafica-master", "/appointment/new", "/appointment-stats", "/auth/forgot-password", "/axon-alarms", "/axon-alerts", "/axon-brain",
     "/axon-cheatsheet", "/axon-expenses", "/axon-homeassistant", "/axon-hub", "/axon-insights", "/axon-integrations", "/axon-lab", "/axon-lab/business",
     "/axon-lab/delegates", "/axon-lab/rules", "/axon-lab/training", "/axon-media", "/axon-memory", "/axon-notifications", "/axon-proactive",
@@ -40,7 +40,7 @@ _NAV_REAL_PATHS = {
     "/wake-word-training", "/wake-word",
 }
 # route dinamiche: /prefisso/<id>
-_NAV_DYNAMIC_PREFIXES = ("/appointment/", "/audio-transcript/", "/axon-lab/module/", "/axon-lab/practice/", "/callback/", "/chat/", "/contact/edit/", "/contact/",
+_NAV_DYNAMIC_PREFIXES = ("/blocchi/", "/admin/blocks/", "/appointment/", "/audio-transcript/", "/axon-lab/module/", "/axon-lab/practice/", "/callback/", "/chat/", "/contact/edit/", "/contact/",
                          "/corporate-gym/area/", "/courses/", "/crt/", "/event/", "/filled-form/", "/form-template/", "/groups/", "/invite/", "/public-lead/",
                          "/public-review/", "/public-reviews/")
 # sezioni valide di /impostazioni?section=

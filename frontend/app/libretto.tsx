@@ -775,7 +775,7 @@ const styles = StyleSheet.create({
   // V50.z532 — ricerca e indice seguono il TEMA (prima bianco fisso: su Luce/Pearl le etichette dei bottoni erano invisibili)
   searchBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: HT.card, borderWidth: 1, borderColor: HT.border, borderRadius: 12, paddingHorizontal: 12, minHeight: 46 },
   searchInput: { flex: 1, color: HT.text, fontSize: 15, paddingVertical: 10 },
-  searchCount: { color: "#CBD5E1", fontSize: 12.5, fontWeight: "600" },
+  searchCount: { color: HT.muted, fontSize: 12.5, fontWeight: "600" }, // tag 2026-10-19 (help) — era #CBD5E1 fisso: invisibile sul tema Luce
   indexWrap: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   indexChip: { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, minHeight: 36, backgroundColor: HT.card, maxWidth: "100%" },
   indexEmoji: { fontSize: 13 },

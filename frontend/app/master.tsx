@@ -958,6 +958,7 @@ function SettingsHubSection({
     {
       color: "#8B5CF6", label: "Gestione Clienti AdvisorOS", icon: "shield-checkmark",
       items: [
+        { icon: "cube-outline", label: "Blocchi per licenza", hint: "Energia (ANT, Fotovoltaico), Efficientamento, Ristorante… switch per organizzazione, effetto immediato senza deploy", onPress: () => onGoto("/admin/blocks"), superAdminOnly: true, testID: "hub-admin-blocks" }, // tag 2026-10-19 — BLOCCHI
         { icon: "people-circle-outline", label: "Utenti registrati", hint: "Tutti gli utenti di tutte le organizzazioni: ricerca, stato, ruolo, ultimo accesso · Elimina / Cambia ruolo / Sposta / Piano / Reinvia benvenuto", onPress: () => onGoto("/admin/users"), superAdminOnly: true, testID: "hub-admin-users" }, // V50.z541
         { icon: "layers-outline", label: "Piani e prezzi", hint: "Collaboratore singolo 19€ · Master 10 utenti 50€ · Master 50 utenti 100€ · oltre 50 preventivo — modificabili senza toccare il codice", onPress: () => onGoto("/admin/org-plans"), superAdminOnly: true, testID: "hub-admin-org-plans" }, // V50.z541
         { icon: "people-outline", label: "Elenco Clienti + Tier", hint: "Paganti/Test/AxonOS + storico utilizzo + broadcast", onPress: () => onGoto("/admin/customers"), superAdminOnly: true, testID: "hub-admin-customers" },
