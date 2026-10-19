@@ -242,6 +242,29 @@ async def _run_drive_parser_upgrade_nightly() -> None:
         axs_event("scheduler", "info", f"Drive: ri-indicizzazione notturna completata per {n} tenant (parser tabelle {DRIVE_PARSER_VERSION})")  # noqa: F821
 
 
+@api_router.post("/google-drive/reindex/full")
+async def google_drive_full_reindex(user=Depends(get_current_user)):
+    """V50.z577 — RI-INDICIZZAZIONE COMPLETA ON-DEMAND (parser tabelle corrente) senza aspettare il job delle 03:30: invalida i
+    modified_time degli snapshot del tenant e rilancia il reindex in background (stessa routine sequenziale a bassa priorità del
+    notturno: un file alla volta, pausa tra i file, embedding a 1 thread). Stato: GET /google-drive/reindex/status (`running`,
+    `parser_version`, `parser_current`). A differenza di POST /google-drive/reindex (che salta i file non modificati) qui si rileggono TUTTI i file."""
+    tenant = tenant_id(user)
+    if tenant in _DRIVE_REINDEX_RUNNING:  # noqa: F821
+        return {"ok": True, "started": False, "running": True, "reason": "già in corso"}
+    r = await db.drive_snapshots.update_many({"user_id": tenant}, {"$set": {"modified_time": None}})
+    logger.info("[drive-reindex] FULL manuale (parser %s): %d snapshot invalidati, tenant %s", DRIVE_PARSER_VERSION, r.modified_count, tenant)
+
+    async def _bg():
+        try:
+            stats = await _reindex_drive_files_for_user(tenant)  # noqa: F821
+            logger.info("[drive-reindex] FULL manuale tenant %s completato: %s", tenant, stats)
+            axs_event("drive", "info", f"Drive: ri-indicizzazione completa manuale terminata ({stats.get('updated', 0)} file riletti, parser {DRIVE_PARSER_VERSION})")  # noqa: F821
+        except Exception as e:  # noqa: BLE001
+            logger.warning("[drive-reindex] FULL manuale tenant %s: %s", tenant, e)
+    _adr_asyncio.create_task(_bg())
+    return {"ok": True, "started": True, "running": True, "invalidated": r.modified_count, "parser_version": DRIVE_PARSER_VERSION}
+
+
 @api_router.get("/google-drive/root-files")
 async def google_drive_root_files(user=Depends(get_current_user)):
     """File indicizzati nella root delle cartelle monitorate (verifica rapida «Axon vede i miei PDF root?»)."""

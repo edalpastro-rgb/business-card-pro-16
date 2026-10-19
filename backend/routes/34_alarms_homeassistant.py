@@ -890,6 +890,8 @@ async def google_drive_reindex_status(user=Depends(get_current_user)):
         "failed_files": failed_cnt,
         "folders": folders_cnt,
         "running": any(u in _DRIVE_REINDEX_RUNNING for u in _owner_ids),
+        "parser_version": ((await db.drive_index_meta.find_one({"user_id": tenant_id(user)}, {"_id": 0, "parser_version": 1})) or {}).get("parser_version"),  # V50.z577
+        "parser_current": DRIVE_PARSER_VERSION,  # noqa: F821
         "meta": meta,
         "stats": meta.get("stats") or {},
         "refresh_frequency": meta.get("refresh_frequency") or _DRIVE_FREQ_DEFAULT,

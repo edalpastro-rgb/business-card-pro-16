@@ -69,7 +69,7 @@ export default function GoogleDriveScreen() {
   }, [status.connected, loadFolders]);
 
   // V50.z155 — Stato indice Axon (file delle cartelle monitorate letti da Axon)
-  type IdxStatus = { indexed_files: number; failed_files?: number; folders?: number; running?: boolean; refresh_frequency?: string; stats?: { scanned?: number; updated?: number; skipped?: number; failed?: number }; meta?: { status?: string; error?: string | null; last_run_at?: string; files_count?: number } };
+  type IdxStatus = { indexed_files: number; failed_files?: number; folders?: number; running?: boolean; refresh_frequency?: string; parser_version?: string | null; parser_current?: string; stats?: { scanned?: number; updated?: number; skipped?: number; failed?: number }; meta?: { status?: string; error?: string | null; last_run_at?: string; files_count?: number } };
   const [idx, setIdx] = useState<IdxStatus | null>(null);
   const [reindexing, setReindexing] = useState(false);
   // V50.z558 — Frequenza aggiornamento (Impostazioni → Google Drive)
@@ -108,6 +108,20 @@ export default function GoogleDriveScreen() {
       }
     } catch (e: any) {
       notify("Errore", e?.message || "Impossibile avviare l'indicizzazione");
+    } finally { setReindexing(false); }
+  }, [loadIdx]);
+  // V50.z577 — rilettura completa (parser tabelle corrente): invalida tutti gli snapshot e rilegge ogni file in background (minuti)
+  const fullReindexNow = useCallback(async () => {
+    setReindexing(true);
+    try {
+      await api("/google-drive/reindex/full", { method: "POST" });
+      for (let i = 0; i < 400; i++) { // fino a ~20 min: molti file, un file alla volta a bassa priorità
+        await new Promise((r) => setTimeout(r, 3000));
+        const r = await loadIdx();
+        if (r && !r.running) break;
+      }
+    } catch (e: any) {
+      notify("Errore", e?.message || "Impossibile avviare la rilettura completa");
     } finally { setReindexing(false); }
   }, [loadIdx]);
   const fmtIdxTime = (s?: string) => {
@@ -464,6 +478,20 @@ export default function GoogleDriveScreen() {
                 >
                   {(reindexing || idx?.running) ? <ActivityIndicator size="small" color="#7C3AED" /> : <Ionicons name="flash" size={16} color="#7C3AED" />}
                   <Text style={styles.idxBtnTxt}>{(reindexing || idx?.running) ? "Rilettura in corso…" : "Aggiorna ora"}</Text>
+                </Pressable>
+                {/* V50.z577 — rilettura COMPLETA con il parser tabelle corrente, senza aspettare il job notturno */}
+                <Pressable
+                  testID="gd-full-reindex-btn"
+                  onPress={fullReindexNow}
+                  disabled={reindexing || !!idx?.running}
+                  style={[styles.idxBtn, { marginTop: 8 }, (reindexing || idx?.running) && { opacity: 0.5 }]}
+                >
+                  <Ionicons name="grid" size={16} color="#7C3AED" />
+                  <Text style={styles.idxBtnTxt}>
+                    {idx?.parser_version && idx?.parser_current && idx.parser_version !== idx.parser_current
+                      ? "Rilettura completa (nuovo parser tabelle disponibile)"
+                      : "Rilettura completa di tutti i file"}
+                  </Text>
                 </Pressable>
               </View>
             </View>
