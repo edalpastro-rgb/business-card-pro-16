@@ -433,7 +433,8 @@ async def _nav_gps_section(user: dict, ctx, msg: str) -> str:
     txt = (f"\n\n📡 POSIZIONE GPS REALE DELL'UTENTE ({src}): lat {lat:.5f}, lon {lon:.5f}"
            + (f", precisione ±{int(float(acc))} m" if acc not in (None, "") else "") + ". "
            "Usa QUESTE coordinate per «dove sono», «clienti vicini», «percorso da qui», meteo locale: la posizione è disponibile, non dire mai che non puoi conoscerla. "
-           "Per aprire il navigatore verso un cliente usa il marker [[NAV:/optimal-route?contacts=<contact_id>|🚗 Naviga verso <nome>]].")
+           "Per portare l'utente da un cliente o in un luogo usa i link esterni [[LINK:https://www.google.com/maps/search/?q=<indirizzo url-encoded>|🗺️ Apri in Google Maps]] e "
+           "[[LINK:https://waze.com/ul?q=<indirizzo url-encoded>|🚘 Apri in Waze]] (mai [[NAV:/optimal-route…]], che apre la pagina interna «Giro Ottimale»: solo se la nomina esplicitamente).")
     if _RX_NEAR.search(msg or ""):
         try:
             near = await _nav_nearby_clients(user, lat, lon)

@@ -19,7 +19,7 @@ function clean(s: string): string {
 
 /** Estrae le scelte dall'ultimo messaggio di Axon; [] se non ce ne sono (min 2 opzioni, o ≥1 azione). */
 export function extractChoices(content?: string): Choice[] {
-  const text = (content || "").replace(/\[\[(NAV|ACTION):[^\]]*\]\]/g, "");
+  const text = (content || "").replace(/\[\[(NAV|LINK|ACTION):[^\]]*\]\]/g, "");
   if (!text.trim()) return [];
   const out: Choice[] = [];
   const seen = new Set<string>();

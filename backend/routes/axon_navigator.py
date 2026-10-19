@@ -21,6 +21,45 @@ def _nav(route: str, label: str) -> str:
     return _NAV_MARK.format(route=route, label=label)
 
 
+# tag 2026-10-19 (maps) — NAVIGAZIONE VERSO UN LUOGO: link ESTERNI Google Maps / Waze con destinazione impostata (marker [[LINK:url|label]]
+# → pulsante nell'app che apre il navigatore). Il marker [[NAV:/optimal-route…]] apre la pagina interna «Giro Ottimale»: si usa SOLO se
+# l'utente nomina esplicitamente «Giro Ottimale» o «Axon Drive».
+_GMAPS_SEARCH = "https://www.google.com/maps/search/?q={q}"
+_WAZE_SEARCH = "https://waze.com/ul?q={q}"
+
+
+def _maps_links(address: str) -> str:
+    """Due righe: [[LINK:google maps|🗺️ Apri in Google Maps]] + [[LINK:waze|🚘 Apri in Waze]] per l'indirizzo/luogo dato."""
+    import urllib.parse as _nav_up
+    q = _nav_up.quote((address or "").strip(), safe="")
+    return f"[[LINK:{_GMAPS_SEARCH.format(q=q)}|🗺️ Apri in Google Maps]]\n[[LINK:{_WAZE_SEARCH.format(q=q)}|🚘 Apri in Waze]]"
+
+
+_RX_GO_PLACE = _nav_re.compile(
+    r"\b(portami (da|a|in|al|alla|allo|dal|dalla|fino|verso)|naviga\w*|navigator\w*|indicazioni|come (ci )?(arrivo|arriviamo|si arriva)|strada per|percorso (per|verso|fino)|raggiung\w*|"
+    r"(devo|voglio|vorrei|dobbiamo) andare (a|in|da|al|alla|allo|dal|dalla|fino)|andiamo (a|in|da|al|alla|dal|dalla)|"
+    r"farmaci[ae]|ospedale|pronto soccorso|benzina\w*|distributor\w*|stazione|aeroporto|hotel|ristorant\w*|parcheggi\w*|"
+    r"google maps|waze|maps)\b", _nav_re.I)
+_RX_GIRO_EXPLICIT = _nav_re.compile(r"\b(giro ottimale|giro (dei |delle )?(clienti|visite|tappe)|axon drive|itinerario|ottimizza\w* (il )?(giro|percorso)|percorso (più|piu) corto)\b", _nav_re.I)
+# luogo fisico «forte» (senza i verbi generici portami/andare che valgono anche per le schermate): nessun template «Apri X», risponde l'AI con la sezione maps
+_RX_PLACE_STRONG = _nav_re.compile(
+    r"\b(naviga\w*|navigator\w*|indicazioni (stradali |per |verso )|come (ci )?(arrivo|arriviamo|si arriva)|strada per|percorso (per|verso|fino)|raggiung\w*|"
+    r"farmaci[ae]|ospedale|pronto soccorso|benzina\w*|distributor\w*|stazione|aeroporto|hotel|albergo|ristorant\w*|parcheggi\w*|supermercat\w*|tabacch\w*|"
+    r"via [A-ZÀ-Ü][\w']+|piazza [A-ZÀ-Ü][\w']+|corso [A-ZÀ-Ü][\w']+|viale [A-ZÀ-Ü][\w']+|a casa di|in ufficio da|google maps|waze)\b", _nav_re.I)
+
+_NAV_MAPS_SECTION = (
+    "\n\n🗺️ NAVIGAZIONE VERSO UN LUOGO (possibile richiesta rilevata): SE l'utente vuole RAGGIUNGERE un posto fisico "
+    "(cliente, indirizzo, farmacia, ufficio, negozio…) — e non una schermata dell'app — rispondi con UNA riga («Ti porto da <chi/cosa>, <indirizzo>.») e poi, in fondo, i DUE link ESATTI, uno per riga:\n"
+    f"[[LINK:{_GMAPS_SEARCH.format(q='<INDIRIZZO_URL_ENCODED>')}|🗺️ Apri in Google Maps]]\n"
+    f"[[LINK:{_WAZE_SEARCH.format(q='<INDIRIZZO_URL_ENCODED>')}|🚘 Apri in Waze]]\n"
+    "<INDIRIZZO_URL_ENCODED> = via, civico e città del luogo con gli spazi sostituiti da %20 (es. Via%20Roma%2012%2C%20Vicenza). "
+    "Cliente del CRM → il suo indirizzo (schede contatto nel prompt); se l'indirizzo manca → dillo in una riga e proponi [[NAV:/contact/<contact_id>|📇 Completa l'indirizzo]]. "
+    "Luogo generico (es. «una farmacia») → «farmacia» + la città/zona dell'utente se la conosci (posizione GPS o città del profilo), altrimenti solo «farmacia»: l'app del navigatore cerca da sola la più vicina. "
+    "VIETATO il marker [[NAV:/optimal-route…]] (apre la pagina interna «Giro Ottimale», NON il navigatore): si usa SOLO se l'utente nomina esplicitamente «Giro Ottimale» o «Axon Drive». "
+    "Niente altri link o chip, niente elenchi.\n"
+)
+
+
 def _act(action: str, label: str, payload: dict) -> str:
     return f"[[ACTION:{action}|{label}|{_nav_json.dumps(payload, ensure_ascii=False)}]]"
 
@@ -81,8 +120,7 @@ APP_MAP: list = [
     dict(id="my_audios", name="I miei audio", route="/my-audios", group="AxonOS", desc="Registrazioni audio e trascrizioni.", kw=["audio", "registrazioni", "trascrizioni", "vocali"]),
     dict(id="chat_team", name="Chat Team", route="/chat", group="AxonOS", desc="Chat interna con collaboratori/azienda.", kw=["chatto colleghi", "chat colleghi", "scrivere colleghi", "chat team", "messaggi team", "chat interna", "scrivere ai collaboratori"]),
     # ── AXON DRIVE ──
-    dict(id="giro_ottimale", name="Giro ottimale (Axon Drive)", route="/optimal-route", group="Axon Drive", desc="Seleziona fino a 10 clienti, calcola il percorso migliore, orari stimati, apri navigatore (Google Maps/Waze/Apple).", kw=["itinerario più corto", "itinerario piu corto", "giro dei clienti", "risparmiare tempo spostamenti", "spostamenti", "itinerario corto", "itinerario clienti", "giro clienti", "fammi il giro", "percorso più corto", "giro ottimale", "giro", "percorso", "ottimizza", "axon drive", "itinerario", "tappe", "navigatore"]),
-    dict(id="navigazione_cliente", name="Naviga verso un cliente", route="/optimal-route?contacts={id}", group="Axon Drive", desc="Apri Axon Drive con il cliente già selezionato.", kw=["naviga", "portami da", "indicazioni", "come arrivo"]),
+    dict(id="giro_ottimale", name="Giro ottimale (Axon Drive)", route="/optimal-route", group="Axon Drive", desc="Seleziona fino a 10 clienti, calcola il percorso migliore, orari stimati, apri navigatore (Google Maps/Waze/Apple).", kw=["itinerario più corto", "itinerario piu corto", "giro dei clienti", "risparmiare tempo spostamenti", "spostamenti", "itinerario corto", "itinerario clienti", "giro clienti", "fammi il giro", "percorso più corto", "giro ottimale", "giro", "percorso", "ottimizza", "axon drive", "itinerario", "tappe"]),
     dict(id="resoconto_km", name="Resoconto km", route="/km-report", group="Axon Drive", desc="Km percorsi per visita/periodo, esportabile in PDF.", kw=["resoconto chilometri", "chilometri mese", "quanto ho girato", "girato in macchina", "km percorsi", "traccia di dove sono stato", "km", "chilometri", "resoconto km", "rimborso km", "quanti km"]),
     dict(id="meteo", name="Meteo", route="/meteo", group="Axon Drive", desc="Previsioni meteo per la zona dei clienti.", kw=["tempo dalle parti", "che tempo", "previsioni clienti", "meteo", "che tempo fa", "previsioni", "pioggia"]),
     # ── FATTURE E SCANNER ──
@@ -177,7 +215,7 @@ VAGUE_MAP = [
     ("voglio sapere come sto andando", ["home_statistiche"]),
     ("devo richiamare qualcuno", ["home_ritelefonate", "callback_nuova"]),
     ("dove metto i documenti", ["master_files", "scanner", "fatture"]),
-    ("devo andare da un cliente", ["navigazione_cliente", "meteo"]),
+    ("devo andare da un cliente", ["meteo"]),  # tag 2026-10-19 (maps) — la navigazione va con i link Google Maps/Waze, non con Axon Drive
     ("ho perso il filo con alcuni clienti", ["mappa_clienti", "giro_ottimale"]),
     ("devo organizzarmi", ["calendario_settimana", "ripassi", "giro_ottimale"]),
     ("come faccio a impostare X", ["impostazioni"]),
@@ -393,6 +431,9 @@ def _nav_prompt_section(user: dict, msg: str) -> str:
         "Rispondi con 1-2 frasi su cosa fa la funzione + deep link nel formato ESATTO [[NAV:<route>|<etichetta breve>]] (uno per riga, in fondo, max 3; l'app lo rende pulsante). "
         "MAI descrivere il percorso a parole («vai in Impostazioni → Generale»). Route con {id} → contact_id reale se lo conosci, altrimenti /contatti. "
         "LINGUA / TONO / VOCE / NOME di Axon → [[NAV:/impostazioni?section=assistente|Impostazioni AxonOS · Assistente]]. "
+        "RAGGIUNGERE un cliente/luogo («portami da…», «naviga verso…», «indicazioni per…») → MAI [[NAV:/optimal-route…]] (pagina interna Giro Ottimale): usa i link esterni "
+        "[[LINK:https://www.google.com/maps/search/?q=<indirizzo url-encoded>|🗺️ Apri in Google Maps]] e [[LINK:https://waze.com/ul?q=<indirizzo url-encoded>|🚘 Apri in Waze]]; "
+        "[[NAV:/optimal-route|Giro ottimale]] SOLO se l'utente nomina esplicitamente «Giro Ottimale» o «Axon Drive». "
         "Funzione inesistente (tema scuro, firma digitale, pagare bollette, saldo conto, prenotare voli, videochiamate, SMS massivi) → «Questa funzione non è disponibile in AdvisorOS.»",
         "Bisogni vaghi → " + "; ".join(f"«{v}» → {', '.join(_NAV_BY_ID[i]['name'] for i in ids if i in _NAV_BY_ID)}" for v, ids in VAGUE_MAP) + ".",
         "",
@@ -498,6 +539,9 @@ async def _prepare_assistant_prompt(user: dict, body) -> dict:  # noqa: F811
             section = ("" if lite else _NAV_NO_MARKER_SECTION) + (_nav_position_section(ctx) if not lite else "")
         if not lite and prep.get("query_class") != "simple":
             section += "\n" + _nav_style_rules(msg)
+        # tag 2026-10-19 (maps) — raggiungere un luogo → link Google Maps / Waze; [[NAV:/optimal-route]] solo con «Giro Ottimale» / «Axon Drive» espliciti
+        if not lite and _RX_GO_PLACE.search(msg) and not _RX_GIRO_EXPLICIT.search(msg):
+            section += _NAV_MAPS_SECTION
         # V50.z452 — RISPOSTE MINIMALISTE: richiesta di un dato secco → istruzione + tetto di token; voce → tetto di token
         is_data_req = bool(_RX_DATA_REQUEST.search(msg)) and not _nav_is_creative(msg)
         if is_data_req:
@@ -529,6 +573,12 @@ _RX_CALLBACK = _nav_re.compile(r"\b(devo|dovrei|voglio|chi devo|ho da) richiamar
 _RX_DOCS = _nav_re.compile(r"\bdove (metto|carico|salvo|archivio|trovo|vedo|tengo) (i |le |la |il |un |una )?(documenti|file|pdf|bollette|fatture|contratti|listini|moduli)\b", _nav_re.I)
 _RX_HOWTO = _nav_re.compile(r"\b(come (faccio|posso|si fa) (a |per )?(impostare|configurare|attivare|disattivare|cambiare|modificare|settare|abilitare|personalizzare)|dove (imposto|configuro|attivo|cambio|modifico|trovo l impostazione|trovo l'impostazione))\s+(?P<x>.{2,80})", _nav_re.I)
 _RX_GOTO = _nav_re.compile(r"^\s*(devo|dovrei|vado|andro|andrò|sto andando|voglio andare|passo|passero|passerò|devo passare|devo andare|dovrei andare|dovrei passare)\s+(andare\s+|passare\s+)?(da|dal|dalla|dallo|dai|a trovare|a casa di|in ufficio da|dal cliente|dalla cliente)\s+(?P<name>[a-zA-ZÀ-ÿ'’\. ]{2,60}?)\s*(?:[,;:].{0,60})?[\.\!\?]*\s*$", _nav_re.I)
+# tag 2026-10-19 (maps) — richiesta esplicita di raggiungere un CLIENTE per nome (portami da / naviga verso / indicazioni per / come arrivo da)
+_RX_GO_CONTACT = _nav_re.compile(
+    r"^\s*(?:axon[,!]?\s*)?(?:portami|accompagnami|naviga|navigami|navigare|navigazione|indicazioni|dammi (?:le )?indicazioni|voglio (?:le )?indicazioni|come (?:ci )?arrivo|"
+    r"devo andare|dovrei andare|voglio andare|vorrei andare|andiamo|vado|sto andando|devo passare|passo|percorso|strada)\s+"
+    r"(?:verso|per|fino (?:a|da)|da|dal|dalla|dallo|dai|a casa di|in ufficio da|a trovare|dal cliente|dalla cliente|al cliente|il cliente|la cliente)\s+"
+    r"(?P<name>[a-zA-ZÀ-ÿ'’\. ]{2,60}?)\s*(?:[,;:].{0,60})?[\.\!\?]*\s*$", _nav_re.I)
 _RX_MISSED = _nav_re.compile(r"\b(sposta|spostare|spostami|rimanda|rimandare|riprogramma|riprogrammare|posticipa)\b.*\bappuntament\w*\b.*\b(mancat\w*|pers\w*|saltat\w*|non fatt\w*|non svolt\w*)\b|\bappuntament\w*\s+mancat\w*\b.*\b(sposta|rimanda|domani|riprogramma)\w*", _nav_re.I)
 _RX_LOSTTOUCH = _nav_re.compile(r"\b(perso il filo|perso di vista|persi di vista|non (vedo|visito|sento|seguo) da (tanto|molto|tempo|un pezzo|mesi)|clienti (trascurati|dimenticati|abbandonati|che non visito)|chi non (visito|vedo|sento) da (tempo|mesi|tanto)|clienti non visitati)\b", _nav_re.I)
 _RX_ORGANIZE = _nav_re.compile(r"\b(devo|voglio|vorrei|aiutami a|come faccio a|come posso) organizzar(mi|e)\b|\borganizzarmi meglio\b|\bmettere ordine\b|\bpianificare (la|questa) (settimana|giornata)\b|\bcome organizzo (la|questa) (settimana|giornata)\b", _nav_re.I)
@@ -620,20 +670,36 @@ async def _nav_find_contact(user: dict, name: str):
     return best
 
 
+_NAV_PLACE_WORDS = {"farmacia", "ospedale", "casa", "ufficio", "stazione", "aeroporto", "hotel", "ristorante", "bar", "banca", "posta", "scuola", "chiesa", "centro",
+                    "negozio", "supermercato", "distributore", "benzinaio", "parcheggio", "via", "piazza", "corso", "viale", "comune", "municipio", "lavoro"}
+
+
+async def _nav_contact_strict(user: dict, name: str):
+    """tag 2026-10-19 (maps) — contatto del CRM SOLO se ogni parola del nome (≥3 lettere, non generica, non un luogo) è prefisso di una parola
+    di nome/cognome/azienda: «una farmacia» o «Bru» non devono agganciare «Bruna Rossi»."""
+    toks = [t for t in _nav_norm(name).split() if t and t not in _NAV_STOP and t not in {"cliente", "signor", "signora", "sig", "dott", "dottor", "studio"}]
+    if not toks or any(len(t) < 3 or t in _NAV_PLACE_WORDS for t in toks):
+        return None
+    c = await _nav_find_contact(user, name)
+    if not c:
+        return None
+    hay = _nav_norm(_nav_cname(c) + " " + (c.get("company") or "")).split()
+    return c if all(any(w.startswith(t) for w in hay) for t in toks) else None
+
+
 async def _nav_flow_goto(user: dict, name: str) -> dict:
     clean = name.strip().lower().rstrip(".!? ")
     if clean in _GENERIC_CLIENT:
         return _nav_reply(
-            "Da quale cliente devi andare? Dimmi il nome (es. «devo andare da Rossi») e ti preparo meteo della zona e navigazione. "
-            "Oppure scegli direttamente dalla lista:\n"
-            + _nav("/optimal-route", "🚗 Apri Axon Drive") + "\n" + _nav("/contatti", "👥 Scegli il cliente"))
+            "Da quale cliente devi andare? Dimmi il nome (es. «devo andare da Rossi») e ti preparo meteo della zona e i link per Google Maps / Waze. "
+            "Oppure scegli direttamente dalla lista:\n" + _nav("/contatti", "👥 Scegli il cliente"))
     c = await _nav_find_contact(user, name)
     if not c:
         return _nav_reply(f"Non trovo «{name.strip()}» in anagrafica. Controlla il nome oppure aggiungilo:\n" + _nav("/contatti", "👥 Cerca nei contatti") + "\n" + _nav("/contact/new", "➕ Nuovo contatto"))
     cname = _nav_cname(c)
     city = (c.get("address_city") or "").strip()
-    addr = ", ".join(x for x in [c.get("address_street"), city] if x)
-    lines = [f"Perfetto, andiamo da **{cname}**" + (f" ({addr})." if addr else ".")]
+    addr = _best_addr_for_contact(c) or ", ".join(x for x in [c.get("address_street"), city] if x)  # noqa: F821 — 07_contacts
+    lines = [f"Perfetto, ti porto da **{cname}**" + (f" ({addr})." if addr else ".")]
     alert = False
     if city:
         try:
@@ -654,13 +720,17 @@ async def _nav_flow_goto(user: dict, name: str) -> dict:
                 lines.append("⚠️ Allerta meteo: valuta di spostare l'appuntamento.")
         else:
             lines.append(f"(Meteo per {city} non disponibile al momento.)")
+    # tag 2026-10-19 (maps) — navigazione = link esterni Google Maps / Waze con destinazione impostata (mai la pagina interna Giro Ottimale)
+    if addr:
+        marks = [_maps_links(addr)]
     else:
-        lines.append("Il contatto non ha una città: aggiungila in scheda per avere meteo e navigazione precisa.")
-    marks = [_nav(f"/optimal-route?contacts={c['contact_id']}", f"🚗 Naviga verso {cname}")]
+        lines.append("Il contatto non ha un indirizzo: completalo in scheda e ti preparo subito i link per Google Maps / Waze.")
+        marks = [_nav(f"/contact/edit/{c['contact_id']}", "📇 Completa l'indirizzo")]
     if alert:
         appt = await db.appointments.find_one(_nav_own(user, {"contact_id": c["contact_id"], "start_at": {"$gte": utcnow()}, "done": {"$ne": True}}), {"_id": 0, "appointment_id": 1}, sort=[("start_at", 1)])  # noqa: F821
         marks.append(_nav(f"/appointment/{appt['appointment_id']}" if appt else "/calendario", "📅 Sposta l'appuntamento"))
-    marks.append(_nav(f"/contact/{c['contact_id']}", "📇 Apri la scheda"))
+    if addr:
+        marks.append(_nav(f"/contact/{c['contact_id']}", "📇 Apri la scheda"))
     return _nav_reply("\n".join(lines) + "\n" + "\n".join(marks))
 
 
@@ -946,6 +1016,15 @@ async def _nav_intercept(msg: str, user: dict):
             return _nav_reply("Non posso eseguire questa operazione: è irreversibile o riguarda dati di altre persone e non è consentita dall'assistente. Se vuoi cancellare i tuoi dati, la richiesta ufficiale si fa dall'Help Center.\n" + _nav("/help-center?deletion=1", "🛟 Richiesta cancellazione dati"))
         if _RX_TRAP.search(t) and not _nav_is_info_query(t):
             return _nav_reply("Questa funzione non è disponibile in AdvisorOS.")
+        # tag 2026-10-19 (maps) — «portami da Rossi» / «naviga verso Bianchi» / «indicazioni per Zanini»: cliente del CRM → link Google Maps / Waze
+        # con il suo indirizzo (deterministico, prima dell'AI). Nome non in anagrafica (es. «una farmacia») → AI con la sezione NAVIGAZIONE VERSO UN LUOGO.
+        mg = _RX_GO_CONTACT.match(t)
+        if mg and not _RX_GIRO_EXPLICIT.search(t):
+            nm = mg.group("name").strip()
+            if await _nav_contact_strict(user, nm):
+                return await _nav_flow_goto(user, nm)
+        if _RX_PLACE_STRONG.search(t) and not _RX_GIRO_EXPLICIT.search(t):
+            return None  # luogo fisico (farmacia, via…, naviga/indicazioni) → AI con la sezione NAVIGAZIONE VERSO UN LUOGO, nessun template «Apri X»
         if _nav_intent(t) != "navigate":
             return None  # informativa / CRM / conversazione → AI (con ricerca web se informativa)
         # flussi deterministici con intento esplicito

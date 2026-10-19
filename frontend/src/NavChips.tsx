@@ -1,5 +1,6 @@
 // V50.z259 — Navigatore AxonOS: marker [[NAV:route|label]] e [[ACTION:id|label|json]]
 // nei messaggi di Axon → pulsanti (deep link / azione confermabile). + card suggerimento proattivo.
+// tag 2026-10-19 (maps) — [[LINK:https://…|label]] → pulsante che apre un link ESTERNO (Google Maps / Waze con destinazione impostata).
 import React, { useEffect, useState } from "react";
 import { View, Text, Pressable, StyleSheet, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -8,10 +9,12 @@ import { api } from "@/src/api";
 import { resolveNavRoute } from "@/src/navRoutes"; // V50.z487 — schermate reali + alias
 
 export type NavChip = { kind: "nav"; route: string; label: string };
+export type LinkChip = { kind: "link"; url: string; label: string };
 export type ActionChip = { kind: "action"; action: string; label: string; payload: Record<string, any> };
-export type Chip = NavChip | ActionChip;
+export type Chip = NavChip | LinkChip | ActionChip;
 
 const NAV_RX = /\[\[NAV:([^|\]]+)\|([^\]]+)\]\]/g;
+const LINK_RX = /\[\[LINK:(https?:\/\/[^|\]\s]+)\|([^\]]+)\]\]/g;
 const ACT_RX = /\[\[ACTION:([a-z_]+)\|([^|\]]+)\|(\{[\s\S]*?\})\]\]/g;
 
 /** V50.z383 — «Impostazioni AxonOS» (lingua, tono, voce, nome) deve aprire SEMPRE la sezione «AI & Axon · Assistente»
@@ -36,6 +39,13 @@ export function extractNavChips(content: string): { clean: string; chips: Chip[]
     chips.push({ kind: "action", action, label: label.trim(), payload });
     return "";
   });
+  clean = clean.replace(LINK_RX, (_m, url, label) => {
+    const u = url.trim();
+    if (seen.has(u)) return "";
+    seen.add(u);
+    chips.push({ kind: "link", url: u, label: label.trim() });
+    return "";
+  });
   clean = clean.replace(NAV_RX, (_m, route, label) => {
     const ok = normalizeNavRoute(route.trim(), label.trim());
     if (!ok) return `ℹ️ «${label.trim()}»: schermata non disponibile come collegamento diretto.`; // V50.z487 — mai un pulsante rotto
@@ -51,7 +61,7 @@ export function extractNavChips(content: string): { clean: string; chips: Chip[]
 
 /** Versione "parlabile": rimuove i marker (per il TTS). */
 export function stripNavMarkers(content: string): string {
-  return (content || "").replace(ACT_RX, "").replace(NAV_RX, "");
+  return (content || "").replace(ACT_RX, "").replace(LINK_RX, "").replace(NAV_RX, "");
 }
 
 export function NavChips({ chips, onNavigate, onAction }: {
@@ -65,6 +75,14 @@ export function NavChips({ chips, onNavigate, onAction }: {
   return (
     <View style={styles.wrap} testID="nav-chips">
       {chips.map((c, i) => {
+        if (c.kind === "link") {
+          return (
+            <Pressable key={`l-${i}`} onPress={() => onNavigate(c.url)} style={styles.navBtn} testID={`link-chip-${i}`} accessibilityRole="link">
+              <Text style={styles.navTxt} numberOfLines={2}>{c.label}</Text>
+              <Ionicons name="navigate-circle" size={18} color={CT.accent} />
+            </Pressable>
+          );
+        }
         if (c.kind === "nav") {
           return (
             <Pressable key={`n-${i}`} onPress={() => onNavigate(c.route)} style={styles.navBtn} testID={`nav-chip-${i}`} accessibilityRole="button">

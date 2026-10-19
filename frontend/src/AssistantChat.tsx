@@ -1098,6 +1098,13 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
   // V50.z259 — Navigatore: deep link dai messaggi di Axon → chiude la chat e apre la schermata
   const navigateTo = (route: string) => {
     if (/^(tel|sms|mailto):/i.test(route)) { void Linking.openURL(route).catch(() => {}); return; } // V50.z502 — chip «Chiama»
+    // tag 2026-10-19 (maps) — [[LINK:https://…]]: Google Maps / Waze con destinazione impostata → app esterna (web: nuova scheda), la chat resta aperta
+    if (/^https?:\/\//i.test(route)) {
+      api("/axon/nav/track", { method: "POST", body: { feature: `link:${route.split("?")[0]}` } }).catch(() => {});
+      if (Platform.OS === "web") { try { window.open(route, "_blank", "noopener"); } catch { void Linking.openURL(route).catch(() => {}); } }
+      else void Linking.openURL(route).catch(() => {});
+      return;
+    }
     stopGeneration();
     api("/axon/nav/track", { method: "POST", body: { feature: `nav:${route.split("?")[0]}` } }).catch(() => {});
     onClose();
@@ -1126,7 +1133,7 @@ export function AssistantChatModal({ visible, onClose }: AssistantChatProps) {
 
   // V50.z305 — VOCE BREVE: a voce non si leggono tabelle/markdown lunghi: si parlano solo le frasi, la tabella resta in chat.
   const speakableText = (raw: string): string => {
-    const lines = (raw || "").replace(/\[\[(NAV|ACTION):[^\]]*\]\]/g, "").split("\n");
+    const lines = (raw || "").replace(/\[\[(NAV|LINK|ACTION):[^\]]*\]\]/g, "").split("\n");
     const hadTable = lines.some((l) => /^\s*\|.*\|\s*$/.test(l));
     const kept = lines.filter((l) => !/^\s*\|.*\|\s*$/.test(l) && !/^\s*[-:| ]+$/.test(l)).map((l) => l.replace(/[*_#`>]+/g, "").trim()).filter(Boolean);
     let out = kept.join(" ").replace(/\s+/g, " ").trim();
