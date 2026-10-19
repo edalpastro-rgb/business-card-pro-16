@@ -94,7 +94,8 @@ def test_refactor_20261019_chunking_pages_rules_routing():
     assert "if _rule_hits:  # tag 2026-10-19 — BYPASS SEMANTICO" in w
     rules = eval(w[w.index("_LISTINO_RULES_DEFAULT = ["):w.index("]\n", w.index("_LISTINO_RULES_DEFAULT = [")) + 1].split("= ", 1)[1])
     assert any(r["min"] <= 9000 <= r["max"] and r["offer"] == "Super Impresa Smart" and "0,025" in r["spread"] and "17,90" in r["fixed"] and "pag. 31" in r["source"] for r in rules)
-    assert any(r["min"] <= 418000 <= r["max"] and "0,012" in r["spread"] and "pag. 10" in r["source"] for r in rules)
+    assert any(r["min"] <= 418000 <= r["max"] and "0,008" in r["spread"] and r.get("oneri") == "0,0044 €/kWh" and "pag. 6" in r["source"] for r in rules)
+    assert not any("0,012" in r["spread"] for r in rules), "0,012 appartiene alla fascia 150.000-300.000, non a 300k-600k"
     assert '"has_bands": bool(_re_bands.search(text or ""))' in _src("34_alarms_homeassistant.py")
     e = open(os.path.join(HERE, "core", "embedding.py"), encoding="utf-8").read()
     assert "index_embedder = LocalEmbedder(default_model_dir(), threads=1)" in e and 'or 2))' in e

@@ -781,6 +781,8 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
                 return
 
         msg = prep["msg"]
+        if prep.get("listino_lock"):  # tag 2026-10-19 (lucchetto) — dopo TUTTI i wrapper axon_*.py il prompt bloccato torna tale e quale
+            prep["system_message"] = prep["listino_lock"]
         if os.environ.get("AXON_PROMPT_DUMP"):  # V50.z421 — dump del prompt FINALE (dopo tutti i wrapper) per l'analisi dei costi (solo dev)
             try:
                 with open(os.environ["AXON_PROMPT_DUMP"] + ".final", "w", encoding="utf-8") as _fh:
@@ -893,7 +895,7 @@ async def assistant_chat_stream(body: AssistantChatStreamIn, user=Depends(get_cu
             has_rag_context=bool(prep.get("has_rag_context")),
             has_web=used_web_search,
         )
-        if prep.get("query_class") == "simple":  # V50.z413 — domande semplici → sempre Haiku 4.5
+        if prep.get("query_class") in ("simple", "listino"):  # V50.z413 — domande semplici → sempre Haiku 4.5; lucchetto listino = sola formattazione
             _model_choice = "haiku"
         _model_id = "claude-haiku-4-5" if _model_choice == "haiku" else "claude-haiku-4-5"
 

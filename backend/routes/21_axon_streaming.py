@@ -380,6 +380,45 @@ async def _prepare_assistant_prompt(
     history = [h async for h in hist_cursor]
     history.reverse()
 
+    if history:
+        convo_text = ""
+        for h in history[-AXON_HISTORY_WINDOW:]:  # V50.z517 — finestra scorrevole 10 messaggi, max 600 caratteri ciascuno
+            role = "Utente" if h["role"] == "user" else assistant_name
+            _c = h.get("content") or ""
+            _lim = 2400 if h.get("summary") else 600  # V50.z518 — il riassunto auto (≤500 token) non va troncato a 600 car.
+            convo_text += f"{role}: {_c[:_lim] + ('…' if len(_c) > _lim else '')}\n"
+        user_prompt = (
+            f"Conversazione precedente:\n{convo_text}\n"
+            f"---\nNuovo messaggio dell'utente: {msg}"
+        )
+    else:
+        user_prompt = msg
+
+    # tag 2026-10-19 (lucchetto) — LOOKUP LISTINO = RAG BLOCCATO. Se il consumo kWh nella domanda colpisce una regola listino
+    # (db.axon_config «listino_rules» / _LISTINO_RULES_DEFAULT, 20_axon_memory) il prompt contiene SOLO identità statica + ora + blocco
+    # lookup: nessun fetcher (Drive, ChromaDB, embedding, KB, RAG Master, Tavily, memorie, few-shot, omniscienza, brain, cloud).
+    # Il modello formatta e presenta il dato, non lo interpreta né lo verifica. 22 e il non-stream ripristinano `listino_lock`
+    # dopo i wrapper axon_*.py (nessun modulo può aggiungere contesto). Esclusi gli allegati (analisi di una bolletta ≠ lookup).
+    if not body.attachments:
+        _lk0 = _time.monotonic()
+        _lk_kwh, _lk_hits = await _listino_rule_hits(msg)  # noqa: F821 — 20_axon_memory
+        if _lk_hits:
+            _lang_row = await db.user_settings.find_one({"user_id": user["user_id"]}, {"assistant_language": 1}) or {}
+            assistant_language = _AXON_LANG_NAMES.get((_lang_row.get("assistant_language") or "it").lower(), "italiano")
+            _lk_sm = (
+                _axon_static_block(user, assistant_name, assistant_language)  # noqa: F821
+                + f"ORA ATTUALE (Europe/Rome, giorno della settimana ESATTO — usa QUESTO per «oggi», «domani», «che giorno è», mai ricalcolarlo): {_fmt_dt_it(utcnow())}\n\n"  # noqa: F821
+                + _listino_lock_section(_lk_kwh, _lk_hits)  # noqa: F821
+            )
+            _lk_s = _time.monotonic() - _lk0
+            logger.info("[listino-lock] «%s» → %s (RAG bloccato, %.3fs)", (msg or "")[:60], "; ".join(r.get("offer", "") for r in _lk_hits), _lk_s)
+            return {
+                "msg": msg, "query_class": "listino", "prep_seconds": round(_lk_s, 3), "prep_phases": {"listino_lock": round(_lk_s, 3)},
+                "session_id": session_id, "assistant_name": assistant_name,
+                "system_message": _lk_sm, "listino_lock": _lk_sm, "user_prompt": user_prompt, "history_len": len(history),
+                "has_attachments": False, "has_rag_context": False, "used_web_search": False, "web_sources": [], "api_key": key,
+            }
+
     # V50.b — PARALLELIZE preflight I/O per ridurre drasticamente il tempo di
     # prompt-building. Prima queste operazioni erano sequenziali (context →
     # weather → RAG prefetch → tavily → memories → attachments → teach section),
@@ -777,20 +816,6 @@ async def _prepare_assistant_prompt(
     except Exception:  # noqa: BLE001
         pass
 
-    if history:
-        convo_text = ""
-        for h in history[-AXON_HISTORY_WINDOW:]:  # V50.z517 — finestra scorrevole 10 messaggi, max 600 caratteri ciascuno
-            role = "Utente" if h["role"] == "user" else assistant_name
-            _c = h.get("content") or ""
-            _lim = 2400 if h.get("summary") else 600  # V50.z518 — il riassunto auto (≤500 token) non va troncato a 600 car.
-            convo_text += f"{role}: {_c[:_lim] + ('…' if len(_c) > _lim else '')}\n"
-        user_prompt = (
-            f"Conversazione precedente:\n{convo_text}\n"
-            f"---\nNuovo messaggio dell'utente: {msg}"
-        )
-    else:
-        user_prompt = msg
-
     web_sources = [
         {"title": r.get("title"), "url": r.get("url")}
         for r in (web_search_ctx.get("results", []) if web_search_ctx else [])
@@ -890,7 +915,7 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
     # copia sequenziale e NON gated: anche «che ore sono» a voce caricava snapshot CRM, omniscienza, teach, KB, RAG, brain,
     # Drive (6-10 s). Ora: classificazione «simple» → prompt minimo in <0,1 s; «crm/full» → caricamento parallelo.
     prep = await _prepare_assistant_prompt(user, body)  # noqa: F821 — versione avvolta dai moduli successivi
-    system_message = prep["system_message"]
+    system_message = prep.get("listino_lock") or prep["system_message"]  # tag 2026-10-19 (lucchetto) — lookup listino: prompt bloccato, wrapper ignorati
     user_prompt = prep["user_prompt"]
     used_web_search = bool(prep.get("used_web_search"))
     web_sources_out = prep.get("web_sources") or []

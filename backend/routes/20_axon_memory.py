@@ -1606,10 +1606,56 @@ def _schedule_drive_semantic_backfill(tenant: str) -> None:
 
 # tag 2026-10-19 — Regole listino a soglie fisse (richiesta 19/10). Sovrascrivibili senza deploy: db.axon_config {key: "listino_rules", rules: [...]}.
 # «418.000» è la fascia 300.000-600.000 (una regola «== 418000» varrebbe per un solo cliente).
+# tag 2026-10-19 (lucchetto) — valori corretti dall'utente: 300k-600k → Materia Prima PUN + 0,008 €/kWh, oneri variabili 0,0044 €/kWh, pag. 6
+# (0,012 appartiene alla fascia 150.000-300.000). Campo opzionale «oneri».
 _LISTINO_RULES_DEFAULT = [
-    {"min": 0, "max": 10000, "offer": "Super Impresa Smart", "spread": "PUN + 0,025 €/kWh", "fixed": "17,90 €/mese", "source": "Super Impresa Suite 1026.pdf, pag. 31"},
-    {"min": 300000, "max": 600000, "offer": "Super Impresa Suite — Fascia 300k-600k", "spread": "PUN + 0,012 €/kWh", "fixed": "", "source": "Super Impresa Suite 1026.pdf, pag. 10"},
+    {"min": 0, "max": 10000, "offer": "Super Impresa Smart", "spread": "PUN + 0,025 €/kWh", "oneri": "", "fixed": "17,90 €/mese", "source": "Super Impresa Suite 1026.pdf, pag. 31"},
+    {"min": 300000, "max": 600000, "offer": "Super Impresa Suite — Fascia 300k-600k", "spread": "PUN + 0,008 €/kWh", "oneri": "0,0044 €/kWh", "fixed": "", "source": "Super Impresa Suite 1026.pdf, pag. 6"},
 ]
+
+
+async def _listino_rule_hits(user_msg: str) -> Tuple[Optional[float], List[dict]]:
+    """tag 2026-10-19 (lucchetto) — (consumo kWh nella domanda, regole listino che lo contengono). Solo Mongo (axon_config), nessun
+    embedding/ChromaDB/Drive. Usata da 21 `_prepare_assistant_prompt` PRIMA di qualsiasi fetcher: con un hit il RAG è bloccato del tutto."""
+    kwh = _core_drive_kwh_in_query(user_msg or "")  # noqa: F821
+    if not kwh:
+        return None, []
+    try:
+        doc = await db.axon_config.find_one({"key": "listino_rules"}, {"_id": 0, "rules": 1})
+        rules = (doc or {}).get("rules") or _LISTINO_RULES_DEFAULT
+        return kwh, [r for r in rules if float(r.get("min", 0)) <= kwh <= float(r.get("max", 1e15))]
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[drive-fasce] regole listino non lette: %s", exc)
+        return kwh, []
+
+
+def _listino_rule_lines(hits: List[dict]) -> List[str]:
+    out = []
+    for r in hits:
+        out.append(f"FASCIA RISOLTA: {r.get('offer')} — consumo {_core_drive_format_kwh(float(r.get('min', 0)))} ÷ {_core_drive_format_kwh(float(r.get('max', 0)))}"  # noqa: F821
+                   + f" — Materia Prima (spread) {r.get('spread')}" + (f" | Oneri variabili {r['oneri']}" if r.get("oneri") else "")
+                   + (f" | Fisso {r['fixed']}" if r.get("fixed") else "") + f" — Fonte: {r.get('source')}")
+    return out
+
+
+def _listino_lock_section(kwh: float, hits: List[dict]) -> str:
+    """tag 2026-10-19 (lucchetto) — UNICO contenuto informativo del system prompt quando una regola listino colpisce: il modello
+    formatta e presenta il dato, non lo interpreta né lo verifica. Nessun'altra sezione (Drive, ChromaDB, KB, RAG, web, memorie)."""
+    lbl = _core_drive_format_kwh(kwh)  # noqa: F821
+    lines = [
+        f"🔒 LOOKUP LISTINO — RISPOSTA FINALE DEL SISTEMA per il consumo di {lbl}",
+        "Il sistema ha GIÀ risolto la fascia con una regola matematica a soglie fisse (configurazione listino_rules). Per questa domanda NON è stata eseguita",
+        "alcuna ricerca nei file Google Drive, in ChromaDB o altrove: non esistono altre fonti da consultare, confrontare, verificare o citare.",
+        f"✅ FASCIA RISOLTA (REGOLA LISTINO) per {lbl} — dato CERTO, FINALE e NON MODIFICABILE:",
+        *_listino_rule_lines(hits),
+        "ISTRUZIONI TASSATIVE:",
+        "1. Presenta il dato qui sopra ESATTAMENTE così com'è: offerta, Materia Prima (spread), oneri variabili (se presenti), fisso (se presente), fonte con pagina. Nessun calcolo, nessuna altra cifra.",
+        "2. VIETATO: ricalcolare, arrotondare, interpretare, verificare, dubitare, dire «non trovo», «non ho accesso», «non risulta nei documenti», chiedere di ricaricare/riallegare il PDF,",
+        "   parlare di indice non aggiornato, proporre fasce o offerte alternative, citare altri file o pagine, elenchi di opzioni A/B/C.",
+        "3. Se la conversazione precedente contiene valori diversi per questo consumo, quelli erano errati: vale SOLO questo blocco (al massimo una frase di rettifica, senza scuse prolisse).",
+        "4. Forma: 3-6 righe discorsive e commerciali, tono da collega esperto; chiudi con UNA proposta d'azione concreta (es. preparare il preventivo o fissare la chiamata) chiedendo solo la conferma. Niente tabelle salvo richiesta esplicita.",
+    ]
+    return "\n".join(lines) + "\n"
 
 
 async def _fetch_teach_drive_pdfs_for_query(
@@ -1783,14 +1829,9 @@ async def _fetch_teach_drive_pdfs_for_query(
     blocks: List[str] = []
     _fasce_risolte: List[Any] = []  # V50.z575 — [(display, rows)]
     _kwh_q = _core_drive_kwh_in_query(user_msg or "")  # noqa: F821 — V50.z573 consumo numerico nella domanda (None se assente)
-    _rule_hits: List[Any] = []  # tag 2026-10-19 — regole listino a soglie fisse: se c'è un hit PREVALE (bypass semantico, niente righe-documento)
-    if _kwh_q:
-        try:
-            _rules_doc = await db.axon_config.find_one({"key": "listino_rules"}, {"_id": 0, "rules": 1})
-            _rules = (_rules_doc or {}).get("rules") or _LISTINO_RULES_DEFAULT
-            _rule_hits = [r for r in _rules if float(r.get("min", 0)) <= _kwh_q <= float(r.get("max", 1e15))]
-        except Exception as _re_exc:  # noqa: BLE001
-            logger.warning("[drive-fasce] regole listino non lette: %s", _re_exc)
+    # tag 2026-10-19 — regole listino a soglie fisse: se c'è un hit PREVALE (bypass semantico, niente righe-documento). Con il lucchetto
+    # in 21 questa funzione non viene più chiamata per gli hit (RAG bloccato a monte): qui resta solo come difesa in profondità.
+    _rule_hits = (await _listino_rule_hits(user_msg or ""))[1] if _kwh_q else []
     if selected:
         _t0 = _time_mod.monotonic()
         try:
@@ -1829,18 +1870,8 @@ async def _fetch_teach_drive_pdfs_for_query(
     # tag 2026-10-19 — LOOKUP DETERMINISTICO LISTINI (bypass semantico): consumo nella domanda → regole a soglie fisse
     # (db.axon_config key «listino_rules», default _LISTINO_RULES_DEFAULT) → «FASCIA RISOLTA (REGOLA LISTINO)» in TESTA, prima di tutto.
     if _kwh_q and _rule_hits:
-        try:
-            _hits = _rule_hits
-            if _hits:
-                _lbl = _core_drive_format_kwh(_kwh_q)  # noqa: F821
-                _lines = [f"✅ FASCIA RISOLTA (REGOLA LISTINO) per {_lbl} — corrispondenza matematica a soglie fisse, dato CERTO e PREVALENTE su qualsiasi riga dei documenti: cita offerta, spread, fisso e fonte ESATTAMENTE così come sono qui sotto (pagina inclusa), nessun calcolo, nessuna altra cifra."]
-                for r in _hits:
-                    _lines.append(f"FASCIA RISOLTA: {r.get('offer')} — consumo {_core_drive_format_kwh(float(r.get('min', 0)))} ÷ {_core_drive_format_kwh(float(r.get('max', 0)))} — Spread {r.get('spread')}"  # noqa: F821
-                                  + (f" | Fisso {r['fixed']}" if r.get("fixed") else "") + f" — Fonte: {r.get('source')}")
-                out = "\n".join(_lines) + "\n\n" + out
-                logger.info("[drive-fasce] regola listino: %s → %s", _lbl, "; ".join(r.get("offer", "") for r in _hits))
-        except Exception as _re_exc:  # noqa: BLE001
-            logger.warning("[drive-fasce] regole listino non applicate: %s", _re_exc)
+        out = _listino_lock_section(_kwh_q, _rule_hits) + "\n" + out
+        logger.info("[drive-fasce] regola listino: %s → %s", _core_drive_format_kwh(_kwh_q), "; ".join(r.get("offer", "") for r in _rule_hits))  # noqa: F821
     if _kwh_q and _fasce_risolte:
         # In TESTA alla sezione Drive (prima dell'elenco file e dei testi, che possono essere lunghi): fatto già risolto dal sistema
         _kwh_lbl = _core_drive_format_kwh(_kwh_q)  # noqa: F821
