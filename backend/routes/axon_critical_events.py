@@ -101,7 +101,7 @@ async def critical_events_test(body: _CeTestIn, user=Depends(get_current_user)):
 async def _ce_take_pending_voice(user: dict):
     """Eventi critici non ancora annunciati a voce → testo da anteporre alla risposta (e li marca announced)."""
     try:
-        rows = await db.axon_critical_events.find({"user_id": user["user_id"], "announced": False}, {"_id": 0, "event_id": 1, "voice_text": 1, "route": 1, "title": 1}).sort("created_at", -1).to_list(5)  # noqa: F821
+        rows = await db.axon_critical_events.find({"user_id": user["user_id"], "announced": False, "source": {"$ne": "telemetria"}}, {"_id": 0, "event_id": 1, "voice_text": 1, "route": 1, "title": 1}).sort("created_at", -1)  # V50.z578 — l'alert lentezza resta banner Home + push, mai in chat.to_list(5)  # noqa: F821
     except Exception:  # noqa: BLE001
         return None
     if not rows:

@@ -61,6 +61,7 @@ _CACHE_SKIP_TOKENS = {
     # V50.z575 — listini/Drive (i documenti cambiano, il retrieval evolve): MAI dalla cache → la stessa domanda riposta in una chat nuova
     # restituiva la risposta sbagliata di 7 giorni prima («non trovo 418k») anche dopo 4 deploy corretti
     "kwh","mwh","gwh","smc","spread","fascia","fasce","listino","listini","drive","pdf","file","documento","documenti","consumo","consumi",
+    "obiezione","obiezioni","rispondo","rispondere","risponderei","scanner","dove","cliente",  # V50.z578 — obiezioni e how-to: mai dalla cache
 }
 
 def _normalize_and_tokenize(text: str) -> Tuple[str, List[str]]:
@@ -165,7 +166,8 @@ _SEMCACHE_ERR_RX = re.compile(r"^(sono temporaneamente offline|⏱️|non riesco
 # V50.z575 — MAI mettere in cache le risposte NEGATIVE («non trovo», «non ho trovato», «non ho questo dato»): dipendono dallo stato
 # dei dati/retrieval del momento e, cachate 7 giorni, sopravvivono ai deploy che le correggono.
 _SEMCACHE_NEG_RX = re.compile(r"non (ho )?(trov|risult)|non ho (questo |i |il )?dat|non (ho|sono riuscit)[^.]{0,40}(recuper|individu)|approssimazione", re.IGNORECASE)
-_SEMCACHE_PURGE_TOKENS = ["kwh", "mwh", "gwh", "smc", "spread", "fascia", "fasce", "listino", "listini", "drive", "pdf", "file", "documento", "documenti", "consumo", "consumi"]
+_SEMCACHE_PURGE_TOKENS = ["kwh", "mwh", "gwh", "smc", "spread", "fascia", "fasce", "listino", "listini", "drive", "pdf", "file", "documento", "documenti", "consumo", "consumi",
+                          "obiezione", "obiezioni", "rispondo", "rispondere", "scanner", "dove", "cliente"]
 
 
 @app.on_event("startup")  # noqa: F821
@@ -838,8 +840,6 @@ async def assistant_chat(body: AssistantChatIn, user=Depends(get_current_user)):
 
     assistant_name = await _get_assistant_name(user)
     # V50.z271 — lingua scelta dall'utente (pagina «Voce e lingua di Axon»)
-    _lang_row = await db.user_settings.find_one({"user_id": user["user_id"]}, {"assistant_language": 1}) or {}
-    assistant_language = _AXON_LANG_NAMES.get((_lang_row.get("assistant_language") or "it").lower(), "italiano")
     session_id = body.session_id or f"asst_{user['user_id']}_{uuid.uuid4().hex[:10]}"
 
     # V50.z517 — SLIDING WINDOW: ad Anthropic vanno SOLO gli ultimi AXON_HISTORY_WINDOW (10) messaggi della sessione; i precedenti
@@ -1125,7 +1125,6 @@ async def _maybe_quick_action_intercept(msg: str, user: dict) -> Optional[dict]:
     txt = (msg or "").strip().lower().rstrip("?!.")
     if not txt or len(txt) > 120:
         return None
-    tenant = tenant_id(user)
     uid_ = user["user_id"]
 
     # ── Prossimo appuntamento ──────────────────────────────

@@ -51,7 +51,7 @@ async def _dl_build(tid: str) -> tuple:
             add(r, it["question"], True); n_fail += 1
     # (1) poi la banca domande
     for row in _ST_QUESTIONS:  # noqa: F821
-        cat, q, exp, flag = row[0], row[1], row[2], (row[3] if len(row) > 3 else "")
+        q, exp, flag = row[1], row[2], (row[3] if len(row) > 3 else "")
         if flag not in ("", "conv"):
             continue
         r = _dl_primary_route(exp)

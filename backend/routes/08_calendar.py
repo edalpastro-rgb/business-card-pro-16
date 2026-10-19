@@ -13,7 +13,6 @@ async def list_appointments(
 ):
     tid = tenant_id(user)
     # Base scope: own records + broadcast events I'm a recipient of
-    scope_filter: Dict[str, Any] = {"user_id": tid}
     if is_owner(user):
         # Owner sees everything in tenant
         base = {"user_id": tid}

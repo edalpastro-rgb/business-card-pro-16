@@ -104,11 +104,9 @@ async def axon_fetch_pdf_link(url: str, force: bool = False) -> Dict[str, Any]:
             result["error"] = "Il link non restituisce un PDF"
             return result
         text = ""
-        pages = None
         try:
             from pypdf import PdfReader  # type: ignore
             rd = PdfReader(io.BytesIO(data))
-            pages = len(rd.pages)
             meta_title = None
             try:
                 meta_title = (rd.metadata or {}).get("/Title")  # type: ignore
@@ -196,9 +194,41 @@ async def _build_axon_teach_section(tenant: str, user_msg: str) -> str:  # type:
     except Exception as e:
         logger.warning("[axon-pdf-link] section failed: %s", e)
         extra = ""
-    if not extra:
-        return base
-    return (base or "") + extra
+    # V50.z578 — MANUALE OBIEZIONI in chat (richiesta 19/10, punto 1+4): domanda su obiezioni/trattativa → il testo del manuale
+    # (db.cgym_manual_kb, type «obiezioni») viene ANTEPOSTO alla sezione come fonte primaria, con l'istruzione di tono discorsivo.
+    # Qui nel wrapper (non in 20_axon_memory, che ha early return). Nessuna chiamata a cgym_obi_kb_index (nessuna rete/Drive).
+    obi = ""
+    if user_msg and _OBI_Q_RX.search(user_msg):
+        try:
+            doc = await db.cgym_manual_kb.find_one({"tenant_id": tenant, "type": "obiezioni"}, {"_id": 0, "text": 1})  # noqa: F821
+            txt = ((doc or {}).get("text") or "").strip()
+            if txt:
+                if len(txt) > _OBI_MAX_CHARS:
+                    logger.info("[obiezioni] manuale %d car. → cap %d", len(txt), _OBI_MAX_CHARS)
+                    txt = txt[:_OBI_MAX_CHARS]
+                obi = _OBI_HEADING + txt + "\n\n"
+                logger.info("[obiezioni] manuale iniettato (%d car.) per «%s»", len(txt), user_msg[:60])
+        except Exception as e:  # noqa: BLE001
+            logger.warning("[obiezioni] lettura manuale fallita: %s", e)
+    out = (base or "")
+    if extra:
+        out += extra
+    return obi + out if obi else out
+
+
+_OBI_Q_RX = re.compile(
+    r"(obiezion|trattativ|gestione\s+obiez|(cliente|lui|lei|mi)\s+(mi\s+)?(dice|risponde|ha\s+detto|obietta)|non\s+ha?o?\s+tempo|"
+    r"ci\s+devo\s+pensare|devo\s+pensarci|non\s+mi\s+interessa|devo\s+parlar\w+\s+con|cosa\s+(gli|le)?\s?(posso\s+)?rispond|"
+    r"cosa\s+dovrei\s+rispond|come\s+rispond)", re.I)
+_OBI_MAX_CHARS = 60000   # cap di sicurezza (prompt/TTFT): il manuale intero resta leggibile, oltre si tronca
+_OBI_HEADING = (
+    "MANUALE OBIEZIONI — FONTE PRIMARIA: rispondi con lo script del manuale per l'obiezione citata, citandolo; non improvvisare.\n"
+    "TONO (prevale sulle regole di formattazione — niente tabelle, elenchi puntati o numerati, titoli): parla come un collega esperto "
+    "che si rivolge direttamente al venditore e dagli le frasi ESATTE da dire al cliente, in testo discorsivo e fluido. "
+    "Esempio: non «1. STROKES: di' “Certo, è comprensibile…”» ma «Rispondi al cliente dicendo: “Certo [NOME], è comprensibile che tu "
+    "abbia poco tempo, ci può stare… nel dettaglio, qual è l'aspetto sul quale vorresti pensarci?” Poi ascolta la risposta.» "
+    "Questa è una domanda di vendita, NON una domanda sull'app: nessun percorso di menu, nessun chip [[NAV:…]].\n\n"
+)
 
 
 # --- Endpoint diretto -------------------------------------------------------

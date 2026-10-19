@@ -97,7 +97,8 @@ def _mn_score(a: Dict[str, Any], q_norm: str, q_tokens: List[str]) -> float:
         score += 6
     elif q_norm and q_norm in full:
         score += 3.5
-    for t in q_tokens:
+    body_pts = 0.0  # V50.z578 — i match nel solo corpo (descrizioni lunghe) valgono al massimo 1.5 punti in totale:
+    for t in q_tokens:  # prima «cliente», «app», «dice»… nel corpo di una voce lunga bastavano a superare la soglia 3 del chip fallback
         if len(t) < 2:
             continue
         if _mn_re.search(rf"\b{_mn_re.escape(t)}", title):
@@ -107,10 +108,10 @@ def _mn_score(a: Dict[str, Any], q_norm: str, q_tokens: List[str]) -> float:
         elif _mn_re.search(rf"\b{_mn_re.escape(t)}", path):
             score += 1.4
         elif _mn_re.search(rf"\b{_mn_re.escape(t)}", body):
-            score += 1.0
+            body_pts += 1.0
         elif len(t) >= 5 and t[:5] in full:  # radice (es. "modific" → "modifica")
-            score += 0.5
-    return score
+            body_pts += 0.5
+    return score + min(body_pts, 1.5)
 
 
 def manual_search(q: str, articles: List[Dict[str, Any]], limit: int = 8) -> List[Tuple[float, Dict[str, Any]]]:
@@ -145,7 +146,10 @@ async def public_manual_search(q: str = "", k: int = 8, authorization: Optional[
 
 
 # ───────────────────────────── Axon come guida: iniezione nel prompt ─────────────────────────────
-_MN_HOWTO_RE = _mn_re.compile(r"\b(come|dove|cos'?[eè]|a cosa serve|quale|quali|mostrami|spiegami|aiutami|modific|configur|imposta|attiv|trov|aggiung|cre[ao]|apr[io]|cambi|funzion|manuale|guida|landing|cms|scanner|nota vocale|offline|notific|statistic|report)", _mn_re.I)
+# V50.z578 — regex how-to STRETTA (richiesta 19/10, punto 2): solo domande sull'USO/POSIZIONE di una funzione dell'app. La precedente
+# («come|dove|trov|cre[ao]|funzion|…») scattava anche su obiezioni di vendita e domande sui listini → footer «📍 Percorso» e chip
+# [[NAV]] incongrui (es. «Fasce energetiche…» sotto una risposta sulle obiezioni).
+_MN_HOWTO_RE = _mn_re.compile(r"\b(dove\s+(si\s+)?(trov|vedo|apro|imposto|attivo|cambio|modifico|registro|aggiungo|creo)|dov'[eè]\s+(la|il|lo|l')|in\s+che\s+(menu|schermata|sezione|pagina)|come\s+(si\s+)?(fa(ccio)?\s+(a|ad)\s+|apro|attivo|disattivo|imposto|configuro|modifico|cambio|aggiungo|creo|registro|trovo|uso|collego|carico|esporto)|come\s+funziona\s+(la|il|lo|l')\s?(app|funzione|schermata|sezione|menu|scanner|landing|cms|calendario|agenda|rubrica)|(apri|aprimi|mostrami|portami)\s+(la|il|lo|l'|le|i)?\s?(schermata|pagina|sezione|menu|impostazioni|calendario|agenda|scanner|landing|cms)|a\s+cosa\s+serve\s+(la|il|lo|l')\s?(funzione|schermata|sezione|pulsante|tasto|menu))", _mn_re.I)
 
 _mn_prev_prepare_prompt = _prepare_assistant_prompt  # noqa: F821
 
@@ -190,11 +194,18 @@ def _mn_nav_fallback(user: dict, msg: str, reply: str) -> str:
     has_path = ("→" in reply) or ("Percorso" in reply)
     if has_chip and has_path:
         return ""
-    role = _faq_role_of(user)  # noqa: F821
-    best = manual_search(msg, [a for a in _ARTICLES if _mn_visible(a, role)], 1)
-    if not best or best[0][0] < 3.0:
-        return ""
-    a = best[0][1]
+    a = None
+    if has_chip:  # V50.z578 — il percorso va preso dall'articolo della route GIÀ nel chip, non dal «miglior match» della domanda
+        m = _mn_re.search(r"\[\[NAV:([^|\]]+)\|", reply)
+        a = _MN_BY_ROUTE.get(m.group(1).split("?")[0]) if m else None
+        if not a:
+            return ""
+    else:
+        role = _faq_role_of(user)  # noqa: F821
+        best = manual_search(msg, [a for a in _ARTICLES if _mn_visible(a, role)], 1)
+        if not best or best[0][0] < 3.0:
+            return ""
+        a = best[0][1]
     out = ""
     if not has_path and a.get("path"):
         out += f"\n\n📍 Percorso: {a['path']}"  # V50.z561 — il percorso di menu c'è SEMPRE, anche nelle risposte rapide/cache
