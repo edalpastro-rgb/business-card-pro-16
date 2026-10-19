@@ -1604,6 +1604,14 @@ def _schedule_drive_semantic_backfill(tenant: str) -> None:
     asyncio.create_task(_run())
 
 
+# tag 2026-10-19 — Regole listino a soglie fisse (richiesta 19/10). Sovrascrivibili senza deploy: db.axon_config {key: "listino_rules", rules: [...]}.
+# «418.000» è la fascia 300.000-600.000 (una regola «== 418000» varrebbe per un solo cliente).
+_LISTINO_RULES_DEFAULT = [
+    {"min": 0, "max": 10000, "offer": "Super Impresa Smart", "spread": "PUN + 0,025 €/kWh", "fixed": "17,90 €/mese", "source": "Super Impresa Suite 1026.pdf, pag. 31"},
+    {"min": 300000, "max": 600000, "offer": "Super Impresa Suite — Fascia 300k-600k", "spread": "PUN + 0,012 €/kWh", "fixed": "", "source": "Super Impresa Suite 1026.pdf, pag. 10"},
+]
+
+
 async def _fetch_teach_drive_pdfs_for_query(
     tenant: str, user_msg: str, max_pdfs: int = 4
 ) -> str:
@@ -1729,15 +1737,7 @@ async def _fetch_teach_drive_pdfs_for_query(
         _sem_chunks = {r["file_id"]: [c for c in (r.get("chunks") or []) if c] for r in _sem}  # V50.z569 — passaggi esatti (chunk completi)
         if _sem:
             header_lines.append("RICERCA SEMANTICA: " + "; ".join(f"{r['name']} ({r['score']:.2f})" for r in _sem[:max_pdfs]))
-        # V50.z574 — consumo numerico nella domanda («418.000 kWh»): seconda ricerca ChromaDB mirata ai LISTINI A FASCE (query fissa),
-        # così con molti file il listino giusto entra tra i selezionati anche se la domanda è di 3 parole (max 2 file in più, ~0,3 s)
-        if _core_drive_kwh_in_query(user_msg or ""):  # noqa: F821
-            _s1 = _time_mod.monotonic()
-            _sem2 = await asyncio.to_thread(_core_drive_search, tenant, "listino offerta fasce di consumo DA A kWh spread PUN €/kWh", 3)  # noqa: F821
-            _core_stream_mark_phase("teach.drive.fasce", _time_mod.monotonic() - _s1)  # noqa: F821
-            for r in _sem2:
-                if r.get("score", 0) >= 0.25 and r["file_id"] in _by_id and r["file_id"] not in selected and len(selected) < max_pdfs + 2:
-                    selected.append(r["file_id"]); _sem_chunks.setdefault(r["file_id"], [c for c in (r.get("chunks") or []) if c])
+        # (tag 2026-10-19) rimossa la seconda ricerca ChromaDB «_sem2»: ridondante con la scansione deterministica qui sotto (−1 embedding)
     except Exception as _se:  # noqa: BLE001
         logger.warning("[drive-teach] semantic search failed: %s", _se)
     for s in scored:
@@ -1754,7 +1754,7 @@ async def _fetch_teach_drive_pdfs_for_query(
         try:
             _s2 = _time_mod.monotonic()
             _band_hits: List[Any] = []
-            async for _r in db.drive_snapshots.find({"user_id": tenant, "text": {"$regex": "kwh", "$options": "i"}}, {"_id": 0, "file_id": 1, "text": 1}):
+            async for _r in db.drive_snapshots.find({"user_id": tenant, "$or": [{"has_bands": True}, {"has_bands": {"$exists": False}, "text": {"$regex": "kwh", "$options": "i"}}]}, {"_id": 0, "file_id": 1, "text": 1}):  # tag 2026-10-19 — flag has_bands (snapshot) al posto della regex su tutto il testo; la regex resta solo per gli snapshot non ancora riletti
                 _fid = _r.get("file_id")
                 if _fid not in _by_id:
                     continue
@@ -1783,6 +1783,14 @@ async def _fetch_teach_drive_pdfs_for_query(
     blocks: List[str] = []
     _fasce_risolte: List[Any] = []  # V50.z575 — [(display, rows)]
     _kwh_q = _core_drive_kwh_in_query(user_msg or "")  # noqa: F821 — V50.z573 consumo numerico nella domanda (None se assente)
+    _rule_hits: List[Any] = []  # tag 2026-10-19 — regole listino a soglie fisse: se c'è un hit PREVALE (bypass semantico, niente righe-documento)
+    if _kwh_q:
+        try:
+            _rules_doc = await db.axon_config.find_one({"key": "listino_rules"}, {"_id": 0, "rules": 1})
+            _rules = (_rules_doc or {}).get("rules") or _LISTINO_RULES_DEFAULT
+            _rule_hits = [r for r in _rules if float(r.get("min", 0)) <= _kwh_q <= float(r.get("max", 1e15))]
+        except Exception as _re_exc:  # noqa: BLE001
+            logger.warning("[drive-fasce] regole listino non lette: %s", _re_exc)
     if selected:
         _t0 = _time_mod.monotonic()
         try:
@@ -1792,6 +1800,8 @@ async def _fetch_teach_drive_pdfs_for_query(
             rows = []
         _core_stream_mark_phase("teach.drive.text", _time_mod.monotonic() - _t0)  # noqa: F821 — testo dei soli file scelti
         text_by_id = {r["file_id"]: (r.get("text") or "").strip() for r in rows}
+        if _rule_hits:  # tag 2026-10-19 — BYPASS SEMANTICO: con una regola listino valida i testi dei documenti NON entrano nel prompt
+            selected = []  # (il modello non deve poter preferire una riga del PDF alla regola)
         for fid in selected[: max_pdfs + 2]:
             s = _by_id.get(fid) or {}
             txt = text_by_id.get(fid) or ""
@@ -1805,7 +1815,7 @@ async def _fetch_teach_drive_pdfs_for_query(
             # V50.z575 — FASCIA RISOLTA: il retrieval risolve MATEMATICAMENTE la fascia PRIMA del modello e la inietta come FATTO
             # già constatato (non come istruzione): il modello legge e cita, nessun calcolo. Log «[drive-fasce] FASCIA RISOLTA» per audit.
             _fascia_block = ""
-            if _kwh_q:
+            if _kwh_q and not _rule_hits:
                 _rows = _core_drive_range_rows(txt, _kwh_q)  # noqa: F821
                 if _rows:
                     _fascia_block = "".join(f"FASCIA RISOLTA: {r}\n" for r in _rows) + "\n"
@@ -1816,6 +1826,21 @@ async def _fetch_teach_drive_pdfs_for_query(
             blocks.append(f"--- File Drive{tag}: {display} (modificato: {s.get('modified_time') or '?'}) ---\n{_fascia_block}{_ex_block}{txt[:6000 if (_ex or _fascia_block) else 8000]}")
 
     out = "\n".join(header_lines)
+    # tag 2026-10-19 — LOOKUP DETERMINISTICO LISTINI (bypass semantico): consumo nella domanda → regole a soglie fisse
+    # (db.axon_config key «listino_rules», default _LISTINO_RULES_DEFAULT) → «FASCIA RISOLTA (REGOLA LISTINO)» in TESTA, prima di tutto.
+    if _kwh_q and _rule_hits:
+        try:
+            _hits = _rule_hits
+            if _hits:
+                _lbl = _core_drive_format_kwh(_kwh_q)  # noqa: F821
+                _lines = [f"✅ FASCIA RISOLTA (REGOLA LISTINO) per {_lbl} — corrispondenza matematica a soglie fisse, dato CERTO e PREVALENTE su qualsiasi riga dei documenti: cita offerta, spread, fisso e fonte ESATTAMENTE così come sono qui sotto (pagina inclusa), nessun calcolo, nessuna altra cifra."]
+                for r in _hits:
+                    _lines.append(f"FASCIA RISOLTA: {r.get('offer')} — consumo {_core_drive_format_kwh(float(r.get('min', 0)))} ÷ {_core_drive_format_kwh(float(r.get('max', 0)))} — Spread {r.get('spread')}"  # noqa: F821
+                                  + (f" | Fisso {r['fixed']}" if r.get("fixed") else "") + f" — Fonte: {r.get('source')}")
+                out = "\n".join(_lines) + "\n\n" + out
+                logger.info("[drive-fasce] regola listino: %s → %s", _lbl, "; ".join(r.get("offer", "") for r in _hits))
+        except Exception as _re_exc:  # noqa: BLE001
+            logger.warning("[drive-fasce] regole listino non applicate: %s", _re_exc)
     if _kwh_q and _fasce_risolte:
         # In TESTA alla sezione Drive (prima dell'elenco file e dei testi, che possono essere lunghi): fatto già risolto dal sistema
         _kwh_lbl = _core_drive_format_kwh(_kwh_q)  # noqa: F821

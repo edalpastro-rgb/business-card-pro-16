@@ -151,6 +151,8 @@ def test_semantic_search_is_tenant_isolated(drive_index):
     assert dr.search("tenant_b", "listino 01_POWER", k=3) == []
 
 
-def test_chunking_keeps_overlap():
-    chunks = dr.chunk_text("x" * 2000)
-    assert len(chunks) == 3 and all(len(c) <= dr.CHUNK_CHARS for c in chunks)
+def test_chunking_by_line_with_page_prefix():
+    # tag 2026-10-19 — chunking per riga/paragrafo: una riga lunghissima resta un chunk unico (mai spezzata), righe multiple ≤ CHUNK_CHARS
+    assert len(dr.chunk_text("x" * 2000)) == 1
+    chunks = dr.chunk_text("[pag.3]\n" + "\n".join(f"riga {i} valore {i}" for i in range(200)))
+    assert len(chunks) >= 3 and all(len(c) <= dr.CHUNK_CHARS for c in chunks) and all(c.startswith("[pag.3]") for c in chunks)

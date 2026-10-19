@@ -36,7 +36,7 @@ _core_ctx_schedule = _core_ctx_cache.schedule
 _core_ctx_pending_note = _core_ctx_cache.pending_note
 _core_embedder = _core_embedding.embedder
 
-_core_drive.configure(_core_embedder.embed)
+_core_drive.configure(_core_embedder.embed, embed_index_fn=_core_embedding.index_embedder.embed)  # tag 2026-10-19 — query 2 thread, indicizzazione 1 thread
 _core_ctx_cache.configure(db)  # noqa: F821
 
 

@@ -20,6 +20,7 @@ CHUNK_OVERLAP = 100
 MAX_CHUNKS_PER_FILE = 120
 _lock = threading.Lock()
 _client = None
+_embed_index_fn: Optional[Callable[[List[str]], List[List[float]]]] = None
 _embed_fn: Optional[Callable[[List[str]], List[List[float]]]] = None
 
 
@@ -28,12 +29,13 @@ def default_dir() -> str:
     return os.environ.get("AXON_DRIVE_INDEX_DIR") or os.environ.get("AXON_KB_DIR") or os.path.join(base, "data", "chroma")
 
 
-def configure(embed_fn: Callable[[List[str]], List[List[float]]], client=None) -> None:
+def configure(embed_fn: Callable[[List[str]], List[List[float]]], client=None, embed_index_fn: Callable[[List[str]], List[List[float]]] = None) -> None:
     """Iniezione dell'embedder (core.embedding.embedder.embed) e, opzionale, di un client Chroma (test: EphemeralClient)."""
-    global _embed_fn, _client
+    global _embed_index_fn, _embed_fn, _client
     _embed_fn = embed_fn
     if client is not None:
         _client = client
+    _embed_index_fn = embed_index_fn
 
 
 def _chroma():
@@ -65,14 +67,55 @@ def collection(tenant: str):
 
 
 def chunk_text(text: str, size: int = CHUNK_CHARS, overlap: int = CHUNK_OVERLAP) -> List[str]:
-    text = re.sub(r"[ \t]+", " ", (text or "").strip())
-    if not text:
+    """Compat (test/strumenti): solo i testi dei chunk per riga/paragrafo (vedi chunk_text_pages)."""
+    return [c for c, _p in chunk_text_pages(text, size)]
+
+
+_PAGE_MARK_RX = re.compile(r"^\s*\[(?:TABELLA\s+)?pag\.\s*(\d+)")
+
+
+def chunk_text_pages(text: str, size: int = CHUNK_CHARS) -> List[Tuple[str, int]]:
+    """V50 tag 2026-10-19 — CHUNKING PER RIGA/PARAGRAFO CON PAGINA. Mai una riga spezzata a metà (le righe-tabella
+    «DA 300.000 A 600.000 kWh | PUN + 0,008 €/kWh» restano intere); la pagina corrente è tracciata dai marcatori
+    «[pag.N]» / «[TABELLA pag.N …]» del parser e OGNI chunk è prefissato con «[pag.N]» (+ metadata `page`), così il
+    modello cita la pagina reale invece di inventarla. Una riga più lunga di `size` diventa un chunk da sola."""
+    t = (text or "").strip()
+    if not t:
         return []
-    out, i = [], 0
-    while i < len(text) and len(out) < MAX_CHUNKS_PER_FILE:
-        out.append(text[i:i + size])
-        i += max(1, size - overlap)
-    return out
+    out: List[Tuple[str, int]] = []
+    page = 0
+    buf: List[str] = []
+    buf_len = 0
+    buf_page = 0
+
+    def _flush():
+        nonlocal buf, buf_len
+        body = "\n".join(buf).strip()
+        if body:
+            out.append((f"[pag.{buf_page}] {body}" if buf_page and not body.startswith("[pag.") else body, buf_page))
+        buf, buf_len = [], 0
+
+    for line in t.splitlines():
+        ln = line.rstrip()
+        m = _PAGE_MARK_RX.match(ln)
+        if m:
+            new_page = int(m.group(1))
+            if buf and new_page != page:
+                _flush()
+            page = new_page
+        if not ln.strip():
+            continue
+        if buf and buf_len + len(ln) + 1 > size - (len(f"[pag.{page}] ") if page else 0):  # il prefisso [pag.N] rientra nel budget
+            _flush()
+        if not buf:
+            buf_page = page
+        buf.append(ln)
+        buf_len += len(ln) + 1
+        if len(out) >= MAX_CHUNKS_PER_FILE:
+            break
+    if len(out) < MAX_CHUNKS_PER_FILE:
+        _flush()
+    return out[:MAX_CHUNKS_PER_FILE]
 
 
 def upsert_file(tenant: str, file_id: str, name: str, folder_path: str, text: str, modified_time: str = "") -> int:
@@ -85,13 +128,14 @@ def upsert_file(tenant: str, file_id: str, name: str, folder_path: str, text: st
         col.delete(where={"file_id": file_id})
     except Exception:  # noqa: BLE001
         pass
-    chunks = chunk_text(text)
-    if not chunks:
+    pairs = chunk_text_pages(text, CHUNK_CHARS)
+    if not pairs:
         return 0
+    chunks = [c for c, _p in pairs]
     chunks[0] = f"{folder_path}/{name}\n{chunks[0]}"
     ids = [f"{file_id}:{i}" for i in range(len(chunks))]
-    metas = [{"file_id": file_id, "name": name, "folder_path": folder_path or "", "modified_time": modified_time or "", "chunk": i} for i in range(len(chunks))]
-    col.upsert(ids=ids, documents=chunks, metadatas=metas, embeddings=_embed_fn(chunks))  # type: ignore[misc]
+    metas = [{"file_id": file_id, "name": name, "folder_path": folder_path or "", "modified_time": modified_time or "", "chunk": i, "page": pairs[i][1]} for i in range(len(chunks))]
+    col.upsert(ids=ids, documents=chunks, metadatas=metas, embeddings=(_embed_index_fn or _embed_fn)(chunks))  # type: ignore[misc]
     return len(chunks)
 
 
@@ -144,7 +188,25 @@ def search(tenant: str, query: str, k: int = 4, n_chunks: int = 16) -> List[Dict
     for r in out:
         r["score"] = round(r["score"] + _name_bonus(query, r["name"] or "", r["folder_path"] or ""), 4)
     out.sort(key=lambda r: -r["score"])
-    return out[:k]
+    out = out[:k]
+    # tag 2026-10-19 — BOOST LESSICALE SUI NUMERI (ibrido): MiniLM non distingue «150-300k» da «50-150k». Se la domanda contiene
+    # numeri, per i file selezionati si aggiungono (max 2) i chunk che contengono TUTTI quei numeri (150 → «150.000»/«150k»),
+    # così la riga esatta della tabella arriva al prompt anche quando il vettore preferisce l'intestazione della tabella.
+    nums = [n for n in re.findall(r"\d+(?:[.,]\d+)?", query or "") if n not in ("1", "2", "3")]
+    if nums and out:
+        pats = [re.compile(rf"(?<![\d.,]){re.escape(n)}(?:\.000|\s?k\b|\s?mila\b|\b)", re.I) for n in nums[:3]]
+        for r in out:
+            try:
+                got = col.get(where={"file_id": r["file_id"]}, include=["documents"])
+            except Exception:  # noqa: BLE001
+                continue
+            added = 0
+            for doc in got.get("documents") or []:
+                if added >= 2:
+                    break
+                if doc not in r["chunks"] and all(p.search(doc) for p in pats):
+                    r["chunks"].append(doc); added += 1
+    return out
 
 
 # ───────────────────────────── V50.z573 — FASCE ENERGETICHE: corrispondenza MATEMATICA, non testuale ─────────────────────────────

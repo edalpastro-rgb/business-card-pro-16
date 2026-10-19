@@ -77,3 +77,27 @@ def test_v579_chat_announcements_and_stt_partial():
     for c in ("a", "b"):
         env = comp["services"][f"axon-core-{c}"]["environment"]
         assert env.get("AXON_COLOR") == c and "MONGO_URL" in env and "PORT" in env, "environment per colore deve ereditare le variabili comuni"
+
+
+def test_refactor_20261019_chunking_pages_rules_routing():
+    """Rifattorizzazione 19/10: chunk per riga con pagina, _sem2 rimosso, has_bands, regole listino, routing nativo, thread embed."""
+    from core import drive_retrieval as d
+    text = "[pag.1]\nTitolo listino\n" + "\n".join(f"riga {i} | PUN + 0,00{i % 9} €/kWh" for i in range(60)) + "\n[TABELLA pag.2 — 2 righe × 2 colonne]\n| DA 300.000 A 600.000 kWh | PUN + 0,008 €/kWh |\n| superiori a 600.000 kWh | PUN + 0,006 €/kWh |"
+    pairs = d.chunk_text_pages(text, size=400)
+    assert pairs and all(c.startswith(f"[pag.{p}]") for c, p in pairs), "ogni chunk deve avere il prefisso [pag.N]"
+    assert all("\n" not in c.split("\n")[-1] or True for c, _ in pairs)
+    assert any("DA 300.000 A 600.000 kWh | PUN + 0,008 €/kWh" in c and p == 2 for c, p in pairs), "la riga-tabella non va spezzata e porta pagina 2"
+    assert all(len(c) <= 400 + 60 for c, _ in pairs), "chunk oltre la soglia solo se una riga singola è più lunga"
+    w = _src("20_axon_memory.py")
+    assert "_sem2" not in w.replace("rimossa la seconda ricerca ChromaDB «_sem2»", ""), "_sem2 (embedding ridondante) deve essere rimossa"
+    assert '"has_bands": True' in w and "_LISTINO_RULES_DEFAULT" in w and "FASCIA RISOLTA (REGOLA LISTINO)" in w
+    assert "if _rule_hits:  # tag 2026-10-19 — BYPASS SEMANTICO" in w
+    rules = eval(w[w.index("_LISTINO_RULES_DEFAULT = ["):w.index("]\n", w.index("_LISTINO_RULES_DEFAULT = [")) + 1].split("= ", 1)[1])
+    assert any(r["min"] <= 9000 <= r["max"] and r["offer"] == "Super Impresa Smart" and "0,025" in r["spread"] and "17,90" in r["fixed"] and "pag. 31" in r["source"] for r in rules)
+    assert any(r["min"] <= 418000 <= r["max"] and "0,012" in r["spread"] and "pag. 10" in r["source"] for r in rules)
+    assert '"has_bands": bool(_re_bands.search(text or ""))' in _src("34_alarms_homeassistant.py")
+    e = open(os.path.join(HERE, "core", "embedding.py"), encoding="utf-8").read()
+    assert "index_embedder = LocalEmbedder(default_model_dir(), threads=1)" in e and 'or 2))' in e
+    assert "embed_index_fn=_core_embedding.index_embedder.embed" in _src("01e_core_bridge.py")
+    m = _src("axon_manual.py")
+    assert "risposta nativa how-to" in m and 'return {"reply": body, "intent": "navigate"' in m

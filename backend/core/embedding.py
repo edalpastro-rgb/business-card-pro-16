@@ -17,8 +17,9 @@ def default_model_dir() -> str:
 
 
 class LocalEmbedder:
-    def __init__(self, model_dir: str):
+    def __init__(self, model_dir: str, threads: int = None):
         self.model_dir = model_dir
+        self.threads = threads  # None → AXON_EMBED_THREADS (query live, default 2); il reindex usa un'istanza a 1 thread
         self._lock = threading.Lock()
         self._session = None
         self._tok = None
@@ -39,7 +40,7 @@ class LocalEmbedder:
             tok.enable_truncation(EMBED_MAX_TOKENS)
             tok.enable_padding()
             opts = ort.SessionOptions()
-            opts.intra_op_num_threads = max(1, int(os.environ.get("AXON_EMBED_THREADS") or 1))  # V50.z568 — 1 thread: l'embedding non deve mai saturare la CPU (reindex Drive)
+            opts.intra_op_num_threads = max(1, int(self.threads or os.environ.get("AXON_EMBED_THREADS") or 2))  # tag 2026-10-19 — query live 2 thread (prep -0,4 s); reindex notturno/manuale: istanza separata a 1 thread (non satura la CPU)
             self._session = ort.InferenceSession(os.path.join(self.model_dir, "model.onnx"), sess_options=opts, providers=["CPUExecutionProvider"])
             self._tok = tok
             _log.info("[core-embed] MiniLM-L6-v2 ONNX caricato da %s", self.model_dir)
@@ -63,3 +64,4 @@ class LocalEmbedder:
 
 
 embedder = LocalEmbedder(default_model_dir())
+index_embedder = LocalEmbedder(default_model_dir(), threads=1)  # tag 2026-10-19 — usato SOLO da upsert_file (reindex)

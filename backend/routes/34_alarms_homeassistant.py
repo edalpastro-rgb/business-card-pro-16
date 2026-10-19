@@ -710,6 +710,9 @@ def _drive_download_text(creds, f: Dict[str, Any]) -> str:
     return re.sub(r"\s{3,}", " ", text or "").strip()[:100000]
 
 
+_re_bands = __import__('re').compile(r"\b(DA\s+[\d.]+\s+A\s+[\d.]+|FINO\s+A|SUPERIOR[IE]\s+(?:A|AI|DI)|OLTRE|INFERIOR[IE])\s*[\d.]*\s*(k|m|g)?wh\b|\d\s*k?\s*[-–]\s*\d+\s*k?\s*k?wh", __import__('re').I)  # tag 2026-10-19
+
+
 async def _reindex_drive_files_for_user(user_id: str, max_files: int = 300) -> Dict[str, int]:
     """V50.z155 — Re-indicizza RICORSIVAMENTE le cartelle Drive monitorate
     (Impostazioni → Google Drive) + i link Drive di "Insegna ad Axon".
@@ -755,6 +758,7 @@ async def _reindex_drive_files_for_user(user_id: str, max_files: int = 300) -> D
                         "size": int(f.get("size") or 0), "modified_time": f.get("modifiedTime"),
                         "parents": f.get("parents") or [], "folder_path": f.get("_folder_path") or "",
                         "root_id": f.get("_root_id"), "text": text, "indexed_at": utcnow(),
+                        "has_bands": bool(_re_bands.search(text or "")),  # tag 2026-10-19: listino a fasce (DA X A Y kWh / fino a / oltre) → scansione fasce senza regex sul testo
                     }},
                     upsert=True,
                 )

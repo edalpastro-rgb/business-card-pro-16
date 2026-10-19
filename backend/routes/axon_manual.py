@@ -230,7 +230,7 @@ def _mn_is_howto(msg: str) -> bool:
     except Exception:  # noqa: BLE001
         pass
     best = manual_search(msg, _ARTICLES, 1)
-    return bool(best and best[0][0] >= 3.0 and best[0][1].get("route") and not best[0][1]["route"].endswith("/"))
+    return bool(best and best[0][0] >= 2.5 and best[0][1].get("route") and not best[0][1]["route"].endswith("/"))  # 2.5: titolo (2.2) + radice; il cap sul corpo (z578) ha abbassato i punteggi
 
 
 def _nav_intent(msg: str) -> str:  # noqa: F811
@@ -248,6 +248,23 @@ _MN_BY_ROUTE: Dict[str, Dict[str, Any]] = {a["route"]: a for a in _ARTICLES if a
 
 def _nav_template_reply(msg: str, user: dict):  # noqa: F811
     r = _mn_prev_template_reply(msg, user)
+    if not r and _mn_is_howto(msg):
+        # tag 2026-10-19 — QUERY ROUTING NATIVO: «Dove trovo lo scanner?» / «Come faccio a…» con un articolo del manuale netto
+        # (score ≥ 3, route apribile) → risposta deterministica dal manuale, senza RAG né LLM (< 200 ms)
+        try:
+            role = _faq_role_of(user)  # noqa: F821
+            best = manual_search(msg, [a for a in _ARTICLES if _mn_visible(a, role)], 1)
+            if best and best[0][0] >= 2.5:
+                a = best[0][1]
+                route = a.get("route") or ""
+                how = (a.get("how") or "").strip()
+                body = f"📍 Percorso: {a['path']}\n{a.get('desc') or a['body']}" + (f"\n\nCome si usa: {how}" if how else "")
+                if route and not route.endswith("/") and not route.startswith("http"):
+                    body += f"\n\n[[NAV:{route}|{a['title']}]]"
+                logger.info("[manual] risposta nativa how-to → %s", a["title"][:40])
+                return {"reply": body, "intent": "navigate", "route": route, "source": "manual"}
+        except Exception:  # noqa: BLE001
+            pass
     try:
         if r and r.get("reply"):
             m = _mn_re.search(r"\[\[NAV:([^|\]]+)\|", r["reply"])

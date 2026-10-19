@@ -61,7 +61,8 @@ def test_no_heavy_drive_work_at_boot_and_low_priority_reindex():
     sched = _src("routes/37_app_startup_scheduler.py")
     assert '_run_drive_parser_upgrade_nightly, "cron", hour=3' in sched
     assert 'await asyncio.sleep(float(os.environ.get("DRIVE_REINDEX_PAUSE_S") or 2.0))' in _src("routes/34_alarms_homeassistant.py")
-    assert 'int(os.environ.get("AXON_EMBED_THREADS") or 1)' in _src("core/embedding.py")
+    e = _src("core/embedding.py")  # tag 2026-10-19 — query live 2 thread, indicizzazione (reindex) istanza separata a 1 thread
+    assert 'or 2))' in e and "index_embedder = LocalEmbedder(default_model_dir(), threads=1)" in e
     assert _src("routes/01b_heavy_bridge.py").count("preexec_fn=_hv_low_priority") == 2
     assert '@api_router.get("/google-drive/root-files")' in adr, "endpoint perso durante il refactor (già successo in z568)"
     idle = _src("routes/axon_idle_summary.py")
